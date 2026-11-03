@@ -132,3 +132,44 @@ moe_status, what the margin of error is:
 | range | moe is NULL, value_low and value_high bound the value | "about X (range L to H)" |
 
 Raw Census and DBEDT codes map onto these statuses in klear/etl/acs_values.py and nowhere else.
+
+## Landing page and chat
+
+Build the data store, then run:
+
+    uv run python -m klear.web
+
+Open http://127.0.0.1:8000. The website answers from the local DuckDB
+store with deterministic question matching. It never loads an Anthropic client,
+reads `ANTHROPIC_API_KEY`, calls a model, or touches the spending ledger. No
+paid chat calls can be triggered by website visitors, even if a key is present
+in the server environment. The CLI (`python -m klear.agent`) and live eval
+remain separate and can incur costs if an operator runs them; do not use those
+commands for the public website.
+
+The landing page uses the project-provided `background1.png` photo, copied
+as a smaller metadata-free `klear/web/static/background1.jpg`. It loads no
+third-party images, fonts, scripts, or analytics.
+
+The landing page resolves House/Senate numbers, towns and ZIPs using the
+built store. Overlaps are shown as choices instead of guessing a district.
+Chat includes example questions, a waiting state, explicit refusal labels,
+and figure cards with uncertainty, vintage, geography and official source
+links. Program questions list official guidance without assessing individual
+eligibility. Questions outside the available measures receive a clear limit
+instead of a guessed answer. Questions are independent: previous messages
+are displayed locally but are not sent as conversation history.
+
+Options: `--port 8000`, `--host 127.0.0.1`, `--store PATH`.
+Only the static web assets are served; the repository and store cannot be
+downloaded. The server permits one question at a time and rejects cross-origin
+browser requests. HTTP logs are disabled to avoid recording questions.
+
+For judging access from other devices, deploy behind an HTTPS reverse proxy
+with request limits. The included Python HTTP server is a demo entry point,
+not a hardened public hosting service. Keep the built store on the server.
+
+Delivery checkpoints (HST): usable for video before November 16, 2026 at
+9:00 a.m.; finals demo ready November 21, 2026. Before recording, build and
+validate the real store, run a live question and refusal with the operator's
+server key, check the deployed URL on mobile, and confirm all source links.

@@ -18,3 +18,11 @@ dist/
 
 # OS files
 .DS_Store
+
+# Local credentials (never commit these)
+.env
+.env.*
+!.env.example
+
+# Source photo is copied into the served static directory
+/background1.png
