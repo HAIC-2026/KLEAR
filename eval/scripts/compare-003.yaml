@@ -1,0 +1,36 @@
+# Scripted model turns for compare-003: resolve place, search indicators, compare, then submit.
+- - type: tool_use
+    name: resolve_place
+    input:
+      text: Senate District 3
+- - type: tool_use
+    name: resolve_place
+    input:
+      text: Hawaiʻi County
+- - type: tool_use
+    name: search_indicators
+    input:
+      words:
+      - uninsured
+- - type: tool_use
+    name: compare
+    input:
+      indicator_id: pct_uninsured
+      geo: senate:003
+- - type: tool_use
+    name: submit_answer
+    input:
+      resolved: senate:003
+      refusal: none
+      blocks:
+      - '{label:f1} in {geo:senate:003}: {fact:f1} ({vintage:f1}).'
+      - '{geo:senate:003}: Higher than {geo:county:15001}. {label:f2} in {geo:county:15001}:
+        {fact:f2} ({vintage:f2}).'
+      - '{geo:senate:003}: Higher than {geo:state:15}. {label:f3} in {geo:state:15}:
+        {fact:f3} ({vintage:f3}).'
+      facts:
+      - f1
+      - f2
+      - f3
+      programs: []
+      caveats: []

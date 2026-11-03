@@ -1,0 +1,16 @@
+id: help_sites-003
+category: help_sites
+question: Can you give me the LIHTC property count for House District 21 in Hawaiʻi?
+ideal: Give the low income housing tax credit property count for this Hawaiʻi House district with the
+  source vintage. Clarify that listed properties do not establish current vacancies, open waitlists, or
+  household eligibility.
+district:
+- house
+- '021'
+facts:
+- - sites_lihtc
+  - house
+  - '021'
+programs: []
+# pending program: LIHTC (no rule in data/rules)
+refusal: none

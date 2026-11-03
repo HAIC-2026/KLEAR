@@ -1,0 +1,9 @@
+rule_id: ssi_hi_supplement
+program: Hawaiʻi SSI state supplement
+status: needs_manual
+effective: '2026-01-01'
+url: https://humanservices.hawaii.gov/bessd/
+values: {}
+verified_by: not read in this session
+retrieved: '2026-10-30'
+note: state supplement amounts not found, confirm by hand

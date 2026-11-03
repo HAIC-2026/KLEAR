@@ -1,0 +1,16 @@
+id: profile-007
+category: profile
+question: What share of households in Senate District 1 in Hawaiʻi have children?
+ideal: Give the share of households with children for this Hawaiʻi Senate district and define the age
+  group. Cite ACS vintage and margin of error, keeping households distinct from people.
+district:
+- senate
+- '001'
+facts:
+- - pct_hh_with_children
+  - senate
+  - '001'
+must_say:
+- 2020-2024
+- margin of error
+refusal: none

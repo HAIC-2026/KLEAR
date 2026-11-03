@@ -1,0 +1,18 @@
+# Scripted model turns for find_district-004: resolve Kāneʻohe, list every district it spans, ask for a narrower place.
+- - type: tool_use
+    name: resolve_place
+    input:
+      text: Kāneʻohe
+- - type: tool_use
+    name: submit_answer
+    input:
+      resolved: null
+      refusal: none
+      blocks:
+      - Kāneʻohe lies mostly in {geo:house:049} and partly in {geo:house:050} and
+        {geo:house:048}.
+      - It also overlaps {geo:senate:024} and {geo:senate:023}. Please specify the
+        district or chamber you need.
+      facts: []
+      programs: []
+      caveats: []

@@ -1,0 +1,24 @@
+id: programs_gap-005
+category: programs_gap
+question: Could we subtract housing vouchers from rent-burdened households in Hawaiʻi Senate District
+  10 to get the unmet need?
+ideal: Present available voucher and severe renter burden estimates for this Hawaiʻi Senate district with
+  their sources and vintages. Explain the population and timing mismatch and decline to label their difference
+  an eligibility or unmet need count.
+district:
+- senate
+- '010'
+facts:
+- - hud_vouchers
+  - senate
+  - '010'
+- - renter_hh_rent_50_plus
+  - senate
+  - '010'
+must_say:
+- estimate
+must_not_say:
+- exact unmet need
+programs:
+- hud_il_fy2026_hi
+refusal: none

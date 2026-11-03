@@ -1,0 +1,165 @@
+{
+  "answer": {
+    "contract": "1",
+    "resolved": [
+      "house",
+      "010"
+    ],
+    "refusal": "none",
+    "blocks": [
+      "In {geo:house:010}, the {label:f1} is {fact:f1} ({vintage:f1}).",
+      "Rent burden is common among renters in the district. The {label:f2} is {fact:f2} ({vintage:f2}).",
+      "The count of {label:f3} is {fact:f3} ({vintage:f3})."
+    ],
+    "facts": [
+      {
+        "ref": "f1",
+        "indicator_id": "median_gross_rent",
+        "geo_type": "house",
+        "geo_id": "010",
+        "source_id": "acs2024_5yr_profile",
+        "value": 1803.0,
+        "value_low": null,
+        "value_high": null,
+        "moe": 144.0,
+        "vintage": "2020-2024 ACS 5-year"
+      },
+      {
+        "ref": "f2",
+        "indicator_id": "pct_rent_burden_35_plus",
+        "geo_type": "house",
+        "geo_id": "010",
+        "source_id": "acs2024_5yr_profile",
+        "value": 51.3,
+        "value_low": null,
+        "value_high": null,
+        "moe": 7.5,
+        "vintage": "2020-2024 ACS 5-year"
+      },
+      {
+        "ref": "f3",
+        "indicator_id": "renter_hh_rent_50_plus",
+        "geo_type": "house",
+        "geo_id": "010",
+        "source_id": "acs2024_5yr_detailed",
+        "value": 692.0,
+        "value_low": null,
+        "value_high": null,
+        "moe": 221.0,
+        "vintage": "2020-2024 ACS 5-year"
+      }
+    ],
+    "programs": [],
+    "caveats": [
+      "These are American Community Survey multi-year estimates; the margins of error are shown with each value, and the figures are not adjusted for recent rent changes."
+    ]
+  },
+  "usage": {
+    "input_tokens": 24049,
+    "output_tokens": 936,
+    "seconds": 5.7934961600694805
+  },
+  "trace": [
+    {
+      "stop": "tool_use",
+      "calls": [
+        {
+          "text": "I'll resolve the district and search for rent indicators together."
+        },
+        {
+          "tool": "resolve_place",
+          "input": {
+            "text": "house:010"
+          }
+        },
+        {
+          "tool": "search_indicators",
+          "input": {
+            "words": [
+              "rent",
+              "renter",
+              "rent burden",
+              "gross rent"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "stop": "tool_use",
+      "calls": [
+        {
+          "text": "Now I'll fetch the rent facts for the district."
+        },
+        {
+          "tool": "get_facts",
+          "input": {
+            "indicator_ids": [
+              "median_gross_rent",
+              "pct_rent_burden_35_plus",
+              "renter_hh_rent_50_plus"
+            ],
+            "geos": [
+              "house:010"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "stop": "tool_use",
+      "calls": [
+        {
+          "tool": "submit_answer",
+          "input": {
+            "resolved": "house:010",
+            "refusal": "none",
+            "blocks": [
+              "In {geo:house:010}, the {label:f1} is {fact:f1} ({vintage:f1}).",
+              "Rent burden is common among renters in the district. The {label:f2} is {fact:f2} ({vintage:f2}).",
+              "The count of {label:f3} is {fact:f3} ({vintage:f3})."
+            ],
+            "facts": [
+              "f1",
+              "f2",
+              "f3"
+            ],
+            "programs": [],
+            "caveats": [
+              "These are American Community Survey five-year estimates; the margins of error are shown with each value, and the figures are not adjusted for recent rent changes."
+            ]
+          }
+        }
+      ],
+      "problems": [
+        "number word 'five'"
+      ]
+    },
+    {
+      "stop": "tool_use",
+      "calls": [
+        {
+          "tool": "submit_answer",
+          "input": {
+            "resolved": "house:010",
+            "refusal": "none",
+            "blocks": [
+              "In {geo:house:010}, the {label:f1} is {fact:f1} ({vintage:f1}).",
+              "Rent burden is common among renters in the district. The {label:f2} is {fact:f2} ({vintage:f2}).",
+              "The count of {label:f3} is {fact:f3} ({vintage:f3})."
+            ],
+            "facts": [
+              "f1",
+              "f2",
+              "f3"
+            ],
+            "programs": [],
+            "caveats": [
+              "These are American Community Survey multi-year estimates; the margins of error are shown with each value, and the figures are not adjusted for recent rent changes."
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

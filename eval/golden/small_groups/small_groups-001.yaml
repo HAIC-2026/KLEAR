@@ -1,0 +1,17 @@
+id: small_groups-001
+category: small_groups
+question: Can I quote the exact number of grandparents raising grandchildren in Hawaiʻi House District
+  1?
+ideal: Give the ACS estimate and margin of error for grandparents responsible for their grandchildren
+  in this Hawaiʻi district. Explain that the margin of error is wide for quoting an exact number, so give it as a range, and suggest a Senate or county view before using it in a briefing.
+district:
+- house
+- '001'
+facts:
+- - grandparents_responsible
+  - house
+  - '001'
+must_say:
+- margin of error
+- 2020-2024
+refusal: none

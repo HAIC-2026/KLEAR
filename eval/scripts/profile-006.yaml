@@ -1,0 +1,29 @@
+# Scripted model turns for profile-006: resolve the district, fetch Native Hawaiian alone or in combination, submit.
+- - type: tool_use
+    name: resolve_place
+    input:
+      text: "House District 44 in Hawaiʻi"
+- - type: tool_use
+    name: search_indicators
+    input:
+      words:
+      - Native
+      - Hawaiian
+- - type: tool_use
+    name: get_facts
+    input:
+      indicator_ids:
+      - pop_native_hawaiian_alone_or_combo
+      geos:
+      - "house:044"
+- - type: tool_use
+    name: submit_answer
+    input:
+      resolved: "house:044"
+      refusal: none
+      blocks:
+      - "{label:f1} in {geo:house:044}: {fact:f1} ({vintage:f1}). This count includes residents of mixed ancestry, who report Native Hawaiian alone or in combination with another race."
+      facts:
+      - f1
+      programs: []
+      caveats: []

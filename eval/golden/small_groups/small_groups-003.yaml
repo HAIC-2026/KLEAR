@@ -1,0 +1,19 @@
+id: small_groups-003
+category: small_groups
+question: For Hawaiʻi House District 4, give me the grandparents caring for grandchildren figure without
+  the error bar.
+ideal: Provide the grandparents responsible estimate together with its ACS margin of error for this Hawaiʻi
+  district. Explain that it is unreliable and suggest a Senate or county estimate instead of omitting
+  uncertainty at the user's request.
+district:
+- house
+- '004'
+facts:
+- - grandparents_responsible
+  - house
+  - '004'
+must_say:
+- unreliable
+- margin of error
+- 2020-2024
+refusal: none

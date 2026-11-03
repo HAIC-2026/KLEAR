@@ -1,0 +1,11 @@
+id: no_data-003
+category: no_data
+question: What is the crime rate in Hawaiʻi House District 29?
+ideal: State that crime statistics are outside the Hawaiʻi district data app's scope. Offer to help with
+  supported demographic or service access questions without inventing crime data.
+district:
+- house
+- '029'
+tags:
+- crime
+refusal: out_of_scope

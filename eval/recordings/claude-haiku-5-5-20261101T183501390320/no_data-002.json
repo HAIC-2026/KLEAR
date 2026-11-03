@@ -1,0 +1,58 @@
+{
+  "answer": {
+    "contract": "1",
+    "resolved": [
+      "house",
+      "027"
+    ],
+    "refusal": "out_of_scope",
+    "blocks": [
+      "KLEAR does not hold homelessness counts, so I cannot report how many homeless residents live in {geo:house:027}. KLEAR covers population, income, housing, health and program facts for districts, and I can provide any of those for {geo:house:027} if that would help."
+    ],
+    "facts": [],
+    "programs": [],
+    "caveats": []
+  },
+  "usage": {
+    "input_tokens": 10191,
+    "output_tokens": 407,
+    "seconds": 2.794326006900519
+  },
+  "trace": [
+    {
+      "stop": "tool_use",
+      "calls": [
+        {
+          "text": "Homelessness counts are outside KLEAR's data. I should still resolve the district so the answer names it correctly."
+        },
+        {
+          "tool": "resolve_place",
+          "input": {
+            "text": "house:027"
+          }
+        }
+      ]
+    },
+    {
+      "stop": "tool_use",
+      "calls": [
+        {
+          "text": "Homelessness counts are out of KLEAR's scope. KLEAR covers population, income, housing, health and program facts for districts, so I can't give a homeless count for House District 27."
+        },
+        {
+          "tool": "submit_answer",
+          "input": {
+            "resolved": "house:027",
+            "refusal": "out_of_scope",
+            "blocks": [
+              "KLEAR does not hold homelessness counts, so I cannot report how many homeless residents live in {geo:house:027}. KLEAR covers population, income, housing, health and program facts for districts, and I can provide any of those for {geo:house:027} if that would help."
+            ],
+            "facts": [],
+            "programs": [],
+            "caveats": []
+          }
+        }
+      ]
+    }
+  ]
+}

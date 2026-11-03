@@ -1,0 +1,26 @@
+id: messy_input-001
+category: messy_input
+question: kaneohe district? just have the town
+ideal: Normalize the place name to Kāneʻohe and explain that a town name may cross district boundaries.
+  Ask which chamber and a more specific public location or selected district before assigning a unique
+  district.
+tags:
+- ambiguous_place
+must_say:
+- Kāneʻohe
+allowed_geos:
+- - house
+  - '048'
+- - house
+  - '049'
+- - house
+  - '050'
+- - senate
+  - '023'
+- - senate
+  - '024'
+- - zcta
+  - '96744'
+- - county
+  - '15003'
+refusal: none

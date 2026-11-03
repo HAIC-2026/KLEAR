@@ -1,0 +1,18 @@
+id: small_groups-002
+category: small_groups
+question: Is the Native Hawaiian alone count in Hawaiʻi House District 2 precise enough for a small outreach
+  target?
+ideal: Give the Native Hawaiian alone estimate and margin of error for this Hawaiʻi district, distinguishing
+  it from mixed ancestry counts. Explain that the margin of error is wide for a small outreach target, so give a range, and suggest a larger
+  geography rather than treating the estimate as a precise target.
+district:
+- house
+- '002'
+facts:
+- - pop_native_hawaiian_alone
+  - house
+  - '002'
+must_say:
+- margin of error
+- 2020-2024
+refusal: none

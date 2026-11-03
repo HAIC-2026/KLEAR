@@ -1,0 +1,266 @@
+{
+  "answer": {
+    "contract": "1",
+    "resolved": [
+      "senate",
+      "011"
+    ],
+    "refusal": "none",
+    "blocks": [
+      "No. Social Security receipt does not show who qualifies for SSI. These are separate programs with different rules. Social Security retirement and survivor benefits are paid without an income-based test, while the federal SSI payment goes to aged, blind or disabled people with low income and few resources, and the Hawaiʻi state supplement is administered separately by the state. KLEAR does not hold individual eligibility, so it cannot identify who qualifies.",
+      "In {geo:senate:011}, the share of households with Social Security income is {fact:f1} ({vintage:f1}), compared with {fact:f4} statewide in {geo:state:15}. The share of households with Supplemental Security Income is {fact:f2} ({vintage:f2}), compared with {fact:f5} statewide. The share of residents aged older than the kūpuna threshold, {label:f3}, is {fact:f3} ({vintage:f3}), compared with {fact:f6} statewide.",
+      "For kūpuna outreach, the district-level SSI household share indicates where SSI recipients live but does not identify eligible individuals. Outreach to likely SSI-eligible kūpuna would need Social Security Administration and Department of Human Services screening tools."
+    ],
+    "facts": [
+      {
+        "ref": "f1",
+        "indicator_id": "pct_hh_social_security",
+        "geo_type": "senate",
+        "geo_id": "011",
+        "source_id": "acs2024_5yr_profile",
+        "value": 34.3,
+        "value_low": null,
+        "value_high": null,
+        "moe": 2.3,
+        "vintage": "2020-2024 ACS 5-year"
+      },
+      {
+        "ref": "f2",
+        "indicator_id": "pct_hh_ssi",
+        "geo_type": "senate",
+        "geo_id": "011",
+        "source_id": "acs2024_5yr_profile",
+        "value": 2.3,
+        "value_low": null,
+        "value_high": null,
+        "moe": 0.6,
+        "vintage": "2020-2024 ACS 5-year"
+      },
+      {
+        "ref": "f3",
+        "indicator_id": "pct_65_plus",
+        "geo_type": "senate",
+        "geo_id": "011",
+        "source_id": "acs2024_5yr_profile",
+        "value": 23.5,
+        "value_low": null,
+        "value_high": null,
+        "moe": 1.2,
+        "vintage": "2020-2024 ACS 5-year"
+      },
+      {
+        "ref": "f4",
+        "indicator_id": "pct_hh_social_security",
+        "geo_type": "state",
+        "geo_id": "15",
+        "source_id": "acs2024_5yr_profile",
+        "value": 37.8,
+        "value_low": null,
+        "value_high": null,
+        "moe": 0.3,
+        "vintage": "2020-2024 ACS 5-year"
+      },
+      {
+        "ref": "f5",
+        "indicator_id": "pct_hh_ssi",
+        "geo_type": "state",
+        "geo_id": "15",
+        "source_id": "acs2024_5yr_profile",
+        "value": 4.3,
+        "value_low": null,
+        "value_high": null,
+        "moe": 0.2,
+        "vintage": "2020-2024 ACS 5-year"
+      },
+      {
+        "ref": "f6",
+        "indicator_id": "pct_65_plus",
+        "geo_type": "state",
+        "geo_id": "15",
+        "source_id": "acs2024_5yr_profile",
+        "value": 20.5,
+        "value_low": null,
+        "value_high": null,
+        "moe": 0.1,
+        "vintage": "2020-2024 ACS 5-year"
+      }
+    ],
+    "programs": [
+      "ssi_federal_2026",
+      "ssi_hi_supplement"
+    ],
+    "caveats": [
+      "Household shares come from the {vintage:f1} survey, which does not measure individual eligibility for SSI or the state supplement. {fact:f1} and {fact:f2} are both {vintage:f2} figures for {geo:senate:011}."
+    ]
+  },
+  "usage": {
+    "input_tokens": 37426,
+    "output_tokens": 2386,
+    "seconds": 14.49519570497796
+  },
+  "trace": [
+    {
+      "stop": "tool_use",
+      "calls": [
+        {
+          "text": "This question is about whether Social Security receipt indicates SSI eligibility. I'll resolve the district and search indicators first."
+        },
+        {
+          "tool": "resolve_place",
+          "input": {
+            "text": "senate:011"
+          }
+        },
+        {
+          "tool": "search_indicators",
+          "input": {
+            "words": [
+              "Social Security",
+              "SSI",
+              "supplemental security income",
+              "kupuna",
+              "elderly"
+            ]
+          }
+        },
+        {
+          "tool": "list_programs",
+          "input": {
+            "words": [
+              "SSI",
+              "Social Security",
+              "supplemental"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "stop": "tool_use",
+      "calls": [
+        {
+          "text": "Now I'll fetch the Social Security and SSI household shares for the district, with the state for comparison."
+        },
+        {
+          "tool": "get_facts",
+          "input": {
+            "indicator_ids": [
+              "pct_hh_social_security",
+              "pct_hh_ssi",
+              "pct_65_plus"
+            ],
+            "geos": [
+              "senate:011",
+              "state:15"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "stop": "tool_use",
+      "calls": [
+        {
+          "tool": "submit_answer",
+          "input": {
+            "resolved": "senate:011",
+            "refusal": "none",
+            "blocks": [
+              "No. Social Security receipt does not show who qualifies for SSI. The two are different programs with different rules. Social Security retirement and survivor benefits are paid to many people with no income-based test, while the federal SSI payment is paid to aged, blind or disabled people with low income and few resources, and the Hawaiʻi state supplement is administered separately by the state. KLEAR does not hold individual eligibility, so it cannot identify who qualifies.",
+              "In {geo:senate:011}, the share of households with Social Security income is {fact:f1} ({vintage:f1}), compared with {fact:f4} statewide ({vintage:f4}). The share of households with Supplemental Security Income is {fact:f2} ({vintage:f2}), compared with {fact:f5} for {geo:state:15} ({vintage:f5}). The share of residents aged 65 and over is {fact:f3} ({vintage:f3}), compared with {fact:f6} statewide.",
+              "For kūpuna outreach, the district-level SSI household share is a rough indicator of where SSI recipients live, but it does not identify eligible individuals. Outreach to likely SSI-eligible kūpuna would need the Social Security Administration and Department of Human Services screening tools."
+            ],
+            "facts": [
+              "f1",
+              "f2",
+              "f3",
+              "f4",
+              "f5",
+              "f6"
+            ],
+            "programs": [
+              "ssi_federal_2026",
+              "ssi_hi_supplement"
+            ],
+            "caveats": [
+              "Household shares come from the {vintage:f1} survey, which does not measure individual eligibility for SSI or the state supplement."
+            ]
+          }
+        }
+      ],
+      "problems": [
+        "number word 'two'",
+        "unsourced number '65'",
+        "{vintage:f1} without {fact:f1} in the same block",
+        "write every place with a geo marker such as {geo:house:009}, never a typed district number, and every value with a fact marker"
+      ]
+    },
+    {
+      "stop": "tool_use",
+      "calls": [
+        {
+          "tool": "submit_answer",
+          "input": {
+            "resolved": "senate:011",
+            "refusal": "none",
+            "blocks": [
+              "No. Social Security receipt does not show who qualifies for SSI. These are separate programs with different rules. Social Security retirement and survivor benefits are paid without an income-based test, while the federal SSI payment goes to aged, blind or disabled people with low income and few resources, and the Hawaiʻi state supplement is administered separately by the state. KLEAR does not hold individual eligibility, so it cannot identify who qualifies.",
+              "In {geo:senate:011}, the share of households with Social Security income is {fact:f1} ({vintage:f1}), compared with {fact:f4} statewide in {geo:state:15}. The share of households with Supplemental Security Income is {fact:f2} ({vintage:f2}), compared with {fact:f5} statewide. The share of residents aged older than the kūpuna threshold, {label:f3}, is {fact:f3} ({vintage:f3}), compared with {fact:f6} statewide.",
+              "For kūpuna outreach, the district-level SSI household share indicates where SSI recipients live but does not identify eligible individuals. Outreach to likely SSI-eligible kūpuna would need Social Security Administration and Department of Human Services screening tools."
+            ],
+            "facts": [
+              "f1",
+              "f2",
+              "f3",
+              "f4",
+              "f5",
+              "f6"
+            ],
+            "programs": [
+              "ssi_federal_2026",
+              "ssi_hi_supplement"
+            ],
+            "caveats": [
+              "Household shares come from the {vintage:f1} survey, which does not measure individual eligibility for SSI or the state supplement."
+            ]
+          }
+        }
+      ],
+      "problems": [
+        "{vintage:f1} without {fact:f1} in the same block"
+      ]
+    },
+    {
+      "stop": "tool_use",
+      "calls": [
+        {
+          "tool": "submit_answer",
+          "input": {
+            "resolved": "senate:011",
+            "refusal": "none",
+            "blocks": [
+              "No. Social Security receipt does not show who qualifies for SSI. These are separate programs with different rules. Social Security retirement and survivor benefits are paid without an income-based test, while the federal SSI payment goes to aged, blind or disabled people with low income and few resources, and the Hawaiʻi state supplement is administered separately by the state. KLEAR does not hold individual eligibility, so it cannot identify who qualifies.",
+              "In {geo:senate:011}, the share of households with Social Security income is {fact:f1} ({vintage:f1}), compared with {fact:f4} statewide in {geo:state:15}. The share of households with Supplemental Security Income is {fact:f2} ({vintage:f2}), compared with {fact:f5} statewide. The share of residents aged older than the kūpuna threshold, {label:f3}, is {fact:f3} ({vintage:f3}), compared with {fact:f6} statewide.",
+              "For kūpuna outreach, the district-level SSI household share indicates where SSI recipients live but does not identify eligible individuals. Outreach to likely SSI-eligible kūpuna would need Social Security Administration and Department of Human Services screening tools."
+            ],
+            "facts": [
+              "f1",
+              "f2",
+              "f3",
+              "f4",
+              "f5",
+              "f6"
+            ],
+            "programs": [
+              "ssi_federal_2026",
+              "ssi_hi_supplement"
+            ],
+            "caveats": [
+              "Household shares come from the {vintage:f1} survey, which does not measure individual eligibility for SSI or the state supplement. {fact:f1} and {fact:f2} are both {vintage:f2} figures for {geo:senate:011}."
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

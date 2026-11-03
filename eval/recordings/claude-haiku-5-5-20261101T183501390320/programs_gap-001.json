@@ -1,0 +1,277 @@
+{
+  "answer": {
+    "contract": "1",
+    "resolved": [
+      "house",
+      "011"
+    ],
+    "refusal": "none",
+    "blocks": [
+      "KLEAR does not hold a count of families who could claim the EITC but do not. The data publishes only the returns that claimed it, so the number of unclaimed families in {geo:house:011} cannot be given from this data.",
+      "The claim figures for {geo:house:011} are {label:f1} at {fact:f1}, with {label:f2} at {fact:f2} ({vintage:f1}). The state shows {fact:f4} returns claiming the credit out of {fact:f5} returns ({vintage:f4}). These are apportioned estimates moved to the district from ZIP code data. They show how many returns claimed the credit, and they do not show who is eligible but did not claim.",
+      "The Federal EITC is administered by the Internal Revenue Service. The Hawaiʻi state EITC, food/excise and renters credits are administered by the Hawaiʻi Department of Taxation and are marked as needing manual review."
+    ],
+    "facts": [
+      {
+        "ref": "f1",
+        "indicator_id": "irs_eitc_returns",
+        "geo_type": "house",
+        "geo_id": "011",
+        "source_id": "irs_soi_zip_2023",
+        "value": 1693.6347244762435,
+        "value_low": 1610.0,
+        "value_high": 2173.318761777395,
+        "moe": null,
+        "vintage": "Tax year 2023"
+      },
+      {
+        "ref": "f2",
+        "indicator_id": "irs_returns",
+        "geo_type": "house",
+        "geo_id": "011",
+        "source_id": "irs_soi_zip_2023",
+        "value": 14488.071537789649,
+        "value_low": 13810.0,
+        "value_high": 18725.280533949823,
+        "moe": null,
+        "vintage": "Tax year 2023"
+      },
+      {
+        "ref": "f4",
+        "indicator_id": "irs_eitc_returns",
+        "geo_type": "state",
+        "geo_id": "15",
+        "source_id": "irs_soi_zip_2023",
+        "value": 83180.0,
+        "value_low": null,
+        "value_high": null,
+        "moe": null,
+        "vintage": "Tax year 2023"
+      },
+      {
+        "ref": "f5",
+        "indicator_id": "irs_returns",
+        "geo_type": "state",
+        "geo_id": "15",
+        "source_id": "irs_soi_zip_2023",
+        "value": 681450.0,
+        "value_low": null,
+        "value_high": null,
+        "moe": null,
+        "vintage": "Tax year 2023"
+      }
+    ],
+    "programs": [
+      "eitc_federal_ty2025",
+      "eitc_federal_ty2026",
+      "hi_state_credits"
+    ],
+    "caveats": [
+      "The district figure {fact:f1} is an apportioned estimate with a wide range, and it counts claims, not eligible families who did not claim ({vintage:f1}).",
+      "For a steadier figure on claims, use the Senate district or the county."
+    ]
+  },
+  "usage": {
+    "input_tokens": 50700,
+    "output_tokens": 2673,
+    "seconds": 13.432287657866254
+  },
+  "trace": [
+    {
+      "stop": "tool_use",
+      "calls": [
+        {
+          "text": "I'll start by resolving House District 11 and looking for EITC-related indicators and programs."
+        },
+        {
+          "tool": "resolve_place",
+          "input": {
+            "text": "house:011"
+          }
+        },
+        {
+          "tool": "search_indicators",
+          "input": {
+            "words": [
+              "EITC",
+              "earned income tax credit",
+              "unclaimed"
+            ]
+          }
+        },
+        {
+          "tool": "list_programs",
+          "input": {
+            "words": [
+              "EITC",
+              "earned income"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "stop": "tool_use",
+      "calls": [
+        {
+          "text": "KLEAR holds returns claiming the EITC, but not an estimate of eligible families who do not claim it. I'll fetch the claim figures for the district and the state for context."
+        },
+        {
+          "tool": "get_facts",
+          "input": {
+            "indicator_ids": [
+              "irs_eitc_returns",
+              "irs_returns",
+              "irs_eitc_dollars"
+            ],
+            "geos": [
+              "house:011",
+              "state:15"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "stop": "tool_use",
+      "calls": [
+        {
+          "tool": "submit_answer",
+          "input": {
+            "resolved": "house:011",
+            "refusal": "not_available",
+            "blocks": [
+              "KLEAR does not hold a count of families who could claim the EITC but do not. It publishes only the returns that claimed it, so the number of unclaimed families in {geo:house:011} cannot be given from this data.",
+              "The claim figures for {geo:house:011} are {label:f1} at {fact:f1}, with {label:f2} at {fact:f2} ({vintage:f1}). The state shows {fact:f4} returns claiming the credit out of {fact:f5} returns ({vintage:f4}). These are apportioned estimates moved to the district from ZIP code data, and they do not show who is eligible but did not claim.",
+              "The Hawaiʻi Department of Taxation administers the state EITC, which is marked as needing manual review, and the Internal Revenue Service administers the Federal EITC ({geo:state:15})."
+            ],
+            "facts": [
+              "f1",
+              "f2",
+              "f4",
+              "f5"
+            ],
+            "programs": [
+              "eitc_federal_ty2025",
+              "eitc_federal_ty2026",
+              "hi_state_credits"
+            ],
+            "caveats": [
+              "The district figure is an apportioned estimate with a wide range, and it is a count of claims, not of eligible non-claimants ({vintage:f1}).",
+              "For a steadier figure on claims, use the Senate district or the county."
+            ]
+          }
+        }
+      ],
+      "problems": [
+        "{vintage:f1} without {fact:f1} in the same block"
+      ]
+    },
+    {
+      "stop": "tool_use",
+      "calls": [
+        {
+          "tool": "submit_answer",
+          "input": {
+            "resolved": "house:011",
+            "refusal": "not_available",
+            "blocks": [
+              "KLEAR does not hold a count of families who could claim the EITC but do not. It publishes only the returns that claimed it, so the number of unclaimed families in {geo:house:011} cannot be given from this data.",
+              "The claim figures for {geo:house:011} are {label:f1} at {fact:f1}, with {label:f2} at {fact:f2} ({vintage:f1}). The state shows {fact:f4} returns claiming the credit out of {fact:f5} returns ({vintage:f4}). These are apportioned estimates moved to the district from ZIP code data, and they do not show who is eligible but did not claim.",
+              "The Hawaiʻi Department of Taxation administers the state EITC, which is marked as needing manual review, and the Internal Revenue Service administers the Federal EITC ({geo:state:15})."
+            ],
+            "facts": [
+              "f1",
+              "f2",
+              "f4",
+              "f5"
+            ],
+            "programs": [
+              "eitc_federal_ty2025",
+              "eitc_federal_ty2026",
+              "hi_state_credits"
+            ],
+            "caveats": [
+              "The district figure is an apportioned estimate with a wide range, and it counts claims, not eligible families who did not claim ({vintage:f1}).",
+              "For a steadier figure on claims, use the Senate district or the county."
+            ]
+          }
+        }
+      ],
+      "problems": [
+        "{vintage:f1} without {fact:f1} in the same block"
+      ]
+    },
+    {
+      "stop": "tool_use",
+      "calls": [
+        {
+          "text": "The caveat block has a vintage marker without a fact marker in the same block, so I'll add the fact marker there too."
+        },
+        {
+          "tool": "submit_answer",
+          "input": {
+            "resolved": "house:011",
+            "refusal": "not_available",
+            "blocks": [
+              "KLEAR does not hold a count of families who could claim the EITC but do not. It publishes only the returns that claimed it, so the number of unclaimed families in {geo:house:011} cannot be given from this data.",
+              "The claim figures for {geo:house:011} are {label:f1} at {fact:f1}, with {label:f2} at {fact:f2} ({vintage:f1}). The state shows {fact:f4} returns claiming the credit out of {fact:f5} returns ({vintage:f4}). These are apportioned estimates moved to the district from ZIP code data, and they do not show who is eligible but did not claim.",
+              "The Hawaiʻi Department of Taxation administers the state EITC, which is marked as needing manual review, and the Internal Revenue Service administers the Federal EITC ({geo:state:15})."
+            ],
+            "facts": [
+              "f1",
+              "f2",
+              "f4",
+              "f5"
+            ],
+            "programs": [
+              "eitc_federal_ty2025",
+              "eitc_federal_ty2026",
+              "hi_state_credits"
+            ],
+            "caveats": [
+              "The district figure {fact:f1} is an apportioned estimate with a wide range and counts claims, not eligible families who did not claim ({vintage:f1}).",
+              "For a steadier figure on claims, use the Senate district or the county."
+            ]
+          }
+        }
+      ],
+      "problems": [
+        "program hi_state_credits is listed but not named in the text; write it as 'Hawaiʻi state EITC, food/excise and renters credits'",
+        "the answer cites irs_eitc_returns, a measure of a listed program, so set refusal none and say plainly what those figures do not show"
+      ]
+    },
+    {
+      "stop": "tool_use",
+      "calls": [
+        {
+          "tool": "submit_answer",
+          "input": {
+            "resolved": "house:011",
+            "refusal": "none",
+            "blocks": [
+              "KLEAR does not hold a count of families who could claim the EITC but do not. The data publishes only the returns that claimed it, so the number of unclaimed families in {geo:house:011} cannot be given from this data.",
+              "The claim figures for {geo:house:011} are {label:f1} at {fact:f1}, with {label:f2} at {fact:f2} ({vintage:f1}). The state shows {fact:f4} returns claiming the credit out of {fact:f5} returns ({vintage:f4}). These are apportioned estimates moved to the district from ZIP code data. They show how many returns claimed the credit, and they do not show who is eligible but did not claim.",
+              "The Federal EITC is administered by the Internal Revenue Service. The Hawaiʻi state EITC, food/excise and renters credits are administered by the Hawaiʻi Department of Taxation and are marked as needing manual review."
+            ],
+            "facts": [
+              "f1",
+              "f2",
+              "f4",
+              "f5"
+            ],
+            "programs": [
+              "eitc_federal_ty2025",
+              "eitc_federal_ty2026",
+              "hi_state_credits"
+            ],
+            "caveats": [
+              "The district figure {fact:f1} is an apportioned estimate with a wide range, and it counts claims, not eligible families who did not claim ({vintage:f1}).",
+              "For a steadier figure on claims, use the Senate district or the county."
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

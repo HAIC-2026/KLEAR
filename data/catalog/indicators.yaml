@@ -1,0 +1,309 @@
+# Curated ACS 2020-2024 5-year indicators loaded into the KLEAR fact store.
+# An entry may add geo_types, the geographies it is published for (default: state, county, senate, house).
+indicators:
+  - indicator_id: pop_total
+    label: "Total population"
+    unit: count
+    universe: "Total population"
+    acs_var: DP05_0001
+    dataset: acs/acs5/profile
+  - indicator_id: pop_under_5
+    label: "Population under 5 years"
+    unit: count
+    universe: "Total population"
+    acs_var: DP05_0005
+    dataset: acs/acs5/profile
+  - indicator_id: pop_under_18
+    label: "Population under 18 years"
+    unit: count
+    universe: "Total population"
+    acs_var: DP05_0019
+    dataset: acs/acs5/profile
+  - indicator_id: pop_65_plus
+    label: "Population 65 years and over"
+    unit: count
+    universe: "Total population"
+    acs_var: DP05_0024
+    dataset: acs/acs5/profile
+  - indicator_id: pct_65_plus
+    label: "Percent of population 65 years and over"
+    unit: percent
+    universe: "Total population"
+    acs_var: DP05_0024P
+    dataset: acs/acs5/profile
+  - indicator_id: median_age
+    label: "Median age"
+    unit: years
+    universe: "Total population"
+    acs_var: DP05_0018
+    dataset: acs/acs5/profile
+  - indicator_id: pop_nhpi_alone
+    label: "Native Hawaiian and Other Pacific Islander alone"
+    unit: count
+    universe: "Total population"
+    acs_var: DP05_0069
+    dataset: acs/acs5/profile
+  - indicator_id: pop_native_hawaiian_alone
+    label: "Native Hawaiian alone"
+    unit: count
+    universe: "Total population"
+    acs_var: DP05_0071
+    dataset: acs/acs5/profile
+  - indicator_id: pop_nhpi_alone_or_combo
+    label: "Native Hawaiian and Other Pacific Islander alone or in combination with one or more other races"
+    unit: count
+    universe: "Total population"
+    acs_var: DP05_0087
+    dataset: acs/acs5/profile
+  - indicator_id: pop_native_hawaiian_alone_or_combo
+    label: "Native Hawaiian alone or in any combination"
+    unit: count
+    universe: "Total groups tallied"
+    acs_var: B02019_002
+    dataset: acs/acs5
+  - indicator_id: pop_filipino_alone
+    label: "Filipino alone"
+    unit: count
+    universe: "Total population"
+    acs_var: DP05_0064
+    dataset: acs/acs5/profile
+  - indicator_id: pop_asian_alone
+    label: "Asian alone"
+    unit: count
+    universe: "Total population"
+    acs_var: DP05_0061
+    dataset: acs/acs5/profile
+  - indicator_id: pop_white_alone
+    label: "White alone"
+    unit: count
+    universe: "Total population"
+    acs_var: DP05_0037
+    dataset: acs/acs5/profile
+  - indicator_id: pop_two_or_more_races
+    label: "Two or more races"
+    unit: count
+    universe: "Total population"
+    acs_var: DP05_0035
+    dataset: acs/acs5/profile
+  - indicator_id: pop_hispanic
+    label: "Hispanic or Latino (of any race)"
+    unit: count
+    universe: "Total population"
+    acs_var: DP05_0090
+    dataset: acs/acs5/profile
+  - indicator_id: median_household_income
+    label: "Median household income"
+    unit: dollars
+    universe: "Households"
+    acs_var: DP03_0062
+    dataset: acs/acs5/profile
+  - indicator_id: per_capita_income
+    label: "Per capita income"
+    unit: dollars
+    universe: "Total population"
+    acs_var: DP03_0088
+    dataset: acs/acs5/profile
+  - indicator_id: pct_people_poverty
+    label: "Percent of people below the poverty level"
+    unit: percent
+    universe: "Population for whom poverty status is determined"
+    acs_var: DP03_0128P
+    dataset: acs/acs5/profile
+  - indicator_id: pct_children_poverty
+    label: "Percent of people under 18 years below the poverty level"
+    unit: percent
+    universe: "Population under 18 years for whom poverty status is determined"
+    acs_var: DP03_0129P
+    dataset: acs/acs5/profile
+  - indicator_id: pct_65_plus_poverty
+    label: "Percent of people 65 years and over below the poverty level"
+    unit: percent
+    universe: "Population 65 years and over for whom poverty status is determined"
+    acs_var: DP03_0135P
+    dataset: acs/acs5/profile
+  - indicator_id: pct_families_poverty
+    label: "Percent of families below the poverty level"
+    unit: percent
+    universe: "Families"
+    acs_var: DP03_0119P
+    dataset: acs/acs5/profile
+  - indicator_id: poverty_universe
+    label: "Population for whom poverty status is determined"
+    unit: count
+    universe: "Population for whom poverty status is determined"
+    acs_var: C17002_001
+    dataset: acs/acs5
+  - indicator_id: pop_at_or_above_200pct_poverty
+    label: "Population with income at or above 200 percent of the poverty level"
+    unit: count
+    universe: "Population for whom poverty status is determined"
+    acs_var: C17002_008
+    dataset: acs/acs5
+  - indicator_id: pct_hh_snap
+    label: "Percent of households with SNAP benefits in the past 12 months"
+    unit: percent
+    universe: "Households"
+    acs_var: DP03_0074P
+    dataset: acs/acs5/profile
+  - indicator_id: pct_hh_public_assistance
+    label: "Percent of households with cash public assistance income"
+    unit: percent
+    universe: "Households"
+    acs_var: DP03_0072P
+    dataset: acs/acs5/profile
+  - indicator_id: pct_hh_ssi
+    label: "Percent of households with Supplemental Security Income"
+    unit: percent
+    universe: "Households"
+    acs_var: DP03_0070P
+    dataset: acs/acs5/profile
+  - indicator_id: pct_hh_social_security
+    label: "Percent of households with Social Security income"
+    unit: percent
+    universe: "Households"
+    acs_var: DP03_0066P
+    dataset: acs/acs5/profile
+  - indicator_id: pct_hh_retirement_income
+    label: "Percent of households with retirement income"
+    unit: percent
+    universe: "Households"
+    acs_var: DP03_0068P
+    dataset: acs/acs5/profile
+  - indicator_id: total_households
+    label: "Total households"
+    unit: count
+    universe: "Households"
+    acs_var: DP02_0001
+    dataset: acs/acs5/profile
+  - indicator_id: avg_household_size
+    label: "Average household size"
+    unit: ratio
+    universe: "Households"
+    acs_var: DP02_0016
+    dataset: acs/acs5/profile
+  - indicator_id: pct_hh_with_children
+    label: "Percent of households with one or more people under 18 years"
+    unit: percent
+    universe: "Households"
+    acs_var: DP02_0014P
+    dataset: acs/acs5/profile
+  - indicator_id: grandparents_responsible
+    label: "Grandparents responsible for own grandchildren under 18 years"
+    unit: count
+    universe: "Grandparents living with own grandchildren under 18 years"
+    acs_var: DP02_0045
+    dataset: acs/acs5/profile
+  - indicator_id: pct_owner_occupied
+    label: "Percent of occupied housing units that are owner-occupied"
+    unit: percent
+    universe: "Occupied housing units"
+    acs_var: DP04_0046P
+    dataset: acs/acs5/profile
+  - indicator_id: pct_renter_occupied
+    label: "Percent of occupied housing units that are renter-occupied"
+    unit: percent
+    universe: "Occupied housing units"
+    acs_var: DP04_0047P
+    dataset: acs/acs5/profile
+  - indicator_id: median_gross_rent
+    label: "Median gross rent"
+    unit: dollars
+    universe: "Occupied units paying rent"
+    acs_var: DP04_0134
+    dataset: acs/acs5/profile
+  - indicator_id: median_home_value
+    label: "Median value of owner-occupied units"
+    unit: dollars
+    universe: "Owner-occupied units"
+    acs_var: DP04_0089
+    dataset: acs/acs5/profile
+  - indicator_id: pct_rent_burden_35_plus
+    label: "Percent of renter households paying 35 percent or more of income on gross rent"
+    unit: percent
+    universe: "Occupied units paying rent (excluding units where GRAPI cannot be computed)"
+    acs_var: DP04_0142P
+    dataset: acs/acs5/profile
+  - indicator_id: renter_hh_rent_50_plus
+    label: "Renter households paying 50 percent or more of income on gross rent"
+    unit: count
+    universe: "Renter-occupied housing units"
+    acs_var: B25070_010
+    dataset: acs/acs5
+  - indicator_id: pct_owner_cost_burden_35_plus
+    label: "Percent of mortgaged owner households paying 35 percent or more of income on owner costs"
+    unit: percent
+    universe: "Housing units with a mortgage (excluding units where SMOCAPI cannot be computed)"
+    acs_var: DP04_0115P
+    dataset: acs/acs5/profile
+  - indicator_id: pct_severe_overcrowding
+    label: "Percent of occupied housing units with 1.51 or more occupants per room"
+    unit: percent
+    universe: "Occupied housing units"
+    acs_var: DP04_0079P
+    dataset: acs/acs5/profile
+  - indicator_id: pct_uninsured
+    label: "Percent without health insurance coverage"
+    unit: percent
+    universe: "Civilian noninstitutionalized population"
+    acs_var: DP03_0099P
+    dataset: acs/acs5/profile
+  - indicator_id: pct_uninsured_under_19
+    label: "Percent of children under 19 years without health insurance coverage"
+    unit: percent
+    universe: "Civilian noninstitutionalized population under 19 years"
+    acs_var: DP03_0101P
+    dataset: acs/acs5/profile
+  - indicator_id: pct_public_coverage
+    label: "Percent with public health insurance coverage"
+    unit: percent
+    universe: "Civilian noninstitutionalized population"
+    acs_var: DP03_0098P
+    dataset: acs/acs5/profile
+  - indicator_id: pct_disability
+    label: "Percent with a disability"
+    unit: percent
+    universe: "Civilian noninstitutionalized population"
+    acs_var: DP02_0072P
+    dataset: acs/acs5/profile
+  - indicator_id: civilian_veterans
+    label: "Civilian veterans"
+    unit: count
+    universe: "Civilian population 18 years and over"
+    acs_var: DP02_0070
+    dataset: acs/acs5/profile
+  - indicator_id: pct_limited_english
+    label: "Percent who speak English less than very well"
+    unit: percent
+    universe: "Population 5 years and over"
+    acs_var: DP02_0115P
+    dataset: acs/acs5/profile
+  - indicator_id: pct_in_labor_force
+    label: "Percent of population 16 years and over in the labor force"
+    unit: percent
+    universe: "Population 16 years and over"
+    acs_var: DP03_0002P
+    dataset: acs/acs5/profile
+  - indicator_id: unemployment_rate
+    label: "Unemployment rate"
+    unit: percent
+    universe: "Civilian labor force"
+    acs_var: DP03_0009P
+    dataset: acs/acs5/profile
+  - indicator_id: pct_commute_public_transit
+    label: "Percent of workers commuting by public transportation"
+    unit: percent
+    universe: "Workers 16 years and over"
+    acs_var: DP03_0021P
+    dataset: acs/acs5/profile
+  - indicator_id: pct_work_from_home
+    label: "Percent of workers who worked from home"
+    unit: percent
+    universe: "Workers 16 years and over"
+    acs_var: DP03_0024P
+    dataset: acs/acs5/profile
+  - indicator_id: pct_broadband
+    label: "Percent of households with a broadband Internet subscription"
+    unit: percent
+    universe: "Households"
+    acs_var: DP02_0154P
+    dataset: acs/acs5/profile

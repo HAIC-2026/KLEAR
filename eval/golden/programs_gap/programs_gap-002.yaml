@@ -1,0 +1,18 @@
+id: programs_gap-002
+category: programs_gap
+question: For House District 8 in Hawaiʻi, can we use SNAP receipt as the number of people eligible?
+ideal: Show the ACS household SNAP receipt share for this Hawaiʻi district with vintage and uncertainty.
+  Explain that household receipt is not individual eligibility or a count of eligible nonparticipants.
+district:
+- house
+- '008'
+facts:
+- - pct_hh_snap
+  - house
+  - '008'
+must_say:
+- 2020-2024
+- households
+programs:
+- snap_fy2027
+refusal: none

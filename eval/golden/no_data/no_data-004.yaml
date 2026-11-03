@@ -1,0 +1,11 @@
+id: no_data-004
+category: no_data
+question: Can you rank schools by test scores in Hawaiʻi Senate District 18?
+ideal: Explain that school test scores and rankings are outside the Hawaiʻi district data app's scope.
+  Offer district demographic context without using it as a substitute for school performance.
+district:
+- senate
+- '018'
+tags:
+- school_scores
+refusal: out_of_scope

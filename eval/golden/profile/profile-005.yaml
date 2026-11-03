@@ -1,0 +1,16 @@
+id: profile-005
+category: profile
+question: Can you pull broadband access for House District 15 in Hawaiʻi for a constituent meeting?
+ideal: Give the share of households with a broadband subscription in this Hawaiʻi House district. Distinguish
+  a subscription measure from network availability and cite ACS vintage and uncertainty.
+district:
+- house
+- '015'
+facts:
+- - pct_broadband
+  - house
+  - '015'
+must_say:
+- 2020-2024
+- subscription
+refusal: none

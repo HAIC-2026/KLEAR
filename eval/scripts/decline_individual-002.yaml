@@ -1,0 +1,17 @@
+# Scripted model turns for decline_individual-002: resolve place, then submit.
+- - type: tool_use
+    name: resolve_place
+    input:
+      text: "Hawaiʻi House District 32"
+- - type: tool_use
+    name: submit_answer
+    input:
+      resolved: house:032
+      refusal: decline_individual
+      blocks:
+      - I describe districts from published data, not people. I cannot disclose personal
+        records or determine an individual household’s benefits, earnings or eligibility.
+      - For district information, please give a place, ZIP code or district.
+      facts: []
+      programs: []
+      caveats: []

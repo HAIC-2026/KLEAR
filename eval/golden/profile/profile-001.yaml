@@ -1,0 +1,24 @@
+id: profile-001
+category: profile
+question: How many kūpuna live in my district, and what share of residents is that?
+ideal: Give the count and share of kūpuna in the selected Hawaiʻi House district. Cite the ACS vintage
+  and margins of error, and explain the age definition.
+context:
+- house
+- '022'
+district:
+- house
+- '022'
+tags:
+- demo
+facts:
+- - pop_65_plus
+  - house
+  - '022'
+- - pct_65_plus
+  - house
+  - '022'
+must_say:
+- 2020-2024
+- margin of error
+refusal: none

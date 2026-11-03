@@ -1,0 +1,21 @@
+# Scripted model turns for help_sites-002: resolve place, find sites, then submit.
+- - type: tool_use
+    name: resolve_place
+    input:
+      text: "House District 20 in Hawaiʻi"
+- - type: tool_use
+    name: find_sites
+    input:
+      geo: house:020
+      kind: public_housing
+- - type: tool_use
+    name: submit_answer
+    input:
+      resolved: house:020
+      refusal: none
+      blocks:
+      - '{label:f1} in {geo:house:020}: {fact:f1} ({vintage:f1}).'
+      facts:
+      - f1
+      programs: []
+      caveats: []

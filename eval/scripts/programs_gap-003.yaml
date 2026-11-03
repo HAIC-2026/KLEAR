@@ -1,0 +1,38 @@
+# Scripted model turns for programs_gap-003: fetch EITC claims and dollars for a talking point.
+- - type: tool_use
+    name: resolve_place
+    input:
+      text: "House District 9 in Hawaiʻi"
+- - type: tool_use
+    name: search_indicators
+    input:
+      words:
+      - EITC
+- - type: tool_use
+    name: list_programs
+    input:
+      words:
+      - EITC
+- - type: tool_use
+    name: get_facts
+    input:
+      indicator_ids:
+      - irs_eitc_dollars
+      - irs_eitc_returns
+      geos:
+      - "house:009"
+- - type: tool_use
+    name: submit_answer
+    input:
+      resolved: "house:009"
+      refusal: none
+      blocks:
+      - "In {geo:house:009}, about {fact:f2} returns claimed the Federal EITC, for a total credit of about {fact:f1} ({vintage:f1}). Both are estimates apportioned to the district from ZIP code data."
+      - "Talking point: the Federal EITC already brings money to working families in {geo:house:009}, and outreach can help more eligible filers claim it."
+      facts:
+      - f1
+      - f2
+      programs:
+      - eitc_federal_ty2025
+      caveats:
+      - These IRS figures show credits claimed, not eligible filers who did not claim, and their wide ranges come from moving ZIP code data to the district.

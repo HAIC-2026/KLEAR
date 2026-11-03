@@ -1,0 +1,17 @@
+id: profile-006
+category: profile
+question: 'House District 44 in Hawaiʻi: how many Native Hawaiian residents are there, including mixed
+  ancestry?'
+ideal: Use the Native Hawaiian alone or in combination measure for this Hawaiʻi House district. Explain
+  that this differs from the broader Pacific Islander grouping and cite ACS vintage and uncertainty.
+district:
+- house
+- '044'
+facts:
+- - pop_native_hawaiian_alone_or_combo
+  - house
+  - '044'
+must_say:
+- 2020-2024
+- in combination
+refusal: none

@@ -1,0 +1,37 @@
+# Scripted model turns for profile-003: resolve the district, fetch income and poverty measures, submit.
+- - type: tool_use
+    name: resolve_place
+    input:
+      text: "House District 6 in Hawaiʻi"
+- - type: tool_use
+    name: search_indicators
+    input:
+      words:
+      - income
+- - type: tool_use
+    name: search_indicators
+    input:
+      words:
+      - poverty
+- - type: tool_use
+    name: get_facts
+    input:
+      indicator_ids:
+      - median_household_income
+      - per_capita_income
+      - pct_people_poverty
+      geos:
+      - "house:006"
+- - type: tool_use
+    name: submit_answer
+    input:
+      resolved: "house:006"
+      refusal: none
+      blocks:
+      - "Income picture for {geo:house:006} ({vintage:f1}):\n* {label:f1}: {fact:f1}\n* {label:f2}: {fact:f2}\n* {label:f3}: {fact:f3}"
+      facts:
+      - f1
+      - f2
+      - f3
+      programs: []
+      caveats: []

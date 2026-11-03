@@ -1,0 +1,22 @@
+id: messy_input-002
+category: messy_input
+question: waianae - house or senate? which district am i looking for
+ideal: Use the spelling Waiʻanae and explain the difference between House and Senate districts. Ask for
+  the desired chamber and a more specific public location instead of assuming a town maps to a unique
+  district.
+tags:
+- ambiguous_place
+must_say:
+- Waiʻanae
+allowed_geos:
+- - house
+  - '044'
+- - house
+  - '045'
+- - senate
+  - '022'
+- - zcta
+  - '96792'
+- - county
+  - '15003'
+refusal: none

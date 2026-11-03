@@ -1,0 +1,20 @@
+rule_id: fpg_2026_hi
+program: HHS poverty guidelines (Hawaiʻi)
+status: confirmed
+effective: '2026-01-13'
+url: https://aspe.hhs.gov/topics/poverty-economic-mobility/poverty-guidelines/api/2026/hi
+effective_source:
+  url: https://www.federalregister.gov/documents/full_text/text/2026/01/15/2026-00755.txt
+  quote: 'Effective Date: January 13, 2026'
+  shown: January 13, 2026
+values:
+  1: 18360
+  2: 24890
+  3: 31420
+  4: 37950
+  5: 44480
+  6: 51010
+  7: 57540
+  8: 64070
+verified_by: read from the HHS ASPE API for household sizes 1 to 8 in this session, compared on every build
+retrieved: '2026-10-30'

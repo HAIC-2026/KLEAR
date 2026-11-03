@@ -1,0 +1,38 @@
+# Scripted model turns for programs_gap-002: fetch SNAP receipt, explain that receipt is not eligibility.
+- - type: tool_use
+    name: resolve_place
+    input:
+      text: "House District 8 in Hawaiʻi"
+- - type: tool_use
+    name: search_indicators
+    input:
+      words:
+      - SNAP
+- - type: tool_use
+    name: list_programs
+    input:
+      words:
+      - SNAP
+- - type: tool_use
+    name: get_facts
+    input:
+      indicator_ids:
+      - pct_hh_snap
+      - places_received_snap
+      geos:
+      - "house:008"
+- - type: tool_use
+    name: submit_answer
+    input:
+      resolved: "house:008"
+      refusal: none
+      blocks:
+      - No. SNAP receipt counts those who get benefits, not everyone who is eligible, so it leaves out eligible people who do not enroll.
+      - "Receipt in {geo:house:008}:\n* {label:f1}: {fact:f1} ({vintage:f1})\n* {label:f2}: about {fact:f2}, a modeled estimate ({vintage:f2})"
+      facts:
+      - f1
+      - f2
+      programs:
+      - snap_fy2027
+      caveats:
+      - Use these as a floor for need, not as the eligible population.

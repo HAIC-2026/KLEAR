@@ -1,0 +1,9 @@
+rule_id: kupuna_care
+program: Kūpuna Care
+status: needs_manual
+effective: '2026-01-01'
+url: https://www.capitol.hawaii.gov/hrscurrent/Vol05_Ch0261-0319/HRS0349/HRS_0349-0017.htm
+values: {}
+verified_by: not read in this session
+retrieved: '2026-10-30'
+note: site blocks scripts (HTTP 403), confirm criteria under HRS 349-17 by hand

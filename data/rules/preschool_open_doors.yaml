@@ -1,0 +1,42 @@
+rule_id: preschool_open_doors
+program: Preschool Open Doors
+status: confirmed
+effective: '2026-05-29'
+url: https://humanservices.hawaii.gov/?p=15260
+effective_source:
+  url: https://humanservices.hawaii.gov/?p=15260
+  quote: application period for the 2026–2027 school year on May 29, 2026
+  shown: May 29, 2026
+values:
+  monthly_gross_income_limit_size2:
+    value: 10371
+    quote: School Year 2 $10,371
+  monthly_gross_income_limit_size3:
+    value: 13092
+    quote: 3 $13,092
+  monthly_gross_income_limit_size4:
+    value: 15813
+    quote: 4 $15,813
+  monthly_gross_income_limit_size5:
+    value: 18533
+    quote: 5 $18,533
+  monthly_gross_income_limit_size6:
+    value: 21254
+    quote: 6 $21,254
+  monthly_gross_income_limit_size7:
+    value: 23975
+    quote: 7 $23,975
+  monthly_gross_income_limit_size8:
+    value: 26696
+    quote: 8 $26,696
+  born_from:
+    value: '2021-08-01'
+    quote: born between August 1, 2021, and July 31, 2024
+    shown: August 1, 2021
+  born_to:
+    value: '2024-07-31'
+    quote: born between August 1, 2021, and July 31, 2024
+    shown: July 31, 2024
+verified_by: read from the DHS Preschool Open Doors 2026-2027 news release in this session
+retrieved: '2026-10-30'
+note: school year 2026-2027

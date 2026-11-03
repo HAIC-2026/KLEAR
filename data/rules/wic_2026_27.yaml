@@ -1,0 +1,44 @@
+rule_id: wic_2026_27
+program: WIC
+status: confirmed
+effective: '2026-07-01'
+url: https://www.fna.usda.gov/wic/fr-042926
+effective_source:
+  url: https://www.fna.usda.gov/wic/fr-042926
+  quote: Effective from July 1, 2026 to June 30, 2027
+  shown: July 1, 2026
+values:
+  pct_of_fpg:
+    value: 185
+    quote: is 185 percent of the federal poverty guidelines
+    shown: 185 percent
+  annual_185pct_size1:
+    value: 33966
+    quote: 1 $18,360 $1,530 $765 $707 $354 $33,966
+  annual_185pct_size2:
+    value: 46047
+    quote: 2 24,890 2,075 1,038 958 479 46,047
+  annual_185pct_size3:
+    value: 58127
+    quote: 3 31,420 2,619 1,310 1,209 605 58,127
+  annual_185pct_size4:
+    value: 70208
+    quote: 4 37,950 3,163 1,582 1,460 730 70,208
+  annual_185pct_size5:
+    value: 82288
+    quote: 5 44,480 3,707 1,854 1,711 856 82,288
+  annual_185pct_size6:
+    value: 94369
+    quote: 6 51,010 4,251 2,126 1,962 981 94,369
+  annual_185pct_size7:
+    value: 106449
+    quote: 7 57,540 4,795 2,398 2,214 1,107 106,449
+  annual_185pct_size8:
+    value: 118530
+    quote: 8 64,070 5,340 2,670 2,465 1,233 118,530
+  annual_185pct_each_additional:
+    value: 12081
+    quote: +$6,530 +$545 +$273 +$252 +$126 +$12,081
+verified_by: read from the USDA WIC income eligibility guidelines notice (Hawaii table) in this session
+retrieved: '2026-10-30'
+note: Hawaii table

@@ -1,0 +1,28 @@
+# Scripted model turns for messy_input-004: resolve place, search indicators, get facts, then submit.
+- - type: tool_use
+    name: resolve_place
+    input:
+      text: "Senatte 17 hawaii"
+- - type: tool_use
+    name: search_indicators
+    input:
+      words:
+      - uninsured
+- - type: tool_use
+    name: get_facts
+    input:
+      indicator_ids:
+      - pct_uninsured
+      geos:
+      - senate:017
+- - type: tool_use
+    name: submit_answer
+    input:
+      resolved: senate:017
+      refusal: none
+      blocks:
+      - '{label:f1} in {geo:senate:017}: {fact:f1} ({vintage:f1}).'
+      facts:
+      - f1
+      programs: []
+      caveats: []

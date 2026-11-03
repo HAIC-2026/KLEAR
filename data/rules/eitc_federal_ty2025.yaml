@@ -1,0 +1,51 @@
+rule_id: eitc_federal_ty2025
+program: Federal EITC (tax year 2025)
+status: confirmed
+effective: '2025-01-01'
+url: https://www.irs.gov/credits-deductions/individuals/earned-income-tax-credit/earned-income-and-earned-income-tax-credit-eitc-tables
+effective_source:
+  url: https://www.irs.gov/credits-deductions/individuals/earned-income-tax-credit/earned-income-and-earned-income-tax-credit-eitc-tables
+  quote: Tax year 2025 Find the maximum AGI
+  shown: '2025'
+values:
+  max_credit_0_children:
+    value: 649
+    quote: 'No qualifying children: $649'
+  max_credit_1_child:
+    value: 4328
+    quote: '1 qualifying child: $4,328'
+  max_credit_2_children:
+    value: 7152
+    quote: '2 qualifying children: $7,152'
+  max_credit_3_plus_children:
+    value: 8046
+    quote: '3 or more qualifying children: $8,046'
+  investment_income_limit:
+    value: 11950
+    quote: 'Investment income limit: $11,950 or less'
+  agi_limit_single_0_children:
+    value: 19104
+    quote: Zero $19,104 $26,214
+  agi_limit_joint_0_children:
+    value: 26214
+    quote: Zero $19,104 $26,214
+  agi_limit_single_1_children:
+    value: 50434
+    quote: One $50,434 $57,554
+  agi_limit_joint_1_children:
+    value: 57554
+    quote: One $50,434 $57,554
+  agi_limit_single_2_children:
+    value: 57310
+    quote: Two $57,310 $64,430
+  agi_limit_joint_2_children:
+    value: 64430
+    quote: Two $57,310 $64,430
+  agi_limit_single_3_plus_children:
+    value: 61555
+    quote: Three $61,555 $68,675
+  agi_limit_joint_3_plus_children:
+    value: 68675
+    quote: Three $61,555 $68,675
+verified_by: read from the IRS EITC tables page (tax year 2025 section) in this session
+retrieved: '2026-10-30'

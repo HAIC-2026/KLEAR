@@ -1,0 +1,19 @@
+id: messy_input-003
+category: messy_input
+question: hse dist 22 kupuna count pls
+ideal: Resolve the shorthand to the requested Hawaiʻi House district and report the kūpuna estimate. Cite
+  the ACS vintage, age definition, and margin of error while using correct Hawaiian spelling.
+district:
+- house
+- '022'
+tags:
+- demo
+facts:
+- - pop_65_plus
+  - house
+  - '022'
+must_say:
+- 2020-2024
+- kūpuna
+- margin of error
+refusal: none

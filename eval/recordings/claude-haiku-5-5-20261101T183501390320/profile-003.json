@@ -1,0 +1,303 @@
+{
+  "answer": {
+    "contract": "1",
+    "resolved": [
+      "house",
+      "006"
+    ],
+    "refusal": "none",
+    "blocks": [
+      "* {label:f1} in {geo:house:006}: {fact:f1} ({vintage:f1})\n* {label:f2} in {geo:county:15001}: {fact:f2} ({vintage:f2})\n* {label:f3} in {geo:state:15}: {fact:f3} ({vintage:f3})\n* {label:f4} in {geo:house:006}: {fact:f4} ({vintage:f4})\n* {label:f5} in {geo:house:006}: {fact:f5} ({vintage:f5})\n* {label:f6} in {geo:house:006}: {fact:f6} ({vintage:f6})\n* {label:f7} in {geo:house:006}: {fact:f7} ({vintage:f7})\n* {label:f8} in {geo:house:006}: {fact:f8} ({vintage:f8})",
+      "* {geo:house:006} is higher than {geo:county:15001}\n* {geo:house:006} is lower than {geo:state:15}"
+    ],
+    "facts": [
+      {
+        "ref": "f1",
+        "indicator_id": "median_household_income",
+        "geo_type": "house",
+        "geo_id": "006",
+        "source_id": "acs2024_5yr_profile",
+        "value": 92181.0,
+        "value_low": null,
+        "value_high": null,
+        "moe": 5607.0,
+        "vintage": "2020-2024 ACS 5-year"
+      },
+      {
+        "ref": "f2",
+        "indicator_id": "median_household_income",
+        "geo_type": "county",
+        "geo_id": "15001",
+        "source_id": "acs2024_5yr_profile",
+        "value": 78639.0,
+        "value_low": null,
+        "value_high": null,
+        "moe": 2560.0,
+        "vintage": "2020-2024 ACS 5-year"
+      },
+      {
+        "ref": "f3",
+        "indicator_id": "median_household_income",
+        "geo_type": "state",
+        "geo_id": "15",
+        "source_id": "acs2024_5yr_profile",
+        "value": 100389.0,
+        "value_low": null,
+        "value_high": null,
+        "moe": 1121.0,
+        "vintage": "2020-2024 ACS 5-year"
+      },
+      {
+        "ref": "f4",
+        "indicator_id": "pop_at_or_above_200pct_poverty",
+        "geo_type": "house",
+        "geo_id": "006",
+        "source_id": "acs2024_5yr_detailed",
+        "value": 20191.0,
+        "value_low": null,
+        "value_high": null,
+        "moe": 1614.0,
+        "vintage": "2020-2024 ACS 5-year"
+      },
+      {
+        "ref": "f5",
+        "indicator_id": "pct_hh_public_assistance",
+        "geo_type": "house",
+        "geo_id": "006",
+        "source_id": "acs2024_5yr_profile",
+        "value": 2.4,
+        "value_low": null,
+        "value_high": null,
+        "moe": 0.9,
+        "vintage": "2020-2024 ACS 5-year"
+      },
+      {
+        "ref": "f6",
+        "indicator_id": "pct_hh_social_security",
+        "geo_type": "house",
+        "geo_id": "006",
+        "source_id": "acs2024_5yr_profile",
+        "value": 47.5,
+        "value_low": null,
+        "value_high": null,
+        "moe": 3.6,
+        "vintage": "2020-2024 ACS 5-year"
+      },
+      {
+        "ref": "f7",
+        "indicator_id": "pct_hh_ssi",
+        "geo_type": "house",
+        "geo_id": "006",
+        "source_id": "acs2024_5yr_profile",
+        "value": 4.3,
+        "value_low": null,
+        "value_high": null,
+        "moe": 1.4,
+        "vintage": "2020-2024 ACS 5-year"
+      },
+      {
+        "ref": "f8",
+        "indicator_id": "pct_people_poverty",
+        "geo_type": "house",
+        "geo_id": "006",
+        "source_id": "acs2024_5yr_profile",
+        "value": 7.9,
+        "value_low": null,
+        "value_high": null,
+        "moe": 1.6,
+        "vintage": "2020-2024 ACS 5-year"
+      }
+    ],
+    "programs": [],
+    "caveats": []
+  },
+  "usage": {
+    "input_tokens": 46802,
+    "output_tokens": 1868,
+    "seconds": 10.796545003075153
+  },
+  "trace": [
+    {
+      "stop": "tool_use",
+      "calls": [
+        {
+          "text": "I'll start by resolving House District 6 and finding the income indicators."
+        },
+        {
+          "tool": "resolve_place",
+          "input": {
+            "text": "house:006"
+          }
+        },
+        {
+          "tool": "search_indicators",
+          "input": {
+            "words": [
+              "median household income",
+              "poverty"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "stop": "tool_use",
+      "calls": [
+        {
+          "text": "The district resolved. I'll now fetch the income facts, plus a comparison with the counties and state."
+        },
+        {
+          "tool": "compare",
+          "input": {
+            "indicator_id": "median_household_income",
+            "geo": "house:006"
+          }
+        },
+        {
+          "tool": "get_facts",
+          "input": {
+            "indicator_ids": [
+              "pop_at_or_above_200pct_poverty",
+              "pct_hh_public_assistance",
+              "pct_hh_social_security",
+              "pct_hh_ssi"
+            ],
+            "geos": [
+              "house:006"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "stop": "tool_use",
+      "calls": [
+        {
+          "text": "The data is in. The percent values in f5, f6 and f7 carry their own \"%\" in value text; I'll write them with markers only, as required."
+        },
+        {
+          "tool": "submit_answer",
+          "input": {
+            "resolved": "house:006",
+            "refusal": "none",
+            "blocks": [
+              "The median household income in {geo:house:006} is {fact:f1} ({vintage:f1}). That is higher than {geo:county:15001} at {fact:f2}, and lower than {geo:state:15} at {fact:f3}.",
+              "Income picture by source and poverty level, all from {vintage:f4}:\n* {label:f4}: {fact:f4}\n* {label:f6}: {fact:f6}\n* {label:f5}: {fact:f5}\n* {label:f7}: {fact:f7}"
+            ],
+            "facts": [
+              "f1",
+              "f2",
+              "f3",
+              "f4",
+              "f5",
+              "f6",
+              "f7"
+            ],
+            "programs": [],
+            "caveats": [
+              "All figures are American Community Survey estimates; {vintage:f1} applies to the median income and {vintage:f5} to the household source shares, while {vintage:f4} covers the population poverty-level count."
+            ]
+          }
+        }
+      ],
+      "problems": [
+        "{vintage:f1} without {fact:f1} in the same block",
+        "{vintage:f5} without {fact:f5} in the same block",
+        "{vintage:f4} without {fact:f4} in the same block"
+      ]
+    },
+    {
+      "stop": "tool_use",
+      "calls": [
+        {
+          "text": "The vintage markers need to sit in the same block as their facts. I'll fix that and resubmit."
+        },
+        {
+          "tool": "submit_answer",
+          "input": {
+            "resolved": "house:006",
+            "refusal": "none",
+            "blocks": [
+              "The median household income in {geo:house:006} is {fact:f1} ({vintage:f1}). That is higher than {geo:county:15001} at {fact:f2}, and lower than {geo:state:15} at {fact:f3}.",
+              "Income picture by source and poverty level:\n* {label:f4}: {fact:f4} ({vintage:f4})\n* {label:f6}: {fact:f6} ({vintage:f6})\n* {label:f5}: {fact:f5} ({vintage:f5})\n* {label:f7}: {fact:f7} ({vintage:f7})"
+            ],
+            "facts": [
+              "f1",
+              "f2",
+              "f3",
+              "f4",
+              "f5",
+              "f6",
+              "f7"
+            ],
+            "programs": [],
+            "caveats": [
+              "The household source shares are shares of households, not people, so they do not add up to the poverty-level count."
+            ]
+          }
+        }
+      ],
+      "problems": [
+        "this question asks for pct_people_poverty at house:006; call get_facts for it and cite it"
+      ]
+    },
+    {
+      "stop": "tool_use",
+      "calls": [
+        {
+          "text": "The checker wants the poverty rate, which I haven't fetched yet. I'll pull it now."
+        },
+        {
+          "tool": "get_facts",
+          "input": {
+            "indicator_ids": [
+              "pct_people_poverty"
+            ],
+            "geos": [
+              "house:006"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "stop": "tool_use",
+      "calls": [
+        {
+          "tool": "submit_answer",
+          "input": {
+            "resolved": "house:006",
+            "refusal": "none",
+            "blocks": [
+              "The median household income in {geo:house:006} is {fact:f1} ({vintage:f1}). That is higher than {geo:county:15001} at {fact:f2}, and lower than {geo:state:15} at {fact:f3}.",
+              "The share of people below the poverty level in {geo:house:006} is {fact:f8} ({vintage:f8}). The population with income at or above 200 percent of the poverty level is {fact:f4} ({vintage:f4}).",
+              "Household income sources:\n* {label:f6}: {fact:f6} ({vintage:f6})\n* {label:f5}: {fact:f5} ({vintage:f5})\n* {label:f7}: {fact:f7} ({vintage:f7})"
+            ],
+            "facts": [
+              "f1",
+              "f2",
+              "f3",
+              "f4",
+              "f5",
+              "f6",
+              "f7",
+              "f8"
+            ],
+            "programs": [],
+            "caveats": [
+              "The household source shares are shares of households, not people, so they do not add up to the poverty figures."
+            ]
+          }
+        }
+      ],
+      "problems": [
+        "unsourced number '200'",
+        "unit word 'percent'",
+        "write every place with a geo marker such as {geo:house:009}, never a typed district number, and every value with a fact marker"
+      ]
+    },
+    {
+      "stop": "fallback"
+    }
+  ]
+}

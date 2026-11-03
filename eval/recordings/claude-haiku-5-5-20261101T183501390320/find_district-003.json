@@ -1,0 +1,60 @@
+{
+  "answer": {
+    "contract": "1",
+    "resolved": [
+      "senate",
+      "015"
+    ],
+    "refusal": "none",
+    "blocks": [
+      "The selected district is now {geo:senate:015}. It replaces {geo:house:030} as the district for this session.",
+      "What would you like to know about {geo:senate:015}? I can describe its population, income, poverty, health, housing or program facts, or compare it with its counties and the state."
+    ],
+    "facts": [],
+    "programs": [],
+    "caveats": []
+  },
+  "usage": {
+    "input_tokens": 10215,
+    "output_tokens": 379,
+    "seconds": 3.084535332163796
+  },
+  "trace": [
+    {
+      "stop": "tool_use",
+      "calls": [
+        {
+          "text": "I'll resolve Senate District 15 first."
+        },
+        {
+          "tool": "resolve_place",
+          "input": {
+            "text": "senate:015"
+          }
+        }
+      ]
+    },
+    {
+      "stop": "tool_use",
+      "calls": [
+        {
+          "text": "Senate District 15 resolves cleanly. The question doesn't name a specific indicator yet, so I'll confirm the district and ask what you'd like to see."
+        },
+        {
+          "tool": "submit_answer",
+          "input": {
+            "resolved": "senate:015",
+            "refusal": "none",
+            "blocks": [
+              "The selected district is now {geo:senate:015}. It replaces {geo:house:030} as the district for this session.",
+              "What would you like to know about {geo:senate:015}? I can describe its population, income, poverty, health, housing or program facts, or compare it with its counties and the state."
+            ],
+            "facts": [],
+            "programs": [],
+            "caveats": []
+          }
+        }
+      ]
+    }
+  ]
+}

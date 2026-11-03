@@ -1,0 +1,42 @@
+# Scripted model turns for programs_gap-004: fetch marketplace plan selections and premium tax credit recipients.
+- - type: tool_use
+    name: resolve_place
+    input:
+      text: "Hawaiʻi Senate District 9"
+- - type: tool_use
+    name: search_indicators
+    input:
+      words:
+      - marketplace
+      - premium
+      - tax
+      - credit
+- - type: tool_use
+    name: list_programs
+    input:
+      words:
+      - premium
+      - tax
+      - credit
+- - type: tool_use
+    name: get_facts
+    input:
+      indicator_ids:
+      - aca_consumers
+      - aca_aptc_consumers
+      geos:
+      - "senate:009"
+- - type: tool_use
+    name: submit_answer
+    input:
+      resolved: "senate:009"
+      refusal: none
+      blocks:
+      - "No. Not every marketplace enrollee in {geo:senate:009} receives the ACA premium tax credit ({vintage:f1}):\n* {label:f1}: about {fact:f1}\n* {label:f2}: about {fact:f2}"
+      facts:
+      - f1
+      - f2
+      programs:
+      - aca_ptc_2026
+      caveats:
+      - Both are estimates apportioned to the district from ZIP code data, and enrollment does not show everyone who is eligible for help.

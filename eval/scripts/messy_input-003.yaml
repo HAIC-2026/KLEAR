@@ -1,0 +1,28 @@
+# Scripted model turns for messy_input-003: resolve the abbreviated district, fetch the kūpuna count, name the group as the user did.
+- - type: tool_use
+    name: resolve_place
+    input:
+      text: hse dist 22
+- - type: tool_use
+    name: search_indicators
+    input:
+      words:
+      - kupuna
+- - type: tool_use
+    name: get_facts
+    input:
+      indicator_ids:
+      - pop_65_plus
+      geos:
+      - house:022
+- - type: tool_use
+    name: submit_answer
+    input:
+      resolved: house:022
+      refusal: none
+      blocks:
+      - 'Kūpuna in {geo:house:022} ({label:f1}): {fact:f1} ({vintage:f1}).'
+      facts:
+      - f1
+      programs: []
+      caveats: []

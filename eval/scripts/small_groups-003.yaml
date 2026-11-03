@@ -1,0 +1,31 @@
+# Scripted model turns for small_groups-003: fetch the grandparent caregiver estimate, keep its margin and flag it as unreliable.
+- - type: tool_use
+    name: resolve_place
+    input:
+      text: "Hawaiʻi House District 4"
+- - type: tool_use
+    name: search_indicators
+    input:
+      words:
+      - grandparents
+      - grandchildren
+- - type: tool_use
+    name: get_facts
+    input:
+      indicator_ids:
+      - grandparents_responsible
+      geos:
+      - "house:004"
+- - type: tool_use
+    name: submit_answer
+    input:
+      resolved: "house:004"
+      refusal: none
+      blocks:
+      - "{label:f1} in {geo:house:004}: {fact:f1}, an unreliable estimate ({vintage:f1})."
+      - "The margin of error is part of the figure and cannot be dropped: for a group this small the survey estimate could be far from the true count."
+      facts:
+      - f1
+      programs: []
+      caveats:
+      - Because the district estimate is unreliable, the Senate district or the county gives a steadier figure.

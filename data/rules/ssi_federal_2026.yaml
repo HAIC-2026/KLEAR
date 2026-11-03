@@ -1,0 +1,21 @@
+rule_id: ssi_federal_2026
+program: SSI federal payment
+status: confirmed
+effective: '2026-01-01'
+url: https://www.federalregister.gov/documents/full_text/text/2025/11/03/2025-19763.txt
+effective_source:
+  url: https://www.federalregister.gov/documents/full_text/text/2025/11/03/2025-19763.txt
+  quote: effective for payments made for January 2026
+  shown: January 2026
+values:
+  individual_monthly:
+    value: 994
+    quote: will be $994 for an eligible individual; $1,491 for an eligible individual with an eligible spouse; and $498 for an essential person
+  couple_monthly:
+    value: 1491
+    quote: will be $994 for an eligible individual; $1,491 for an eligible individual with an eligible spouse; and $498 for an essential person
+  essential_person_monthly:
+    value: 498
+    quote: will be $994 for an eligible individual; $1,491 for an eligible individual with an eligible spouse; and $498 for an essential person
+verified_by: read from the Federal Register notice 2025-19763 full text in this session (ssa.gov blocks scripts)
+retrieved: '2026-10-30'

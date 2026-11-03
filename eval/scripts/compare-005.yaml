@@ -1,0 +1,42 @@
+# Scripted model turns for compare-005: resolve place, search indicators, compare, then submit.
+- - type: tool_use
+    name: resolve_place
+    input:
+      text: House District 28
+- - type: tool_use
+    name: resolve_place
+    input:
+      text: House District 22
+- - type: tool_use
+    name: search_indicators
+    input:
+      words:
+      - kupuna
+- - type: tool_use
+    name: compare
+    input:
+      indicator_id: pct_65_plus
+      geo: house:028
+      against:
+      - house:022
+- - type: tool_use
+    name: submit_answer
+    input:
+      resolved: house:028
+      refusal: none
+      blocks:
+      - 'Kūpuna share ({label:f1}) in {geo:house:028}: {fact:f1} ({vintage:f1}).'
+      - '{geo:house:028}: Higher than {geo:county:15003}. {label:f2} in {geo:county:15003}:
+        {fact:f2} ({vintage:f2}). Fixed to official population totals, no margin of
+        error.'
+      - '{geo:house:028}: Higher than {geo:state:15}. {label:f3} in {geo:state:15}:
+        {fact:f3} ({vintage:f3}).'
+      - '{geo:house:028}: Within the margin of error of {geo:house:022}. {label:f4}
+        in {geo:house:022}: {fact:f4} ({vintage:f4}).'
+      facts:
+      - f1
+      - f2
+      - f3
+      - f4
+      programs: []
+      caveats: []

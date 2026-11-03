@@ -1,0 +1,100 @@
+{
+  "answer": {
+    "contract": "1",
+    "resolved": [
+      "house",
+      "001"
+    ],
+    "refusal": "none",
+    "blocks": [
+      "Yes, with the margin of error attached. The count of {label:f1} in {geo:house:001} is {fact:f1} ({vintage:f1}). The estimate is reliable, so it can be quoted, but the margin should appear alongside the figure."
+    ],
+    "facts": [
+      {
+        "ref": "f1",
+        "indicator_id": "grandparents_responsible",
+        "geo_type": "house",
+        "geo_id": "001",
+        "source_id": "acs2024_5yr_profile",
+        "value": 319.0,
+        "value_low": null,
+        "value_high": null,
+        "moe": 126.0,
+        "vintage": "2020-2024 ACS 5-year"
+      }
+    ],
+    "programs": [],
+    "caveats": [
+      "This is a survey estimate, not an exact head count. Quote it as the estimate plus or minus its margin of error."
+    ]
+  },
+  "usage": {
+    "input_tokens": 16735,
+    "output_tokens": 519,
+    "seconds": 5.888616704149172
+  },
+  "trace": [
+    {
+      "stop": "tool_use",
+      "calls": [
+        {
+          "text": "I'll start by resolving the district and searching for the grandparent indicator."
+        },
+        {
+          "tool": "resolve_place",
+          "input": {
+            "text": "house:001"
+          }
+        },
+        {
+          "tool": "search_indicators",
+          "input": {
+            "words": [
+              "grandparents",
+              "grandchildren",
+              "kupuna"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "stop": "tool_use",
+      "calls": [
+        {
+          "tool": "get_facts",
+          "input": {
+            "indicator_ids": [
+              "grandparents_responsible"
+            ],
+            "geos": [
+              "house:001"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "stop": "tool_use",
+      "calls": [
+        {
+          "tool": "submit_answer",
+          "input": {
+            "resolved": "house:001",
+            "refusal": "none",
+            "blocks": [
+              "Yes, with the margin of error attached. The count of {label:f1} in {geo:house:001} is {fact:f1} ({vintage:f1}). The estimate is reliable, so it can be quoted, but the margin should appear alongside the figure."
+            ],
+            "facts": [
+              "f1"
+            ],
+            "programs": [],
+            "caveats": [
+              "This is a survey estimate, not an exact head count. Quote it as the estimate plus or minus its margin of error."
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

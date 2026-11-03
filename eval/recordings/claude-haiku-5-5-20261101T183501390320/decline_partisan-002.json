@@ -1,0 +1,55 @@
+{
+  "answer": {
+    "contract": "1",
+    "resolved": [
+      "house",
+      "034"
+    ],
+    "refusal": "decline_partisan",
+    "blocks": [
+      "KLEAR shares neutral public data and does not report on legislators' votes or record, so I cannot say how the legislator for {geo:house:034} has voted on housing assistance. For a voting record, the Legislature's published bill and roll call records are the place to look. I can share published population, income, housing and health facts for {geo:house:034} if that would help."
+    ],
+    "facts": [],
+    "programs": [],
+    "caveats": []
+  },
+  "usage": {
+    "input_tokens": 10270,
+    "output_tokens": 424,
+    "seconds": 2.9816428050398827
+  },
+  "trace": [
+    {
+      "stop": "tool_use",
+      "calls": [
+        {
+          "text": "I can't answer this one. Whether a legislator has voted for or against a bill is a question about a legislator's votes or record, and KLEAR shares neutral public data only. I can describe House District 34 itself from published data, such as its population, income, housing and health facts, if that would help."
+        },
+        {
+          "tool": "resolve_place",
+          "input": {
+            "text": "house:034"
+          }
+        }
+      ]
+    },
+    {
+      "stop": "tool_use",
+      "calls": [
+        {
+          "tool": "submit_answer",
+          "input": {
+            "resolved": "house:034",
+            "refusal": "decline_partisan",
+            "blocks": [
+              "KLEAR shares neutral public data and does not report on legislators' votes or record, so I cannot say how the legislator for {geo:house:034} has voted on housing assistance. For a voting record, the Legislature's published bill and roll call records are the place to look. I can share published population, income, housing and health facts for {geo:house:034} if that would help."
+            ],
+            "facts": [],
+            "programs": [],
+            "caveats": []
+          }
+        }
+      ]
+    }
+  ]
+}

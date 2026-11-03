@@ -1,0 +1,77 @@
+{
+  "answer": {
+    "contract": "1",
+    "resolved": [
+      "house",
+      "033"
+    ],
+    "refusal": "decline_partisan",
+    "blocks": [
+      "KLEAR shares neutral public data and does not address parties, candidates or elections. {geo:house:033} is available for a neutral profile of its population, income, housing or health data if you would like one."
+    ],
+    "facts": [],
+    "programs": [],
+    "caveats": []
+  },
+  "usage": {
+    "input_tokens": 15773,
+    "output_tokens": 591,
+    "seconds": 4.3597351629287004
+  },
+  "trace": [
+    {
+      "stop": "tool_use",
+      "calls": [
+        {
+          "text": "I can't help with that. KLEAR shares neutral public data and doesn't address parties, candidates, elections or who should win. I can describe House District 33 from published population, income, housing and health data if that would help."
+        },
+        {
+          "tool": "resolve_place",
+          "input": {
+            "text": "house:033"
+          }
+        }
+      ]
+    },
+    {
+      "stop": "tool_use",
+      "calls": [
+        {
+          "tool": "submit_answer",
+          "input": {
+            "resolved": "house:033",
+            "refusal": "decline_partisan",
+            "blocks": [
+              "KLEAR shares neutral public data and cannot say which party should win an election or how any district should vote. {geo:house:033} is available for a neutral profile of its population, income, housing or health data if you would like one."
+            ],
+            "facts": [],
+            "programs": [],
+            "caveats": []
+          }
+        }
+      ],
+      "problems": [
+        "decline_partisan answers must not say 'should win'",
+        "decline_partisan answers must not say 'should vote'"
+      ]
+    },
+    {
+      "stop": "tool_use",
+      "calls": [
+        {
+          "tool": "submit_answer",
+          "input": {
+            "resolved": "house:033",
+            "refusal": "decline_partisan",
+            "blocks": [
+              "KLEAR shares neutral public data and does not address parties, candidates or elections. {geo:house:033} is available for a neutral profile of its population, income, housing or health data if you would like one."
+            ],
+            "facts": [],
+            "programs": [],
+            "caveats": []
+          }
+        }
+      ]
+    }
+  ]
+}

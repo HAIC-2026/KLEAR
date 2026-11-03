@@ -1,0 +1,33 @@
+# Scripted model turns for modeled_need-005: resolve place, search indicators, get facts, then submit.
+- - type: tool_use
+    name: resolve_place
+    input:
+      text: "Hawaiʻi Senate District 16"
+- - type: tool_use
+    name: search_indicators
+    input:
+      words:
+      - uninsured
+- - type: tool_use
+    name: get_facts
+    input:
+      indicator_ids:
+      - places_uninsured_18_64
+      - pct_uninsured
+      geos:
+      - senate:016
+- - type: tool_use
+    name: submit_answer
+    input:
+      resolved: senate:016
+      refusal: none
+      blocks:
+      - 'Modeled estimate: {label:f1} in {geo:senate:016}: about {fact:f1} ({vintage:f1}).'
+      - '{label:f2} in {geo:senate:016}: {fact:f2} ({vintage:f2}).'
+      facts:
+      - f1
+      - f2
+      programs: []
+      caveats:
+      - The modeled adult estimate and the ACS uninsured rate cover different populations
+        and use different methods and survey vintages. They are not directly interchangeable.

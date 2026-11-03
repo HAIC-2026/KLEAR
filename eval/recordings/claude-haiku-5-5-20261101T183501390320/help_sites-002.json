@@ -1,0 +1,86 @@
+{
+  "answer": {
+    "contract": "1",
+    "resolved": [
+      "house",
+      "020"
+    ],
+    "refusal": "none",
+    "blocks": [
+      "The count of {label:f1} in {geo:house:020} is {fact:f1}, a controlled count with no margin of error ({vintage:f1}). The site count is taken from site locations, so no public housing sites are listed for this district."
+    ],
+    "facts": [
+      {
+        "ref": "f1",
+        "indicator_id": "sites_public_housing",
+        "geo_type": "house",
+        "geo_id": "020",
+        "source_id": "hud_public_housing",
+        "value": 0.0,
+        "value_low": null,
+        "value_high": null,
+        "moe": null,
+        "vintage": "Current layer as retrieved by this build"
+      }
+    ],
+    "programs": [],
+    "caveats": [
+      "Site locations come from the federal source and reflect the current layer as retrieved, so the count may change as the layer is updated."
+    ]
+  },
+  "usage": {
+    "input_tokens": 15584,
+    "output_tokens": 424,
+    "seconds": 4.0599855210166425
+  },
+  "trace": [
+    {
+      "stop": "tool_use",
+      "calls": [
+        {
+          "text": "I'll resolve House District 20 first."
+        },
+        {
+          "tool": "resolve_place",
+          "input": {
+            "text": "house:020"
+          }
+        }
+      ]
+    },
+    {
+      "stop": "tool_use",
+      "calls": [
+        {
+          "tool": "find_sites",
+          "input": {
+            "geo": "house:020",
+            "kind": "public_housing"
+          }
+        }
+      ]
+    },
+    {
+      "stop": "tool_use",
+      "calls": [
+        {
+          "tool": "submit_answer",
+          "input": {
+            "resolved": "house:020",
+            "refusal": "none",
+            "blocks": [
+              "The count of {label:f1} in {geo:house:020} is {fact:f1}, a controlled count with no margin of error ({vintage:f1}). The site count is taken from site locations, so no public housing sites are listed for this district."
+            ],
+            "facts": [
+              "f1"
+            ],
+            "programs": [],
+            "caveats": [
+              "Site locations come from the federal source and reflect the current layer as retrieved, so the count may change as the layer is updated."
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

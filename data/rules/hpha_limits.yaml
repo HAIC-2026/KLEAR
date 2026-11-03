@@ -1,0 +1,9 @@
+rule_id: hpha_limits
+program: Hawaiʻi Public Housing Authority income limits
+status: needs_manual
+effective: '2026-01-01'
+url: https://www.hpha.hawaii.gov/
+values: {}
+verified_by: not read in this session
+retrieved: '2026-10-30'
+note: confirm HPHA income limits by hand

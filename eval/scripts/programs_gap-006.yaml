@@ -1,0 +1,40 @@
+# Scripted model turns for programs_gap-006: fetch Social Security and SSI receipt, explain that one does not show eligibility for the other.
+- - type: tool_use
+    name: resolve_place
+    input:
+      text: Senate District 11
+- - type: tool_use
+    name: search_indicators
+    input:
+      words:
+      - Social
+      - Security
+      - SSI
+- - type: tool_use
+    name: list_programs
+    input:
+      words:
+      - SSI
+- - type: tool_use
+    name: get_facts
+    input:
+      indicator_ids:
+      - pct_hh_social_security
+      - pct_hh_ssi
+      geos:
+      - "senate:011"
+- - type: tool_use
+    name: submit_answer
+    input:
+      resolved: "senate:011"
+      refusal: none
+      blocks:
+      - No. For kūpuna outreach, Social Security receipt does not tell you who qualifies for the SSI federal payment. SSI is a separate program for people with low income and few resources, so receiving Social Security does not by itself mean someone qualifies.
+      - "Receipt in {geo:senate:011} ({vintage:f1}):\n* {label:f1}: {fact:f1}\n* {label:f2}: {fact:f2}"
+      facts:
+      - f1
+      - f2
+      programs:
+      - ssi_federal_2026
+      caveats:
+      - Receipt shows who gets a benefit now, not who is eligible.

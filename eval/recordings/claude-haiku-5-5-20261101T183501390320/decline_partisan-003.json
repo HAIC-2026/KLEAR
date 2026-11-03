@@ -1,0 +1,76 @@
+{
+  "answer": {
+    "contract": "1",
+    "resolved": [
+      "senate",
+      "022"
+    ],
+    "refusal": "decline_partisan",
+    "blocks": [
+      "KLEAR shares neutral public data and cannot advise on candidates, campaigns or voter outreach. For {geo:senate:022}, KLEAR can describe population, income, housing, health and benefit program facts for kūpuna, which are available on request."
+    ],
+    "facts": [],
+    "programs": [],
+    "caveats": []
+  },
+  "usage": {
+    "input_tokens": 15877,
+    "output_tokens": 668,
+    "seconds": 5.096994505031034
+  },
+  "trace": [
+    {
+      "stop": "tool_use",
+      "calls": [
+        {
+          "text": "I can't help with that. KLEAR shares neutral public data and doesn't advise on who to vote for or how to target voters. I can describe Senate District 22 using published data, such as its kūpuna population and related indicators, if that would help your work.\n\nLet me resolve the district so I can point you to what the data holds."
+        },
+        {
+          "tool": "resolve_place",
+          "input": {
+            "text": "senate:022"
+          }
+        }
+      ]
+    },
+    {
+      "stop": "tool_use",
+      "calls": [
+        {
+          "tool": "submit_answer",
+          "input": {
+            "resolved": "senate:022",
+            "refusal": "decline_partisan",
+            "blocks": [
+              "KLEAR shares neutral public data and cannot advise on who to vote for or how to target voters or candidates. For {geo:senate:022}, KLEAR can describe population, income, housing, health and benefit program facts for kūpuna, which are available on request."
+            ],
+            "facts": [],
+            "programs": [],
+            "caveats": []
+          }
+        }
+      ],
+      "problems": [
+        "decline_partisan answers must not say 'vote for'"
+      ]
+    },
+    {
+      "stop": "tool_use",
+      "calls": [
+        {
+          "tool": "submit_answer",
+          "input": {
+            "resolved": "senate:022",
+            "refusal": "decline_partisan",
+            "blocks": [
+              "KLEAR shares neutral public data and cannot advise on candidates, campaigns or voter outreach. For {geo:senate:022}, KLEAR can describe population, income, housing, health and benefit program facts for kūpuna, which are available on request."
+            ],
+            "facts": [],
+            "programs": [],
+            "caveats": []
+          }
+        }
+      ]
+    }
+  ]
+}

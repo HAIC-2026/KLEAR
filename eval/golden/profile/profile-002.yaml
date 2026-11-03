@@ -1,0 +1,21 @@
+id: profile-002
+category: profile
+question: I need a quick population snapshot for House District 1 in Hawaiʻi. How many residents and children?
+ideal: Report total residents and children in this Hawaiʻi House district with their age definition. Include
+  the ACS vintage and margins of error without treating estimates as exact counts.
+district:
+- house
+- '001'
+tags:
+- demo
+facts:
+- - pop_total
+  - house
+  - '001'
+- - pop_under_18
+  - house
+  - '001'
+must_say:
+- 2020-2024
+- margin of error
+refusal: none

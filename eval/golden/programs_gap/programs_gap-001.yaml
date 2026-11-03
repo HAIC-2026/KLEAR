@@ -1,0 +1,23 @@
+id: programs_gap-001
+category: programs_gap
+question: How many families in House District 11 in Hawaiʻi could claim EITC but are missing it?
+ideal: Show the available EITC return estimate for this Hawaiʻi district with its tax year and allocation
+  caveat. Explain that returns claiming a credit do not identify eligible nonclaimants and that an exact
+  take-up gap cannot be inferred from these data.
+district:
+- house
+- '011'
+tags:
+- demo
+facts:
+- - irs_eitc_returns
+  - house
+  - '011'
+must_say:
+- IRS
+- estimate
+must_not_say:
+- every eligible family
+programs:
+- eitc_federal_ty2025
+refusal: none

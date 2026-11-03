@@ -1,0 +1,35 @@
+# Scripted model turns for help_sites-004: resolve place, find sites, search indicators, get facts, then submit.
+- - type: tool_use
+    name: resolve_place
+    input:
+      text: "Hawaiʻi Senate District 13"
+- - type: tool_use
+    name: find_sites
+    input:
+      geo: senate:013
+      kind: health_center
+- - type: tool_use
+    name: search_indicators
+    input:
+      words:
+      - uninsured
+- - type: tool_use
+    name: get_facts
+    input:
+      indicator_ids:
+      - pct_uninsured
+      geos:
+      - senate:013
+- - type: tool_use
+    name: submit_answer
+    input:
+      resolved: senate:013
+      refusal: none
+      blocks:
+      - '{label:f1} in {geo:senate:013}: {fact:f1} ({vintage:f1}).'
+      - '{label:f2} in {geo:senate:013}: {fact:f2} ({vintage:f2}).'
+      facts:
+      - f1
+      - f2
+      programs: []
+      caveats: []

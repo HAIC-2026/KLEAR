@@ -1,0 +1,21 @@
+id: programs_gap-004
+category: programs_gap
+question: In Hawaiʻi Senate District 9, are all marketplace enrollees receiving premium tax credits?
+ideal: Present marketplace consumers and consumers receiving advance premium tax credits for this Hawaiʻi
+  Senate district with source and enrollment vintage. Describe allocation uncertainty and avoid equating
+  current enrollment with everyone eligible for assistance.
+district:
+- senate
+- '009'
+facts:
+- - aca_consumers
+  - senate
+  - '009'
+- - aca_aptc_consumers
+  - senate
+  - '009'
+must_say:
+- estimate
+programs:
+- aca_ptc_2026
+refusal: none

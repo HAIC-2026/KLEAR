@@ -1,0 +1,74 @@
+{
+  "answer": {
+    "contract": "1",
+    "resolved": [
+      "senate",
+      "021"
+    ],
+    "refusal": "decline_individual",
+    "blocks": [
+      "KLEAR cannot tell whether Malia Example, or any other individual, qualifies for SSI. Eligibility depends on personal income, resources and disability or age status, which KLEAR does not hold, and the program is run by the Social Security Administration.",
+      "Program information for the SSI federal payment is published by the Social Security Administration, and the Hawaiʻi SSI state supplement is administered by the Hawaiʻi Department of Human Services. For a determination about your constituent, please contact one of those agencies directly.",
+      "KLEAR can provide district-level figures for {geo:senate:021}, such as population, income and poverty, if you want context for the district."
+    ],
+    "facts": [],
+    "programs": [
+      "ssi_federal_2026",
+      "ssi_hi_supplement"
+    ],
+    "caveats": []
+  },
+  "usage": {
+    "input_tokens": 11362,
+    "output_tokens": 578,
+    "seconds": 4.083817235194147
+  },
+  "trace": [
+    {
+      "stop": "tool_use",
+      "calls": [
+        {
+          "text": "I can't determine whether an individual qualifies for SSI. KLEAR describes districts from published data, not people or households. I can share program information and district-level data for Senate District 21 if that helps."
+        },
+        {
+          "tool": "resolve_place",
+          "input": {
+            "text": "senate:021"
+          }
+        },
+        {
+          "tool": "list_programs",
+          "input": {
+            "words": [
+              "SSI",
+              "supplemental security income"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "stop": "tool_use",
+      "calls": [
+        {
+          "tool": "submit_answer",
+          "input": {
+            "resolved": "senate:021",
+            "refusal": "decline_individual",
+            "blocks": [
+              "KLEAR cannot tell whether Malia Example, or any other individual, qualifies for SSI. Eligibility depends on personal income, resources and disability or age status, which KLEAR does not hold, and the program is run by the Social Security Administration.",
+              "Program information for the SSI federal payment is published by the Social Security Administration, and the Hawaiʻi SSI state supplement is administered by the Hawaiʻi Department of Human Services. For a determination about your constituent, please contact one of those agencies directly.",
+              "KLEAR can provide district-level figures for {geo:senate:021}, such as population, income and poverty, if you want context for the district."
+            ],
+            "facts": [],
+            "programs": [
+              "ssi_federal_2026",
+              "ssi_hi_supplement"
+            ],
+            "caveats": []
+          }
+        }
+      ]
+    }
+  ]
+}

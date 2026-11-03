@@ -1,0 +1,9 @@
+rule_id: h_heap_fy2026
+program: Hawaiʻi Home Energy Assistance Program (H-HEAP)
+status: needs_manual
+effective: '2025-10-01'
+url: https://humanservices.hawaii.gov/bessd/liheap/
+values: {}
+verified_by: page read in this session but it carries no FY2026-specific dated figures
+retrieved: '2026-10-30'
+note: 'pending: FY2026 income limits are only in the application packet PDF. The page states only the generic program year (October 1 to September 30) and the energy credit window (June 1 to June 30)'

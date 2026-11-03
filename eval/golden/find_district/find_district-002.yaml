@@ -1,0 +1,15 @@
+id: find_district-002
+category: find_district
+question: I am looking for Hawaiʻi Senate District 8, not the House district. Can you bring up its profile?
+ideal: Select the requested Hawaiʻi Senate district and clearly identify the chamber. Give a sourced population
+  estimate with the ACS vintage to confirm the profile.
+district:
+- senate
+- '008'
+facts:
+- - pop_total
+  - senate
+  - '008'
+must_say:
+- 2020-2024
+refusal: none

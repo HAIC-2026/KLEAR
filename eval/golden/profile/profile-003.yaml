@@ -1,0 +1,20 @@
+id: profile-003
+category: profile
+question: What does the income picture look like for House District 6 in Hawaiʻi?
+ideal: Give median household income and the poverty rate for this Hawaiʻi House district. Explain their
+  different universes and cite the ACS vintage and uncertainty.
+district:
+- house
+- '006'
+tags:
+- demo
+facts:
+- - median_household_income
+  - house
+  - '006'
+- - pct_people_poverty
+  - house
+  - '006'
+must_say:
+- 2020-2024
+refusal: none

@@ -1,0 +1,11 @@
+id: no_data-005
+category: no_data
+question: What salary do teachers earn in Hawaiʻi Senate District 19?
+ideal: State that occupational salaries are outside the Hawaiʻi district data app's scope. Offer the available
+  household income context while explaining that it does not answer the teacher salary question.
+district:
+- senate
+- '019'
+tags:
+- salaries
+refusal: out_of_scope

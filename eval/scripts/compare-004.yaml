@@ -1,0 +1,36 @@
+# Scripted model turns for compare-004: resolve place, search indicators, compare, then submit.
+- - type: tool_use
+    name: resolve_place
+    input:
+      text: "House District 17 in Hawaiʻi"
+- - type: tool_use
+    name: search_indicators
+    input:
+      words:
+      - public
+      - transit
+- - type: tool_use
+    name: compare
+    input:
+      indicator_id: pct_commute_public_transit
+      geo: house:017
+- - type: tool_use
+    name: submit_answer
+    input:
+      resolved: house:017
+      refusal: none
+      blocks:
+      - '{label:f1} in {geo:house:017}: {fact:f1} ({vintage:f1}). This estimate is
+        unreliable.'
+      - '{geo:house:017}: Within the margin of error of {geo:county:15007}. {label:f2}
+        in {geo:county:15007}: {fact:f2} ({vintage:f2}).'
+      - '{geo:house:017}: Lower than {geo:state:15}. {label:f3} in {geo:state:15}:
+        {fact:f3} ({vintage:f3}).'
+      facts:
+      - f1
+      - f2
+      - f3
+      programs: []
+      caveats:
+      - Use {geo:county:15007} for a steadier figure than the unreliable district
+        estimate.

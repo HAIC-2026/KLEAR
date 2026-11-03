@@ -1,0 +1,20 @@
+id: help_sites-004
+category: help_sites
+question: For Hawaiʻi Senate District 13, show health center sites alongside the uninsured share for outreach
+  planning.
+ideal: Present health center sites and the ACS uninsured share for this Hawaiʻi Senate district with separate
+  sources and vintages. Explain that a site count does not establish whether services meet local demand
+  or whether patients live in the district.
+district:
+- senate
+- '013'
+facts:
+- - sites_health_center
+  - senate
+  - '013'
+- - pct_uninsured
+  - senate
+  - '013'
+must_say:
+- 2020-2024
+refusal: none

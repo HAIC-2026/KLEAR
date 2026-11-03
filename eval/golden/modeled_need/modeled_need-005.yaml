@@ -1,0 +1,22 @@
+id: modeled_need-005
+category: modeled_need
+question: How does modeled adult uninsurance differ from the ACS uninsured rate in Hawaiʻi Senate District
+  16?
+ideal: Present the modeled working age adult estimate and the ACS uninsured share for this Hawaiʻi Senate
+  district with their separate universes, vintages, and uncertainty. Include the modeled range and explain
+  why these measures should not be treated as interchangeable.
+district:
+- senate
+- '016'
+facts:
+- - places_uninsured_18_64
+  - senate
+  - '016'
+- - pct_uninsured
+  - senate
+  - '016'
+must_say:
+- modeled
+- range
+- 2020-2024
+refusal: none

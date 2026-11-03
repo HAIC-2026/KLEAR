@@ -1,0 +1,11 @@
+id: no_data-002
+category: no_data
+question: How many homeless residents are in Hawaiʻi House District 27?
+ideal: Explain that homelessness counts are outside the Hawaiʻi district data app's scope. Offer supported
+  housing burden indicators as a separate topic without substituting them for a homelessness count.
+district:
+- house
+- '027'
+tags:
+- homelessness
+refusal: out_of_scope

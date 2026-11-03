@@ -1,0 +1,89 @@
+{
+  "answer": {
+    "contract": "1",
+    "resolved": [
+      "house",
+      "021"
+    ],
+    "refusal": "none",
+    "blocks": [
+      "{geo:house:021} has {fact:f1} {label:f1} ({vintage:f1}). The one site listed is Palolo Valley Homes.",
+      "The count is taken from site locations and is a plain count, so no margin of error applies."
+    ],
+    "facts": [
+      {
+        "ref": "f1",
+        "indicator_id": "sites_lihtc",
+        "geo_type": "house",
+        "geo_id": "021",
+        "source_id": "hud_lihtc",
+        "value": 1.0,
+        "value_low": null,
+        "value_high": null,
+        "moe": null,
+        "vintage": "Current layer as retrieved by this build"
+      }
+    ],
+    "programs": [],
+    "caveats": [
+      "The site count reflects the LIHTC layer as retrieved by this build from HUD LIHTC; it does not show unit counts or project size."
+    ]
+  },
+  "usage": {
+    "input_tokens": 10610,
+    "output_tokens": 495,
+    "seconds": 4.361895181005821
+  },
+  "trace": [
+    {
+      "stop": "tool_use",
+      "calls": [
+        {
+          "text": "I'll resolve the district and find the LIHTC sites in parallel."
+        },
+        {
+          "tool": "resolve_place",
+          "input": {
+            "text": "House District 21"
+          }
+        },
+        {
+          "tool": "find_sites",
+          "input": {
+            "geo": "house:021",
+            "kind": "lihtc"
+          }
+        }
+      ]
+    },
+    {
+      "stop": "tool_use",
+      "calls": [
+        {
+          "tool": "explain_source",
+          "input": {
+            "source_id": "hud_lihtc"
+          }
+        },
+        {
+          "tool": "submit_answer",
+          "input": {
+            "resolved": "house:021",
+            "refusal": "none",
+            "blocks": [
+              "{geo:house:021} has {fact:f1} {label:f1} ({vintage:f1}). The one site listed is Palolo Valley Homes.",
+              "The count is taken from site locations and is a plain count, so no margin of error applies."
+            ],
+            "facts": [
+              "f1"
+            ],
+            "programs": [],
+            "caveats": [
+              "The site count reflects the LIHTC layer as retrieved by this build from HUD LIHTC; it does not show unit counts or project size."
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
