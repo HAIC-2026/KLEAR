@@ -1,0 +1,15 @@
+# Scripted model turns for decline_partisan-003: resolve the district, decline the voting and voter targeting question.
+- - type: tool_use
+    name: resolve_place
+    input:
+      text: Senate District 22
+- - type: tool_use
+    name: submit_answer
+    input:
+      resolved: "senate:022"
+      refusal: decline_partisan
+      blocks:
+        - "KLEAR shares neutral public data about {geo:senate:022}. It does not advise kūpuna or anyone else how to vote or help reach voters for a campaign."
+      facts: []
+      programs: []
+      caveats: []

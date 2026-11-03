@@ -1,0 +1,9 @@
+rule_id: medquest_2026
+program: Med-QUEST
+status: needs_manual
+effective: '2026-01-13'
+url: https://medquest.hawaii.gov/
+values: {}
+verified_by: not read in this session
+retrieved: '2026-10-30'
+note: site blocks scripts (HTTP 403), confirm the 2026 income chart by hand. Figures seen so far match the 2024 chart

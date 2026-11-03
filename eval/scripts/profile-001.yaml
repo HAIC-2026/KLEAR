@@ -1,0 +1,30 @@
+# Scripted model turns for profile-001: resolve the selected district, fetch the kupuna count and share, submit.
+- - type: tool_use
+    name: resolve_place
+    input:
+      text: "house:022"
+- - type: tool_use
+    name: search_indicators
+    input:
+      words:
+      - kupuna
+- - type: tool_use
+    name: get_facts
+    input:
+      indicator_ids:
+      - pop_65_plus
+      - pct_65_plus
+      geos:
+      - "house:022"
+- - type: tool_use
+    name: submit_answer
+    input:
+      resolved: "house:022"
+      refusal: none
+      blocks:
+      - "In {geo:house:022}, kūpuna number {fact:f1} ({label:f1}), which is a share of {fact:f2} of residents ({vintage:f1})."
+      facts:
+      - f1
+      - f2
+      programs: []
+      caveats: []

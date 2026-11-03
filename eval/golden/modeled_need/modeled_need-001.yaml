@@ -1,0 +1,21 @@
+id: modeled_need-001
+category: modeled_need
+question: What does PLACES say about food insecurity in Hawaiʻi House District 23?
+ideal: Report modeled food insecurity for this Hawaiʻi House district with the available range, source,
+  and vintage. Identify the adult survey universe and tract allocation method, and distinguish modeled
+  need from observed enrollment or an exact headcount.
+district:
+- house
+- '023'
+tags:
+- demo
+facts:
+- - places_food_insecurity
+  - house
+  - '023'
+must_say:
+- modeled
+- range
+must_not_say:
+- exact headcount
+refusal: none

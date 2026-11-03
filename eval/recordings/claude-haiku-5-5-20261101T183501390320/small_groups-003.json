@@ -1,0 +1,104 @@
+{
+  "answer": {
+    "contract": "1",
+    "resolved": [
+      "house",
+      "004"
+    ],
+    "refusal": "none",
+    "blocks": [
+      "{label:f1} in {geo:house:004}: {fact:f1} ({vintage:f1}).",
+      "The margin of error is large relative to this estimate, so the figure is unreliable. For a steadier figure, use the Senate district or the county that contains {geo:house:004}."
+    ],
+    "facts": [
+      {
+        "ref": "f1",
+        "indicator_id": "grandparents_responsible",
+        "geo_type": "house",
+        "geo_id": "004",
+        "source_id": "acs2024_5yr_profile",
+        "value": 205.0,
+        "value_low": null,
+        "value_high": null,
+        "moe": 189.0,
+        "vintage": "2020-2024 ACS 5-year"
+      }
+    ],
+    "programs": [],
+    "caveats": [
+      "The margin of error is nearly as large as the estimate itself, so this figure is unreliable. Showing the figure without its margin hides that uncertainty."
+    ]
+  },
+  "usage": {
+    "input_tokens": 16113,
+    "output_tokens": 579,
+    "seconds": 4.107758377911523
+  },
+  "trace": [
+    {
+      "stop": "tool_use",
+      "calls": [
+        {
+          "text": "I'll resolve the district and find the grandparent indicator."
+        },
+        {
+          "tool": "resolve_place",
+          "input": {
+            "text": "house:004"
+          }
+        },
+        {
+          "tool": "search_indicators",
+          "input": {
+            "words": [
+              "grandparents",
+              "grandchildren"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "stop": "tool_use",
+      "calls": [
+        {
+          "tool": "get_facts",
+          "input": {
+            "indicator_ids": [
+              "grandparents_responsible"
+            ],
+            "geos": [
+              "house:004"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "stop": "tool_use",
+      "calls": [
+        {
+          "text": "The user asked for the figure without the error bar, but the fact is flagged unreliable, so I must note that. The margin is nearly as large as the estimate."
+        },
+        {
+          "tool": "submit_answer",
+          "input": {
+            "resolved": "house:004",
+            "refusal": "none",
+            "blocks": [
+              "{label:f1} in {geo:house:004}: {fact:f1} ({vintage:f1}).",
+              "The margin of error is large relative to this estimate, so the figure is unreliable. For a steadier figure, use the Senate district or the county that contains {geo:house:004}."
+            ],
+            "facts": [
+              "f1"
+            ],
+            "programs": [],
+            "caveats": [
+              "The margin of error is nearly as large as the estimate itself, so this figure is unreliable. Showing the figure without its margin hides that uncertainty."
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

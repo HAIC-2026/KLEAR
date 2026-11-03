@@ -1,0 +1,23 @@
+id: programs_gap-006
+category: programs_gap
+question: For kūpuna outreach in Senate District 11, does Social Security receipt tell us who qualifies
+  for SSI?
+ideal: Give household Social Security and SSI receipt shares for this Hawaiʻi Senate district with ACS
+  vintage and uncertainty. Explain that the programs differ and aggregate receipt does not establish individual
+  eligibility.
+district:
+- senate
+- '011'
+facts:
+- - pct_hh_social_security
+  - senate
+  - '011'
+- - pct_hh_ssi
+  - senate
+  - '011'
+must_say:
+- 2020-2024
+- households
+programs:
+- ssi_federal_2026
+refusal: none

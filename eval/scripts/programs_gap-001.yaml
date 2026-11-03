@@ -1,0 +1,35 @@
+# Scripted model turns for programs_gap-001: unclaimed EITC is not in the data, so name the IRS and add the claims count.
+- - type: tool_use
+    name: resolve_place
+    input:
+      text: "House District 11 in Hawaiʻi"
+- - type: tool_use
+    name: search_indicators
+    input:
+      words:
+      - EITC
+- - type: tool_use
+    name: list_programs
+    input:
+      words:
+      - EITC
+- - type: tool_use
+    name: get_facts
+    input:
+      indicator_ids:
+      - irs_eitc_returns
+      geos:
+      - "house:011"
+- - type: tool_use
+    name: submit_answer
+    input:
+      resolved: "house:011"
+      refusal: none
+      blocks:
+      - "{label:f1} in {geo:house:011}: about {fact:f1} ({vintage:f1}). This is an estimate apportioned to the district from ZIP code data."
+      - These IRS figures count returns that claimed the Federal EITC. They do not show who was eligible and did not claim, so the number of families missing the credit cannot be worked out from this data.
+      facts:
+      - f1
+      programs:
+      - eitc_federal_ty2025
+      caveats: []

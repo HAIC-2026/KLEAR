@@ -1,0 +1,9 @@
+rule_id: hi_state_credits
+program: Hawaiʻi state EITC, food/excise and renters credits
+status: needs_manual
+effective: '2026-01-01'
+url: https://tax.hawaii.gov/geninfo/
+values: {}
+verified_by: not read in this session
+retrieved: '2026-10-30'
+note: confirm EITC rate and credit amounts and whether 2026 bills HB179, HB2174, HB2444 changed them

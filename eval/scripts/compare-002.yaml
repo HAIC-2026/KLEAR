@@ -1,0 +1,37 @@
+# Scripted model turns for compare-002: resolve place, search indicators, compare, then submit.
+- - type: tool_use
+    name: resolve_place
+    input:
+      text: Senate District 20
+- - type: tool_use
+    name: resolve_place
+    input:
+      text: Oʻahu
+- - type: tool_use
+    name: search_indicators
+    input:
+      words:
+      - household
+      - income
+- - type: tool_use
+    name: compare
+    input:
+      indicator_id: median_household_income
+      geo: senate:020
+- - type: tool_use
+    name: submit_answer
+    input:
+      resolved: senate:020
+      refusal: none
+      blocks:
+      - '{label:f1} in {geo:senate:020}: {fact:f1} ({vintage:f1}).'
+      - '{geo:senate:020}: Higher than {geo:county:15003}. {label:f2} in {geo:county:15003}:
+        {fact:f2} ({vintage:f2}).'
+      - '{geo:senate:020}: Higher than {geo:state:15}. {label:f3} in {geo:state:15}:
+        {fact:f3} ({vintage:f3}).'
+      facts:
+      - f1
+      - f2
+      - f3
+      programs: []
+      caveats: []

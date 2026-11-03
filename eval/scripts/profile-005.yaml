@@ -1,0 +1,28 @@
+# Scripted model turns for profile-005: resolve the district, fetch the broadband share, submit.
+- - type: tool_use
+    name: resolve_place
+    input:
+      text: "House District 15 in Hawaiʻi"
+- - type: tool_use
+    name: search_indicators
+    input:
+      words:
+      - broadband
+- - type: tool_use
+    name: get_facts
+    input:
+      indicator_ids:
+      - pct_broadband
+      geos:
+      - "house:015"
+- - type: tool_use
+    name: submit_answer
+    input:
+      resolved: "house:015"
+      refusal: none
+      blocks:
+      - "In {geo:house:015}, the share of households with a broadband subscription is {fact:f1} ({label:f1}, {vintage:f1})."
+      facts:
+      - f1
+      programs: []
+      caveats: []

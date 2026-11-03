@@ -1,0 +1,15 @@
+# Scripted model turns for decline_partisan-001: resolve the district, decline the partisan question.
+- - type: tool_use
+    name: resolve_place
+    input:
+      text: "Hawaiʻi House District 33"
+- - type: tool_use
+    name: submit_answer
+    input:
+      resolved: "house:033"
+      refusal: decline_partisan
+      blocks:
+        - "KLEAR shares neutral public data about {geo:house:033} and does not offer views on elections."
+      facts: []
+      programs: []
+      caveats: []

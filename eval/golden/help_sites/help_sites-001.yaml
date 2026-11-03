@@ -1,0 +1,20 @@
+id: help_sites-001
+category: help_sites
+question: How many health center sites are in House District 16 in Hawaiʻi for our referral sheet?
+ideal: Report the health center site count for this Hawaiʻi House district with its directory source and
+  vintage. Explain that locations do not measure appointment capacity or guarantee access and advise checking
+  current services with the provider.
+district:
+- house
+- '016'
+tags:
+- demo
+facts:
+- - sites_health_center
+  - house
+  - '016'
+must_say:
+- sites
+must_not_say:
+- guaranteed appointment
+refusal: none

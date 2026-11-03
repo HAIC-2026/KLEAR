@@ -1,0 +1,17 @@
+id: compare-005
+category: compare
+question: Does House District 28 have a larger kūpuna share than House District 22?
+ideal: Compare the kūpuna shares of the requested Hawaiʻi House districts using the same ACS vintage and
+  age definition. Include both margins of error and avoid ranking them confidently if the estimates overlap.
+facts:
+- - pct_65_plus
+  - house
+  - '028'
+- - pct_65_plus
+  - house
+  - '022'
+must_say:
+- 2020-2024
+- margin of error
+direction: within_margin
+refusal: none

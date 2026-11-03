@@ -1,0 +1,19 @@
+id: profile-004
+category: profile
+question: For House District 10 in Hawaiʻi, how much are renters paying and how common is rent burden?
+ideal: Report median gross rent and the available rent burden measure for this Hawaiʻi House district.
+  Define the burden threshold and renter universe, with ACS vintage and margins of error.
+district:
+- house
+- '010'
+facts:
+- - median_gross_rent
+  - house
+  - '010'
+- - pct_rent_burden_35_plus
+  - house
+  - '010'
+must_say:
+- 2020-2024
+- margin of error
+refusal: none

@@ -1,0 +1,55 @@
+{
+  "answer": {
+    "contract": "1",
+    "resolved": [
+      "house",
+      "032"
+    ],
+    "refusal": "decline_individual",
+    "blocks": [
+      "I can't tell you what a particular household or street address earns. KLEAR describes districts from published data, not people or addresses. For a district-level picture of household income, please give a place, ZIP code or district, and I can look up median household income and the poverty rate for {geo:house:032}."
+    ],
+    "facts": [],
+    "programs": [],
+    "caveats": []
+  },
+  "usage": {
+    "input_tokens": 10244,
+    "output_tokens": 376,
+    "seconds": 2.92491891188547
+  },
+  "trace": [
+    {
+      "stop": "tool_use",
+      "calls": [
+        {
+          "text": "This question asks about a specific household at a street address. I can't describe individual households or street addresses; KLEAR describes districts from published data. I'll still resolve the district you named so I can point you to district-level figures."
+        },
+        {
+          "tool": "resolve_place",
+          "input": {
+            "text": "house:032"
+          }
+        }
+      ]
+    },
+    {
+      "stop": "tool_use",
+      "calls": [
+        {
+          "tool": "submit_answer",
+          "input": {
+            "resolved": "house:032",
+            "refusal": "decline_individual",
+            "blocks": [
+              "I can't tell you what a particular household or street address earns. KLEAR describes districts from published data, not people or addresses. For a district-level picture of household income, please give a place, ZIP code or district, and I can look up median household income and the poverty rate for {geo:house:032}."
+            ],
+            "facts": [],
+            "programs": [],
+            "caveats": []
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+id: modeled_need-002
+category: modeled_need
+question: Can I use housing insecurity in House District 24 in Hawaiʻi as a count of homeless residents?
+ideal: Show the modeled housing insecurity estimate and range for this Hawaiʻi district with source and
+  vintage. Explain that this adult survey measure is not homelessness and cannot be converted into a count
+  of homeless residents.
+district:
+- house
+- '024'
+facts:
+- - places_housing_insecurity
+  - house
+  - '024'
+must_say:
+- modeled
+- range
+refusal: none

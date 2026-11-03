@@ -1,0 +1,29 @@
+# Scripted model turns for modeled_need-004: resolve place, search indicators, get facts, then submit.
+- - type: tool_use
+    name: resolve_place
+    input:
+      text: "Hawaiʻi Senate District 14"
+- - type: tool_use
+    name: search_indicators
+    input:
+      words:
+      - utility
+      - shutoff
+- - type: tool_use
+    name: get_facts
+    input:
+      indicator_ids:
+      - places_utility_shutoff_threat
+      geos:
+      - senate:014
+- - type: tool_use
+    name: submit_answer
+    input:
+      resolved: senate:014
+      refusal: none
+      blocks:
+      - 'Modeled estimate: {label:f1} in {geo:senate:014}: about {fact:f1} ({vintage:f1}).'
+      facts:
+      - f1
+      programs: []
+      caveats: []

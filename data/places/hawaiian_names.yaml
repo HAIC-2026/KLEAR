@@ -1,0 +1,71 @@
+# Census place id to Hawaiian name, from USGS GNIS (klear/etl/gazetteer_names.py).
+'1500400': ʻĀhuimanu
+'1500550': ʻAiea
+'1501085': ʻĀinaloa
+'1507000': ʻEleʻele
+'1507450': ʻEwa Beach
+'1507470': ʻEwa Gentry
+'1507485': ʻEwa Villages
+'1508950': Hāʻena
+'1509700': Halaʻula
+'1510000': Hālawa
+'1510750': Haleʻiwa
+'1510900': Hāliʻimaile
+'1511350': Hāna
+'1511650': Hanamāʻulu
+'1511800': Hanapēpē
+'1512400': Hauʻula
+'1513600': Hāwī
+'1513900': Heʻeia
+'1515700': Hōlualoa
+'1516450': Honokaʻa
+'1517450': Honomū
+'1519550': Kaʻaʻawa
+'1520000': Kāʻanapali
+'1521200': Kahaluʻu
+'1524950': Kalāheo
+'1528250': Kāneʻohe
+'1528850': Kapaʻa
+'1529000': Kapaʻau
+'1532900': Keaʻau
+'1536050': Kēōkea
+'1536500': Kīhei
+'1536650': Kīlauea
+'1539200': Kōloa
+'1539500': Kualapuʻu
+'1543250': Lāʻie
+'1543700': Lānaʻi City
+'1544150': Laupāhoehoe
+'1544450': Lāwaʻi
+'1545200': Līhuʻe
+'1546400': Māʻalaea
+'1547300': Māʻili
+'1547450': Mākaha
+'1547560': Mākaha Valley
+'1548350': Mākena
+'1552550': Mokulēʻia
+'1553600': Nāʻālehu
+'1553900': Nānākuli
+'1553975': Nānāwale Estates
+'1557800': ʻŌmaʻo
+'1559300': Paʻauilo
+'1559750': Pāhala
+'1559900': Pāhoa
+'1560200': Pāʻia
+'1560350': Pākalā Village
+'1561550': Pāpaʻikou
+'1561700': Paukaʻa
+'1563650': Pepeʻekeo
+'1564550': Poʻipū
+'1565150': Puakō
+'1566500': Punaluʻu
+'1566800': Pūpūkea
+'1570700': ʻUalapuʻe
+'1572650': Wahiawā
+'1574450': Waiʻanae
+'1575950': Waikapū
+'1578050': Waimānalo
+'1578200': Waimānalo Beach
+'1579550': Waiʻōhinu
+'1579860': Waipiʻo
+'1580000': Waipiʻo Acres

@@ -1,0 +1,29 @@
+# Scripted model turns for modeled_need-003: resolve place, search indicators, get facts, then submit.
+- - type: tool_use
+    name: resolve_place
+    input:
+      text: "Hawaiʻi House District 25"
+- - type: tool_use
+    name: search_indicators
+    input:
+      words:
+      - reliable
+      - transportation
+- - type: tool_use
+    name: get_facts
+    input:
+      indicator_ids:
+      - places_lack_transport
+      geos:
+      - house:025
+- - type: tool_use
+    name: submit_answer
+    input:
+      resolved: house:025
+      refusal: none
+      blocks:
+      - 'Modeled estimate: {label:f1} in {geo:house:025}: about {fact:f1} ({vintage:f1}).'
+      facts:
+      - f1
+      programs: []
+      caveats: []

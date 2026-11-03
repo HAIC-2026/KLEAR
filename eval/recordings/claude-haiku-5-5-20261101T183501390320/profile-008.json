@@ -1,0 +1,109 @@
+{
+  "answer": {
+    "contract": "1",
+    "resolved": [
+      "senate",
+      "006"
+    ],
+    "refusal": "none",
+    "blocks": [
+      "{geo:senate:006} has {fact:f1} civilian veterans ({vintage:f1}). This is a count of {label:f1}, with the margin of error shown in the figure."
+    ],
+    "facts": [
+      {
+        "ref": "f1",
+        "indicator_id": "civilian_veterans",
+        "geo_type": "senate",
+        "geo_id": "006",
+        "source_id": "acs2024_5yr_profile",
+        "value": 2228.0,
+        "value_low": null,
+        "value_high": null,
+        "moe": 262.0,
+        "vintage": "2020-2024 ACS 5-year"
+      }
+    ],
+    "programs": [],
+    "caveats": [
+      "The count is an American Community Survey estimate, so the true figure may fall within its margin of error."
+    ]
+  },
+  "usage": {
+    "input_tokens": 21781,
+    "output_tokens": 534,
+    "seconds": 4.619423043914139
+  },
+  "trace": [
+    {
+      "stop": "tool_use",
+      "calls": [
+        {
+          "text": "I'll resolve the district and look for a veteran indicator."
+        },
+        {
+          "tool": "resolve_place",
+          "input": {
+            "text": "senate:006"
+          }
+        },
+        {
+          "tool": "search_indicators",
+          "input": {
+            "words": [
+              "veteran"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "stop": "tool_use",
+      "calls": [
+        {
+          "tool": "get_facts",
+          "input": {
+            "indicator_ids": [
+              "civilian_veterans"
+            ],
+            "geos": [
+              "senate:006"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "stop": "tool_use",
+      "calls": [
+        {
+          "tool": "explain_source",
+          "input": {
+            "source_id": "acs2024_5yr_profile"
+          }
+        }
+      ]
+    },
+    {
+      "stop": "tool_use",
+      "calls": [
+        {
+          "tool": "submit_answer",
+          "input": {
+            "resolved": "senate:006",
+            "refusal": "none",
+            "blocks": [
+              "{geo:senate:006} has {fact:f1} civilian veterans ({vintage:f1}). This is a count of {label:f1}, with the margin of error shown in the figure."
+            ],
+            "facts": [
+              "f1"
+            ],
+            "programs": [],
+            "caveats": [
+              "The count is an American Community Survey estimate, so the true figure may fall within its margin of error."
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

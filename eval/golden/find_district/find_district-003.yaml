@@ -1,0 +1,15 @@
+id: find_district-003
+category: find_district
+question: Please switch from the selected House district to Hawaiʻi Senate District 15.
+ideal: Override the existing House selection with the explicitly requested Hawaiʻi Senate district. Confirm
+  the new chamber and district without carrying over facts from the previous selection.
+district:
+- senate
+- '015'
+allowed_geos:
+- - house
+  - '030'
+refusal: none
+context:
+- house
+- '030'

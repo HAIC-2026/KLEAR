@@ -1,0 +1,32 @@
+# Scripted model turns for small_groups-002: fetch the Native Hawaiian alone estimate and judge its precision for a small target.
+- - type: tool_use
+    name: resolve_place
+    input:
+      text: "Hawaiʻi House District 2"
+- - type: tool_use
+    name: search_indicators
+    input:
+      words:
+      - Native
+      - Hawaiian
+- - type: tool_use
+    name: get_facts
+    input:
+      indicator_ids:
+      - pop_native_hawaiian_alone
+      - pop_native_hawaiian_alone_or_combo
+      geos:
+      - "house:002"
+- - type: tool_use
+    name: submit_answer
+    input:
+      resolved: "house:002"
+      refusal: none
+      blocks:
+      - "{label:f1} in {geo:house:002}: {fact:f1} ({vintage:f1}). This survey estimate is reliable enough to use as a rough size, but its margin of error is wide, so treat it as a range rather than a precise target."
+      - "Counting residents who report Native Hawaiian alone or in combination with another race gives a larger group: {label:f2}, {fact:f2} ({vintage:f2})."
+      facts:
+      - f1
+      - f2
+      programs: []
+      caveats: []

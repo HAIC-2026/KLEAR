@@ -1,0 +1,9 @@
+rule_id: hud_il_fy2026_hi
+program: HUD income limits
+status: needs_manual
+effective: '2026-04-01'
+url: https://www.huduser.gov/portal/datasets/il/il26/Section8-FY26.xlsx
+values: {}
+verified_by: 'not yet read: Section8-FY26.xlsx is a manual download (huduser.gov blocks scripts)'
+retrieved: '2026-10-30'
+note: save Section8-FY26.xlsx to data/manual/, then fill values for the four Hawaiʻi counties (median2026, eli_1..8, l50_1..8, l80_1..8) and set status confirmed

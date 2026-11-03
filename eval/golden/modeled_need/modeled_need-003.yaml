@@ -1,0 +1,17 @@
+id: modeled_need-003
+category: modeled_need
+question: For Hawaiʻi House District 25, how common is lack of reliable transportation?
+ideal: Report the modeled adult transportation need measure for this Hawaiʻi district with its range and
+  source vintage. Explain tract allocation and avoid treating the result as a count of households without
+  cars.
+district:
+- house
+- '025'
+facts:
+- - places_lack_transport
+  - house
+  - '025'
+must_say:
+- modeled
+- range
+refusal: none

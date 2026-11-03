@@ -1,0 +1,58 @@
+{
+  "answer": {
+    "contract": "1",
+    "resolved": [
+      "house",
+      "029"
+    ],
+    "refusal": "out_of_scope",
+    "blocks": [
+      "KLEAR does not hold crime rates, so I cannot report one for {geo:house:029}. KLEAR covers population, income, housing, health and program facts for districts, counties and the state. Ask for any of those for {geo:house:029} and I can provide them."
+    ],
+    "facts": [],
+    "programs": [],
+    "caveats": []
+  },
+  "usage": {
+    "input_tokens": 10190,
+    "output_tokens": 425,
+    "seconds": 3.1567057489883155
+  },
+  "trace": [
+    {
+      "stop": "tool_use",
+      "calls": [
+        {
+          "text": "Crime is outside what KLEAR holds, so I'll resolve the district to confirm the place and note what the data covers."
+        },
+        {
+          "tool": "resolve_place",
+          "input": {
+            "text": "house:029"
+          }
+        }
+      ]
+    },
+    {
+      "stop": "tool_use",
+      "calls": [
+        {
+          "text": "I can't give a crime rate for House District 29, since KLEAR does not hold crime data. KLEAR covers population, income, housing, health and program facts for districts, counties and the state. I can give you any of those for House District 29 if that would help."
+        },
+        {
+          "tool": "submit_answer",
+          "input": {
+            "resolved": "house:029",
+            "refusal": "out_of_scope",
+            "blocks": [
+              "KLEAR does not hold crime rates, so I cannot report one for {geo:house:029}. KLEAR covers population, income, housing, health and program facts for districts, counties and the state. Ask for any of those for {geo:house:029} and I can provide them."
+            ],
+            "facts": [],
+            "programs": [],
+            "caveats": []
+          }
+        }
+      ]
+    }
+  ]
+}

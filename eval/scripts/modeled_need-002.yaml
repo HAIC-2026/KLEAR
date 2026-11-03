@@ -1,0 +1,31 @@
+# Scripted model turns for modeled_need-002: resolve place, search indicators, get facts, then submit.
+- - type: tool_use
+    name: resolve_place
+    input:
+      text: "House District 24 in Hawaiʻi"
+- - type: tool_use
+    name: search_indicators
+    input:
+      words:
+      - housing
+      - insecurity
+- - type: tool_use
+    name: get_facts
+    input:
+      indicator_ids:
+      - places_housing_insecurity
+      geos:
+      - house:024
+- - type: tool_use
+    name: submit_answer
+    input:
+      resolved: house:024
+      refusal: none
+      blocks:
+      - 'Modeled estimate: {label:f1} in {geo:house:024}: about {fact:f1} ({vintage:f1}).'
+      facts:
+      - f1
+      programs: []
+      caveats:
+      - Housing insecurity is not a count of homeless residents and cannot be used
+        as a homelessness count.

@@ -1,0 +1,15 @@
+# Scripted model turns for decline_partisan-002: resolve the district, decline the question about a legislator's record.
+- - type: tool_use
+    name: resolve_place
+    input:
+      text: "Hawaiʻi House District 34"
+- - type: tool_use
+    name: submit_answer
+    input:
+      resolved: "house:034"
+      refusal: decline_partisan
+      blocks:
+        - "KLEAR shares neutral public data about {geo:house:034} and does not track how a legislator voted or their record."
+      facts: []
+      programs: []
+      caveats: []

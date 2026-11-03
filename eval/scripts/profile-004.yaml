@@ -1,0 +1,32 @@
+# Scripted model turns for profile-004: resolve the district, fetch median rent and rent burden from two ACS sources, submit.
+- - type: tool_use
+    name: resolve_place
+    input:
+      text: "House District 10 in Hawaiʻi"
+- - type: tool_use
+    name: search_indicators
+    input:
+      words:
+      - rent
+- - type: tool_use
+    name: get_facts
+    input:
+      indicator_ids:
+      - median_gross_rent
+      - pct_rent_burden_35_plus
+      - renter_hh_rent_50_plus
+      geos:
+      - "house:010"
+- - type: tool_use
+    name: submit_answer
+    input:
+      resolved: "house:010"
+      refusal: none
+      blocks:
+      - "Renters in {geo:house:010} ({vintage:f1}):\n* {label:f1}: {fact:f1}\n* {label:f2}: {fact:f2}\n* {label:f3}: {fact:f3} ({vintage:f3})"
+      facts:
+      - f1
+      - f2
+      - f3
+      programs: []
+      caveats: []

@@ -1,0 +1,99 @@
+{
+  "answer": {
+    "contract": "1",
+    "resolved": [
+      "senate",
+      "001"
+    ],
+    "refusal": "none",
+    "blocks": [
+      "{label:f1} in {geo:senate:001} is {fact:f1} ({vintage:f1}). This is a reliable estimate with a modest margin of error."
+    ],
+    "facts": [
+      {
+        "ref": "f1",
+        "indicator_id": "pct_hh_with_children",
+        "geo_type": "senate",
+        "geo_id": "001",
+        "source_id": "acs2024_5yr_profile",
+        "value": 29.0,
+        "value_low": null,
+        "value_high": null,
+        "moe": 2.2,
+        "vintage": "2020-2024 ACS 5-year"
+      }
+    ],
+    "programs": [],
+    "caveats": [
+      "This is a survey-based estimate, so the stated margin of error should be considered when comparing it with other districts."
+    ]
+  },
+  "usage": {
+    "input_tokens": 17806,
+    "output_tokens": 479,
+    "seconds": 5.741082049906254
+  },
+  "trace": [
+    {
+      "stop": "tool_use",
+      "calls": [
+        {
+          "text": "I'll resolve the district and search for the household-with-children indicator."
+        },
+        {
+          "tool": "resolve_place",
+          "input": {
+            "text": "Senate District 1"
+          }
+        },
+        {
+          "tool": "search_indicators",
+          "input": {
+            "words": [
+              "households",
+              "children"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "stop": "tool_use",
+      "calls": [
+        {
+          "tool": "get_facts",
+          "input": {
+            "indicator_ids": [
+              "pct_hh_with_children"
+            ],
+            "geos": [
+              "senate:001"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "stop": "tool_use",
+      "calls": [
+        {
+          "tool": "submit_answer",
+          "input": {
+            "resolved": "senate:001",
+            "refusal": "none",
+            "blocks": [
+              "{label:f1} in {geo:senate:001} is {fact:f1} ({vintage:f1}). This is a reliable estimate with a modest margin of error."
+            ],
+            "facts": [
+              "f1"
+            ],
+            "programs": [],
+            "caveats": [
+              "This is a survey-based estimate, so the stated margin of error should be considered when comparing it with other districts."
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

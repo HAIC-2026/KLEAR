@@ -1,0 +1,17 @@
+id: find_district-001
+category: find_district
+question: Open Hawaiʻi House District 18 and show its population so I know I have the right district.
+ideal: Resolve the requested chamber and district within Hawaiʻi and show its total population. Cite the
+  ACS vintage and margin of error to confirm the selected profile.
+district:
+- house
+- '018'
+tags:
+- demo
+facts:
+- - pop_total
+  - house
+  - '018'
+must_say:
+- 2020-2024
+refusal: none

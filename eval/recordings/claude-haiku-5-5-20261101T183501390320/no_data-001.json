@@ -1,0 +1,120 @@
+{
+  "answer": {
+    "contract": "1",
+    "resolved": [
+      "house",
+      "026"
+    ],
+    "refusal": "not_available",
+    "blocks": [
+      "WIC enrollment for {geo:house:026} is not in the KLEAR data. KLEAR holds no WIC enrollment figure at the district level, and enrollment is published only statewide.",
+      "The program is run by the Hawaiʻi State Department of Health, WIC Services Branch, which provides nutrition help for pregnant women, infants and young children. Enrollment figures for the district would need to be requested from that agency.",
+      "KLEAR does hold related district measures, such as the share of children living below the poverty level, if those would help with planning."
+    ],
+    "facts": [],
+    "programs": [
+      "wic_2026_27"
+    ],
+    "caveats": [
+      "KLEAR does not measure WIC participation or eligibility for any district, so no district-level figure is given here."
+    ]
+  },
+  "usage": {
+    "input_tokens": 17107,
+    "output_tokens": 1018,
+    "seconds": 5.43705787207
+  },
+  "trace": [
+    {
+      "stop": "tool_use",
+      "calls": [
+        {
+          "text": "I'll resolve the district and look for WIC data."
+        },
+        {
+          "tool": "resolve_place",
+          "input": {
+            "text": "house:026"
+          }
+        },
+        {
+          "tool": "list_programs",
+          "input": {
+            "words": [
+              "WIC",
+              "women infants children"
+            ]
+          }
+        },
+        {
+          "tool": "search_indicators",
+          "input": {
+            "words": [
+              "WIC",
+              "enrollment",
+              "women infants children"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "stop": "tool_use",
+      "calls": [
+        {
+          "text": "The store has no WIC enrollment indicator at district level. I'll submit that, naming the agency that holds the program data."
+        },
+        {
+          "tool": "submit_answer",
+          "input": {
+            "resolved": "house:026",
+            "refusal": "not_available",
+            "blocks": [
+              "WIC enrollment for {geo:house:026} is not in the KLEAR data. KLEAR holds no WIC enrollment figure at the district level, and enrollment is published only statewide.",
+              "The program is run by the Hawaiʻi State Department of Health, WIC Services Branch, which provides nutrition help for pregnant women, infants and young children. Enrollment figures for the district would need to be requested from that agency.",
+              "KLEAR does hold related district measures, such as the share of children under 18 living below the poverty level, if those would help with planning."
+            ],
+            "facts": [],
+            "programs": [
+              "wic_2026_27"
+            ],
+            "caveats": [
+              "KLEAR does not measure WIC participation or eligibility for any district, so no district-level figure is given here."
+            ]
+          }
+        }
+      ],
+      "problems": [
+        "unsourced number '18'",
+        "write every place with a geo marker such as {geo:house:009}, never a typed district number, and every value with a fact marker"
+      ]
+    },
+    {
+      "stop": "tool_use",
+      "calls": [
+        {
+          "text": "I'll remove the typed number and the typed district name."
+        },
+        {
+          "tool": "submit_answer",
+          "input": {
+            "resolved": "house:026",
+            "refusal": "not_available",
+            "blocks": [
+              "WIC enrollment for {geo:house:026} is not in the KLEAR data. KLEAR holds no WIC enrollment figure at the district level, and enrollment is published only statewide.",
+              "The program is run by the Hawaiʻi State Department of Health, WIC Services Branch, which provides nutrition help for pregnant women, infants and young children. Enrollment figures for the district would need to be requested from that agency.",
+              "KLEAR does hold related district measures, such as the share of children living below the poverty level, if those would help with planning."
+            ],
+            "facts": [],
+            "programs": [
+              "wic_2026_27"
+            ],
+            "caveats": [
+              "KLEAR does not measure WIC participation or eligibility for any district, so no district-level figure is given here."
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

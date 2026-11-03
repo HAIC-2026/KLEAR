@@ -1,0 +1,99 @@
+{
+  "answer": {
+    "contract": "1",
+    "resolved": [
+      "house",
+      "023"
+    ],
+    "refusal": "none",
+    "blocks": [
+      "PLACES, the CDC's small-area health data, gives a modeled estimate for {geo:house:023} of about {fact:f1} for {label:f1} ({vintage:f1}). The range is a wide uncertainty band rather than a formal confidence interval, so read the figure as approximate."
+    ],
+    "facts": [
+      {
+        "ref": "f1",
+        "indicator_id": "places_food_insecurity",
+        "geo_type": "house",
+        "geo_id": "023",
+        "source_id": "cdc_places_2025",
+        "value": 20.823133837732662,
+        "value_low": 17.823516885100926,
+        "value_high": 24.082221668049456,
+        "moe": null,
+        "vintage": "PLACES 2025 release, BRFSS 2023 model"
+      }
+    ],
+    "programs": [],
+    "caveats": [
+      "This is a modeled estimate built from survey data; the range is not a formal confidence interval. For a steadier figure, the Senate district or county level may be useful."
+    ]
+  },
+  "usage": {
+    "input_tokens": 16938,
+    "output_tokens": 547,
+    "seconds": 4.885931888828054
+  },
+  "trace": [
+    {
+      "stop": "tool_use",
+      "calls": [
+        {
+          "text": "I'll resolve the district and search for the food insecurity indicator."
+        },
+        {
+          "tool": "resolve_place",
+          "input": {
+            "text": "Hawaiʻi House District 23"
+          }
+        },
+        {
+          "tool": "search_indicators",
+          "input": {
+            "words": [
+              "food insecurity",
+              "PLACES"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "stop": "tool_use",
+      "calls": [
+        {
+          "tool": "get_facts",
+          "input": {
+            "indicator_ids": [
+              "places_food_insecurity"
+            ],
+            "geos": [
+              "house:023"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "stop": "tool_use",
+      "calls": [
+        {
+          "tool": "submit_answer",
+          "input": {
+            "resolved": "house:023",
+            "refusal": "none",
+            "blocks": [
+              "PLACES, the CDC's small-area health data, gives a modeled estimate for {geo:house:023} of about {fact:f1} for {label:f1} ({vintage:f1}). The range is a wide uncertainty band rather than a formal confidence interval, so read the figure as approximate."
+            ],
+            "facts": [
+              "f1"
+            ],
+            "programs": [],
+            "caveats": [
+              "This is a modeled estimate built from survey data; the range is not a formal confidence interval. For a steadier figure, the Senate district or county level may be useful."
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

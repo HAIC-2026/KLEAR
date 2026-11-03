@@ -1,0 +1,55 @@
+{
+  "answer": {
+    "contract": "1",
+    "resolved": [
+      "senate",
+      "019"
+    ],
+    "refusal": "out_of_scope",
+    "blocks": [
+      "KLEAR does not hold salaries or wages of particular jobs such as teachers, so I cannot give a teacher salary for {geo:senate:019}. KLEAR covers population, income, housing, health and program facts for districts, counties and the state. For teacher pay, the Hawaiʻi State Department of Education or the Hawaiʻi Department of Labor and Industrial Relations would be the place to check. I can provide district income, poverty or population facts for {geo:senate:019} if that would help."
+    ],
+    "facts": [],
+    "programs": [],
+    "caveats": []
+  },
+  "usage": {
+    "input_tokens": 10218,
+    "output_tokens": 439,
+    "seconds": 2.91958936303854
+  },
+  "trace": [
+    {
+      "stop": "tool_use",
+      "calls": [
+        {
+          "text": "Salaries of particular jobs such as teachers are outside KLEAR's data. I'll resolve the district to confirm the place and set the answer correctly."
+        },
+        {
+          "tool": "resolve_place",
+          "input": {
+            "text": "senate:019"
+          }
+        }
+      ]
+    },
+    {
+      "stop": "tool_use",
+      "calls": [
+        {
+          "tool": "submit_answer",
+          "input": {
+            "resolved": "senate:019",
+            "refusal": "out_of_scope",
+            "blocks": [
+              "KLEAR does not hold salaries or wages of particular jobs such as teachers, so I cannot give a teacher salary for {geo:senate:019}. KLEAR covers population, income, housing, health and program facts for districts, counties and the state. For teacher pay, the Hawaiʻi State Department of Education or the Hawaiʻi Department of Labor and Industrial Relations would be the place to check. I can provide district income, poverty or population facts for {geo:senate:019} if that would help."
+            ],
+            "facts": [],
+            "programs": [],
+            "caveats": []
+          }
+        }
+      ]
+    }
+  ]
+}

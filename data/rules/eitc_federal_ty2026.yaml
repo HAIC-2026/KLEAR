@@ -1,0 +1,16 @@
+rule_id: eitc_federal_ty2026
+program: Federal EITC (tax year 2026)
+status: confirmed
+effective: '2026-01-01'
+url: https://www.irs.gov/newsroom/irs-releases-tax-inflation-adjustments-for-tax-year-2026-including-amendments-from-the-one-big-beautiful-bill
+effective_source:
+  url: https://www.irs.gov/newsroom/irs-releases-tax-inflation-adjustments-for-tax-year-2026-including-amendments-from-the-one-big-beautiful-bill
+  quote: The tax year 2026 maximum Earned Income Tax Credit
+  shown: tax year 2026
+values:
+  max_credit_3_plus_children:
+    value: 8231
+    quote: The tax year 2026 maximum Earned Income Tax Credit (EITC) amount is $8,231 for qualifying taxpayers who have three or more qualifying children
+verified_by: read from the IRS tax year 2026 inflation adjustments release in this session
+retrieved: '2026-10-30'
+note: 'pending: max credit for 0, 1 and 2 children and income limits are only in Revenue Procedure 2025-32 (PDF)'

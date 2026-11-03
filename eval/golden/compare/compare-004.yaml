@@ -1,0 +1,25 @@
+id: compare-004
+category: compare
+question: For House District 17 in Hawaiʻi, compare public transit commuting with the county and statewide
+  figures.
+ideal: Compare public transit commuting shares for this district, Kauaʻi County, and Hawaiʻi using the
+  ACS worker universe. Cite the vintage, label the district estimate unreliable because its margin of error is large, and avoid describing these as shares of all residents.
+district:
+- house
+- '017'
+facts:
+- - pct_commute_public_transit
+  - house
+  - '017'
+- - pct_commute_public_transit
+  - county
+  - '15007'
+- - pct_commute_public_transit
+  - state
+  - '15'
+must_say:
+- 2020-2024
+- Kauaʻi
+- unreliable
+direction: within_margin
+refusal: none

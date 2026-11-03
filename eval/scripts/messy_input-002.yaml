@@ -1,0 +1,16 @@
+# Scripted model turns for messy_input-002: resolve place, then submit.
+- - type: tool_use
+    name: resolve_place
+    input:
+      text: waianae
+- - type: tool_use
+    name: submit_answer
+    input:
+      resolved: null
+      refusal: none
+      blocks:
+      - Waiʻanae is in {geo:house:045} and {geo:senate:022}. Please choose the House
+        or Senate district.
+      facts: []
+      programs: []
+      caveats: []

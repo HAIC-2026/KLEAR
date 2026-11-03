@@ -1,0 +1,103 @@
+{
+  "answer": {
+    "contract": "1",
+    "resolved": [
+      "house",
+      "022"
+    ],
+    "refusal": "none",
+    "blocks": [
+      "In {geo:house:022}, the {label:f1} is {fact:f1} ({vintage:f1}). This is a survey estimate, and its margin of error is shown in the figure above."
+    ],
+    "facts": [
+      {
+        "ref": "f1",
+        "indicator_id": "pop_65_plus",
+        "geo_type": "house",
+        "geo_id": "022",
+        "source_id": "acs2024_5yr_profile",
+        "value": 6257.0,
+        "value_low": null,
+        "value_high": null,
+        "moe": 519.0,
+        "vintage": "2020-2024 ACS 5-year"
+      }
+    ],
+    "programs": [],
+    "caveats": [
+      "The count is a survey estimate from the American Community Survey, not an official head count."
+    ]
+  },
+  "usage": {
+    "input_tokens": 17841,
+    "output_tokens": 508,
+    "seconds": 3.9807799530681223
+  },
+  "trace": [
+    {
+      "stop": "tool_use",
+      "calls": [
+        {
+          "text": "I'll resolve the district and search for the kūpuna indicator together."
+        },
+        {
+          "tool": "resolve_place",
+          "input": {
+            "text": "house:022"
+          }
+        },
+        {
+          "tool": "search_indicators",
+          "input": {
+            "words": [
+              "kupuna",
+              "older adults",
+              "65 and over"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "stop": "tool_use",
+      "calls": [
+        {
+          "text": "The count indicator is pop_65_plus. I'll fetch it for the district."
+        },
+        {
+          "tool": "get_facts",
+          "input": {
+            "indicator_ids": [
+              "pop_65_plus"
+            ],
+            "geos": [
+              "house:022"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "stop": "tool_use",
+      "calls": [
+        {
+          "tool": "submit_answer",
+          "input": {
+            "resolved": "house:022",
+            "refusal": "none",
+            "blocks": [
+              "In {geo:house:022}, the {label:f1} is {fact:f1} ({vintage:f1}). This is a survey estimate, and its margin of error is shown in the figure above."
+            ],
+            "facts": [
+              "f1"
+            ],
+            "programs": [],
+            "caveats": [
+              "The count is a survey estimate from the American Community Survey, not an official head count."
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

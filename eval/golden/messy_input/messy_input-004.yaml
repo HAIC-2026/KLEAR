@@ -1,0 +1,16 @@
+id: messy_input-004
+category: messy_input
+question: Senatte 17 hawaii uninsured rate plz
+ideal: Resolve the misspelled chamber to the requested Hawaiʻi Senate district and report its uninsured
+  share. Define the population universe and include ACS vintage and margin of error.
+district:
+- senate
+- '017'
+facts:
+- - pct_uninsured
+  - senate
+  - '017'
+must_say:
+- 2020-2024
+- margin of error
+refusal: none

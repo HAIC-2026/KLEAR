@@ -1,0 +1,26 @@
+id: compare-001
+category: compare
+question: Is child poverty in Senate District 12 higher than Oʻahu and the state?
+ideal: Compare the child poverty rate across this Senate district, Honolulu County as the Oʻahu comparison,
+  and Hawaiʻi. Use the same ACS vintage and say that the district difference from the county and state is within the margin of error, so it cannot be called meaningfully higher.
+district:
+- senate
+- '012'
+tags:
+- demo
+facts:
+- - pct_children_poverty
+  - senate
+  - '012'
+- - pct_children_poverty
+  - county
+  - '15003'
+- - pct_children_poverty
+  - state
+  - '15'
+must_say:
+- 2020-2024
+- Honolulu
+- margin of error
+direction: within_margin
+refusal: none

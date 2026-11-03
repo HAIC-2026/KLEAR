@@ -1,0 +1,24 @@
+id: compare-002
+category: compare
+question: How does Senate District 20 compare with Oʻahu and Hawaiʻi on household income?
+ideal: Compare median household income for the Senate district, Honolulu County, and Hawaiʻi using the
+  same ACS vintage. Include uncertainty and avoid presenting a median as an average or summing district
+  medians.
+district:
+- senate
+- '020'
+facts:
+- - median_household_income
+  - senate
+  - '020'
+- - median_household_income
+  - county
+  - '15003'
+- - median_household_income
+  - state
+  - '15'
+must_say:
+- 2020-2024
+- Honolulu
+direction: higher
+refusal: none

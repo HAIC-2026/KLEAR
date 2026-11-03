@@ -1,0 +1,9 @@
+rule_id: aca_ptc_2026
+program: ACA premium tax credit
+status: needs_manual
+effective: '2026-01-01'
+url: https://www.irs.gov/affordable-care-act/individuals-and-families/the-premium-tax-credit
+values: {}
+verified_by: not read in this session
+retrieved: '2026-10-30'
+note: confirm rules for 2026 and 2027 after the enhanced credits expired

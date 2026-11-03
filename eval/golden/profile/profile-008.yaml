@@ -1,0 +1,16 @@
+id: profile-008
+category: profile
+question: How many veterans live in Senate District 6 in Hawaiʻi?
+ideal: Report the civilian veteran estimate for this Hawaiʻi Senate district and define its adult universe.
+  Include the ACS vintage and margin of error without implying a registry of individual veterans.
+district:
+- senate
+- '006'
+facts:
+- - civilian_veterans
+  - senate
+  - '006'
+must_say:
+- 2020-2024
+- margin of error
+refusal: none

@@ -1,0 +1,34 @@
+[project]
+name = "klear"
+version = "0.1.0"
+description = "KLEAR data pipeline and agent for the HAIC 2026 Know Your District challenge"
+requires-python = ">=3.12"
+dependencies = [
+    "duckdb",
+    "pandas",
+    "openpyxl",
+    "httpx",
+    "geopandas",
+    "pyogrio",
+    "shapely",
+    "pyyaml",
+    "anthropic>=2.3.0",
+]
+
+[dependency-groups]
+dev = ["pytest", "ruff"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["klear"]
+
+[tool.pytest.ini_options]
+markers = ["network: hits the internet"]
+addopts = "-m 'not network'"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 110

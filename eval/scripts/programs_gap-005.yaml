@@ -1,0 +1,47 @@
+# Scripted model turns for programs_gap-005: fetch vouchers and rent burden, explain why subtracting them does not give unmet need.
+- - type: tool_use
+    name: resolve_place
+    input:
+      text: "Hawaiʻi Senate District 10"
+- - type: tool_use
+    name: search_indicators
+    input:
+      words:
+      - housing
+      - vouchers
+- - type: tool_use
+    name: search_indicators
+    input:
+      words:
+      - rent
+      - burden
+- - type: tool_use
+    name: list_programs
+    input:
+      words:
+      - housing
+      - vouchers
+- - type: tool_use
+    name: get_facts
+    input:
+      indicator_ids:
+      - hud_vouchers
+      - pct_rent_burden_35_plus
+      - renter_hh_rent_50_plus
+      geos:
+      - "senate:010"
+- - type: tool_use
+    name: submit_answer
+    input:
+      resolved: "senate:010"
+      refusal: none
+      blocks:
+      - No. Subtracting voucher holders from rent-burdened households does not give unmet need. Voucher holders pay a capped share of income toward rent, so voucher households and rent-burdened households are different groups, the figures come from different sources and periods, and rent burden does not show who meets the HUD income limits that set voucher eligibility.
+      - "The figures for {geo:senate:010}:\n* {label:f1}: about {fact:f1}, an estimate apportioned to the district from tract data ({vintage:f1})\n* {label:f2}: {fact:f2} ({vintage:f2})\n* {label:f3}: {fact:f3} ({vintage:f3})"
+      facts:
+      - f1
+      - f2
+      - f3
+      programs:
+      - hud_il_fy2026_hi
+      caveats: []

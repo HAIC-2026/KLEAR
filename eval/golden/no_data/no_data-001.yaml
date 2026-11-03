@@ -1,0 +1,17 @@
+id: no_data-001
+category: no_data
+question: How many people are enrolled in WIC in House District 26 in Hawaiʻi?
+ideal: State that district WIC enrollment is not available and refer the user to the Hawaiʻi Department
+  of Health WIC program. Distinguish any supported eligibility estimate from enrollment and do not invent
+  either an enrollment count or an unsupported eligibility count.
+district:
+- house
+- '026'
+tags:
+- demo
+- wic_enrollment
+must_say:
+- Department of Health
+programs:
+- wic_2026_27
+refusal: not_available

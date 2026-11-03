@@ -1,0 +1,26 @@
+id: find_district-004
+category: find_district
+question: Which House district covers Kāneʻohe? I only have the town name.
+ideal: Explain that Kāneʻohe can span district boundaries, so the town name alone does not identify a
+  unique House district. Ask for a more specific public location or district selection before returning
+  district facts.
+tags:
+- ambiguous_place
+must_say:
+- Kāneʻohe
+allowed_geos:
+- - house
+  - '048'
+- - house
+  - '049'
+- - house
+  - '050'
+- - senate
+  - '023'
+- - senate
+  - '024'
+- - zcta
+  - '96744'
+- - county
+  - '15003'
+refusal: none

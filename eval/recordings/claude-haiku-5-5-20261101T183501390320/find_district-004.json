@@ -1,0 +1,56 @@
+{
+  "answer": {
+    "contract": "1",
+    "resolved": [
+      "house",
+      "049"
+    ],
+    "refusal": "none",
+    "blocks": [
+      "Kāneʻohe lies mostly in {geo:house:049}, which is the House district covering most of the town. Smaller parts fall in {geo:house:050} and {geo:house:048}. The town is entirely within {geo:county:15003}, and most of it lies in {geo:senate:024}."
+    ],
+    "facts": [],
+    "programs": [],
+    "caveats": [
+      "Because Kāneʻohe spans several House districts, a single district is the one that covers most of the town, not the whole town."
+    ]
+  },
+  "usage": {
+    "input_tokens": 10481,
+    "output_tokens": 359,
+    "seconds": 4.367031627101824
+  },
+  "trace": [
+    {
+      "stop": "tool_use",
+      "calls": [
+        {
+          "tool": "resolve_place",
+          "input": {
+            "text": "Kāneʻohe"
+          }
+        }
+      ]
+    },
+    {
+      "stop": "tool_use",
+      "calls": [
+        {
+          "tool": "submit_answer",
+          "input": {
+            "resolved": "house:049",
+            "refusal": "none",
+            "blocks": [
+              "Kāneʻohe lies mostly in {geo:house:049}, which is the House district covering most of the town. Smaller parts fall in {geo:house:050} and {geo:house:048}. The town is entirely within {geo:county:15003}, and most of it lies in {geo:senate:024}."
+            ],
+            "facts": [],
+            "programs": [],
+            "caveats": [
+              "Because Kāneʻohe spans several House districts, a single district is the one that covers most of the town, not the whole town."
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

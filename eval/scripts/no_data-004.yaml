@@ -1,0 +1,19 @@
+# Scripted model turns for no_data-004: resolve the district, find no matching indicator, decline as out of scope.
+- - type: tool_use
+    name: resolve_place
+    input:
+      text: "Hawaiʻi Senate District 18"
+- - type: tool_use
+    name: search_indicators
+    input:
+      words: [school, test, scores]
+- - type: tool_use
+    name: submit_answer
+    input:
+      resolved: "senate:018"
+      refusal: out_of_scope
+      blocks:
+        - "School test scores and rankings are not in the KLEAR data for {geo:senate:018}. KLEAR covers population, income, housing, health and program facts for districts."
+      facts: []
+      programs: []
+      caveats: []

@@ -1,0 +1,30 @@
+# Scripted model turns for find_district-002: resolve place, search indicators, get facts, then submit.
+- - type: tool_use
+    name: resolve_place
+    input:
+      text: "Hawaiʻi Senate District 8"
+- - type: tool_use
+    name: search_indicators
+    input:
+      words:
+      - total
+      - population
+- - type: tool_use
+    name: get_facts
+    input:
+      indicator_ids:
+      - pop_total
+      geos:
+      - senate:008
+- - type: tool_use
+    name: submit_answer
+    input:
+      resolved: senate:008
+      refusal: none
+      blocks:
+      - '{label:f1} in {geo:senate:008}: {fact:f1} ({vintage:f1}). Fixed to official
+        population totals, no margin of error.'
+      facts:
+      - f1
+      programs: []
+      caveats: []

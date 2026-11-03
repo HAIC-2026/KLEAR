@@ -1,0 +1,24 @@
+# Scripted model turns for find_district-001: resolve the district, fetch its population, submit.
+- - type: tool_use
+    name: resolve_place
+    input:
+      text: "Hawaiʻi House District 18"
+- - type: tool_use
+    name: search_indicators
+    input:
+      words: [total, population]
+- - type: tool_use
+    name: get_facts
+    input:
+      indicator_ids: [pop_total]
+      geos: ["house:018"]
+- - type: tool_use
+    name: submit_answer
+    input:
+      resolved: "house:018"
+      refusal: none
+      blocks:
+        - "{label:f1} in {geo:house:018}: {fact:f1} ({vintage:f1})."
+      facts: [f1]
+      programs: []
+      caveats: []

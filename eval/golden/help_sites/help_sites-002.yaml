@@ -1,0 +1,13 @@
+id: help_sites-002
+category: help_sites
+question: How many public housing sites are in House District 20 in Hawaiʻi?
+ideal: Report the public housing site count for this Hawaiʻi district with its source and vintage. Distinguish
+  sites from available units and direct vacancy questions to the housing agency.
+district:
+- house
+- '020'
+facts:
+- - sites_public_housing
+  - house
+  - '020'
+refusal: none

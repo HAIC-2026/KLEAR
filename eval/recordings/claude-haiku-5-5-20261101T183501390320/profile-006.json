@@ -1,0 +1,99 @@
+{
+  "answer": {
+    "contract": "1",
+    "resolved": [
+      "house",
+      "044"
+    ],
+    "refusal": "none",
+    "blocks": [
+      "{geo:house:044} has {fact:f1} residents who identify as {label:f1}, counting those of mixed ancestry ({vintage:f1})."
+    ],
+    "facts": [
+      {
+        "ref": "f1",
+        "indicator_id": "pop_native_hawaiian_alone_or_combo",
+        "geo_type": "house",
+        "geo_id": "044",
+        "source_id": "acs2024_5yr_detailed",
+        "value": 16850.0,
+        "value_low": null,
+        "value_high": null,
+        "moe": 1882.0,
+        "vintage": "2020-2024 ACS 5-year"
+      }
+    ],
+    "programs": [],
+    "caveats": [
+      "This figure includes people who report Native Hawaiian alone or in combination with other races, so it is larger than the count for Native Hawaiian alone."
+    ]
+  },
+  "usage": {
+    "input_tokens": 16681,
+    "output_tokens": 499,
+    "seconds": 3.7629240159876645
+  },
+  "trace": [
+    {
+      "stop": "tool_use",
+      "calls": [
+        {
+          "text": "I'll resolve the district and search for the indicator."
+        },
+        {
+          "tool": "resolve_place",
+          "input": {
+            "text": "house:044"
+          }
+        },
+        {
+          "tool": "search_indicators",
+          "input": {
+            "words": [
+              "Native Hawaiian",
+              "ancestry"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "stop": "tool_use",
+      "calls": [
+        {
+          "tool": "get_facts",
+          "input": {
+            "indicator_ids": [
+              "pop_native_hawaiian_alone_or_combo"
+            ],
+            "geos": [
+              "house:044"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "stop": "tool_use",
+      "calls": [
+        {
+          "tool": "submit_answer",
+          "input": {
+            "resolved": "house:044",
+            "refusal": "none",
+            "blocks": [
+              "{geo:house:044} has {fact:f1} residents who identify as {label:f1}, counting those of mixed ancestry ({vintage:f1})."
+            ],
+            "facts": [
+              "f1"
+            ],
+            "programs": [],
+            "caveats": [
+              "This figure includes people who report Native Hawaiian alone or in combination with other races, so it is larger than the count for Native Hawaiian alone."
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

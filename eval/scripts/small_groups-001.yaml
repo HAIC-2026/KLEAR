@@ -1,0 +1,30 @@
+# Scripted model turns for small_groups-001: fetch the grandparent caregiver estimate and explain why it is not exact.
+- - type: tool_use
+    name: resolve_place
+    input:
+      text: "Hawaiʻi House District 1"
+- - type: tool_use
+    name: search_indicators
+    input:
+      words:
+      - grandparents
+      - grandchildren
+- - type: tool_use
+    name: get_facts
+    input:
+      indicator_ids:
+      - grandparents_responsible
+      geos:
+      - "house:001"
+- - type: tool_use
+    name: submit_answer
+    input:
+      resolved: "house:001"
+      refusal: none
+      blocks:
+      - "Not as an exact number. {label:f1} in {geo:house:001} is {fact:f1} ({vintage:f1})."
+      - This is a survey estimate for a small group, so quote it with its margin of error, for example as roughly this many give or take the margin, not as an exact count.
+      facts:
+      - f1
+      programs: []
+      caveats: []

@@ -1,0 +1,29 @@
+# Scripted model turns for profile-007: resolve the district, fetch the share of households with children, submit.
+- - type: tool_use
+    name: resolve_place
+    input:
+      text: "Senate District 1 in Hawaiʻi"
+- - type: tool_use
+    name: search_indicators
+    input:
+      words:
+      - households
+      - children
+- - type: tool_use
+    name: get_facts
+    input:
+      indicator_ids:
+      - pct_hh_with_children
+      geos:
+      - "senate:001"
+- - type: tool_use
+    name: submit_answer
+    input:
+      resolved: "senate:001"
+      refusal: none
+      blocks:
+      - "In {geo:senate:001}, the share of households with children is {fact:f1} ({label:f1}, {vintage:f1})."
+      facts:
+      - f1
+      programs: []
+      caveats: []

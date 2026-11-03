@@ -1,0 +1,17 @@
+id: modeled_need-004
+category: modeled_need
+question: Is there an estimate of utility shutoff threats for Hawaiʻi Senate District 14?
+ideal: Present the modeled adult utility shutoff threat estimate for this Hawaiʻi Senate district with
+  its range and vintage. Explain that survey responses and tract allocation do not constitute utility
+  company disconnection records.
+district:
+- senate
+- '014'
+facts:
+- - places_utility_shutoff_threat
+  - senate
+  - '014'
+must_say:
+- modeled
+- range
+refusal: none

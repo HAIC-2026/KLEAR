@@ -1,0 +1,159 @@
+{
+  "answer": {
+    "contract": "1",
+    "resolved": [
+      "house",
+      "024"
+    ],
+    "refusal": "none",
+    "blocks": [
+      "No. The closest measure in KLEAR for {geo:house:024} is {label:f1}, which is about {fact:f1}. It is a modeled estimate of the share of adults who reported housing insecurity in the past year, not a count of homeless residents. Source: {vintage:f1}.",
+      "Housing insecurity covers adults who struggled with rent, mortgage or utility payments or who had to move, and it can include people who are housed. It does not count people who are unsheltered, in shelters or living in temporary arrangements, so it cannot stand in for a homeless count. KLEAR does not hold homelessness counts; those are published by other agencies."
+    ],
+    "facts": [
+      {
+        "ref": "f1",
+        "indicator_id": "places_housing_insecurity",
+        "geo_type": "house",
+        "geo_id": "024",
+        "source_id": "cdc_places_2025",
+        "value": 9.151841649182984,
+        "value_low": 7.744087553006083,
+        "value_high": 10.72676463772701,
+        "moe": null,
+        "vintage": "PLACES 2025 release, BRFSS 2023 model"
+      }
+    ],
+    "programs": [],
+    "caveats": [
+      "This is a modeled estimate with a wide uncertainty band, not a formal confidence interval, so read it as approximate. {fact:f1} {vintage:f1}"
+    ]
+  },
+  "usage": {
+    "input_tokens": 32627,
+    "output_tokens": 1573,
+    "seconds": 8.480371929006651
+  },
+  "trace": [
+    {
+      "stop": "tool_use",
+      "calls": [
+        {
+          "text": "I'll resolve the district and look for a housing insecurity measure."
+        },
+        {
+          "tool": "resolve_place",
+          "input": {
+            "text": "house:024"
+          }
+        },
+        {
+          "tool": "search_indicators",
+          "input": {
+            "words": [
+              "housing insecurity",
+              "homeless",
+              "rent burden"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "stop": "tool_use",
+      "calls": [
+        {
+          "tool": "get_facts",
+          "input": {
+            "indicator_ids": [
+              "places_housing_insecurity"
+            ],
+            "geos": [
+              "house:024"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "stop": "tool_use",
+      "calls": [
+        {
+          "text": "No, you should not use it as a homeless count. The measure is a survey-based modeled estimate of adults who reported housing insecurity in the past 12 months, not a count of people without housing."
+        },
+        {
+          "tool": "submit_answer",
+          "input": {
+            "resolved": "house:024",
+            "refusal": "none",
+            "blocks": [
+              "No. The closest measure in KLEAR for {geo:house:024} is {label:f1}, which is about {fact:f1} ({vintage:f1}). It is a modeled estimate of the share of adults who reported housing insecurity in the past 12 months, not a count of homeless residents.",
+              "Housing insecurity covers adults who struggled with rent, mortgage or utility payments or who had to move, and it can include people who are housed. It does not count people who are unsheltered, in shelters or living in temporary arrangements, so it cannot stand in for a homeless count. KLEAR does not hold homelessness counts; those are published by other agencies."
+            ],
+            "facts": [
+              "f1"
+            ],
+            "programs": [],
+            "caveats": [
+              "This is a modeled estimate with a wide uncertainty band, so it is not a formal confidence interval and should be read as approximate ({vintage:f1})."
+            ]
+          }
+        }
+      ],
+      "problems": [
+        "unsourced number '12'",
+        "{vintage:f1} without {fact:f1} in the same block",
+        "write every place with a geo marker such as {geo:house:009}, never a typed district number, and every value with a fact marker"
+      ]
+    },
+    {
+      "stop": "tool_use",
+      "calls": [
+        {
+          "tool": "submit_answer",
+          "input": {
+            "resolved": "house:024",
+            "refusal": "none",
+            "blocks": [
+              "No. The closest measure in KLEAR for {geo:house:024} is {label:f1}, which is about {fact:f1} ({vintage:f1}). It is a modeled estimate of the share of adults who reported housing insecurity in the past year, not a count of homeless residents.",
+              "Housing insecurity covers adults who struggled with rent, mortgage or utility payments or who had to move, and it can include people who are housed. It does not count people who are unsheltered, in shelters or living in temporary arrangements, so it cannot stand in for a homeless count. KLEAR does not hold homelessness counts; those are published by other agencies."
+            ],
+            "facts": [
+              "f1"
+            ],
+            "programs": [],
+            "caveats": [
+              "This is a modeled estimate with a wide uncertainty band, not a formal confidence interval, so read it as approximate ({vintage:f1})."
+            ]
+          }
+        }
+      ],
+      "problems": [
+        "{vintage:f1} without {fact:f1} in the same block"
+      ]
+    },
+    {
+      "stop": "tool_use",
+      "calls": [
+        {
+          "tool": "submit_answer",
+          "input": {
+            "resolved": "house:024",
+            "refusal": "none",
+            "blocks": [
+              "No. The closest measure in KLEAR for {geo:house:024} is {label:f1}, which is about {fact:f1}. It is a modeled estimate of the share of adults who reported housing insecurity in the past year, not a count of homeless residents. Source: {vintage:f1}.",
+              "Housing insecurity covers adults who struggled with rent, mortgage or utility payments or who had to move, and it can include people who are housed. It does not count people who are unsheltered, in shelters or living in temporary arrangements, so it cannot stand in for a homeless count. KLEAR does not hold homelessness counts; those are published by other agencies."
+            ],
+            "facts": [
+              "f1"
+            ],
+            "programs": [],
+            "caveats": [
+              "This is a modeled estimate with a wide uncertainty band, not a formal confidence interval, so read it as approximate. {fact:f1} {vintage:f1}"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+id: compare-003
+category: compare
+question: Is the uninsured share in Senate District 3 above Hawaiʻi County and the state?
+ideal: Compare the district uninsured share with Hawaiʻi County and the state using the same population
+  universe and ACS vintage. Explain margins of error before interpreting the differences.
+district:
+- senate
+- '003'
+facts:
+- - pct_uninsured
+  - senate
+  - '003'
+- - pct_uninsured
+  - county
+  - '15001'
+- - pct_uninsured
+  - state
+  - '15'
+must_say:
+- 2020-2024
+- margin of error
+direction: higher
+refusal: none

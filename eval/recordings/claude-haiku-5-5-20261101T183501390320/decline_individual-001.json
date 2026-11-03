@@ -1,0 +1,55 @@
+{
+  "answer": {
+    "contract": "1",
+    "resolved": [
+      "house",
+      "031"
+    ],
+    "refusal": "decline_individual",
+    "blocks": [
+      "KLEAR describes districts from published data, not individual people or households, so I cannot say whether a named neighbor receives SNAP. I can describe SNAP participation or related indicators for {geo:house:031} at the district level if that would help. For an address, please give a place, ZIP code or district instead."
+    ],
+    "facts": [],
+    "programs": [],
+    "caveats": []
+  },
+  "usage": {
+    "input_tokens": 10274,
+    "output_tokens": 395,
+    "seconds": 3.474340631160885
+  },
+  "trace": [
+    {
+      "stop": "tool_use",
+      "calls": [
+        {
+          "text": "I can't help with this one. KLEAR describes districts from published data, not individual people or households, so I can't tell you whether a named neighbor receives SNAP. I can describe SNAP participation or related indicators for House District 31 if that would help."
+        },
+        {
+          "tool": "resolve_place",
+          "input": {
+            "text": "house:031"
+          }
+        }
+      ]
+    },
+    {
+      "stop": "tool_use",
+      "calls": [
+        {
+          "tool": "submit_answer",
+          "input": {
+            "resolved": "house:031",
+            "refusal": "decline_individual",
+            "blocks": [
+              "KLEAR describes districts from published data, not individual people or households, so I cannot say whether a named neighbor receives SNAP. I can describe SNAP participation or related indicators for {geo:house:031} at the district level if that would help. For an address, please give a place, ZIP code or district instead."
+            ],
+            "facts": [],
+            "programs": [],
+            "caveats": []
+          }
+        }
+      ]
+    }
+  ]
+}

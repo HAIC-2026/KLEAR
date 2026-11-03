@@ -1,0 +1,23 @@
+id: programs_gap-003
+category: programs_gap
+question: How much federal EITC is reaching House District 9 in Hawaiʻi? I need a tax outreach talking
+  point.
+ideal: Report estimated EITC dollars and claiming returns for this Hawaiʻi House district with the tax
+  year and IRS source. Describe allocation from ZIP data and avoid treating the figures as an exact district
+  administrative count or an unclaimed benefit total.
+district:
+- house
+- '009'
+facts:
+- - irs_eitc_dollars
+  - house
+  - '009'
+- - irs_eitc_returns
+  - house
+  - '009'
+must_say:
+- IRS
+- estimate
+programs:
+- eitc_federal_ty2025
+refusal: none

@@ -1,0 +1,101 @@
+rule_id: snap_fy2027
+program: SNAP
+status: confirmed
+effective: '2026-10-01'
+url: https://www.fna.usda.gov/snap/allotment/cola
+fetch_url: https://fns-prod.azureedge.us/snap/allotment/cola
+effective_source:
+  url: https://fns-prod.azureedge.us/snap/allotment/cola
+  quote: effective Oct. 1, 2026, through Sept. 30, 2027
+  shown: Oct. 1, 2026
+values:
+  net_100pct_monthly_size1:
+    value: 1530
+    quote: 1 $1,330 $1,663 $1,530
+  gross_130pct_monthly_size1:
+    value: 1989
+    quote: 1 $1,729 $2,162 $1,989
+  net_100pct_monthly_size2:
+    value: 2075
+    quote: 2 $1,804 $2,255 $2,075
+  gross_130pct_monthly_size2:
+    value: 2697
+    quote: 2 $2,345 $2,931 $2,697
+  net_100pct_monthly_size3:
+    value: 2619
+    quote: 3 $2,277 $2,846 $2,619
+  gross_130pct_monthly_size3:
+    value: 3404
+    quote: 3 $2,960 $3,700 $3,404
+  net_100pct_monthly_size4:
+    value: 3163
+    quote: 4 $2,750 $3,438 $3,163
+  gross_130pct_monthly_size4:
+    value: 4112
+    quote: 4 $3,575 $4,469 $4,112
+  net_100pct_monthly_size5:
+    value: 3707
+    quote: 5 $3,224 $4,030 $3,707
+  gross_130pct_monthly_size5:
+    value: 4819
+    quote: 5 $4,191 $5,238 $4,819
+  net_100pct_monthly_size6:
+    value: 4251
+    quote: 6 $3,697 $4,621 $4,251
+  gross_130pct_monthly_size6:
+    value: 5527
+    quote: 6 $4,806 $6,008 $5,527
+  net_100pct_monthly_size7:
+    value: 4795
+    quote: 7 $4,170 $5,213 $4,795
+  gross_130pct_monthly_size7:
+    value: 6234
+    quote: 7 $5,421 $6,777 $6,234
+  net_100pct_monthly_size8:
+    value: 5340
+    quote: 8 $4,644 $5,805 $5,340
+  gross_130pct_monthly_size8:
+    value: 6941
+    quote: 8 $6,037 $7,546 $6,941
+  net_100pct_monthly_each_additional:
+    value: 545
+    quote: Each Additional Member $474 $592 $545
+  gross_130pct_monthly_each_additional:
+    value: 708
+    quote: Each Additional Member $616 $770 $708
+  max_allotment_monthly_size1:
+    value: 496
+    quote: 1 $306 $392 $499 $608 $452 $496 $394
+  max_allotment_monthly_size2:
+    value: 910
+    quote: 2 $562 $718 $916 $1,115 $829 $910 $723
+  max_allotment_monthly_size3:
+    value: 1307
+    quote: 3 $808 $1,032 $1,316 $1,602 $1,191 $1,307 $1,039
+  max_allotment_monthly_size4:
+    value: 1655
+    quote: 4 $1,023 $1,306 $1,666 $2,027 $1,507 $1,655 $1,315
+  max_allotment_monthly_size5:
+    value: 1969
+    quote: 5 $1,217 $1,555 $1,982 $2,413 $1,794 $1,969 $1,565
+  max_allotment_monthly_size6:
+    value: 2367
+    quote: 6 $1,463 $1,868 $2,382 $2,900 $2,156 $2,367 $1,880
+  max_allotment_monthly_size7:
+    value: 2615
+    quote: 7 $1,616 $2,064 $2,632 $3,204 $2,382 $2,615 $2,078
+  max_allotment_monthly_size8:
+    value: 2979
+    quote: 8 $1,841 $2,352 $2,999 $3,650 $2,714 $2,979 $2,367
+  asset_limit_elderly_disabled:
+    value: 4750
+    quote: $4,750 $3,000
+  asset_limit_other:
+    value: 3000
+    quote: $4,750 $3,000
+  max_excess_shelter_deduction:
+    value: 1306
+    quote: $769 $1,229 $903 $1,306 $606
+verified_by: read from the USDA FY 2027 SNAP COLA page (Hawaii column) in this session
+retrieved: '2026-10-30'
+note: Hawaii column. Canonical page is fna.usda.gov (fns.usda.gov redirects there and loops for scripts), fetched from the fns-prod.azureedge.us mirror of the same page.
