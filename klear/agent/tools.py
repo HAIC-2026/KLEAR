@@ -238,8 +238,8 @@ class Session:
         words = _strs(args, "words")
         query: set[str] = set()
         for w in words:
-            p = plain_name(w)
-            query |= set(config.ALIASES.get(p, ())) or _tokens(w)
+            for t in _tokens(w):
+                query |= set(config.ALIASES.get(t, (t,)))
         rows = self.con.execute(
             "SELECT indicator_id, label, unit FROM indicator ORDER BY indicator_id"
         ).fetchall()
