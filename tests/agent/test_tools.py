@@ -136,6 +136,9 @@ def test_real_store_tools_smoke(session):
         call(session, "explain_source", source_id="acs2024_5yr_profile")["publisher"] == "U.S. Census Bureau"
     )
     assert call(session, "search_indicators", words=["kūpuna"])["indicators"]
+    for words in (["rent"], ["households", "rent"], ["share of households that rent"], ["tenure"]):
+        ids = [i["indicator_id"] for i in call(session, "search_indicators", words=words)["indicators"]]
+        assert "pct_renter_occupied" in ids[:4], words
 
 
 # small store

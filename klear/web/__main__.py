@@ -1,8 +1,10 @@
-"""Free local-data web interface. No model client or API key is used."""
+"""Web interface that answers district questions with the KLEAR assistant under a daily spend cap."""
 
 import argparse
 import json
 import threading
+import time
+from collections import defaultdict, deque
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -10,14 +12,40 @@ from urllib.parse import parse_qs, urlsplit
 
 import duckdb
 
+from klear.agent.config import DEFAULT_MODEL
 from klear.agent.tools import Session
 from klear.config import ROOT
 from klear.eval.contract import geo_key
-from klear.web.answers import ask
+from klear.web.assistant import DAILY_CAP, Assistant, DailyBudget, basic
 
 STORE = ROOT / "data" / "build" / "klear.duckdb"
 STATIC = Path(__file__).with_name("static")
-BUSY = threading.Lock()
+PUBLIC = (
+    "/",
+    "/index.html",
+    "/app.js",
+    "/style.css",
+    "/background1.jpg",
+    "/fonts/google-sans-latin.woff2",
+    "/fonts/google-sans-latin-ext.woff2",
+)
+BUSY = threading.BoundedSemaphore(3)
+PER_MINUTE = 6
+_RECENT = defaultdict(deque)
+_RECENT_LOCK = threading.Lock()
+
+
+def _allowed(ip: str) -> bool:
+    """Keep at most PER_MINUTE questions per client address in any 60 seconds."""
+    now = time.monotonic()
+    with _RECENT_LOCK:
+        seen = _RECENT[ip]
+        while seen and now - seen[0] > 60:
+            seen.popleft()
+        if len(seen) >= PER_MINUTE:
+            return False
+        seen.append(now)
+        return True
 
 
 def _district(con, text):
@@ -31,8 +59,10 @@ def _district(con, text):
 
 
 class Handler(SimpleHTTPRequestHandler):
-    def __init__(self, *args, store, **kwargs):
-        self.store = store
+    extensions_map = SimpleHTTPRequestHandler.extensions_map | {".woff2": "font/woff2"}
+
+    def __init__(self, *args, store, assistant=None, **kwargs):
+        self.store, self.assistant = store, assistant
         super().__init__(*args, directory=str(STATIC), **kwargs)
 
     def log_message(self, *args):
@@ -76,7 +106,7 @@ class Handler(SimpleHTTPRequestHandler):
                     {"error": "District lookup is unavailable. The operator needs to build the data store."},
                 )
         # Explicit allowlist: never serve the repository or keys.
-        if path.path not in ("/", "/index.html", "/app.js", "/style.css", "/background1.jpg"):
+        if path.path not in PUBLIC:
             return self.reply(404, {"error": "Not found"})
         super().do_GET()
 
@@ -104,9 +134,13 @@ class Handler(SimpleHTTPRequestHandler):
             return self.reply(
                 400, {"error": "Choose a district and enter a question of up to 2,000 characters."}
             )
+        if not _allowed(self.client_address[0]):
+            return self.reply(
+                429, {"error": "Too many questions at once. Please wait a minute and try again."}
+            )
         if not BUSY.acquire(blocking=False):
             return self.reply(
-                429, {"error": "KLEAR is answering another question. Please try again shortly."}
+                429, {"error": "KLEAR is busy answering other questions. Please try again shortly."}
             )
         try:
             with self.connect() as con:
@@ -114,13 +148,16 @@ class Handler(SimpleHTTPRequestHandler):
                     selected = _district(con, district)
                 except ValueError:
                     return self.reply(400, {"error": "Choose a valid stored House or Senate district."})
-                result = ask(con, question.strip(), selected)
+                if self.assistant is None:
+                    result = basic(con, question.strip(), selected)
+                else:
+                    result = self.assistant.ask(con, question.strip(), selected)
             self.reply(200, result)
         except Exception:  # noqa: BLE001 - redact internal errors at the HTTP boundary
             self.reply(
                 503,
                 {
-                    "error": "KLEAR could not answer. Please try again. If this continues, ask the operator to check the data store, built store."
+                    "error": "KLEAR could not answer. Please try again. If this continues, ask the operator to check the data store."
                 },
             )
         finally:
@@ -132,9 +169,16 @@ def main():
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8000)
     parser.add_argument("--store", type=Path, default=STORE)
+    parser.add_argument("--model", default=DEFAULT_MODEL)
+    parser.add_argument("--daily-cap", type=float, default=DAILY_CAP, help="dollars per HST day")
+    parser.add_argument("--basic-only", action="store_true", help="answer with the free lookup only")
     args = parser.parse_args()
-    server = ThreadingHTTPServer((args.host, args.port), partial(Handler, store=args.store))
-    print(f"KLEAR: http://{args.host}:{args.port}")
+    assistant = None if args.basic_only else Assistant(DailyBudget(args.daily_cap), args.model)
+    server = ThreadingHTTPServer(
+        (args.host, args.port), partial(Handler, store=args.store, assistant=assistant)
+    )
+    mode = "basic lookup only" if assistant is None else f"assistant, ${args.daily_cap:.2f} daily cap"
+    print(f"KLEAR: http://{args.host}:{args.port} ({mode})")
     try:
         server.serve_forever()
     except KeyboardInterrupt:

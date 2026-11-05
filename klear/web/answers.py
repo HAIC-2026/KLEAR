@@ -112,7 +112,8 @@ def ask(con, question, district):
     geos = [f"{district[0]}:{district[1]}"]
     if "compare" in q or "state" in q or "hawaiʻi" in q or "hawaii" in q:
         geos.append("state:15")
-    result = json.loads(Session(con).run("get_facts", {"indicator_ids": ids, "geos": geos}))
+    session = Session(con)
+    result = json.loads(session.run("get_facts", {"indicator_ids": ids, "geos": geos}))
     if "error" in result:
         raise ValueError("Could not read district facts")
     facts = []
@@ -146,4 +147,5 @@ def ask(con, question, district):
     )
     if len(geos) > 1:
         text += "\n\nDistrict and state figures are shown side by side. Consider their margins of error before drawing a conclusion."
-    return {"text": text, "refusal": "none", "facts": facts, "programs": []}
+    shown = [session.facts[f["ref"]] for f in result["facts"][: len(facts)]]
+    return {"text": text, "refusal": "none", "facts": facts, "programs": [], "fact_refs": shown}

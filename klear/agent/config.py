@@ -27,7 +27,16 @@ SEARCH_LIMIT = 12
 SITE_LIMIT = 20
 MAX_EDIT_DISTANCE = 2
 # Query words expanded to the words used in indicator labels.
-ALIASES = {"kupuna": ("65", "over"), "keiki": ("under", "18")}
+ALIASES = {
+    "kupuna": ("65", "over"),
+    "keiki": ("under", "18"),
+    "rent": ("rent", "renter"),
+    "renting": ("renter",),
+    "rental": ("rent", "renter"),
+    "tenure": ("renter", "owner", "occupied"),
+    "homeowner": ("owner", "occupied"),
+    "household": ("household", "occupied"),
+}
 # Agency behind each rule file, since rule files carry only the program name.
 AGENCIES = {
     "fpg_2026_hi": "U.S. Department of Health and Human Services",

@@ -139,13 +139,11 @@ Build the data store, then run:
 
     uv run python -m klear.web
 
-Open http://127.0.0.1:8000. The website answers from the local DuckDB
-store with deterministic question matching. It never loads an Anthropic client,
-reads `ANTHROPIC_API_KEY`, calls a model, or touches the spending ledger. No
-paid chat calls can be triggered by website visitors, even if a key is present
-in the server environment. The CLI (`python -m klear.agent`) and live eval
-remain separate and can incur costs if an operator runs them; do not use those
-commands for the public website.
+Open http://127.0.0.1:8000. Each question goes to the KLEAR assistant, the same one python -m klear.agent runs, so it needs ANTHROPIC_API_KEY on the server. The key stays on the server and never reaches the browser.
+
+Website spending has its own cap of 5 dollars per HST day, kept in ~/.config/klear/web_spend.json and separate from the 60 dollar eval cap. Each question holds its worst-case cost first and then records the actual cost, which is usually about a third of a cent. When the day's cap is reached, the key is missing or the API fails, the site answers with a basic keyword lookup from the store and says so. Each visitor can ask 6 questions a minute, and the server answers 3 at a time.
+
+Options: --daily-cap 5 sets the dollars per day, --model picks the model, and --basic-only turns the assistant off so the site makes no paid calls.
 
 The landing page uses the project-provided `background1.png` photo, copied
 as a smaller metadata-free `klear/web/static/background1.jpg`. It loads no
@@ -160,10 +158,9 @@ eligibility. Questions outside the available measures receive a clear limit
 instead of a guessed answer. Questions are independent: previous messages
 are displayed locally but are not sent as conversation history.
 
-Options: `--port 8000`, `--host 127.0.0.1`, `--store PATH`.
+Other options: --port 8000, --host 127.0.0.1, --store PATH.
 Only the static web assets are served; the repository and store cannot be
-downloaded. The server permits one question at a time and rejects cross-origin
-browser requests. HTTP logs are disabled to avoid recording questions.
+downloaded. The server rejects cross-origin browser requests. HTTP logs are disabled to avoid recording questions.
 
 For judging access from other devices, deploy behind an HTTPS reverse proxy
 with request limits. The included Python HTTP server is a demo entry point,
