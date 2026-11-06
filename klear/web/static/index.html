@@ -48,13 +48,13 @@
         </div>
       </section>
       <section class="map-section" id="district-map" aria-labelledby="map-title">
-        <div class="map-heading"><p class="overline">01 / EXPLORE BY MAP</p><h2 id="map-title">Not sure of your district?<br><em>Find it on the map.</em></h2><p>Pick an island, then tap the area you know. District lines are the 2022 boundaries in use today.</p></div>
+        <div class="map-heading"><p class="overline">01 / EXPLORE BY MAP</p><h2 id="map-title">Not sure of your district?<br><em>Find it on the map.</em></h2><p>Pick an island or zoom in to the area you know, then tap your district. District lines are the 2022 boundaries in use today.</p></div>
         <div class="map-card">
           <div class="map-controls">
             <div class="segmented" role="group" aria-label="Chamber"><button type="button" data-chamber="house" aria-pressed="true">House</button><button type="button" data-chamber="senate" aria-pressed="false">Senate</button></div>
             <div class="island-tabs" id="island-tabs" role="group" aria-label="Zoom to island"></div>
           </div>
-          <div class="map-frame"><svg id="map" role="img" aria-labelledby="map-title" preserveAspectRatio="xMidYMid meet"></svg><p id="map-loading" class="map-loading">Loading map…</p></div>
+          <div class="map-frame"><svg id="map" role="img" aria-labelledby="map-title" preserveAspectRatio="xMidYMid meet"></svg><p id="map-loading" class="map-loading">Loading map…</p><div class="zoom-buttons"><button type="button" id="zoom-in" aria-label="Zoom in">+</button><button type="button" id="zoom-out" aria-label="Zoom out">−</button></div><p id="map-hint" class="map-hint" hidden>Pinch, or hold Ctrl while scrolling, to zoom</p></div>
           <div class="map-footer">
             <div class="map-pick" aria-live="polite"><span class="overline" id="pick-island">SELECT A DISTRICT</span><strong id="pick-name">Tap an area on the map</strong></div>
             <button type="button" id="pick-go" class="map-go" disabled>Explore this district <span aria-hidden="true">↗</span></button>
