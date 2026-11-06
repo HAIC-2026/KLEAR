@@ -231,6 +231,12 @@ The landing page uses the project-provided `background1.png` photo, copied
 as a smaller metadata-free `klear/web/static/background1.jpg`. It loads no
 third-party images, fonts, scripts, or analytics.
 
+The district map draws the official 2022 House and Senate boundaries as plain SVG, with no map
+tiles or map library. Its shapes live in klear/web/static/districts.json, so the map works
+without a data build. After a build changes the boundaries, regenerate it with:
+
+    uv run python -m klear.etl.mapshapes
+
 The landing page resolves House/Senate numbers, towns and ZIPs using the
 built store. Overlaps are shown as choices instead of guessing a district.
 Chat includes example questions, a waiting state, explicit refusal labels,

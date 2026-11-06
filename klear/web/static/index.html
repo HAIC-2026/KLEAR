@@ -8,6 +8,7 @@
   <title>KLEAR — A closer look at every district</title>
   <link rel="stylesheet" href="/style.css">
   <script src="/app.js" defer></script>
+  <script src="/map.js" defer></script>
 </head>
 <body>
   <a class="skip" href="#main">Skip to content</a>
@@ -44,6 +45,22 @@
           <form id="lookup"><label for="place">DISTRICT, TOWN, OR ZIP CODE</label><div class="inputrow"><input id="place" required maxlength="160" placeholder="e.g. House 22, Kāneʻohe, 96744" autocomplete="off"><button type="submit">Find district <span aria-hidden="true">↗</span></button></div></form>
           <p class="help">A town or ZIP may span more than one district. We’ll show you the choices.</p>
           <p id="lookup-status" class="status" role="status"></p><div id="matches" class="matches"></div>
+        </div>
+      </section>
+      <section class="map-section" id="district-map" aria-labelledby="map-title">
+        <div class="map-heading"><p class="overline">01 / EXPLORE BY MAP</p><h2 id="map-title">Not sure of your district?<br><em>Find it on the map.</em></h2><p>Pick an island, then tap the area you know. District lines are the 2022 boundaries in use today.</p></div>
+        <div class="map-card">
+          <div class="map-controls">
+            <div class="segmented" role="group" aria-label="Chamber"><button type="button" data-chamber="house" aria-pressed="true">House</button><button type="button" data-chamber="senate" aria-pressed="false">Senate</button></div>
+            <div class="island-tabs" id="island-tabs" role="group" aria-label="Zoom to island"></div>
+          </div>
+          <div class="map-frame"><svg id="map" role="img" aria-labelledby="map-title" preserveAspectRatio="xMidYMid meet"></svg><p id="map-loading" class="map-loading">Loading map…</p></div>
+          <div class="map-footer">
+            <div class="map-pick" aria-live="polite"><span class="overline" id="pick-island">SELECT A DISTRICT</span><strong id="pick-name">Tap an area on the map</strong></div>
+            <button type="button" id="pick-go" class="map-go" disabled>Explore this district <span aria-hidden="true">↗</span></button>
+          </div>
+          <label for="map-list" class="map-list-label">OR CHOOSE FROM A LIST</label>
+          <select id="map-list"><option value="">Choose a district…</option></select>
         </div>
       </section>
       <div class="editorial-row"><div class="row-number">01</div><div><h3>Ask in your own words.</h3><p>Get a clear district answer without digging through separate datasets.</p></div><div class="row-number">02</div><div><h3>See the evidence.</h3><p>Figures include their year, source, and margin of error or estimated range.</p></div><div class="row-number">03</div><div><h3>Serve with care.</h3><p>Public, aggregated data helps guide outreach while protecting individuals.</p></div></div>

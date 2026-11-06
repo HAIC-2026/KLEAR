@@ -28,6 +28,8 @@ PUBLIC = (
     "/app.js",
     "/style.css",
     "/background1.jpg",
+    "/map.js",
+    "/districts.json",
     "/fonts/google-sans-latin.woff2",
     "/fonts/google-sans-latin-ext.woff2",
 )
