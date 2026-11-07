@@ -32,7 +32,7 @@ class ArcGISError(RuntimeError):
 
 def _check_page(path: Path) -> None:
     try:
-        data = json.loads(path.read_text())
+        data = json.loads(path.read_text(encoding="utf-8"))
     except ValueError:
         raise ArcGISError("ArcGIS returned a page that is not JSON") from None
     if not isinstance(data, dict) or "error" in data or not isinstance(data.get("features"), list):
@@ -54,7 +54,7 @@ def download_districts(chamber: str, client: httpx.Client | None = None) -> gpd.
             client=client,
             validate=_check_page,
         )
-        n = len(json.loads(path.read_text())["features"])
+        n = len(json.loads(path.read_text(encoding="utf-8"))["features"])
         if n:
             frames.append(gpd.read_file(path))
         if n < PAGE_SIZE:

@@ -116,7 +116,7 @@ def test_failed_call_settles_the_full_reservation(store_path, fake, monkeypatch,
 
 def test_uncertain_budget_needs_continue(store_path, fake, monkeypatch, capsys):
     spend.UNCERTAIN.parent.mkdir(parents=True, exist_ok=True)
-    spend.UNCERTAIN.write_text("earlier failure\n")
+    spend.UNCERTAIN.write_text("earlier failure\n", encoding="utf-8")
     _answer(monkeypatch, "y")
     assert main(["seniors?", "--store", str(store_path)]) == 2 and fake.calls == 0
     prompts = _answer(monkeypatch, "continue")

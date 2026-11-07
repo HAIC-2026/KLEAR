@@ -113,7 +113,7 @@ def fetch(
         "bytes": size,
     }
     meta_path = target.with_name(target.name + ".meta.json")
-    meta_path.write_text(json.dumps(meta, indent=2) + "\n")
+    meta_path.write_text(json.dumps(meta, indent=2) + "\n", encoding="utf-8")
     if _session is not None:
         _session["done"].add(target)
     return target

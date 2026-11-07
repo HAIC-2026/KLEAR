@@ -68,7 +68,7 @@ def test_export_web_geojson_simplifies(tmp_path):
     back = gpd.read_file(out)
     assert len(back) == 1
     assert len(back.geometry[0].exterior.coords) < len(poly.exterior.coords)
-    assert json.loads(out.read_text())["features"][0]["properties"]["geo_id"] == "001"
+    assert json.loads(out.read_text(encoding="utf-8"))["features"][0]["properties"]["geo_id"] == "001"
 
 
 @pytest.mark.network

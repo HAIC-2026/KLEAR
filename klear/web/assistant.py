@@ -1,6 +1,5 @@
 """Answers website questions with the KLEAR agent under a daily spend cap, falling back to the free lookup."""
 
-import fcntl
 import json
 import os
 import uuid
@@ -13,6 +12,7 @@ from klear.agent.loop import KlearAgent
 from klear.config import MissingSecretError
 from klear.eval.contract import VERSION, Answer, fill_value, geo_display, render
 from klear.eval.spend import load_prices, request_cost
+from klear.filelock import exclusive
 from klear.rules.registry import load_rules
 from klear.web import display
 from klear.web.answers import ask as lookup
@@ -42,8 +42,7 @@ class DailyBudget:
     def _state(self):
         self.path.parent.mkdir(parents=True, exist_ok=True)
         lock = self.path.with_name(self.path.name + ".lock")
-        with open(lock, "a", encoding="utf-8") as fd:
-            fcntl.flock(fd, fcntl.LOCK_EX)
+        with open(lock, "ab") as fd, exclusive(fd.fileno()):
             state = json.loads(self.path.read_text(encoding="utf-8")) if self.path.exists() else {}
             if state.get("day") != self.day():
                 state = {"day": self.day(), "spent": 0.0, "held": {}}

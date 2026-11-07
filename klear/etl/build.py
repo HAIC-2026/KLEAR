@@ -173,7 +173,7 @@ def _label(path: Path) -> str:
 def _raw_entry(path: Path) -> dict:
     sidecar = path.with_name(path.name + ".meta.json")
     try:
-        meta = json.loads(sidecar.read_text()) if sidecar.is_file() else {}
+        meta = json.loads(sidecar.read_text(encoding="utf-8")) if sidecar.is_file() else {}
     except ValueError:
         meta = {}
     return {
@@ -551,11 +551,11 @@ def build(
         "raw_files": raw_files,
     }
     (build_dir / "manifest.json").write_text(
-        json.dumps(_clean(manifest), indent=2, ensure_ascii=False) + "\n"
+        json.dumps(_clean(manifest), indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
     )
     validation = {"built_at": manifest["built_at"], "checks": [asdict(r) for r in checks], "skipped": skipped}
     (build_dir / "validation.json").write_text(
-        json.dumps(_clean(validation), indent=1, ensure_ascii=False, default=str) + "\n"
+        json.dumps(_clean(validation), indent=1, ensure_ascii=False, default=str) + "\n", encoding="utf-8"
     )
     meta = manifest | {"raw_files": checks[-1].notes[0]}
     docs_path.parent.mkdir(parents=True, exist_ok=True)

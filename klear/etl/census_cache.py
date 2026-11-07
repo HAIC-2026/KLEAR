@@ -81,4 +81,4 @@ def _save(path: Path, body: bytes, url: str) -> None:
         "sha256": hashlib.sha256(body).hexdigest(),
         "bytes": len(body),
     }
-    path.with_name(path.name + ".meta.json").write_text(json.dumps(meta, indent=2) + "\n")
+    path.with_name(path.name + ".meta.json").write_text(json.dumps(meta, indent=2) + "\n", encoding="utf-8")

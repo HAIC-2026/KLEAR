@@ -12,7 +12,7 @@ GOOD = {"id": "q1", "category": "profile", "question": "How many kūpuna?", "ide
 def _write(root: Path, folder: str, name: str, data: dict) -> Path:
     path = root / folder / f"{name}.yaml"
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(yaml.safe_dump(data, allow_unicode=True))
+    path.write_text(yaml.safe_dump(data, allow_unicode=True), encoding="utf-8")
     return path
 
 
@@ -54,7 +54,7 @@ def test_duplicate_id(tmp_path):
     _write(tmp_path, "compare", "q1", GOOD | {"category": "compare"})
     with pytest.raises(GoldenError, match="duplicate id q1") as e:
         load_golden(tmp_path)
-    assert "profile/q1.yaml" in str(e.value)
+    assert str(Path("profile") / "q1.yaml") in str(e.value)
 
 
 @pytest.mark.parametrize(
@@ -121,6 +121,6 @@ def test_stray_files_raise(tmp_path, rel):
     _write(tmp_path, "profile", "ok", GOOD)
     path = tmp_path / rel
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text("id: x\n")
+    path.write_text("id: x\n", encoding="utf-8")
     with pytest.raises(GoldenError, match=path.name):
         load_golden(tmp_path)

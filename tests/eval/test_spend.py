@@ -4,12 +4,16 @@ import math
 import multiprocessing as mp
 import os
 import signal
+import sys
+import threading
 
 import pytest
 import yaml
 
 from klear.eval.agents import Usage
 from klear.eval.spend import LedgerError, SpendCapError, SpendLog, estimate_cost, load_prices, request_cost
+
+needs_fork = pytest.mark.skipif(sys.platform == "win32", reason="needs fork and SIGKILL")
 
 PRICES = {
     "verified": "2026-10-30 HST",
@@ -21,7 +25,7 @@ PRICES = {
 @pytest.fixture
 def prices(tmp_path):
     path = tmp_path / "prices.yaml"
-    path.write_text(yaml.safe_dump(PRICES))
+    path.write_text(yaml.safe_dump(PRICES), encoding="utf-8")
     return path
 
 
@@ -33,9 +37,9 @@ def seed(log, cost):
     """Write a ledger with one settled cost and its matching outside copy."""
     log.path.parent.mkdir(parents=True, exist_ok=True)
     line = {"type": "settle", "id": "old", "model": "m", "input_tokens": 0, "output_tokens": 0, "cost": cost}
-    log.path.write_text(json.dumps(line) + "\n")
+    log.path.write_text(json.dumps(line) + "\n", encoding="utf-8")
     log.mirror.parent.mkdir(parents=True, exist_ok=True)
-    log.mirror.write_text(f"{cost!r}\n")
+    log.mirror.write_text(f"{cost!r}\n", encoding="utf-8")
 
 
 def test_estimate_and_request_cost(prices):
@@ -77,10 +81,27 @@ def _reserve(args):
         return False
 
 
+@needs_fork
 def test_concurrent_reserve(tmp_path):
     with mp.get_context("fork").Pool(2) as pool:
         results = pool.map(_reserve, [None] * 2)
     assert sorted(results) == [False, True]
+
+
+def test_concurrent_reserve_threads(tmp_path):
+    """Each thread opens its own lock descriptor, which locks like a separate process on every platform."""
+    start, results = threading.Barrier(4), []
+
+    def work():
+        start.wait()
+        results.append(_reserve(None))
+
+    threads = [threading.Thread(target=work) for _ in range(4)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert sorted(results) == [False, False, False, True]
 
 
 @pytest.mark.parametrize("bad", [-0.01, math.nan, math.inf, -math.inf, "1", None, True])
@@ -98,7 +119,7 @@ def test_corrupt_ledger_fails_closed(tmp_path):
     log = make(tmp_path)
     seed(log, 1.0)
     for bad in ["{not json", '{"type": "settle", "id": "x", "cost": -5}', '{"type": "settle", "id": "x"}']:
-        log.path.write_text(bad + "\n")
+        log.path.write_text(bad + "\n", encoding="utf-8")
         with pytest.raises(LedgerError, match="line 1"):
             log.reserve(0.1)
         with pytest.raises(LedgerError):
@@ -125,7 +146,7 @@ def test_deleted_copy_refuses(tmp_path):
 def test_edited_down_ledger_uses_copy(tmp_path):
     log = make(tmp_path)
     log.settle(log.reserve(0.5), "m", Usage(0, 0, 0.0), 59.9)
-    log.path.write_text("")
+    log.path.write_text("", encoding="utf-8")
     assert log.total() == pytest.approx(59.9)
     with pytest.raises(SpendCapError):
         log.reserve(0.2)
@@ -135,7 +156,7 @@ def test_copy_written_on_every_settle(tmp_path):
     log = make(tmp_path)
     log.settle(log.reserve(0.5), "m", Usage(0, 0, 0.0), 0.25)
     log.settle(log.reserve(0.5), "m", Usage(0, 0, 0.0), 0.5)
-    assert float(log.mirror.read_text()) == pytest.approx(0.75)
+    assert float(log.mirror.read_text(encoding="utf-8")) == pytest.approx(0.75)
 
 
 def _settle_then_die(args):
@@ -144,6 +165,7 @@ def _settle_then_die(args):
     os.kill(os.getpid(), signal.SIGKILL)
 
 
+@needs_fork
 def test_sigkill_after_settle_keeps_spend(tmp_path):
     log = make(tmp_path)
     seed(log, 59.0)
@@ -161,6 +183,7 @@ def _reserve_then_die(args):
     os.kill(os.getpid(), signal.SIGKILL)
 
 
+@needs_fork
 def test_sigkill_mid_call_keeps_reservation(tmp_path):
     log = make(tmp_path)
     seed(log, 59.0)
@@ -173,7 +196,7 @@ def test_sigkill_mid_call_keeps_reservation(tmp_path):
 
 def test_unwritable_mirror_parent_is_a_ledger_error(tmp_path, monkeypatch):
     blocker = tmp_path / "blocker"
-    blocker.write_text("")
+    blocker.write_text("", encoding="utf-8")
     monkeypatch.setattr("klear.eval.spend.MIRROR", blocker / "sub" / "eval_spend_total")
     with pytest.raises(LedgerError, match="spend total copy"):
         SpendLog().reserve(0.1)

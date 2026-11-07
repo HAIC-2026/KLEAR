@@ -122,7 +122,9 @@ def test_recorded_round_trip(tmp_path, eval_store):
     assert got == a and isinstance(got, Answer) and got_usage == usage
     assert agent.name == "m1"
     save_recording(tmp_path, "m2", "p-1", a, usage, [{"stop": "end_turn"}])
-    assert json.loads((tmp_path / "m2" / "p-1.json").read_text())["trace"] == [{"stop": "end_turn"}]
+    assert json.loads((tmp_path / "m2" / "p-1.json").read_text(encoding="utf-8"))["trace"] == [
+        {"stop": "end_turn"}
+    ]
     assert RecordedAgent(tmp_path, "m2").answer("p-1", "q", None)[0] == a
 
 

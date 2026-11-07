@@ -6,6 +6,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 RAW_DIR = ROOT / "data" / "raw"
 BUILD_DIR = ROOT / "data" / "build"
+PROJECT_ENV_FILE = ROOT / ".env"
 ENV_FILE = Path.home() / ".config" / "klear" / "env"
 
 
@@ -17,7 +18,7 @@ def _read_env_file(path: Path) -> dict[str, str]:
     if not path.is_file():
         return {}
     out = {}
-    for line in path.read_text().splitlines():
+    for line in path.read_text(encoding="utf-8-sig").splitlines():
         line = line.strip()
         if not line or line.startswith("#") or "=" not in line:
             continue
@@ -28,9 +29,14 @@ def _read_env_file(path: Path) -> dict[str, str]:
 
 
 def load_secret(name: str) -> str:
-    value = os.environ.get(name) or _read_env_file(ENV_FILE).get(name)
+    """Read a key from the process, the project's .env, then the user's key file."""
+    value = (
+        os.environ.get(name)
+        or _read_env_file(PROJECT_ENV_FILE).get(name)
+        or _read_env_file(ENV_FILE).get(name)
+    )
     if not value:
-        raise MissingSecretError(f"{name} not set; export it or add it to ~/.config/klear/env")
+        raise MissingSecretError(f"{name} not set; set it in the environment, .env or ~/.config/klear/env")
     return value
 
 

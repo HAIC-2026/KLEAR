@@ -69,7 +69,8 @@ def test_catalog_rejects_bad_unit(tmp_path):
     p = tmp_path / "c.yaml"
     p.write_text(
         "indicators:\n  - indicator_id: x\n    label: X\n    unit: minutes\n    universe: U\n"
-        "    acs_var: DP03_0025\n    dataset: acs/acs5/profile\n"
+        "    acs_var: DP03_0025\n    dataset: acs/acs5/profile\n",
+        encoding="utf-8",
     )
     with pytest.raises(ValueError, match="minutes"):
         load_catalog(p)
@@ -81,7 +82,7 @@ def test_catalog_rejects_duplicate_ids(tmp_path):
         "    acs_var: DP05_0001\n    dataset: acs/acs5/profile\n"
     )
     p = tmp_path / "c.yaml"
-    p.write_text("indicators:\n" + entry + entry)
+    p.write_text("indicators:\n" + entry + entry, encoding="utf-8")
     with pytest.raises(ValueError, match="duplicate"):
         load_catalog(p)
 
@@ -91,14 +92,13 @@ def test_catalog_geo_types_default_and_declared(tmp_path):
     base = "    label: X\n    unit: count\n    universe: U\n    acs_var: B01003_001\n    dataset: acs/acs5\n"
     p.write_text(
         "indicators:\n  - indicator_id: a\n" + base + "  - indicator_id: b\n" + base
-        + "    geo_types: [state, county]\n"
-    )  # fmt: skip
+        + "    geo_types: [state, county]\n", encoding="utf-8")  # fmt: skip
     a, b = load_catalog(p)
     assert a.geo_types == GEO_TYPES and b.geo_types == ("state", "county")
-    p.write_text("indicators:\n  - indicator_id: a\n" + base + "    geo_types: [ward]\n")
+    p.write_text("indicators:\n  - indicator_id: a\n" + base + "    geo_types: [ward]\n", encoding="utf-8")
     with pytest.raises(ValueError, match="ward"):
         load_catalog(p)
-    p.write_text("indicators:\n  - indicator_id: a\n" + base + "    extra: 1\n")
+    p.write_text("indicators:\n  - indicator_id: a\n" + base + "    extra: 1\n", encoding="utf-8")
     with pytest.raises(ValueError, match="fields"):
         load_catalog(p)
 

@@ -2,6 +2,7 @@
 import hashlib
 import json
 import multiprocessing as mp
+import sys
 from pathlib import Path
 
 import pytest
@@ -63,7 +64,8 @@ def prices(tmp_path):
                 "assumed_tokens_per_question": {"input": 100_000, "output": 0},
                 "models": {"m": {"input": 1.0, "output": 1.0}},
             }
-        )
+        ),
+        encoding="utf-8",
     )
     return path
 
@@ -157,7 +159,7 @@ def test_overall_gate_and_refusal_gate(eval_store):
 def test_missing_manifest_exits_2(tmp_path, eval_store):
     res = run([_gold(0)], Fake(), eval_store, mode="replay", manifest_path=tmp_path / "manifest.json")
     assert res.manifest_hash is None and exit_code(res) == 2
-    (tmp_path / "manifest.json").write_text("{}")
+    (tmp_path / "manifest.json").write_text("{}", encoding="utf-8")
     res = run([_gold(0)], Fake(), eval_store, mode="replay", manifest_path=tmp_path / "manifest.json")
     assert res.manifest_hash == hashlib.sha256(b"{}").hexdigest() and exit_code(res) == 0
 
@@ -192,6 +194,7 @@ def _two_runs(args):
         spend=spend, prices=prices, confirm=lambda p: "y")  # fmt: skip
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="needs fork")
 def test_two_concurrent_runs_stay_under_cap(tmp_path, prices):
     spend = make(tmp_path, spent=59.0)
     with mp.get_context("fork").Pool(2) as pool:
@@ -351,7 +354,7 @@ def test_env_variable_does_not_move_mirror(tmp_path, monkeypatch):
     log = SpendLog()
     log.settle(log.reserve(0.5), "m", Usage(0, 0, 0.0), 0.5)
     assert not elsewhere.exists() and not elsewhere.parent.exists()
-    assert float(spend.MIRROR.read_text()) == pytest.approx(0.5)
+    assert float(spend.MIRROR.read_text(encoding="utf-8")) == pytest.approx(0.5)
 
 
 def test_second_ledger_path_cannot_reset_spend(tmp_path, monkeypatch):
@@ -391,8 +394,8 @@ def test_deleted_ledger_and_copy_with_lock_history_refuse(tmp_path):
 def test_lock_high_water_is_a_floor(tmp_path):
     log = SpendLog()
     log.settle(log.reserve(0.5), "m", Usage(0, 0, 0.0), 30.0)
-    log.path.write_text("")
-    log.mirror.write_text("1.0\n")
+    log.path.write_text("", encoding="utf-8")
+    log.mirror.write_text("1.0\n", encoding="utf-8")
     assert log.total() == pytest.approx(30.0)
 
 
@@ -413,8 +416,8 @@ def test_lock_high_water_rises_with_every_settle(tmp_path, amounts):
     _wipe(log)
     with pytest.raises(LedgerError, match="lock"):
         log.reserve(0.1)
-    log.path.write_text("")
-    log.mirror.write_text("0.0\n")
+    log.path.write_text("", encoding="utf-8")
+    log.mirror.write_text("0.0\n", encoding="utf-8")
     assert log.total() == pytest.approx(sum(amounts))
 
 
@@ -426,8 +429,8 @@ def test_wiped_ledger_after_high_spend_refuses_run(tmp_path, eval_store, prices)
     with pytest.raises(LedgerError, match="lock"):
         _live([_gold(0)], agent, eval_store, log, prices)
     assert agent.calls == []
-    log.path.write_text("")
-    log.mirror.write_text("0.0\n")
+    log.path.write_text("", encoding="utf-8")
+    log.mirror.write_text("0.0\n", encoding="utf-8")
     with pytest.raises(SpendCapError, match="90.00 spent"):
         _live([_gold(0)], agent, eval_store, log, prices)
     assert agent.calls == [] and log.total() == pytest.approx(90.0)
@@ -446,8 +449,8 @@ def test_legacy_appended_lock_records_count_their_highest(tmp_path):
     log = SpendLog()
     _settle_all(log, [1.0])
     log.lock.write_bytes(b"".join(f"{v:.6f}".ljust(spend.HW_WIDTH - 1).encode() + b"\n" for v in (1, 40, 7)))
-    log.path.write_text("")
-    log.mirror.write_text("0.0\n")
+    log.path.write_text("", encoding="utf-8")
+    log.mirror.write_text("0.0\n", encoding="utf-8")
     assert log.total() == pytest.approx(40.0)
     _settle_all(log, [2.0])
     assert log.total() == pytest.approx(42.0) and log.lock.stat().st_size == spend.HW_WIDTH
@@ -537,7 +540,7 @@ def test_malformed_recorded_answer_fails_question(tmp_path, eval_store):
         "answer": {"contract": "1", "blocks": "Aloha"},
         "usage": {"input_tokens": 0, "output_tokens": 0, "seconds": 0},
     }
-    (rec / "q0.json").write_text(json.dumps(body))
+    (rec / "q0.json").write_text(json.dumps(body), encoding="utf-8")
     save_recording(tmp_path / "rec", "r", "q1", GOOD, Usage(0, 0, 0.0))
     res = run([_gold(0), _gold(1)], RecordedAgent(tmp_path / "rec", "r"), eval_store, mode="replay")
     assert [i.status for i in res.items] == ["scored", "scored"]

@@ -40,5 +40,5 @@ def manual_file(name: str, url: str) -> Path:
         "sha256": _sha256(path),
         "bytes": path.stat().st_size,
     }
-    sidecar.write_text(json.dumps(meta, indent=2) + "\n")
+    sidecar.write_text(json.dumps(meta, indent=2) + "\n", encoding="utf-8")
     return path

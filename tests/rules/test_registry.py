@@ -27,7 +27,7 @@ def write(path, **over):
         "retrieved": "2026-10-30",
     }
     d.update(over)
-    path.write_text(yaml.safe_dump(d, allow_unicode=True))
+    path.write_text(yaml.safe_dump(d, allow_unicode=True), encoding="utf-8")
 
 
 @pytest.fixture
@@ -175,7 +175,7 @@ def test_unknown_status_raises(tmp_rules):
 
 
 def test_missing_field_raises(tmp_path):
-    (tmp_path / "r.yaml").write_text(yaml.safe_dump({"rule_id": "x"}))
+    (tmp_path / "r.yaml").write_text(yaml.safe_dump({"rule_id": "x"}), encoding="utf-8")
     with pytest.raises(ValueError, match="program"):
         load_rules(tmp_path, required=())
 

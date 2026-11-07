@@ -1,5 +1,4 @@
 # Spend ledger that caps total live eval cost across runs and processes, with per-call reservations under an exclusive file lock.
-import fcntl
 import json
 import math
 import os
@@ -10,6 +9,7 @@ from pathlib import Path
 import yaml
 
 from klear.eval.golden import ROOT
+from klear.filelock import BINARY, exclusive
 
 PRICES = ROOT / "eval" / "prices.yaml"
 CAP = 60.0
@@ -82,23 +82,23 @@ class SpendLog:
     @contextmanager
     def _locked(self):
         self.lock.parent.mkdir(parents=True, exist_ok=True)
-        # No O_APPEND: pwrite must overwrite the record at offset 0.
-        fd = os.open(self.lock, os.O_RDWR | os.O_CREAT, 0o600)
+        # No O_APPEND: the record must overwrite offset 0.
+        fd = os.open(self.lock, os.O_RDWR | os.O_CREAT | BINARY, 0o600)
         try:
-            fcntl.flock(fd, fcntl.LOCK_EX)
-            self._fd = fd
-            try:
-                yield
-            finally:
-                self._fd = None
-                fcntl.flock(fd, fcntl.LOCK_UN)
+            with exclusive(fd):
+                self._fd = fd
+                try:
+                    yield
+                finally:
+                    self._fd = None
         finally:
             os.close(fd)
 
     def _read_hw(self) -> float:
         """Highest record in the lock file; older appending versions may have left several."""
         size = os.fstat(self._fd).st_size
-        lines = os.pread(self._fd, size, 0).decode("ascii", "replace").split("\n")
+        os.lseek(self._fd, 0, os.SEEK_SET)  # os.pread and os.pwrite do not exist on Windows
+        lines = os.read(self._fd, size).decode("ascii", "replace").split("\n")
         try:
             return max((_amount("lock high-water", float(x)) for x in lines if x.strip()), default=0.0)
         except ValueError as e:
@@ -108,13 +108,14 @@ class SpendLog:
         record = f"{max(total, self._read_hw()):.6f}".ljust(HW_WIDTH - 1).encode("ascii") + b"\n"
         if len(record) != HW_WIDTH:
             raise LedgerError(f"spend high-water {total!r} does not fit the {HW_WIDTH}-byte lock record")
-        os.pwrite(self._fd, record, 0)
+        os.lseek(self._fd, 0, os.SEEK_SET)
+        os.write(self._fd, record)
         os.ftruncate(self._fd, HW_WIDTH)
         os.fsync(self._fd)
 
     def _read_mirror(self) -> float:
         try:
-            return _amount("mirror total", float(self.mirror.read_text().strip()))
+            return _amount("mirror total", float(self.mirror.read_text(encoding="utf-8").strip()))
         except ValueError as e:
             raise LedgerError(f"spend total copy {self.mirror} is corrupt: {e}") from e
 
@@ -122,7 +123,7 @@ class SpendLog:
         tmp = self.mirror.with_name(self.mirror.name + f".{os.getpid()}.tmp")
         try:
             self.mirror.parent.mkdir(parents=True, exist_ok=True)
-            with open(tmp, "w") as f:
+            with open(tmp, "w", encoding="utf-8") as f:
                 f.write(repr(total) + "\n")
                 f.flush()
                 os.fsync(f.fileno())

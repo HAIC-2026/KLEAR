@@ -38,7 +38,7 @@ def test_fetch_writes_file_and_meta(raw_dir):
     path = fetch("https://example.org/a.csv", "a.csv", client=client)
     assert path == raw_dir / "a.csv"
     assert path.read_bytes() == BODY
-    meta = json.loads((raw_dir / "a.csv.meta.json").read_text())
+    meta = json.loads((raw_dir / "a.csv.meta.json").read_text(encoding="utf-8"))
     assert meta["sha256"] == hashlib.sha256(BODY).hexdigest()
     assert meta["url"] == "https://example.org/a.csv"
     assert meta["bytes"] == len(BODY)
@@ -62,7 +62,7 @@ def test_fetch_refresh_redownloads():
 def test_meta_masks_key(raw_dir):
     client, _ = make_client(ok)
     fetch("https://example.org/a?get=B&key=SECRET&x=1", "a.json", client=client)
-    text = (raw_dir / "a.json.meta.json").read_text()
+    text = (raw_dir / "a.json.meta.json").read_text(encoding="utf-8")
     assert "SECRET" not in text
     assert "key=***" in text
 
@@ -111,7 +111,7 @@ def test_meta_hashes_multi_chunk_body(raw_dir):
     chunks = [b"a" * 1000, b"b" * 2000, b"c" * 5]
     client, _ = make_client(lambda r: httpx.Response(200, stream=ChunkedStream(chunks)))
     fetch("https://example.org/big.bin", "big.bin", client=client)
-    meta = json.loads((raw_dir / "big.bin.meta.json").read_text())
+    meta = json.loads((raw_dir / "big.bin.meta.json").read_text(encoding="utf-8"))
     assert meta["sha256"] == hashlib.sha256(b"".join(chunks)).hexdigest()
     assert meta["bytes"] == 3005
 

@@ -72,7 +72,7 @@ def test_golden_editorial_constraints(g):
 
 
 def test_golden_references_are_known():
-    catalog = yaml.safe_load((ROOT / "data/catalog/indicators.yaml").read_text())
+    catalog = yaml.safe_load((ROOT / "data/catalog/indicators.yaml").read_text(encoding="utf-8"))
     indicators = {i["indicator_id"] for i in catalog["indicators"]} | STAGE_TWO_IDS
     geos = {("house", f"{n:03}") for n in range(1, 52)}
     geos |= {("senate", f"{n:03}") for n in range(1, 26)}
@@ -185,7 +185,9 @@ def test_golden_county_facts_are_district_parent_county():
 
 
 def test_golden_programs_are_rule_ids():
-    rules = {yaml.safe_load(p.read_text())["rule_id"] for p in (ROOT / "data/rules").glob("*.yaml")}
+    rules = {
+        yaml.safe_load(p.read_text(encoding="utf-8"))["rule_id"] for p in (ROOT / "data/rules").glob("*.yaml")
+    }
     for g in load_golden():
         for program in g.programs + g.programs_forbidden:
             assert program in rules, (g.id, program)

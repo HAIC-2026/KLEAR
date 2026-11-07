@@ -2,9 +2,16 @@
 import pandas as pd
 import pytest
 
+from klear import config
 from klear.store.db import add_geographies, add_source, open_store
 
 BLOCK_COLS = ["block", "county", "tract", "zcta", "house", "senate", "pop2020"]
+
+
+@pytest.fixture(autouse=True)
+def _isolate_project_env(tmp_path, monkeypatch):
+    # Tests must never read a developer's real project credentials.
+    monkeypatch.setattr(config, "PROJECT_ENV_FILE", tmp_path / ".env")
 
 
 @pytest.fixture

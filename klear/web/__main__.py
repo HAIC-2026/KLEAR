@@ -2,8 +2,10 @@
 
 import argparse
 import json
+import socket
 import threading
 import time
+import webbrowser
 from collections import defaultdict, deque
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
@@ -14,7 +16,7 @@ import duckdb
 
 from klear.agent.config import DEFAULT_MODEL
 from klear.agent.tools import Session
-from klear.config import ROOT
+from klear.config import ROOT, MissingSecretError, load_secret
 from klear.eval.contract import geo_key
 from klear.web.assistant import DAILY_CAP, Assistant, DailyBudget, basic
 
@@ -33,6 +35,18 @@ BUSY = threading.BoundedSemaphore(3)
 PER_MINUTE = 6
 _RECENT = defaultdict(deque)
 _RECENT_LOCK = threading.Lock()
+
+
+class Server(ThreadingHTTPServer):
+    # Only one local server should listen on an address, even on Python versions
+    # whose HTTPServer enables port reuse. POSIX still permits quick restarts.
+    allow_reuse_port = False
+
+    def server_bind(self):
+        if hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
+            self.allow_reuse_address = False
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+        super().server_bind()
 
 
 def _allowed(ip: str) -> bool:
@@ -164,22 +178,48 @@ class Handler(SimpleHTTPRequestHandler):
             BUSY.release()
 
 
-def main():
-    parser = argparse.ArgumentParser()
+def main(argv: list[str] | None = None):
+    parser = argparse.ArgumentParser(description="Run the KLEAR website locally.")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8000)
     parser.add_argument("--store", type=Path, default=STORE)
     parser.add_argument("--model", default=DEFAULT_MODEL)
     parser.add_argument("--daily-cap", type=float, default=DAILY_CAP, help="dollars per HST day")
     parser.add_argument("--basic-only", action="store_true", help="answer with the free lookup only")
-    args = parser.parse_args()
-    assistant = None if args.basic_only else Assistant(DailyBudget(args.daily_cap), args.model)
-    server = ThreadingHTTPServer(
-        (args.host, args.port), partial(Handler, store=args.store, assistant=assistant)
-    )
-    mode = "basic lookup only" if assistant is None else f"assistant, ${args.daily_cap:.2f} daily cap"
-    print(f"KLEAR: http://{args.host}:{args.port} ({mode})")
+    parser.add_argument("--open", action="store_true", help="open the site in your default browser")
+    args = parser.parse_args(argv)
+    store = args.store.expanduser().resolve()
+    assistant = None
+    if not args.basic_only:
+        try:
+            load_secret("ANTHROPIC_API_KEY")
+        except MissingSecretError:
+            pass
+        else:
+            assistant = Assistant(DailyBudget(args.daily_cap), args.model)
     try:
+        server = Server((args.host, args.port), partial(Handler, store=store, assistant=assistant))
+    except OSError as error:
+        parser.exit(
+            2,
+            f"Could not start KLEAR at {args.host}:{args.port}: {error.strerror}.\n"
+            "If the port is in use, try: uv run python -m klear.web --port 8001\n",
+        )
+    url = f"http://{args.host}:{server.server_port}"
+    try:
+        mode = "basic lookup only; no model API calls"
+        if assistant is not None:
+            mode = f"assistant, ${args.daily_cap:.2f} daily cap"
+        print(f"KLEAR: {url} ({mode})", flush=True)
+        print(f"Data store: {store}", flush=True)
+        if not store.is_file():
+            print("Landing page preview only: district search and chat need the data store.", flush=True)
+            print("Build it with: uv run python -m klear.etl build", flush=True)
+        if assistant is None and not args.basic_only:
+            print("Add ANTHROPIC_API_KEY to .env and restart to enable the assistant.", flush=True)
+        print("Press Ctrl+C to stop.", flush=True)
+        if args.open:
+            webbrowser.open(url)
         server.serve_forever()
     except KeyboardInterrupt:
         pass

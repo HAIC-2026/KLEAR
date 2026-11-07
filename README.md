@@ -2,31 +2,81 @@
 
 KLEAR answers questions about Hawaiʻi's 51 House and 25 Senate legislative districts for the HAIC 2026 Know Your District challenge. A data pipeline builds a district-level fact base from Census, ACS, federal and state sources into DuckDB, with every fact tied to a source. Program eligibility rules live in YAML files. An agent built on Claude answers questions using only the store, and an eval checks its answers against a set of test questions.
 
-## Quick start
+## Run the site locally
 
-Requires Python 3.12 or later and uv.
+Requires Python 3.12 or later and [uv](https://docs.astral.sh/uv/getting-started/installation/).
+The same commands work in PowerShell on Windows, Terminal on macOS, and Linux.
+Run them from the project root. No virtual environment activation or separate frontend server is needed.
+Use a native Windows checkout in PowerShell or a native macOS checkout in Terminal;
+WSL is not required. Run `uv sync --locked` on each machine rather than copying `.venv`
+between operating systems.
 
-    git clone https://github.com/HAIC-2026/KLEAR.git
-    cd KLEAR
-    uv sync --locked
+```sh
+git clone https://github.com/HAIC-2026/KLEAR.git
+cd KLEAR
+uv sync --locked
+uv run python -m klear.web --basic-only --open
+```
 
-Run the tests and the linter. The default test run is offline and needs no keys. Tests that need the built store skip themselves until it exists:
+If you already have this checkout, start with `uv sync --locked`.
+The last command starts the server at [http://127.0.0.1:8000](http://127.0.0.1:8000)
+and opens it in your default browser. Keep the terminal running; press **Ctrl+C** to stop.
+`--basic-only` guarantees no model API calls, even if you have an Anthropic key configured.
+Omit `--open` if you prefer to open the URL yourself.
 
-    uv run pytest -q
-    uv run ruff check && uv run ruff format --check
+**The landing page can be previewed immediately, without keys or downloaded data.**
+District search and chat need `data/build/klear.duckdb`. If it is missing, the terminal
+prints the build command and the page explains that district lookup is unavailable.
+Follow [Build the data store](#build-the-data-store) once to enable those features.
 
-Build the data store. This needs network access, a free Census API key and two hand downloads, all described under Running and testing below, and takes about 5 minutes. It writes data/build/klear.duckdb:
+After the store is built, your everyday run command is:
 
-    uv run python -m klear.etl build
+```sh
+uv run python -m klear.web --open
+```
 
-Run the free eval. It plays saved model replies from eval/scripts through the real agent against the store, makes no API call and costs nothing. It needs the built store with its manifest.json beside it, or pass --store PATH to use a build elsewhere. It exits 0 when every check passes and writes its report to eval/reports:
+With `ANTHROPIC_API_KEY` configured, this enables the paid assistant under the daily cap.
+Without that key, the site automatically uses free basic lookups from the store.
+The terminal reports the URL, data store path, and active mode on startup.
 
-    uv run python -m klear.eval run --mode replay --agent scripted
+If uv is unavailable after setup, use the environment's Python directly:
 
-Live runs call the Claude API, need ANTHROPIC_API_KEY in the environment and cost money. Spending is tracked and capped at 60 dollars per user. Read eval/README.md before running one:
+| Platform | Run from the project root |
+| --- | --- |
+| Windows (PowerShell) | `.\.venv\Scripts\python.exe -m klear.web --basic-only --open` |
+| macOS (Terminal) | `.venv/bin/python -m klear.web --basic-only --open` |
 
-    uv run python -m klear.agent "How many kūpuna live in House District 22?"
-    uv run python -m klear.eval run --mode live --agent klear --model claude-haiku-5-5
+Remove `--basic-only` to enable the assistant when you have an Anthropic key configured.
+
+### Local keys
+
+Create a `.env` file in the project root using [.env.example](.env.example) as a template.
+If `.env` already exists, keep it and add only the missing settings:
+
+```dotenv
+CENSUS_API_KEY=your-census-key
+ANTHROPIC_API_KEY=
+```
+
+- `CENSUS_API_KEY`: a free Census API key, needed for the first data build.
+- `ANTHROPIC_API_KEY`: optional; fill it in to enable Claude answers. Those calls cost money.
+
+KLEAR reads keys automatically from the process environment, then the project's `.env`,
+then `~/.config/klear/env`, in that order. Blank entries fall through to the next location.
+On Windows, the last path is `%USERPROFILE%\.config\klear\env`.
+No `source`, environment export, or `--env-file` option is needed. Restart the web server after changing keys.
+`.env` is ignored by Git; keys stay on the server and are never sent to the browser.
+
+### Local troubleshooting
+
+- **`uv` is not recognized:** install uv using the link above, then reopen your terminal.
+  An already synced checkout can use the platform-specific Python command in the table above.
+- **Port 8000 is already in use:** run `uv run python -m klear.web --port 8001 --open`.
+- **The page opens but district search fails:** build the store below, or use `--store PATH`
+  to select an existing `klear.duckdb`.
+- **The site uses basic lookups:** check `ANTHROPIC_API_KEY` in `.env`, restart the server,
+  and leave off `--basic-only`. The site also falls back to basic lookups if the daily cap
+  is reached or the API is unavailable.
 
 ## Layout
 
@@ -35,31 +85,28 @@ Live runs call the Claude API, need ANTHROPIC_API_KEY in the environment and cos
 - klear/validation: the build's validation checks and the docs/VALIDATION.md report.
 - klear/rules: loads the program rules and checks each value against its official source quote.
 - klear/agent: the agent, its data tools and the code that builds and checks each answer (python -m klear.agent).
+- klear/web: the local web server, landing page and chat interface (python -m klear.web).
 - klear/eval: the answer format, eval runner, answer checks, reports and spending cap (python -m klear.eval run).
 - data: the checked-in indicator catalog (data/catalog), Hawaiian place names (data/places) and program rules (data/rules). The build also writes data/raw (download cache), data/manual (hand downloads) and data/build (the store), none of them tracked.
 - eval: test questions (eval/golden), saved model replies (eval/scripts), recorded live answers (eval/recordings) and model prices. Run reports go to eval/reports, which is not tracked.
 - tests: the pytest suite, laid out like the klear packages, with small fixtures in tests/fixtures.
 
-## Running and testing
+## Build the data store
 
-Setup. Install uv, then create the environment from the lock file:
+Add `CENSUS_API_KEY` to `.env` as described above, then run:
 
-    uv sync --locked
+```sh
+uv run python -m klear.etl build
+```
 
-Census API key. The build reads CENSUS_API_KEY from the environment or from the file ~/.config/klear/env, one line:
-
-    CENSUS_API_KEY=your-key
-
-The key is never printed, logged or saved. Request URLs in logs and provenance files show it as key=***.
-
-Build. One command downloads the sources, builds the fact store, runs every validation check and writes the report:
-
-    uv run python -m klear.etl build
+This downloads public datasets, builds the fact store, runs validation checks and writes the report.
+It needs internet access; the first build can take several minutes and later builds reuse `data/raw`.
+It makes no Claude calls. Request URLs in logs and provenance files mask the Census key as `key=***`.
 
 - --refresh downloads every raw file and Census API response again instead of using the cache in data/raw.
 - --skip-network-checks serves Census API calls only from the cache. Checks the cache cannot serve are skipped and reported as skipped. A fully cached build needs no API key.
 
-Manual downloads. huduser.gov serves two files only to a browser. Download them by hand and save them under data/manual/ with these names. Until both are there, the build skips the steps that need them, names the file and its URL, and exits 2.
+Manual downloads. huduser.gov serves two files only to a browser. Download them by hand and save them under `data/manual/` with these names. Until both are there, the build skips the steps that need them, names the file and its URL, and exits 2. When all other required checks pass, it still writes a store usable for local district search and basic chat; the missing HUD data is unavailable.
 
 - 2018thru2022-140-csv.zip from https://www.huduser.gov/portal/datasets/cp/2018thru2022-140-csv.zip (HUD CHAS 2018-2022, tract level).
 - Section8-FY26.xlsx from https://www.huduser.gov/portal/datasets/il/il26/Section8-FY26.xlsx (HUD FY2026 income limits). Then fill in data/rules/hud_il_fy2026_hi.yaml from it and set its status to confirmed.
@@ -74,12 +121,6 @@ The last line of the build output gives the exit code and its meaning:
 - 1: a required check failed.
 - 2: the build is incomplete because a required check was skipped.
 
-Tests. The default run is offline. Tests that call the live Census API and state servers carry the network marker:
-
-    uv run pytest
-    uv run pytest -m network
-    uv run ruff check && uv run ruff format --check
-
 Outputs in data/build:
 
 - klear.duckdb: the fact store.
@@ -88,6 +129,41 @@ Outputs in data/build:
 - house.geojson and senate.geojson: simplified district polygons for the web.
 
 The build also rewrites docs/VALIDATION.md, the public validation report.
+
+## Tests and evaluation
+
+The default test run is offline and needs no keys. Tests that need a built store skip
+until one exists. Windows runs natively without WSL; process tests that require Unix
+`fork` or `SIGKILL` skip on Windows, with threaded tests covering file locking there.
+GitHub Actions is configured to run the suite, lint and formatting checks on Windows,
+macOS and Linux with Python 3.12, 3.13 and 3.14. The suite includes a real subprocess
+startup check that serves the page, assets, district lookup and free chat from a temporary store.
+
+```sh
+uv run pytest -q
+uv run ruff check
+uv run ruff format --check
+```
+
+Tests that call the live Census API and state servers carry the `network` marker.
+Run those explicitly with `uv run pytest -m network`.
+
+The free eval plays saved model replies from `eval/scripts` through the agent against
+the store. It makes no API calls. It needs the built store and its adjacent `manifest.json`,
+or `--store PATH` to select another build. Reports go to `eval/reports`:
+
+```sh
+uv run python -m klear.eval run --mode replay --agent scripted
+```
+
+Live CLI and eval runs need `ANTHROPIC_API_KEY` and cost money. Their spending is
+tracked separately from the website and capped at 60 dollars per user.
+Read [eval/README.md](eval/README.md) before running them:
+
+```sh
+uv run python -m klear.agent "How many kūpuna live in House District 22?"
+uv run python -m klear.eval run --mode live --agent klear --model claude-haiku-5-5
+```
 
 ## Fact store
 
@@ -135,15 +211,21 @@ Raw Census and DBEDT codes map onto these statuses in klear/etl/acs_values.py an
 
 ## Landing page and chat
 
-Build the data store, then run:
+See [Run the site locally](#run-the-site-locally) for startup instructions.
+With an Anthropic key configured, questions go to the same KLEAR assistant that
+`python -m klear.agent` runs. Without the key, the site uses free basic lookups.
 
-    uv run python -m klear.web
+Website spending has its own cap of 5 dollars per HST day, kept in ~/.config/klear/web_spend.json and separate from the 60 dollar eval cap. Each question reserves its worst-case cost first and then records the actual cost. When the day's cap is reached or the API fails, the site falls back to a basic keyword lookup from the store and says so. Each visitor can ask 6 questions a minute, and the server answers 3 at a time.
 
-Open http://127.0.0.1:8000. Each question goes to the KLEAR assistant, the same one python -m klear.agent runs, so it needs ANTHROPIC_API_KEY on the server. The key stays on the server and never reaches the browser.
-
-Website spending has its own cap of 5 dollars per HST day, kept in ~/.config/klear/web_spend.json and separate from the 60 dollar eval cap. Each question holds its worst-case cost first and then records the actual cost, which is usually about a third of a cent. When the day's cap is reached, the key is missing or the API fails, the site answers with a basic keyword lookup from the store and says so. Each visitor can ask 6 questions a minute, and the server answers 3 at a time.
-
-Options: --daily-cap 5 sets the dollars per day, --model picks the model, and --basic-only turns the assistant off so the site makes no paid calls.
+| Option | Purpose |
+| --- | --- |
+| `--open` | Open the site in your default browser after binding the server. |
+| `--basic-only` | Use free lookups only, even if an Anthropic key is present. |
+| `--port 8001` | Choose a different port; the default is 8000. |
+| `--host 127.0.0.1` | Choose the bind address; the default is local access only. |
+| `--store PATH` | Use a different DuckDB store. |
+| `--daily-cap 5` | Set the website's model budget in dollars per HST day. |
+| `--model MODEL` | Choose the model used by the assistant. |
 
 The landing page uses the project-provided `background1.png` photo, copied
 as a smaller metadata-free `klear/web/static/background1.jpg`. It loads no
@@ -158,7 +240,6 @@ eligibility. Questions outside the available measures receive a clear limit
 instead of a guessed answer. Questions are independent: previous messages
 are displayed locally but are not sent as conversation history.
 
-Other options: --port 8000, --host 127.0.0.1, --store PATH.
 Only the static web assets are served; the repository and store cannot be
 downloaded. The server rejects cross-origin browser requests. HTTP logs are disabled to avoid recording questions.
 

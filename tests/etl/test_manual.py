@@ -29,7 +29,7 @@ def test_manual_present_records_hash(manual_dir):
     (manual_dir / NAME).write_bytes(body)
     path = manual_file(NAME, URL)
     assert path == manual_dir / NAME
-    meta = json.loads((manual_dir / (NAME + ".meta.json")).read_text())
+    meta = json.loads((manual_dir / (NAME + ".meta.json")).read_text(encoding="utf-8"))
     assert meta["sha256"] == hashlib.sha256(body).hexdigest()
     assert meta["bytes"] == len(body)
     assert meta["url"] == URL
@@ -40,11 +40,11 @@ def test_unchanged_file_keeps_first_seen_time(manual_dir):
     (manual_dir / NAME).write_bytes(b"one")
     manual_file(NAME, URL)
     sidecar = manual_dir / (NAME + ".meta.json")
-    meta = json.loads(sidecar.read_text())
+    meta = json.loads(sidecar.read_text(encoding="utf-8"))
     meta["retrieved_at"] = "2026-01-01T00:00:00-10:00"
-    sidecar.write_text(json.dumps(meta))
+    sidecar.write_text(json.dumps(meta), encoding="utf-8")
     manual_file(NAME, URL)
-    assert json.loads(sidecar.read_text())["retrieved_at"] == "2026-01-01T00:00:00-10:00"
+    assert json.loads(sidecar.read_text(encoding="utf-8"))["retrieved_at"] == "2026-01-01T00:00:00-10:00"
 
 
 def test_changed_file_keeps_first_hash(manual_dir):
@@ -53,5 +53,5 @@ def test_changed_file_keeps_first_hash(manual_dir):
     manual_file(NAME, URL)
     (manual_dir / NAME).write_bytes(b"two")
     manual_file(NAME, URL)
-    meta = json.loads((manual_dir / (NAME + ".meta.json")).read_text())
+    meta = json.loads((manual_dir / (NAME + ".meta.json")).read_text(encoding="utf-8"))
     assert meta["sha256"] == hashlib.sha256(b"one").hexdigest()

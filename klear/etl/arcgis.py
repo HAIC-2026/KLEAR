@@ -54,7 +54,7 @@ def query_features(
         path = fetch(
             f"{layer_url}/query?{q}", f"{name}/{key}/page_{page}.json", client=client, validate=_validate
         )
-        data = json.loads(path.read_text())
+        data = json.loads(path.read_text(encoding="utf-8"))
         features = data["features"]
         rows.extend(f["attributes"] for f in features)
         if not data.get("exceededTransferLimit") or not features:

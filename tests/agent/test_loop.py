@@ -252,7 +252,7 @@ def test_max_call_cost_matches_formula(small_con):
 
 def test_max_call_cost_reads_prices_file(small_con, tmp_path):
     path = tmp_path / "prices.yaml"
-    path.write_text(yaml.safe_dump(PRICES))
+    path.write_text(yaml.safe_dump(PRICES), encoding="utf-8")
     expected = 6 * (30000 * 1.25 * 0.10 + 1500 * 0.50) / 1e6
     assert KlearAgent(small_con).max_call_cost("claude-haiku-5-5", "q", path) == pytest.approx(expected)
 

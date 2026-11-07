@@ -34,7 +34,7 @@ def paths(tmp_path):
     with zipfile.ZipFile(baf, "w") as z:
         z.writestr("BlockAssign_ST15_HI_INCPLACE_CDP.txt", BAF)
     names = tmp_path / "gaz.txt"
-    names.write_text(GAZ)
+    names.write_text(GAZ, encoding="utf-8")
     return baf, names
 
 
@@ -86,7 +86,7 @@ def test_unnamed_place_fails(tmp_path, paths):
     df["tract"] = df["block"].str[:11]
     add_blocks(con, df)
     baf, names = paths
-    names.write_text(GAZ.replace("1514650", "1514651"))
+    names.write_text(GAZ.replace("1514650", "1514651"), encoding="utf-8")
     with pytest.raises(ValueError, match="without a name"):
         build_places(con, baf, names, overrides={})
 

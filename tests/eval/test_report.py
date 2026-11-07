@@ -19,7 +19,7 @@ class Fake:
 
 
 def test_report_sections(tmp_path, eval_store):
-    (tmp_path / "manifest.json").write_text('{"built_at": "x"}')
+    (tmp_path / "manifest.json").write_text('{"built_at": "x"}', encoding="utf-8")
     goldens = [
         Golden("q0", "profile", "How many?", "i"),
         Golden("q1", "profile", "How many kūpuna?", "i"),

@@ -48,7 +48,7 @@ SITE_COLS = [
 
 def open_store(path: Path) -> duckdb.DuckDBPyConnection:
     con = duckdb.connect(str(path))
-    con.execute((Path(__file__).parent / "schema.sql").read_text())
+    con.execute((Path(__file__).parent / "schema.sql").read_text(encoding="utf-8"))
     return con
 
 

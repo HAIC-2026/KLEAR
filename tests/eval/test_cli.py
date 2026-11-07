@@ -16,9 +16,10 @@ def setup(tmp_path):
     gold = tmp_path / "golden" / "profile"
     gold.mkdir(parents=True)
     (gold / "q0.yaml").write_text(
-        yaml.safe_dump({"id": "q0", "category": "profile", "question": "hello?", "ideal": "i"})
+        yaml.safe_dump({"id": "q0", "category": "profile", "question": "hello?", "ideal": "i"}),
+        encoding="utf-8",
     )
-    (tmp_path / "build" / "manifest.json").write_text("{}")
+    (tmp_path / "build" / "manifest.json").write_text("{}", encoding="utf-8")
     return [
         "run", "--store", str(tmp_path / "build" / "s.duckdb"), "--golden", str(tmp_path / "golden"),
         "--out", str(tmp_path / "reports"),
@@ -50,9 +51,9 @@ def test_declined_confirmation_exits_2_with_report(setup, tmp_path, monkeypatch)
 def test_corrupt_ledger_exits_2(setup, tmp_path, monkeypatch, capsys):
     monkeypatch.setattr("builtins.input", lambda _: "y")
     spend.LEDGER.parent.mkdir(parents=True)
-    spend.LEDGER.write_text("garbage\n")
+    spend.LEDGER.write_text("garbage\n", encoding="utf-8")
     spend.MIRROR.parent.mkdir(parents=True)
-    spend.MIRROR.write_text("0.0\n")
+    spend.MIRROR.write_text("0.0\n", encoding="utf-8")
     assert main([*setup, "--mode", "live", "--model", "claude-haiku-5-5"]) == 2
     assert "corrupt" in capsys.readouterr().err
 
@@ -65,14 +66,14 @@ def test_bad_recording_name_exits_2(setup):
 
 def test_report_json_has_exit_code(setup, tmp_path):
     main(setup)
-    data = json.loads(next((tmp_path / "reports").glob("*.json")).read_text())
+    data = json.loads(next((tmp_path / "reports").glob("*.json")).read_text(encoding="utf-8"))
     assert data["exit_code"] == 1
 
 
 def test_malformed_recording_exits_2_with_report(setup, tmp_path, capsys):
     rec = tmp_path / "rec" / "r"
     rec.mkdir(parents=True)
-    (rec / "q0.json").write_text("{broken")
+    (rec / "q0.json").write_text("{broken", encoding="utf-8")
     args = [*setup, "--agent", "recorded", "--recording", "r", "--recordings", str(tmp_path / "rec")]
     assert main(args) == 2
     md = next((tmp_path / "reports").glob("*.md")).read_text(encoding="utf-8")
@@ -105,10 +106,11 @@ def test_live_recorded_is_refused(setup, capsys):
 def test_only_accepts_a_tag(setup, tmp_path):
     gold = tmp_path / "golden" / "profile"
     (gold / "q1.yaml").write_text(
-        yaml.safe_dump({"id": "q1", "category": "profile", "question": "x?", "ideal": "i", "tags": ["demo"]})
+        yaml.safe_dump({"id": "q1", "category": "profile", "question": "x?", "ideal": "i", "tags": ["demo"]}),
+        encoding="utf-8",
     )
     main([*setup, "--only", "demo"])
-    data = json.loads(next((tmp_path / "reports").glob("*.json")).read_text())
+    data = json.loads(next((tmp_path / "reports").glob("*.json")).read_text(encoding="utf-8"))
     assert [i["id"] for i in data["items"]] == ["q1"]
 
 
@@ -143,9 +145,9 @@ def test_replay_scripted_runs_the_script(setup, tmp_path):
         "facts": [], "programs": [], "caveats": [],
     }  # fmt: skip
     turns = [[{"type": "tool_use", "name": "submit_answer", "input": submit}]]
-    (scripts / "q0.yaml").write_text(yaml.safe_dump(turns))
+    (scripts / "q0.yaml").write_text(yaml.safe_dump(turns), encoding="utf-8")
     assert main([*setup, "--agent", "scripted", "--scripts", str(scripts)]) == 1
-    data = json.loads(next((tmp_path / "reports").glob("*.json")).read_text())
+    data = json.loads(next((tmp_path / "reports").glob("*.json")).read_text(encoding="utf-8"))
     assert data["agent"] == "scripted" and data["items"][0]["answer"]["refusal"] == "out_of_scope"
 
 
@@ -165,7 +167,7 @@ def test_live_klear_reserves_and_calls_with_the_chosen_model(setup, monkeypatch)
     monkeypatch.setattr("builtins.input", lambda _: "y")
     main([*setup, "--mode", "live", "--model", model, "--agent", "klear"])
     assert fake.requests and all(r["model"] == model for r in fake.requests)
-    reserve = json.loads(spend.LEDGER.read_text().splitlines()[0])
+    reserve = json.loads(spend.LEDGER.read_text(encoding="utf-8").splitlines()[0])
     assert reserve["estimate"] == pytest.approx(
         KlearAgent(None, model=model).max_call_cost(model, "", spend.PRICES)
     )
