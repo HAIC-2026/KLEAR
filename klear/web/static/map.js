@@ -11,7 +11,8 @@
   const SNAP_SHOWN = 0.5, SNAP_FILL = 0.2, SNAP_ALL = 0.8, MIN_WIDTH = 12;
   let data = null, chamber = 'house', group = 'all', picked = null, view = null, goal = null, anim = 0, settleTimer = 0, hintTimer = 0;
   const pointers = new Map();
-  let gesture = null, dragged = false;
+  let gesture = null, dragged = false, zipCode = null;
+  const zipStatus = document.getElementById('zip-status'), zipMatches = document.getElementById('zip-matches');
 
   function el(tag, attrs) { const n = document.createElementNS(svgNS, tag); for (const [k, v] of Object.entries(attrs || {})) n.setAttribute(k, v); return n; }
 
@@ -217,7 +218,56 @@
       list.append(og);
     }
     pick(null);
+    showZip();
   }
+
+  const pct = share => share < 0.01 ? 'under 1%' : `${Math.round(share * 100)}%`;
+
+  // Highlight the districts a ZIP area's residents live in and zoom to them.
+  function showZip() {
+    zipMatches.replaceChildren();
+    for (const p of svg.querySelectorAll('.zip-hit')) p.classList.remove('zip-hit');
+    svg.classList.toggle('zip-mode', Boolean(zipCode));
+    if (!zipCode) return;
+    const rowsByGeo = new Map(data.chambers[chamber].map(r => [r.geo, r]));
+    const hits = data.zips[zipCode][chamber].map(([geo, share]) => ({row: rowsByGeo.get(geo), share}));
+    const kind = chamber === 'house' ? 'House' : 'Senate';
+    zipStatus.textContent = hits.length === 1 ? `ZIP ${zipCode} is all in ${hits[0].row.name}.` : `ZIP ${zipCode} spans ${hits.length} ${kind} districts. Share of its residents in each:`;
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    const main = hits.some(h => h.share >= 0.05) ? hits.filter(h => h.share >= 0.05) : hits;
+    for (const {row, share} of hits) {
+      for (const n of svg.querySelectorAll(`[data-geo="${row.geo}"]`)) n.classList.add('zip-hit');
+      const path = svg.querySelector(`.district[data-geo="${row.geo}"]`);
+      const b = path.getBBox();
+      if (main.some(h => h.row === row)) { x0 = Math.min(x0, b.x); y0 = Math.min(y0, b.y); x1 = Math.max(x1, b.x + b.width); y1 = Math.max(y1, b.y + b.height); }
+      if (hits.length > 1) {
+        const chip = document.createElement('button');
+        chip.type = 'button'; chip.className = 'match'; chip.textContent = `District ${row.name.replace(/\D+/g, '')} · ${pct(share)}`;
+        chip.setAttribute('aria-label', `${row.name}, ${pct(share)} of residents`);
+        chip.addEventListener('click', () => pick(row));
+        zipMatches.append(chip);
+      }
+    }
+    const padX = (x1 - x0) * 0.12 + 2, padY = (y1 - y0) * 0.12 + 2;
+    markTab(null);
+    animateTo(clamp(fit([x0 - padX, y0 - padY, x1 - x0 + 2 * padX, y1 - y0 + 2 * padY])));
+    if (hits.length === 1) pick(hits[0].row);
+  }
+
+  document.getElementById('zip-form').addEventListener('submit', e => {
+    e.preventDefault();
+    if (!data) return;
+    const zip = document.getElementById('zip').value.replace(/\D/g, '');
+    zipCode = null;
+    if (!/^\d{5}$/.test(zip)) { showZip(); zipStatus.textContent = 'Enter a 5-digit ZIP code.'; return; }
+    const entry = data.zips[zip];
+    if (!entry) { showZip(); zipStatus.textContent = `No map area for ZIP ${zip}. Hawaiʻi home ZIPs start with 967 or 968, and PO box ZIPs have no area. Try the ZIP where you live.`; return; }
+    if (!entry.house.length) { showZip(); zipStatus.textContent = `ZIP ${zip} had no residents in the 2020 census, so it has no district. Try the ZIP where you live.`; return; }
+    zipCode = zip;
+    pick(null);
+    showZip();
+  });
+  document.getElementById('zip').addEventListener('input', e => { if (!e.target.value.trim() && zipCode) { zipCode = null; zipStatus.textContent = ''; showZip(); } });
 
   document.querySelectorAll('[data-chamber]').forEach(b => b.addEventListener('click', () => {
     if (b.dataset.chamber === chamber || !data) return;

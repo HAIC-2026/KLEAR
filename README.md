@@ -232,7 +232,8 @@ as a smaller metadata-free `klear/web/static/background1.jpg`. It loads no
 third-party images, fonts, scripts, or analytics.
 
 The district map draws the official 2022 House and Senate boundaries as plain SVG, with no map
-tiles or map library. Its shapes live in klear/web/static/districts.json, so the map works
+tiles or map library. Its shapes, and the share of each ZIP area's residents in each district,
+live in klear/web/static/districts.json, so the map works
 without a data build. After a build changes the boundaries, regenerate it with:
 
     uv run python -m klear.etl.mapshapes

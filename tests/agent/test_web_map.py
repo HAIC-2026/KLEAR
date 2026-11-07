@@ -24,3 +24,16 @@ def test_map_files_are_public(endpoint):  # noqa: F811
         assert request(endpoint, "GET", path)[0] == 200
     status, page = request(endpoint, "GET", "/")
     assert status == 200 and b'src="/map.js"' in page and b'id="map"' in page
+
+
+def test_zip_table_covers_hawaii_zips():
+    data = json.loads(MAP.read_text(encoding="utf-8"))
+    geos = {c: {r["geo"] for r in rows} for c, rows in data["chambers"].items()}
+    assert len(data["zips"]) == 97
+    for zcta, entry in data["zips"].items():
+        assert zcta.startswith("96")
+        for chamber, rows in entry.items():
+            assert {g for g, _ in rows} <= geos[chamber]
+            if rows:
+                assert abs(sum(s for _, s in rows) - 1) < 0.01
+    assert [g for g, _ in data["zips"]["96744"]["house"]] == ["house:048", "house:049", "house:050"]

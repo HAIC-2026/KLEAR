@@ -5,14 +5,17 @@ import json
 import math
 import sys
 
+import duckdb
 import geopandas as gpd
 import shapely
 from shapely.geometry import box
 from shapely.ops import polylabel
 
+from klear.agent.tools import Session
 from klear.config import ROOT
 
 BUILD = ROOT / "data" / "build"
+STORE = BUILD / "klear.duckdb"
 OUT = ROOT / "klear" / "web" / "static" / "districts.json"
 TOLERANCE_DEG = 0.0008
 WEST, NORTH, LAT0 = -160.32, 22.3, 20.6
@@ -111,10 +114,29 @@ def build_map(layers: dict[str, gpd.GeoDataFrame]) -> dict:
     return out
 
 
+def zip_overlaps(con) -> dict[str, dict[str, list]]:
+    """Share of each ZIP area's 2020 residents in each House and Senate district, from the site's resolver."""
+    session = Session(con)
+    out = {}
+    for (zcta,) in con.execute(
+        "SELECT geo_id FROM geography WHERE geo_type = 'zcta' ORDER BY geo_id"
+    ).fetchall():
+        match = json.loads(session.run("resolve_place", {"text": zcta}))["matches"][0]
+        rows = {c: [] for c in CHAMBERS}
+        for o in match["overlaps"]:
+            chamber = o["geo"].split(":")[0]
+            if chamber in rows:
+                rows[chamber].append([o["geo"], round(o["share"], 3)])
+        out[zcta] = {c: sorted(r, key=lambda x: -x[1]) for c, r in rows.items()}
+    return out
+
+
 def main() -> int:
     """Write districts.json from data/build."""
     layers = {c: gpd.read_file(BUILD / f"{c}.geojson") for c in CHAMBERS}
     data = build_map(layers)
+    with duckdb.connect(str(STORE), read_only=True) as con:
+        data["zips"] = zip_overlaps(con)
     OUT.write_text(json.dumps(data, ensure_ascii=False, separators=(",", ":")) + "\n", encoding="utf-8")
     print(f"wrote {OUT.relative_to(ROOT)} ({OUT.stat().st_size // 1024} KB)")
     return 0

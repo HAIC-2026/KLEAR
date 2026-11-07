@@ -50,6 +50,7 @@
       <section class="map-section" id="district-map" aria-labelledby="map-title">
         <div class="map-heading"><p class="overline">01 / EXPLORE BY MAP</p><h2 id="map-title">Not sure of your district?<br><em>Find it on the map.</em></h2><p>Pick an island or zoom in to the area you know, then tap your district. District lines are the 2022 boundaries in use today.</p></div>
         <div class="map-card">
+          <form class="zip-form" id="zip-form" novalidate><label for="zip">FIND BY ZIP CODE</label><div class="inputrow"><input id="zip" inputmode="numeric" maxlength="5" placeholder="e.g. 96744" autocomplete="postal-code"><button type="submit">Show on map <span aria-hidden="true">↗</span></button></div><p id="zip-status" class="status" role="status"></p><div id="zip-matches" class="matches"></div></form>
           <div class="map-controls">
             <div class="segmented" role="group" aria-label="Chamber"><button type="button" data-chamber="house" aria-pressed="true">House</button><button type="button" data-chamber="senate" aria-pressed="false">Senate</button></div>
             <div class="island-tabs" id="island-tabs" role="group" aria-label="Zoom to island"></div>
