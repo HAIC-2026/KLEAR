@@ -443,6 +443,39 @@ function profileSources(sources) {
   return box;
 }
 
+// One program: its name linked to the page to apply or learn more, the agency, why it is listed here, and how to call.
+function programRow(p, full) {
+  const row = node('div', '', 'program');
+  const name = node('p', '', 'program-name');
+  name.append(link(p.name, p.url));
+  row.append(name, node('p', p.agency, 'program-agency'));
+  if (full && p.description) row.append(node('p', p.description, 'program-about'));
+  if (p.reasons && p.reasons.length) {
+    const list = node('ul', '', 'program-reasons');
+    for (const r of p.reasons) list.append(node('li', r));
+    row.append(list);
+  }
+  const contact = node('p', '', 'program-contact'), tel = node('a', p.phone);
+  tel.href = 'tel:+' + (p.phone.startsWith('1-') ? '' : '1') + p.phone.replace(/\D/g, '');
+  contact.append('Call ', tel, p.phone_label ? `, ${p.phone_label}.` : '.', ` Details last verified ${p.verified}.`);
+  row.append(contact);
+  return row;
+}
+
+// Matched programs first, then the rest of the catalog under its own heading.
+function programList(matched, others, othersTitle) {
+  const out = matched.map(p => programRow(p, true));
+  if (others.length) out.push(node('p', othersTitle, 'program-subhead'), ...others.map(p => programRow(p, false)));
+  return out;
+}
+
+function profilePrograms(pr) {
+  const d = node('details', '', 'profile-section profile-programs');
+  d.append(node('summary', pr.title), node('p', pr.intro, 'program-intro'), ...programList(pr.programs, pr.others, pr.others_title), node('p', pr.note, 'program-note'));
+  if (pr.sources.length) d.append(profileSources(pr.sources));
+  return d;
+}
+
 function renderProfile(p) {
   const out = profileTitle(p.district);
   if (p.where) out.push(node('p', p.where, 'profile-where'));
@@ -455,6 +488,7 @@ function renderProfile(p) {
   // Each term comes before its value, as a description list needs; the CSS shows the value on top.
   for (const h of p.headline) { const s = node('div', ''); s.append(says('dt', h.label), node('dd', h.value)); stats.append(s); }
   out.push(stats);
+  if (p.programs) out.push(profilePrograms(p.programs));
   for (const sec of p.sections) {
     if (!sec.rows.length) continue;
     const d = node('details', '', 'profile-section');
@@ -548,16 +582,6 @@ function factCard(f) {
   return card;
 }
 
-function programList(programs) {
-  const details = document.createElement('details');
-  details.open = true;
-  details.append(node('summary', 'Official program guidance'));
-  const list = document.createElement('ul');
-  for (const p of programs) { const li = document.createElement('li'); li.append(link(p.name, p.url)); list.append(li); }
-  details.append(list);
-  return details;
-}
-
 function basicAnswer(answer, name) {
   const article = document.createElement('article');
   article.append(heading(answer, name));
@@ -568,7 +592,7 @@ function basicAnswer(answer, name) {
     details.append(node('summary', 'Figures & sources'), ...answer.facts.map(factCard));
     article.append(details);
   }
-  if (answer.programs && answer.programs.length) article.append(programList(answer.programs));
+  if (answer.programs && answer.programs.length) article.append(answerPrograms(answer.programs, answer.program_sources));
   return article;
 }
 
@@ -703,7 +727,7 @@ function renderAnswer(answer, name) {
     details.append(list);
     article.append(details);
   }
-  if (answer.programs && answer.programs.length) article.append(programList(answer.programs));
+  if (answer.programs && answer.programs.length) article.append(answerPrograms(answer.programs, answer.program_sources));
   return article;
 }
 
@@ -733,3 +757,13 @@ async function loadAbout() {
   if (data.crosscheck) { $('crosscheck').textContent = data.crosscheck; $('crosscheck').hidden = false; }
 }
 loadAbout();
+// Programs named in an answer; a district lookup marks which ones its figures point to.
+function answerPrograms(programs, sources) {
+  const details = node('details', '', 'answer-programs');
+  details.open = true;
+  const matched = programs.filter(p => p.match !== false), others = programs.filter(p => p.match === false);
+  const ranked = programs.some(p => 'match' in p);
+  details.append(node('summary', ranked ? 'Programs to explore here' : 'Program pages'), ...programList(matched, others, matched.length ? 'Also available statewide' : 'Available statewide'));
+  if (sources && sources.length) details.append(profileSources(sources));
+  return details;
+}

@@ -1,0 +1,13 @@
+program_id: medicare_savings
+name: Medicare Savings Programs
+description: Med-QUEST pays Medicare premiums, and for some people deductibles and copays.
+serves: People on Medicare with low income and few resources.
+agency: Hawaiʻi Department of Human Services, Med-QUEST Division, with free counseling from Hawaiʻi SHIP
+url: https://health.hawaii.gov/eoa/home/hawaiiship/
+phone: 1-888-875-9229
+phone_label: Hawaiʻi SHIP toll-free, 586-7299 on Oʻahu
+phone_source: https://health.hawaii.gov/eoa/home/hawaiiship/
+rules: [fpg_2026_hi]
+needs: [pct_65_plus_poverty, pct_65_plus]
+verified: '2026-11-09'
+verification: Fetched the Hawaiʻi SHIP page and the Executive Office on Aging page, which names the Medicare Savings Program and this phone (HTTP 200)

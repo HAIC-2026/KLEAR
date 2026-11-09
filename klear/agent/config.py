@@ -37,24 +37,6 @@ ALIASES = {
     "homeowner": ("owner", "occupied"),
     "household": ("household", "occupied"),
 }
-# Agency behind each rule file, since rule files carry only the program name.
-AGENCIES = {
-    "fpg_2026_hi": "U.S. Department of Health and Human Services",
-    "hud_il_fy2026_hi": "U.S. Department of Housing and Urban Development",
-    "snap_fy2027": "U.S. Department of Agriculture, Food and Nutrition Service",
-    "wic_2026_27": "Hawaiʻi State Department of Health, WIC Services Branch",
-    "eitc_federal_ty2025": "Internal Revenue Service",
-    "eitc_federal_ty2026": "Internal Revenue Service",
-    "ssi_federal_2026": "Social Security Administration",
-    "preschool_open_doors": "Hawaiʻi Department of Human Services",
-    "h_heap_fy2026": "Hawaiʻi Department of Human Services",
-    "medquest_2026": "Hawaiʻi Department of Human Services, Med-QUEST Division",
-    "hi_state_credits": "Hawaiʻi Department of Taxation",
-    "aca_ptc_2026": "Internal Revenue Service",
-    "ssi_hi_supplement": "Hawaiʻi Department of Human Services",
-    "kupuna_care": "Hawaiʻi Executive Office on Aging, Department of Health",
-    "hpha_limits": "Hawaiʻi Public Housing Authority",
-}
 # Hawaiian group words by their plain spelling, as an answer must write them.
 GROUP_WORDS = {"kupuna": "kūpuna", "keiki": "keiki", "ohana": "ʻohana"}
 # The standard district profile: section titles and their indicators, read from the store with no model call.
@@ -137,24 +119,6 @@ MEASURES = {
     "snap_fy2027": ("pct_hh_snap", "places_received_snap"),
     "ssi_federal_2026": ("pct_hh_ssi",),
     "ssi_hi_supplement": ("pct_hh_ssi",),
-}
-# What each program rule covers, as list_programs reports and matches it.
-COVERS = {
-    "aca_ptc_2026": "help paying marketplace health plan premiums",
-    "eitc_federal_ty2025": "federal tax credit for low and moderate income working filers",
-    "eitc_federal_ty2026": "federal tax credit for low and moderate income working filers",
-    "fpg_2026_hi": "poverty guideline thresholds that many programs use for eligibility",
-    "h_heap_fy2026": "help with home energy and utility bills",
-    "hi_state_credits": "state tax credits for low income filers, food and excise costs and renters",
-    "hpha_limits": "income limits for state public housing",
-    "hud_il_fy2026_hi": "income limits for housing choice vouchers, public housing and other federal rental help",
-    "kupuna_care": "home and community services for kūpuna",
-    "medquest_2026": "Medicaid health coverage",
-    "preschool_open_doors": "preschool tuition subsidies",
-    "snap_fy2027": "food assistance benefits",
-    "ssi_federal_2026": "monthly payments for aged, blind or disabled people with low income and few resources",
-    "ssi_hi_supplement": "state supplement to SSI payments",
-    "wic_2026_27": "nutrition help for pregnant women, infants and young children",
 }
 # Null-valued fact statuses and why such facts are listed as missing.
 NULL_REASONS = {

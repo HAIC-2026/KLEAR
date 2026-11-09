@@ -209,10 +209,13 @@ def test_example_outcomes_match_the_built_store(real_con):
 @pytest.mark.parametrize("rule_id", sorted(program_names()))
 def test_program_name_field_passes_build_and_scorer(real_con, rule_id):
     session = Session(real_con)
-    (program,) = [
-        p for p in json.loads(session.run("list_programs", {}))["programs"] if p["rule_id"] == rule_id
+    (rule,) = [
+        r
+        for p in json.loads(session.run("list_programs", {}))["programs"]
+        for r in p["rules"]
+        if r["rule_id"] == rule_id
     ]
-    text = f"The {program['name']} program may help."
+    text = f"The {rule['name']} program may help."
     args = {
         "resolved": None,
         "refusal": "none",

@@ -1,0 +1,13 @@
+program_id: snap
+name: SNAP
+description: Monthly food benefits on an EBT card for buying groceries.
+serves: Households with low income, including working families, kūpuna and people with disabilities.
+agency: Hawaiʻi Department of Human Services, Benefit, Employment and Support Services Division
+url: https://humanservices.hawaii.gov/bessd/snap/
+phone: 1-855-643-1643
+phone_label: Public Assistance Information Line
+phone_source: https://humanservices.hawaii.gov/bessd/snap/
+rules: [snap_fy2027]
+needs: [pct_hh_snap, pct_people_poverty]
+verified: '2026-11-09'
+verification: Fetched the page (HTTP 200). It links the online application and prints the phone

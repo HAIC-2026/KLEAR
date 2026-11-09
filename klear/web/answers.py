@@ -6,8 +6,7 @@ import re
 from klear.agent.config import PROFILE_INDICATORS
 from klear.agent.tools import Session
 from klear.eval.contract import geo_display
-from klear.rules.registry import load_rules
-from klear.web.display import build_month, year_text
+from klear.web.display import build_month, programs, year_text
 
 PERSONAL = re.compile(
     r"\b(?:a specific person|an individual|named resident|home address|phone number|personal information|who lives at|identify a resident|my neighbor|specific resident)\b",
@@ -136,6 +135,35 @@ def indicators(con, question):
     return [key for _, key in sorted(ranked, reverse=True)[:3]]
 
 
+def program_answer(con, district, shown: str) -> dict:
+    """Programs matched to the district's need figures, with the reason for each in words."""
+    session = Session(con)
+    raw = json.loads(session.run("district_programs", {"district": f"{district[0]}:{district[1]}"}))
+    if "error" in raw:
+        raise ValueError("Could not match programs to the district")
+    laid = programs(con, raw, session)
+    names = [p["name"] for p in laid["programs"]]
+    if names:
+        listed = ", ".join(names[:-1]) + (" and " if len(names) > 1 else "") + names[-1]
+        lead = (
+            f"Programs to explore for residents of {shown}: {listed}. They are ranked by how far the district's "
+            "figures sit above the state's, and each one below gives its reason."
+        )
+    else:
+        lead = (
+            f"None of {shown}'s need figures sit clearly above the state's, so no program stands out here. "
+            "These programs serve residents statewide."
+        )
+    return {
+        "text": f"{lead}\n\n{laid['note']}",
+        "refusal": "none",
+        "facts": [],
+        "programs": [p | {"match": True} for p in laid["programs"]]
+        + [p | {"match": False} for p in laid["others"]],
+        "program_sources": laid["sources"],
+    }
+
+
 def ask(con, question, district):
     if PERSONAL.search(question):
         return {
@@ -157,17 +185,7 @@ def ask(con, question, district):
     shown = geo_display(*district, name)
     q = question.casefold()
     if any(word in q for word in ("program", "benefit", "assistance", "support", "help available")):
-        chosen = [
-            r
-            for r in load_rules()
-            if r.status == "confirmed" and r.rule_id not in {"fpg_2026_hi", "hud_il_fy2026_hi", "hpha_limits"}
-        ][:6]
-        return {
-            "text": f"These published programs may be worth exploring for residents of {shown}. This district-level view cannot establish any person's eligibility; consult each program's official guidance.",
-            "refusal": "none",
-            "facts": [],
-            "programs": [{"name": r.program, "url": r.url, "year": r.effective} for r in chosen],
-        }
+        return program_answer(con, district, shown)
     ids = indicators(con, question)
     if not ids:
         return {

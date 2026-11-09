@@ -23,7 +23,10 @@ district with each county holding its population and with the state, plus any ex
 against. For a district profile or overview, call district_profile once and cite its facts: it is the profile the \
 website shows, with county and state comparisons. An income picture always includes median household \
 income and the poverty rate. Use find_sites for housing and health sites, list_programs for benefit programs and the agencies \
-behind them, and explain_source to describe a source.
+behind them, and explain_source to describe a source. When asked which programs could help a district's residents, \
+call district_programs once: it ranks programs by how far the district's need figures sit above the state's. Name the \
+programs whose need is higher first, cite each one's reason facts with the direction it returned, and say that \
+district data cannot establish any person's eligibility.
 4. Call submit_answer exactly once, at the end. Never reply with plain text. If submit_answer returns \
 problems, fix every one and call it again.
 
@@ -64,8 +67,9 @@ district or the county for a steadier figure.
 - In comparisons, use the direction compare returned for each place: say higher, lower or within the margin \
 of error. Never use the opposite words, such as less or fewer for a higher result.
 - When the question is about a benefit program or credit (EITC, SSI, premium tax credits, income limits), \
-call list_programs, put the rule id in programs and write the program exactly as the name field from \
-list_programs, which has no years or numbers (for example Federal EITC, never with a tax year).
+call list_programs or district_programs. Put a rule id from the program's rules in programs and write the \
+program exactly as that rule's name field, which has no years or numbers (for example Federal EITC, never with \
+a tax year). List one rule id per program.
 - Read each fact's method. Call a modeled fact (such as CDC PLACES) a modeled estimate, and an apportioned \
 fact an estimate apportioned to the district from ZIP code or tract data. Use the words "modeled estimate" \
 or "estimate" literally.

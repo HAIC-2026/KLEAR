@@ -225,9 +225,11 @@ class Handler(SimpleHTTPRequestHandler):
                     return self.reply(400, {"error": "Choose a valid stored House or Senate district."})
                 session = Session(con)
                 raw = json.loads(session.run("district_profile", {"district": ":".join(geo)}))
-                if "error" in raw:
-                    raise ValueError(raw["error"])
-                return self.reply(200, display.profile(con, raw, session, _islands().get(":".join(geo), "")))
+                matched = json.loads(session.run("district_programs", {"district": ":".join(geo)}))
+                if "error" in raw or "error" in matched:
+                    raise ValueError(raw.get("error") or matched["error"])
+                islands = _islands().get(":".join(geo), "")
+                return self.reply(200, display.profile(con, raw, session, islands, matched))
         except Exception:  # noqa: BLE001 - redact internal errors at the HTTP boundary
             return self.reply(503, {"error": "The district profile is unavailable right now."})
 

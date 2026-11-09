@@ -144,6 +144,11 @@ def test_profile_endpoint_lays_out_the_district_profile(endpoint):
         "20.0% of the total in Honolulu County: 5,000",
         "11.1% of the total in Hawaiʻi: 9,000",
     ]
+    programs = profile["programs"]
+    assert programs["title"] == "Programs to explore here" and "eligibility" in programs["note"]
+    shown = programs["programs"] + programs["others"]
+    assert len({p["name"] for p in shown}) == len(shown) >= 12
+    assert all(p["agency"] and p["verified"] and p["phone"] and ".gov" in p["url"] for p in shown)
     for bad in ["house:999", "county:15003", ""]:
         assert get(endpoint, "/api/profile?district=" + bad)[0] == 400
 
@@ -186,6 +191,15 @@ def test_free_answer_has_figure_year_source_and_margin(endpoint, monkeypatch):
     assert fact["source"] == "American Community Survey 5-year"
     assert fact["geography"] == "House District 22"
     assert fact["uncertainty"] == "ok"
+
+
+def test_free_program_answer_lists_each_program_once_with_its_page(endpoint):
+    status, data = chat(endpoint, "What support programs could residents of this district explore?")
+    assert status == 200 and data["refusal"] == "none" and "eligibility" in data["text"]
+    names = [p["name"] for p in data["programs"]]
+    assert len(names) == len(set(names)) >= 12 and names.count("Federal EITC") == 1
+    assert all(p["url"].startswith("https://") and "match" in p for p in data["programs"])
+    assert not any("federalregister" in p["url"] or p["url"].endswith(".txt") for p in data["programs"])
 
 
 def test_refusals_and_unknown_question(endpoint):
