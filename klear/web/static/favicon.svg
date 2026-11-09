@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <title>KLEAR</title>
+  <rect width="64" height="64" rx="14" fill="#1d5563"/>
+  <path d="M6.0 18.9L9.7 21.9L9.7 26.1L13.0 29.9L13.6 32.4L16.6 35.1L18.8 40.6L28.9 38.7L30.0 40.0L34.4 39.8L40.4 43.9L46.2 41.8L48.2 43.5L51.8 40.4L52.0 39.5L48.7 37.8L47.9 34.1L45.2 31.8L46.6 27.9L43.0 28.1L43.6 30.2L42.6 31.2L38.1 27.3L38.0 21.5L33.0 16.0L32.8 13.2L28.9 8.4L26.5 8.6L23.7 10.6L17.4 18.2Z" fill="#a8cfd9"/>
+  <line x1="48" y1="46" x2="55" y2="53" stroke="#fff" stroke-width="6.5" stroke-linecap="round"/>
+  <circle cx="42" cy="40" r="8.5" fill="#fff" fill-opacity=".25" stroke="#1d5563" stroke-width="7"/>
+  <circle cx="42" cy="40" r="8.5" fill="none" stroke="#fff" stroke-width="3.8"/>
+</svg>

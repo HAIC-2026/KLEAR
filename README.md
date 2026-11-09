@@ -231,18 +231,24 @@ The landing page uses the project-provided `background1.png` photo, copied
 as a smaller metadata-free `klear/web/static/background1.jpg`. It loads no
 third-party images, fonts, scripts, or analytics.
 
-All text is set in Inter 4.1 (SIL Open Font License, klear/web/static/fonts/OFL.txt), as a
-variable font limited to the weights the site uses (400 to 800). It comes in two files. The page
-always loads inter.woff2, which holds Latin letters including the Hawaiian kahakō vowels and
-ʻokina, punctuation, arrows and math signs. Browsers fetch inter-ext.woff2 only when text needs
-it: other Latin letters (Vietnamese, Romanian and more), combining accents, currency signs and
-letterlike symbols. Characters in neither file, such as the ✳ mark, come from the system font. To
-rebuild both from InterVariable.ttf in the official release
-(https://github.com/rsms/inter/releases), with fonttools and brotli installed:
+The KLEAR logo, the island of Oʻahu under a magnifying glass, was drawn for this project as plain
+SVG. The coastline is traced from the 2022 Senate district boundaries and simplified.
+`klear/web/static/logo.svg` is the mark used in the page header. `favicon.svg` is the same mark on a
+teal square, used as the tab icon and the page footer logo. `favicon.ico` (16, 32, and 48 px) and
+`apple-touch-icon.png` (180 px) are renders of `favicon.svg` for browsers that do not use SVG icons.
 
-    fonttools varLib.instancer InterVariable.ttf wght=400:800 -o Inter.ttf
-    pyftsubset Inter.ttf --unicodes="U+0000-00FF,U+0100-017F,U+02BB-02BC,U+02C6-02C7,U+02D8-02DD,U+2000-206F,U+20AC,U+2122,U+2190-21FF,U+2200-22FF,U+FEFF,U+FFFD" --layout-features+=tnum --flavor=woff2 --name-IDs='*' --output-file=klear/web/static/fonts/inter.woff2
-    pyftsubset Inter.ttf --unicodes="U+0180-02BA,U+02BD-02C5,U+02C8-02D7,U+02DE-036F,U+1E00-1EFF,U+2070-20AB,U+20AD-20CF,U+2100-2121,U+2123-218F,U+2C60-2C7F,U+A720-A7FF,U+AB30-AB6F" --layout-features+=tnum --flavor=woff2 --name-IDs='*' --output-file=klear/web/static/fonts/inter-ext.woff2
+All text is set in Public Sans 2.001 (SIL Open Font License, klear/web/static/fonts/OFL.txt), as a
+variable font limited to the weights the site uses (400 to 800). It comes in two files. The page
+always loads public-sans.woff2, which holds Latin letters including the Hawaiian kahakō vowels and
+ʻokina, punctuation, and math signs. Browsers fetch public-sans-ext.woff2 only when text needs
+it: other Latin letters (Vietnamese, Romanian, and more), combining accents, currency signs, and
+letterlike symbols. Characters in neither file come from the system font. The arrow on links that leave the site is drawn in CSS, so it looks the same everywhere. To
+rebuild both from PublicSans[wght].ttf in the official release
+(https://github.com/uswds/public-sans/releases), with fonttools and brotli installed:
+
+    fonttools varLib.instancer "PublicSans[wght].ttf" wght=400:800 -o PublicSans.ttf
+    pyftsubset PublicSans.ttf --unicodes="U+0000-00FF,U+0100-017F,U+02BB-02BC,U+02C6-02C7,U+02D8-02DD,U+2000-206F,U+20AC,U+2122,U+2190-21FF,U+2200-22FF,U+FEFF,U+FFFD" --layout-features+=tnum --flavor=woff2 --name-IDs='*' --output-file=klear/web/static/fonts/public-sans.woff2
+    pyftsubset PublicSans.ttf --unicodes="U+0180-02BA,U+02BD-02C5,U+02C8-02D7,U+02DE-036F,U+1E00-1EFF,U+2070-20AB,U+20AD-20CF,U+2100-2121,U+2123-218F,U+2C60-2C7F,U+A720-A7FF,U+AB30-AB6F" --layout-features+=tnum --flavor=woff2 --name-IDs='*' --output-file=klear/web/static/fonts/public-sans-ext.woff2
 
 The unicode-range lists in klear/web/static/style.css must match these two lists.
 
