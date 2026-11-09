@@ -103,7 +103,8 @@ def asks_profile(question: str) -> bool:
 
 
 def indicators(con, question):
-    """Up to three indicator ids for a question: topic keywords first, then words shared with labels."""
+    """Indicator ids for a question: every profile figure for a profile question, else up to three, with
+    topic keywords first and then words shared with labels."""
     q = question.casefold()
     if asks_profile(q):
         return list(PROFILE_INDICATORS)

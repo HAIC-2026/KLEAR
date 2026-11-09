@@ -235,7 +235,7 @@
     picked = row;
     for (const p of svg.querySelectorAll('[data-geo]')) p.classList.toggle('picked', Boolean(row) && p.dataset.geo === row.geo);
     document.getElementById('pick-name').textContent = row ? row.name : 'Tap an area on the map';
-    document.getElementById('pick-island').textContent = row ? row.islands.toUpperCase() : 'SELECT A DISTRICT';
+    document.getElementById('pick-island').textContent = row ? row.islands : 'No district picked yet';
     go.disabled = !row;
     list.value = row ? row.geo : '';
     declutter();
@@ -331,7 +331,7 @@
       if (main.some(h => h.row === row)) { x0 = Math.min(x0, b.x); y0 = Math.min(y0, b.y); x1 = Math.max(x1, b.x + b.width); y1 = Math.max(y1, b.y + b.height); }
       if (hits.length > 1) {
         const chip = document.createElement('button');
-        chip.type = 'button'; chip.className = 'match';
+        chip.type = 'button'; chip.className = `match ${chamber}`;
         const label = `${kind} ${row.name.replace(/\D+/g, '')}`, part = share < 0.01 ? '<1%' : `${Math.round(share * 100)}%`;
         chip.append(span(label), span(part, 'share'));
         chip.setAttribute('aria-label', `${label} ${part} of ZIP ${zipCode} residents`);

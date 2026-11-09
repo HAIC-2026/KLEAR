@@ -69,7 +69,7 @@ def test_lookup_and_private_files(endpoint):
 def test_public_files_and_cache_policy(endpoint):
     for path in web.PUBLIC:
         assert get(endpoint, path)[0] == 200, path
-    _, body, headers = get(endpoint, "/fonts/inter.woff2")
+    _, body, headers = get(endpoint, "/fonts/public-sans.woff2")
     assert body[:4] == b"wOF2" and headers["Content-Type"] == "font/woff2"
     assert headers["Cache-Control"] == "public, max-age=604800"
     assert get(endpoint, "/")[2]["Cache-Control"] == "no-cache"
@@ -83,9 +83,30 @@ def test_public_files_and_cache_policy(endpoint):
     assert response.status == 400 and response.headers["Cache-Control"] == "no-store"
 
 
+def test_logo_and_favicons_are_served_as_images(endpoint):
+    types = {
+        "/logo.svg": "image/svg+xml",
+        "/favicon.svg": "image/svg+xml",
+        "/favicon.ico": "image/x-icon",
+        "/apple-touch-icon.png": "image/png",
+    }
+    for path, kind in types.items():
+        status, body, headers = get(endpoint, path)
+        assert status == 200 and headers["Content-Type"] == kind and body, path
+    assert get(endpoint, "/favicon.ico")[1].startswith(bytes.fromhex("00000100"))
+    assert get(endpoint, "/apple-touch-icon.png")[1].startswith(bytes.fromhex("89504e470d0a1a0a"))
+    page = get(endpoint, "/")[1].decode("utf-8")
+    for link in (
+        'rel="icon" href="/favicon.ico?v=2"',
+        'rel="icon" href="/favicon.svg?v=2"',
+        'rel="apple-touch-icon"',
+    ):
+        assert link in page, link
+
+
 def test_missing_public_file_is_not_cached(endpoint, monkeypatch, tmp_path):
     monkeypatch.setattr(web, "STATIC", tmp_path)
-    status, _, headers = get(endpoint, "/fonts/inter.woff2")
+    status, _, headers = get(endpoint, "/fonts/public-sans.woff2")
     assert status == 404 and headers["Cache-Control"] == "no-store"
 
 
@@ -101,8 +122,8 @@ def test_malformed_requests_get_error_pages(endpoint):
 def test_page_assets_are_public():
     css = (web.STATIC / "style.css").read_text(encoding="utf-8")
     html = (web.STATIC / "index.html").read_text(encoding="utf-8")
-    refs = re.findall(r"url\(['\"]?(/[^)'\"]+)", css) + re.findall(r'(?:src|href)="(/[^"#]*)"', html)
-    assert "/fonts/inter-ext.woff2" in refs
+    refs = re.findall(r"url\(['\"]?(/[^)'\"]+)", css) + re.findall(r'(?:src|href)="(/[^"#?]*)', html)
+    assert "/fonts/public-sans-ext.woff2" in refs
     assert set(refs) <= set(web.PUBLIC)
 
 
@@ -125,6 +146,27 @@ def test_profile_endpoint_lays_out_the_district_profile(endpoint):
     ]
     for bad in ["house:999", "county:15003", ""]:
         assert get(endpoint, "/api/profile?district=" + bad)[0] == 400
+
+
+def test_about_serves_store_facts_and_sources(endpoint):
+    status, data, headers = get(endpoint, "/api/about")
+    body = json.loads(data)
+    assert status == 200 and headers["Cache-Control"] == "no-store"
+    assert body["facts"][0] == "2 House and 1 Senate districts"
+    assert "example" not in body and [s["publisher"] for s in body["sources"]] == ["Census", "HUD"]
+
+
+def test_about_without_a_store_is_unavailable(tmp_path):
+    with web.Server(("127.0.0.1", 0), partial(web.Handler, store=tmp_path / "missing.duckdb")) as server:
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            status, data = request(server.server_port, "GET", "/api/about")
+            assert status == 503 and "No data store has been built yet" in json.loads(data)["error"]
+            assert request(server.server_port, "GET", "/")[0] == 200
+        finally:
+            server.shutdown()
+            thread.join(timeout=5)
 
 
 def test_validation_and_cross_origin(endpoint):
@@ -264,7 +306,7 @@ def test_web_command_serves_real_store_and_assets(small_con, tmp_path):
             )
         assert line.startswith("KLEAR: http://127.0.0.1:"), line
         port = urlsplit(line.split()[1]).port
-        for path in ["/", "/app.js", "/map.js", "/style.css", "/background1.jpg", "/fonts/inter.woff2"]:
+        for path in ["/", "/app.js", "/map.js", "/style.css", "/background1.jpg", "/fonts/public-sans.woff2"]:
             assert request(port, "GET", path)[0] == 200
         assert request(port, "GET", "/.env")[0] == 404
         status, resolved = request(port, "GET", "/api/resolve?q=House%2022")

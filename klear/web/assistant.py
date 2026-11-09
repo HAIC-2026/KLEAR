@@ -154,7 +154,7 @@ def basic(con, question: str, district: tuple[str, str], note: str = "") -> dict
         answer = Answer(VERSION, district, result["refusal"], [], refs, [], [])
         result |= display.build(con, answer)
         profile = asks_profile(question)
-        lead = "This is the standard profile for this district. The profile beside the chat compares each figure with the county and the state."
+        lead = "This is the standard profile for this district. The district profile on this page compares each figure with the county and the state."
         result["lead"] = [
             note or (lead if profile else "These are the closest published figures for this question.")
         ]

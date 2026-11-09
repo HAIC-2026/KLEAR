@@ -85,7 +85,7 @@ No `source`, environment export, or `--env-file` option is needed. Restart the w
 - klear/validation: the build's validation checks and the docs/VALIDATION.md report.
 - klear/rules: loads the program rules and checks each value against its official source quote.
 - klear/agent: the agent, its data tools and the code that builds and checks each answer (python -m klear.agent).
-- klear/web: the local web server, landing page and chat interface (python -m klear.web).
+- klear/web: the local web server, landing page, district profile and chat interface (python -m klear.web).
 - klear/eval: the answer format, eval runner, answer checks, reports and spending cap (python -m klear.eval run).
 - data: the checked-in indicator catalog (data/catalog), Hawaiian place names (data/places) and program rules (data/rules). The build also writes data/raw (download cache), data/manual (hand downloads) and data/build (the store), none of them tracked.
 - eval: test questions (eval/golden), saved model replies (eval/scripts), recorded live answers (eval/recordings) and model prices. Run reports go to eval/reports, which is not tracked.
@@ -231,18 +231,24 @@ The landing page uses the project-provided `background1.png` photo, copied
 as a smaller metadata-free `klear/web/static/background1.jpg`. It loads no
 third-party images, fonts, scripts, or analytics.
 
-All text is set in Inter 4.1 (SIL Open Font License, klear/web/static/fonts/OFL.txt), as a
-variable font limited to the weights the site uses (400 to 800). It comes in two files. The page
-always loads inter.woff2, which holds Latin letters including the Hawaiian kahakō vowels and
-ʻokina, punctuation, arrows and math signs. Browsers fetch inter-ext.woff2 only when text needs
-it: other Latin letters (Vietnamese, Romanian and more), combining accents, currency signs and
-letterlike symbols. Characters in neither file, such as the ✳ mark, come from the system font. To
-rebuild both from InterVariable.ttf in the official release
-(https://github.com/rsms/inter/releases), with fonttools and brotli installed:
+The KLEAR logo, the island of Oʻahu under a magnifying glass, was drawn for this project as plain
+SVG. The coastline is traced from the 2022 Senate district boundaries and simplified.
+`klear/web/static/logo.svg` is the mark used in the page header. `favicon.svg` is the same mark on a
+teal square, used as the tab icon and the page footer logo. `favicon.ico` (16, 32, and 48 px) and
+`apple-touch-icon.png` (180 px) are renders of `favicon.svg` for browsers that do not use SVG icons.
 
-    fonttools varLib.instancer InterVariable.ttf wght=400:800 -o Inter.ttf
-    pyftsubset Inter.ttf --unicodes="U+0000-00FF,U+0100-017F,U+02BB-02BC,U+02C6-02C7,U+02D8-02DD,U+2000-206F,U+20AC,U+2122,U+2190-21FF,U+2200-22FF,U+FEFF,U+FFFD" --layout-features+=tnum --flavor=woff2 --name-IDs='*' --output-file=klear/web/static/fonts/inter.woff2
-    pyftsubset Inter.ttf --unicodes="U+0180-02BA,U+02BD-02C5,U+02C8-02D7,U+02DE-036F,U+1E00-1EFF,U+2070-20AB,U+20AD-20CF,U+2100-2121,U+2123-218F,U+2C60-2C7F,U+A720-A7FF,U+AB30-AB6F" --layout-features+=tnum --flavor=woff2 --name-IDs='*' --output-file=klear/web/static/fonts/inter-ext.woff2
+All text is set in Public Sans 2.001 (SIL Open Font License, klear/web/static/fonts/OFL.txt), as a
+variable font limited to the weights the site uses (400 to 800). It comes in two files. The page
+always loads public-sans.woff2, which holds Latin letters including the Hawaiian kahakō vowels and
+ʻokina, punctuation, and math signs. Browsers fetch public-sans-ext.woff2 only when text needs
+it: other Latin letters (Vietnamese, Romanian, and more), combining accents, currency signs, and
+letterlike symbols. Characters in neither file come from the system font. The arrow on links that leave the site is drawn in CSS, so it looks the same everywhere. To
+rebuild both from PublicSans[wght].ttf in the official release
+(https://github.com/uswds/public-sans/releases), with fonttools and brotli installed:
+
+    fonttools varLib.instancer "PublicSans[wght].ttf" wght=400:800 -o PublicSans.ttf
+    pyftsubset PublicSans.ttf --unicodes="U+0000-00FF,U+0100-017F,U+02BB-02BC,U+02C6-02C7,U+02D8-02DD,U+2000-206F,U+20AC,U+2122,U+2190-21FF,U+2200-22FF,U+FEFF,U+FFFD" --layout-features+=tnum --flavor=woff2 --name-IDs='*' --output-file=klear/web/static/fonts/public-sans.woff2
+    pyftsubset PublicSans.ttf --unicodes="U+0180-02BA,U+02BD-02C5,U+02C8-02D7,U+02DE-036F,U+1E00-1EFF,U+2070-20AB,U+20AD-20CF,U+2100-2121,U+2123-218F,U+2C60-2C7F,U+A720-A7FF,U+AB30-AB6F" --layout-features+=tnum --flavor=woff2 --name-IDs='*' --output-file=klear/web/static/fonts/public-sans-ext.woff2
 
 The unicode-range lists in klear/web/static/style.css must match these two lists.
 
@@ -255,12 +261,37 @@ without a data build. After a build changes the boundaries, regenerate it with:
 
 The landing page resolves House/Senate numbers, towns and ZIPs using the
 built store. Overlaps are shown as choices instead of guessing a district.
-Chat includes example questions, a waiting state, explicit refusal labels,
+Chat offers five example questions, a waiting state, explicit refusal labels,
 and figure cards with uncertainty, vintage, geography and official source
-links. Program questions list official guidance without assessing individual
-eligibility. Questions outside the available measures receive a clear limit
-instead of a guessed answer. Questions are independent: previous messages
-are displayed locally but are not sent as conversation history.
+links. The examples are a list until a district is chosen, then short buttons
+above the question box. Program questions list official guidance without
+assessing individual eligibility. Questions outside the available measures
+receive a clear limit instead of a guessed answer. Questions are independent:
+previous messages are displayed locally but are not sent as conversation history.
+
+Choosing a district also shows its district profile next to the chat. The profile is read
+straight from the store with no model call, through `GET /api/profile?district=house:022`.
+It names the district's counties, islands, Census places and the overlapping districts
+in the other chamber, shows four headline figures, then 37 figures in seven sections:
+People, Income, Housing, Health and access, Programs in use, Modeled needs and Help sites.
+Each figure shows its margin of error or range, is compared with the county that holds most
+of the district's population and with the state, flags an unreliable estimate, and is cited
+under its section. Rates are compared in plain sentences ("about 40 percent higher than the
+rate in Maui County: 9.2%", or "about the same as" when the gap is inside the margins of
+error), and totals show the district's share of the county and state total.
+The figures and labels are in `PROFILE_SECTIONS` in klear/agent/config.py and
+`PROFILE_LABELS` in klear/web/display.py.
+
+The agent's `district_profile` tool returns the same set, so a profile question in chat,
+the free lookup and the page cite the same figures. A question that contains the word
+"profile" must cite every profile figure the store holds for its district, and the free
+lookup returns them all for a profile, socioeconomic or overview question.
+
+On screens at least 1200 px wide the profile and the chat are equal-width columns; below that
+the profile sits under the chat at full width. The chat card stays compact until the first
+question is sent, then grows to a fixed height and scrolls its conversation inside it. The
+profile never scrolls inside itself: it takes the height its figures need, and each section
+opens and closes on its own.
 
 Only the static web assets are served; the repository and store cannot be
 downloaded. The server rejects cross-origin browser requests. HTTP logs are disabled to avoid recording questions.
