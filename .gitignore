@@ -26,3 +26,8 @@ dist/
 
 # Source photo is copied into the served static directory
 /background1.png
+
+# Browser tests (e2e): packages, results and reports
+e2e/node_modules/
+e2e/test-results/
+e2e/playwright-report/

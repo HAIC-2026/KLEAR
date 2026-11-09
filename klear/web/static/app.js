@@ -6,6 +6,21 @@ const uncertaintyLabels = {ok: '90% margin of error shown above', controlled: 'F
 const examples = [['Give me a socioeconomic profile of this district.', 'Profile'], ['How many kūpuna live in this district?', 'Kūpuna'], ['What does the data say about housing needs in this district?', 'Housing'], ['How does poverty here compare with the state?', 'Poverty vs. state'], ['What support programs could residents of this district explore?', 'Programs']];
 const refusalLabels = {decline_partisan: 'Partisan request declined', decline_individual: 'Personal request declined', not_available: 'Data not available', out_of_scope: 'Outside KLEAR’s scope'};
 function node(tag, text, className) { const n = document.createElement(tag); n.textContent = text; if (className) n.className = className; return n; }
+// Hawaiian words for groups of people, marked so screen readers can pronounce them. Place names are left as they are.
+const HAWAIIAN = /(?<![\p{L}\p{M}])(kūpuna|keiki|ʻohana)(?![\p{L}\p{M}])/giu;
+function says(tag, text, className) {
+  const n = node(tag, '', className);
+  let at = 0;
+  for (const m of text.matchAll(HAWAIIAN)) {
+    const word = node('span', m[0]);
+    word.lang = 'haw';
+    n.append(text.slice(at, m.index), word);
+    at = m.index + m[0].length;
+  }
+  n.append(text.slice(at));
+  return n;
+}
+const hidden = text => node('span', text, 'visually-hidden');
 async function api(url, options) {
   let r, data = null;
   try { r = await fetch(url, options); } catch { throw new Error('KLEAR could not be reached. Check your connection and try again.'); }
@@ -82,10 +97,13 @@ function needDistrict() {
   $('place').focus();
 }
 
+// While an answer loads, the ask and suggestion buttons say they are unavailable but keep focus: disabling a focused
+// button would drop focus to the page, and keyboard and screen reader users would lose their place.
 function setBusy(on) {
   busy = on;
-  $('send').disabled = on;
-  $('examples').querySelectorAll('button').forEach(b => { b.disabled = on; });
+  for (const b of [$('send'), ...$('examples').querySelectorAll('button')]) {
+    if (on) b.setAttribute('aria-disabled', 'true'); else b.removeAttribute('aria-disabled');
+  }
 }
 
 // Set the district the chat asks about, or queue the switch while an answer loads.
@@ -115,7 +133,7 @@ function choose(geo, name, quiet) {
     $('welcome-text').textContent = `Ask about ${name}.`;
     $('change').textContent = 'Change district';
     document.dispatchEvent(new CustomEvent('klear:district', {detail: {geo, name}}));
-    loadProfile(geo);
+    loadProfile(geo, name);
   }
   const ready = $('question').value.trim() ? 'Your question is ready. Press Ask KLEAR.' : '';
   $('chat-status').textContent = quiet && switched ? `Now asking about ${name}. ${ready}`.trim() : ready;
@@ -167,11 +185,9 @@ function showMatches(groups, box, pick) {
         const b = node('button', '', `match ${chamber}`);
         b.type = 'button';
         const label = r.name.replace(' District', '');
+        // The spoken name is the visible text with the rest of the sentence hidden after it.
         b.append(node('span', label));
-        if (r.share != null) {
-          b.append(node('span', share(r.share), 'share'));
-          b.setAttribute('aria-label', `${label} ${share(r.share)} of ${g.place} residents`);
-        }
+        if (r.share != null) b.append(' ', node('span', share(r.share), 'share'), hidden(` of ${g.place} residents`));
         b.onclick = () => pick(r.geo, r.name);
         chips.append(b);
       }
@@ -227,29 +243,34 @@ $('change').onclick = () => {
 const resetLookup = lookupForm($('lookup'), $('place'), $('lookup-status'), $('matches'), choose);
 // The search at the top of the page sets the chat's district and moves to the chat.
 const resetFind = lookupForm($('find'), $('find-place'), $('find-status'), $('find-matches'), (geo, name) => { resetFind(); choose(geo, name); });
+// Each starter shows its full question. Once it moves into the chat it shows only its short label, and the rest of the
+// question stays in its spoken name after that label, so voice control can say what it sees.
 for (const [question, label] of examples) {
-  const b = node('button', question);
+  const b = node('button', '');
   b.type = 'button';
-  b.dataset.label = label;
-  b.onclick = () => { $('question').value = question; fitQuestion(); if (district) $('question-form').requestSubmit(); else needDistrict(); };
+  const short = says('span', label, 'example-label'), rest = hidden(': '), full = says('span', question, 'example-full');
+  short.hidden = true;
+  rest.hidden = true;
+  rest.append(says('span', question));
+  b.append(short, rest, full);
+  b.onclick = () => { if (busy) return; $('question').value = question; fitQuestion(); if (district) $('question-form').requestSubmit(); else needDistrict(); };
   $('examples').append(b);
 }
 
 // Once a district is chosen, its profile takes the starter questions' place and they move into the chat as short buttons.
 // The profile is long, so it is not a live region: a short status line says when it has loaded.
 let profileSeq = 0;
-async function loadProfile(geo) {
+async function loadProfile(geo, name) {
   const seq = ++profileSeq, panel = $('profile'), live = $('profile-live');
   live.textContent = '';
   if (!$('starter').hidden) {
-    // The spoken name starts with the visible label, so voice control can say what it sees.
-    for (const b of $('examples').children) { b.setAttribute('aria-label', `${b.dataset.label}: ${b.textContent}`); b.textContent = b.dataset.label; }
+    for (const b of $('examples').children) for (const part of b.children) part.hidden = !part.hidden;
     $('suggest').append($('examples'));
     $('suggest').hidden = false;
     $('starter').hidden = true;
   }
   panel.hidden = false;
-  panel.replaceChildren(node('p', 'Loading the district profile…', 'profile-status'));
+  panel.replaceChildren(...profileTitle(name), node('p', 'Loading the district profile…', 'profile-status'));
   try {
     const data = await api('/api/profile?district=' + encodeURIComponent(geo));
     if (seq !== profileSeq) return;
@@ -258,9 +279,16 @@ async function loadProfile(geo) {
   } catch (err) {
     if (seq !== profileSeq) return;
     const message = `The district profile could not load. ${err.message}`;
-    panel.replaceChildren(node('p', message, 'profile-status'));
+    panel.replaceChildren(...profileTitle(name), node('p', message, 'profile-status'));
     live.textContent = message;
   }
+}
+
+// The panel is labelled by its heading, so the heading is there while the profile loads too.
+function profileTitle(name) {
+  const title = node('h3', name);
+  title.id = 'profile-title';
+  return [node('p', 'District profile', 'small-label'), title];
 }
 
 function profileRow(r) {
@@ -269,8 +297,8 @@ function profileRow(r) {
   const figure = node('p', '', 'profile-figure');
   figure.append(node('span', r.value, 'num'));
   if (r.spread) figure.append(' ', node('span', r.spread, 'moe'));
-  const label = node('p', r.label, 'profile-label');
-  if (r.note) { const sup = node('sup', String(r.note)); sup.setAttribute('aria-label', `source ${r.note}`); label.append(sup); }
+  const label = says('p', r.label, 'profile-label');
+  if (r.note) { const sup = node('sup', ''); sup.append(hidden(' source '), String(r.note)); label.append(sup); }
   row.append(figure, label);
   if (r.caution) row.append(node('p', r.caution, 'profile-caution'));
   if (r.against.length) {
@@ -292,9 +320,7 @@ function profileSources(sources) {
 }
 
 function renderProfile(p) {
-  const title = node('h3', p.district);
-  title.id = 'profile-title';
-  const out = [node('p', 'District profile', 'small-label'), title];
+  const out = profileTitle(p.district);
   if (p.where) out.push(node('p', p.where, 'profile-where'));
   if (p.places.length) {
     const more = p.places.length - 4;
@@ -302,7 +328,8 @@ function renderProfile(p) {
   }
   if (p.overlaps.length) out.push(node('p', 'Overlaps ' + p.overlaps.map(o => `${o.name} (${o.share})`).join(', '), 'profile-meta'));
   const stats = node('dl', '', 'profile-stats');
-  for (const h of p.headline) { const s = node('div', ''); s.append(node('dd', h.value), node('dt', h.label)); stats.append(s); }
+  // Each term comes before its value, as a description list needs; the CSS shows the value on top.
+  for (const h of p.headline) { const s = node('div', ''); s.append(says('dt', h.label), node('dd', h.value)); stats.append(s); }
   out.push(stats);
   for (const sec of p.sections) {
     if (!sec.rows.length) continue;
@@ -325,7 +352,10 @@ $('question-form').onsubmit = async e => {
   setBusy(true);
   asked = district;
   const name = $('district-title').textContent;
-  const sent = node('p', question, 'user'), pending = node('p', 'Checking district data and sources…', 'pending');
+  // The conversation is not a live region, since answers are long. A short status line says what is happening,
+  // and the new answer's heading takes focus.
+  const sent = node('p', '', 'user'), pending = node('p', 'Checking district data and sources…', 'pending');
+  sent.append(hidden('You asked: '), question);
   // Each exchange keeps the color of the chamber it was about, even after the chat switches district.
   const chamber = district.split(':')[0];
   sent.dataset.chamber = pending.dataset.chamber = chamber;
@@ -334,58 +364,121 @@ $('question-form').onsubmit = async e => {
   $('question').value = '';
   fitQuestion();
   $('chat-status').textContent = '';
-  let follow = true, hold = null;
+  $('chat-live').textContent = `Checking district data and sources for ${name}…`;
+  let follow = true, hold = null, reply = null, done, reader = null;
   try {
     const answer = await api('/api/chat', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({question, district})});
+    reader = readerPlace();
     hold = holdPage(pending);
     follow = onScreen(pending);
-    const reply = renderAnswer(answer, name);
+    reply = renderAnswer(answer, name);
     reply.dataset.chamber = chamber;
     pending.replaceWith(reply);
+    done = `Answer ready for ${name}.`;
   } catch (err) {
+    reader = reader || readerPlace();
     hold = holdPage(pending);
     follow = onScreen(pending);
     pending.replaceWith(node('p', err.message, 'error'));
+    done = err.message;
     if (!$('question').value.trim()) { $('question').value = question; fitQuestion(); $('chat-status').textContent = 'Your question is ready to retry.'; }
   } finally {
     setBusy(false);
-    // Leave the page and focus alone while the reader works in the district search or another field.
-    const focus = document.activeElement;
-    const elsewhere = !$('lookup').hidden || (focus && focus !== $('question') && focus.matches('input, select, textarea'));
-    const idle = !focus || focus === document.body;
-    const inChat = !elsewhere && ($('chat-card').contains(focus) || $('examples').contains(focus) || (idle && onScreen($('question-form'))));
+    const {elsewhere, inChat} = reader || readerPlace();
+    $('chat-live').textContent = done;
     if (queued) { const next = queued; queued = null; choose(next.geo, next.name, true); }
     if (hold) hold();
     if (follow && (logScrolls() || (!elsewhere && !(hold && hold.field)))) reveal(sent);
-    if (inChat) $('question').focus({preventScroll: true});
+    // A reader still in the chat moves to the new answer; after an error, back to the question to retry.
+    if (inChat && reply) reply.querySelector('h3').focus({preventScroll: true});
+    else if (inChat) $('question').focus({preventScroll: true});
   }
 };
+// Where the reader is when an answer arrives, read before the answer changes the page: working in the district search
+// or another field (leave the page and focus alone), or still in the chat (focus in the chat card or its suggestions,
+// or on nothing while the question box shows).
+function readerPlace() {
+  const focus = document.activeElement;
+  const elsewhere = !$('lookup').hidden || Boolean(focus && focus !== $('question') && focus.matches('input, select, textarea'));
+  const idle = !focus || focus === document.body;
+  const inChat = !elsewhere && ($('chat-card').contains(focus) || $('examples').contains(focus) || (idle && onScreen($('question-form'))));
+  return {elsewhere, inChat};
+}
 
-// Answer heading that names the district the question was asked about.
+// The last announcement is cleared once the reader starts the next question, so it is not read again.
+$('question').addEventListener('input', () => { if (!busy) $('chat-live').textContent = ''; });
+
+// Answer heading that names the district the question was asked about. It takes focus when the answer arrives.
 function heading(answer, name) {
   const h = node('h3', refusalLabels[answer.refusal] || 'KLEAR');
-  if (name) h.append(' ', node('span', name, 'answer-for'));
+  h.tabIndex = -1;
+  if (name) h.append(hidden(', '), node('span', name, 'answer-for'));
   return h;
 }
 
-function basicAnswer(answer, name) { const article = document.createElement('article'); article.append(heading(answer, name)); for (const p of answer.text.split('\n\n')) article.append(node('p', p)); if (answer.facts.length) { const details = document.createElement('details'); details.open = true; details.append(node('summary', 'Figures & sources')); for (const f of answer.facts) { const card = node('div', '', 'fact'); card.append(node('b', f.label), node('p', f.value), node('small', `${f.year}, ${f.geography}. Uncertainty: ${uncertaintyLabels[f.uncertainty] || 'Uncertainty information unavailable'}`)); let source = node('span', f.source); try { const url = new URL(f.url); if (['http:', 'https:'].includes(url.protocol)) { source = node('a', f.source, 'ext'); source.href = url.href; source.target = '_blank'; source.rel = 'noopener noreferrer'; } } catch {} card.append(source); details.append(card); } article.append(details); } if (answer.programs && answer.programs.length) { const details = document.createElement('details'); details.open = true; details.append(node('summary', 'Official program guidance')); for (const p of answer.programs) { const card = node('div', '', 'fact'); const link = node('a', p.name, 'ext'); try { const url = new URL(p.url); if (['http:', 'https:'].includes(url.protocol)) { link.href = url.href; link.target = '_blank'; link.rel = 'noopener noreferrer'; card.append(link); } else card.append(node('span', p.name)); } catch { card.append(node('span', p.name)); } details.append(card); } article.append(details); }  return article; }
+// A labelled figure for the basic lookup, with its source.
+function factCard(f) {
+  const card = node('div', '', 'fact');
+  const uncertainty = uncertaintyLabels[f.uncertainty] || uncertaintyLabels.unavailable;
+  card.append(says('b', f.label), node('p', f.value), node('small', `${f.year}, ${f.geography}. Uncertainty: ${uncertainty}`), link(f.source, f.url));
+  return card;
+}
 
+function programList(programs) {
+  const details = document.createElement('details');
+  details.open = true;
+  details.append(node('summary', 'Official program guidance'));
+  const list = document.createElement('ul');
+  for (const p of programs) { const li = document.createElement('li'); li.append(link(p.name, p.url)); list.append(li); }
+  details.append(list);
+  return details;
+}
+
+function basicAnswer(answer, name) {
+  const article = document.createElement('article');
+  article.append(heading(answer, name));
+  for (const p of answer.text.split('\n\n')) article.append(says('p', p));
+  if (answer.facts.length) {
+    const details = document.createElement('details');
+    details.open = true;
+    details.append(node('summary', 'Figures & sources'), ...answer.facts.map(factCard));
+    article.append(details);
+  }
+  if (answer.programs && answer.programs.length) article.append(programList(answer.programs));
+  return article;
+}
+
+// A link that opens in a new tab and says so, or plain text when the address is not a web page.
 function link(text, href) {
-  try { const url = new URL(href); if (['http:', 'https:'].includes(url.protocol)) { const a = node('a', text, 'ext'); a.href = url.href; a.target = '_blank'; a.rel = 'noopener noreferrer'; return a; } } catch {}
+  try {
+    const url = new URL(href);
+    if (['http:', 'https:'].includes(url.protocol)) {
+      const a = node('a', text, 'ext');
+      a.href = url.href; a.target = '_blank'; a.rel = 'noopener noreferrer';
+      a.append(hidden(' (opens in a new tab)'));
+      return a;
+    }
+  } catch {}
   return node('span', text);
 }
 
+// Bars for sighted readers, with a sentence that says what they show and the same figures as a table.
+// The bars repeat the table, so screen readers skip them.
 function chartFigure(c) {
   const fig = node('figure', '', 'chart');
   if (c.bars.some(b => b.text.length > 22)) fig.classList.add('wide');
   const head = node('figcaption', '', 'chart-head');
-  head.append(node('span', c.label));
+  head.append(says('span', c.label));
   if (c.tag) head.append(node('span', c.tag, c.lower ? 'chip strong' : 'chip'));
   fig.append(head);
+  if (c.summary) fig.append(says('p', c.summary, 'chart-summary'));
+  const bars = node('div', '', 'chart-bars');
+  bars.setAttribute('aria-hidden', 'true');
   const max = Math.max(...c.bars.map(b => b.high)) || 1;
   c.bars.forEach((b, i) => {
     const row = node('div', '', 'bar-row');
-    row.append(node('span', b.geography, 'bar-place'));
+    // The district asked about is first, darker, and named in bold, so the bars do not rely on color alone.
+    row.append(node('span', b.geography, i ? 'bar-place' : 'bar-place home'));
     const track = node('div', '', 'bar-track');
     const bar = node('div', '', i ? 'bar other' : 'bar home');
     bar.style.width = (b.value / max * 100) + '%';
@@ -400,9 +493,35 @@ function chartFigure(c) {
     const [num, ...spread] = b.text.split(' '), value = node('span', num, 'bar-value');
     if (spread.length) value.append(' ', node('span', spread.join(' '), 'bar-spread'));
     row.append(track, value);
-    fig.append(row);
+    bars.append(row);
   });
+  fig.append(bars, chartTable(c));
   return fig;
+}
+
+// The chart's figures as a table, collapsed under the bars.
+function chartTable(c) {
+  const details = node('details', '', 'chart-data');
+  details.append(node('summary', 'Show the data table'));
+  const spreads = c.bars.map(b => b.spread || '').filter(Boolean);
+  const ranges = spreads.filter(s => s.startsWith('range')).length;
+  const spreadHead = !spreads.length ? '' : !ranges ? '90% margin of error' : ranges === spreads.length ? 'Range' : 'Margin of error or range';
+  const table = document.createElement('table'), caption = says('caption', c.label), head = document.createElement('tr');
+  for (const h of ['Place', 'Estimate', spreadHead].filter(Boolean)) { const th = node('th', h); th.scope = 'col'; head.append(th); }
+  const body = document.createElement('tbody');
+  for (const b of c.bars) {
+    const row = document.createElement('tr'), place = node('th', b.geography);
+    place.scope = 'row';
+    row.append(place, node('td', b.number ?? b.text));
+    if (spreadHead) row.append(node('td', b.spread || 'None published'));
+    body.append(row);
+  }
+  table.append(caption, node('thead', ''), body);
+  table.tHead.append(head);
+  const scroll = node('div', '', 'table-scroll');
+  scroll.append(table);
+  details.append(scroll);
+  return details;
 }
 
 const ruler = document.createElement('canvas').getContext('2d');
@@ -429,15 +548,15 @@ function renderAnswer(answer, name) {
   let list = null;
   for (const line of answer.lead.flatMap(p => p.split('\n'))) {
     const item = line.match(/^\s*[*-]\s+(.*)/);
-    if (!item) { list = null; if (line.trim()) article.append(node('p', line, 'lead')); continue; }
+    if (!item) { list = null; if (line.trim()) article.append(says('p', line, 'lead')); continue; }
     if (!list) article.append(list = node('ul', '', 'lead-list'));
-    list.append(node('li', item[1]));
+    list.append(says('li', item[1]));
   }
   if (answer.tiles.length) {
     const grid = node('div', '', 'tiles');
     for (const t of answer.tiles) {
       const tile = node('div', '', 'tile');
-      tile.append(tileValue(t.value), node('div', t.label, 'tile-label'));
+      tile.append(tileValue(t.value), says('div', t.label, 'tile-label'));
       const meta = [t.geography, t.spread].filter(Boolean).join(', ');
       if (meta) tile.append(node('div', meta, 'tile-meta'));
       grid.append(tile);
@@ -445,7 +564,7 @@ function renderAnswer(answer, name) {
     article.append(grid);
   }
   for (const c of answer.charts) article.append(chartFigure(c));
-  for (const c of answer.caveats) article.append(node('p', c, 'caveat'));
+  for (const c of answer.caveats) article.append(says('p', c, 'caveat'));
   if (answer.sources.length) {
     const years = [...new Set(answer.sources.map(s => s.year))].join(', ');
     const shown = [...answer.tiles.map(t => t.spread), ...answer.charts.flatMap(c => c.bars.map(b => b.text))].join(' ');
@@ -460,15 +579,7 @@ function renderAnswer(answer, name) {
     details.append(list);
     article.append(details);
   }
-  if (answer.programs && answer.programs.length) {
-    const details = document.createElement('details');
-    details.open = true;
-    details.append(node('summary', 'Official program guidance'));
-    const list = document.createElement('ul');
-    for (const p of answer.programs) { const li = document.createElement('li'); li.append(link(p.name, p.url)); list.append(li); }
-    details.append(list);
-    article.append(details);
-  }
+  if (answer.programs && answer.programs.length) article.append(programList(answer.programs));
   return article;
 }
 

@@ -90,6 +90,7 @@ No `source`, environment export, or `--env-file` option is needed. Restart the w
 - data: the checked-in indicator catalog (data/catalog), Hawaiian place names (data/places) and program rules (data/rules). The build also writes data/raw (download cache), data/manual (hand downloads) and data/build (the store), none of them tracked.
 - eval: test questions (eval/golden), saved model replies (eval/scripts), recorded live answers (eval/recordings) and model prices. Run reports go to eval/reports, which is not tracked.
 - tests: the pytest suite, laid out like the klear packages, with small fixtures in tests/fixtures.
+- e2e: browser and accessibility tests with Playwright and axe (see [Browser and accessibility tests](#browser-and-accessibility-tests)).
 
 ## Build the data store
 
@@ -147,6 +148,28 @@ uv run ruff format --check
 
 Tests that call the live Census API and state servers carry the `network` marker.
 Run those explicitly with `uv run pytest -m network`.
+
+### Browser and accessibility tests
+
+The e2e folder holds Playwright tests that drive the website in real browsers: axe checks for
+WCAG 2.2 A and AA, the main flow (search, choose, profile, ask, open a source, come back) at desktop
+and phone sizes, keyboard-only use, reflow at 320 px and 200% zoom, text spacing, and screenshots
+under simulated color blindness. They run in Chromium and WebKit against `e2e/serve.py`, which serves
+the site on the small pytest fixture store with a scripted stand-in for the model, so they need
+no data build, network, or API key. They need Node.js 20 or later.
+
+```sh
+cd e2e
+npm ci
+npx playwright install chromium webkit
+npx playwright test
+npx playwright show-report
+```
+
+The report lists any moderate or minor axe findings, and the color blindness screenshots
+are in `e2e/test-results`. GitHub Actions runs the same tests in the `browser` job and keeps
+the report and screenshots as the `browser-test-results` artifact. The record of automated and manual
+checks is [docs/ACCESSIBILITY-CHECKLIST.md](docs/ACCESSIBILITY-CHECKLIST.md).
 
 The free eval plays saved model replies from `eval/scripts` through the agent against
 the store. It makes no API calls. It needs the built store and its adjacent `manifest.json`,
@@ -263,7 +286,8 @@ The landing page resolves House/Senate numbers, towns and ZIPs using the
 built store. Overlaps are shown as choices instead of guessing a district.
 Chat offers five example questions, a waiting state, explicit refusal labels,
 and figure cards with uncertainty, vintage, geography and official source
-links. The examples are a list until a district is chosen, then short buttons
+links. Each comparison chart has a sentence saying what it shows (written in
+`_summary` in klear/web/display.py) and a data table under it. The examples are a list until a district is chosen, then short buttons
 above the question box. Program questions list official guidance without
 assessing individual eligibility. Questions outside the available measures
 receive a clear limit instead of a guessed answer. Questions are independent:

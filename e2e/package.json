@@ -1,0 +1,14 @@
+{
+  "name": "klear-e2e",
+  "private": true,
+  "description": "Browser and accessibility tests for the KLEAR website",
+  "type": "module",
+  "scripts": {
+    "test": "playwright test",
+    "report": "playwright show-report"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "4.14.0",
+    "@playwright/test": "1.64.1"
+  }
+}

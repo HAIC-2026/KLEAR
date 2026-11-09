@@ -20,3 +20,36 @@ jobs:
       - run: uv run ruff check
       - run: uv run ruff format --check
       - run: uv run pytest
+
+  # The website in real browsers: axe accessibility checks, the main flow at desktop and phone sizes,
+  # keyboard use, reflow and zoom, and screenshots under simulated color blindness. See e2e/.
+  browser:
+    name: Browser and accessibility tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: e2e
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.13"
+      - run: uv sync --locked
+        working-directory: .
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: e2e/package-lock.json
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium webkit
+      - run: npx playwright test
+      - name: Upload the report, axe results and color blindness screenshots
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-test-results
+          path: |
+            e2e/playwright-report/
+            e2e/test-results/
+          retention-days: 30
