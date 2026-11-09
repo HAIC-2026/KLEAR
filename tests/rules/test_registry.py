@@ -239,7 +239,7 @@ def test_hud_missing_file_raises(tmp_rules, tmp_path, monkeypatch):
         check_rules(hud_rule(tmp_rules, hud_values()), fetch_text=lambda url: "")
 
 
-def test_hud_compares_xlsx(tmp_rules, tmp_path, monkeypatch):
+def save_hud_xlsx(tmp_path, monkeypatch):
     d = tmp_path / "manual"
     d.mkdir()
     wb = openpyxl.Workbook()
@@ -250,11 +250,31 @@ def test_hud_compares_xlsx(tmp_rules, tmp_path, monkeypatch):
     ws.append(["CA", "Honolulu County", 5] + [5] * (len(HUD_COLUMNS) - 1))
     wb.save(d / "Section8-FY26.xlsx")
     monkeypatch.setattr(manual, "MANUAL_DIR", d)
+
+
+def test_hud_compares_xlsx(tmp_rules, tmp_path, monkeypatch):
+    save_hud_xlsx(tmp_path, monkeypatch)
     res = check_rules(hud_rule(tmp_rules, hud_values()), fetch_text=lambda url: "")
     assert res.passed and res.n_compared == 4 * len(HUD_COLUMNS)
     assert not check_rules(hud_rule(tmp_rules, hud_values(1)), fetch_text=lambda url: "").passed
     one = {"Honolulu": hud_values()["Honolulu"]}
     assert not check_rules(hud_rule(tmp_rules, one), fetch_text=lambda url: "").passed
+
+
+def test_hud_check_closes_the_workbook(tmp_rules, tmp_path, monkeypatch):
+    # An open read-only workbook keeps the file locked on Windows, so a rebuild could not remove it.
+    save_hud_xlsx(tmp_path, monkeypatch)
+    load, closed = openpyxl.load_workbook, []
+
+    def spy(*args, **kwargs):
+        wb = load(*args, **kwargs)
+        close = wb.close
+        wb.close = lambda: (closed.append(True), close())
+        return wb
+
+    monkeypatch.setattr(openpyxl, "load_workbook", spy)
+    check_rules(hud_rule(tmp_rules, hud_values()), fetch_text=lambda url: "")
+    assert closed == [True]
 
 
 def test_failure_outranks_skip(tmp_rules, tmp_path, monkeypatch):

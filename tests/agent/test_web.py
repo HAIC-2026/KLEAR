@@ -23,7 +23,7 @@ from tests.eval.conftest import _home  # noqa: F401
 @pytest.fixture
 def endpoint(small_con, tmp_path):
     small_con.close()
-    server = ThreadingHTTPServer(("127.0.0.1", 0), partial(web.Handler, store=tmp_path / "small.duckdb"))
+    server = web.Server(("127.0.0.1", 0), partial(web.Handler, store=tmp_path / "small.duckdb"))
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     yield server.server_port
@@ -198,6 +198,18 @@ def test_server_can_restart_after_serving_a_request(tmp_path):
         assert restarted.server_port == port
 
 
+def test_server_start_does_not_look_up_host_names(monkeypatch):
+    def lookup(*args):
+        raise AssertionError("reverse DNS lookups can stall startup")
+
+    monkeypatch.setattr(socket, "getfqdn", lookup)
+    server = web.Server(("127.0.0.1", 0), web.Handler)
+    try:
+        assert server.server_name == "127.0.0.1" and server.server_port > 0
+    finally:
+        server.server_close()
+
+
 def test_web_command_serves_real_store_and_assets(small_con, tmp_path):
     small_con.close()
     # Cover store paths containing spaces on both platforms.
@@ -222,7 +234,13 @@ def test_web_command_serves_real_store_and_assets(small_con, tmp_path):
     reader = threading.Thread(target=read_startup, daemon=True)
     reader.start()
     try:
-        line = startup.get(timeout=30)
+        try:
+            line = startup.get(timeout=30)
+        except queue.Empty:
+            process.kill()
+            pytest.fail(
+                "klear.web printed nothing within 30 s. Its output: " + repr(process.communicate()[0])
+            )
         assert line.startswith("KLEAR: http://127.0.0.1:"), line
         port = urlsplit(line.split()[1]).port
         for path in ["/", "/app.js", "/map.js", "/style.css", "/background1.jpg", "/fonts/inter.woff2"]:

@@ -3,6 +3,7 @@
 import argparse
 import json
 import socket
+import socketserver
 import threading
 import time
 import webbrowser
@@ -48,7 +49,9 @@ class Server(ThreadingHTTPServer):
         if hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
             self.allow_reuse_address = False
             self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
-        super().server_bind()
+        # Skip HTTPServer's reverse DNS lookup of the host, which can stall startup for seconds on macOS.
+        socketserver.TCPServer.server_bind(self)
+        self.server_name, self.server_port = self.server_address[:2]
 
 
 def _allowed(ip: str) -> bool:
