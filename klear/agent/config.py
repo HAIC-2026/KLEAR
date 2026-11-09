@@ -119,7 +119,7 @@ COUNTY_NAMES = {
     "the island of hawaii": "15001",
     "maui": "15009", "maui county": "15009", "molokai": "15009", "lanai": "15009",
     "kauai": "15007", "kauai county": "15007", "niihau": "15007",
-    "kalawao": "15005", "kalawao county": "15005",
+    "kalawao": "15005", "kalawao county": "15005", "kalaupapa": "15005",
 }  # fmt: skip
 # Common English words that must never fuzzy-match a place name.
 STOP_WORDS = frozenset(
