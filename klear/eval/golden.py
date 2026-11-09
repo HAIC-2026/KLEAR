@@ -21,6 +21,7 @@ CATEGORIES = (
     "decline_individual",
     "decline_partisan",
     "messy_input",
+    "rank",
 )
 REQUIRED = ("id", "category", "question", "ideal")
 DIRECTIONS = ("higher", "lower", "within_margin")

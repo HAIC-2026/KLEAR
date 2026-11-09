@@ -226,6 +226,11 @@ summary{font-weight:600;color:var(--accent);cursor:pointer}
 .profile-sources-title{margin:0 0 2px;font-weight:600;color:var(--ink)}
 .profile-sources ul,.profile-sources ol{margin:0;padding-left:18px}.profile-sources ul{list-style:none;padding-left:0}
 @media(min-width:641px) and (max-width:1199px){.profile-stats{grid-template-columns:repeat(4,minmax(0,1fr))}}
+/* Income-eligible estimates: a second figure beside the row and a caveat line. */
+.profile-beside,.profile-caveat{margin:6px 0 0;font-size:var(--fs-xs);line-height:1.5;color:var(--muted)}
+.profile-beside b{font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums}
+.profile-beside sup{margin-left:3px;line-height:0}
+.profile-caveat.lead{margin:0 0 4px}
 /* Suggested questions: short buttons between the conversation and the question box. */
 .suggest{padding:12px var(--card-pad) 0;border-top:1px solid var(--line)}
 .suggest:not([hidden])+#question-form{border-top:0;padding-top:12px}

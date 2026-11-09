@@ -430,7 +430,20 @@ function profileRow(r) {
     for (const a of r.against) { const li = document.createElement('li'); li.append(node('b', a.lead), ` ${a.rest}`); list.append(li); }
     row.append(list);
   }
+  if (r.beside) row.append(besideLine(r.beside));
+  if (r.caveat) row.append(node('p', r.caveat, 'profile-caveat'));
   return row;
+}
+
+// A second figure shown next to a row for comparison, or a sentence on how to read the row.
+function besideLine(b) {
+  const p = node('p', '', 'profile-beside');
+  if (!b.value) { p.append(b.text); return p; }
+  p.append('For comparison, ', node('b', b.value));
+  if (b.spread) p.append(' ', node('span', b.spread.startsWith('range') ? `(${b.spread})` : b.spread, 'moe'));
+  p.append(` ${b.text}`);
+  if (b.note) { const sup = node('sup', String(b.note)); sup.setAttribute('aria-label', `source ${b.note}`); p.append(sup); }
+  return p;
 }
 
 // The section's citations, numbered when its figures come from more than one source.
@@ -458,7 +471,9 @@ function renderProfile(p) {
   for (const sec of p.sections) {
     if (!sec.rows.length) continue;
     const d = node('details', '', 'profile-section');
-    d.append(node('summary', sec.title), ...sec.rows.map(profileRow), profileSources(sec.sources));
+    d.append(node('summary', sec.title));
+    if (sec.caveat) d.append(node('p', sec.caveat, 'profile-caveat lead'));
+    d.append(...sec.rows.map(profileRow), profileSources(sec.sources));
     out.push(d);
   }
   return out;

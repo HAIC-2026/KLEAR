@@ -1,0 +1,45 @@
+# Scripted model turns for rank-002: find the indicator, rank the districts, then submit.
+- - type: tool_use
+    name: search_indicators
+    input:
+      words:
+      - SNAP
+      - poverty
+  - type: tool_use
+    name: list_programs
+    input:
+      words:
+      - SNAP
+- - type: tool_use
+    name: rank_districts
+    input:
+      indicator: hh_poverty_no_snap
+      chamber: house
+      county: county:15009
+- - type: tool_use
+    name: submit_answer
+    input:
+      resolved: null
+      refusal: none
+      blocks:
+      - 'In {geo:county:15009}, SNAP outreach could reach the most {label:f3} in these House districts. Their ranges
+        overlap, so the data cannot put them in order ({vintage:f3}):
+
+        * {geo:house:011}: {fact:f3}
+
+        * {geo:house:013}: {fact:f5}
+
+        * {geo:house:012}: {fact:f4}
+
+        * {geo:house:009}: {fact:f1}'
+      facts:
+      - f3
+      - f5
+      - f4
+      - f1
+      programs:
+      - snap_fy2027
+      caveats:
+      - These count people or households who meet the income test only. Assets, age, immigration status and household
+        rules also apply, and the Census Bureau's national poverty thresholds sit below the state's poverty guidelines,
+        so counts near a program limit may run low.

@@ -3,6 +3,8 @@ import json
 import re
 from typing import NamedTuple
 
+import duckdb
+
 from klear.agent import config
 from klear.etl.places_gazetteer import plain_name, search_plain
 from klear.eval.contract import FactRef, fill_value, geo_display, geo_key, short_name
@@ -169,6 +171,7 @@ class Session:
         self.directions: list[tuple[str, str, str]] = []
         self._refs: dict[tuple[str, str, str, str], str] = {}
         self._rules = None
+        self._notes: dict[str, str] | None = None
         self._prefetched: dict[tuple[str, str, str], list[tuple]] = {}
         self._areas: bool | None = None
         self._named: list[_Named] | None = None
@@ -578,6 +581,17 @@ class Session:
         for r in rows:
             self._prefetched[(r[12], r[13], r[14])].append(r[:12])
 
+    def _note(self, indicator_id: str) -> str | None:
+        if self._notes is None:
+            try:
+                rows = self.con.execute(
+                    "SELECT indicator_id, note FROM indicator WHERE note IS NOT NULL"
+                ).fetchall()
+            except duckdb.BinderException:
+                rows = []
+            self._notes = dict(rows)
+        return self._notes.get(indicator_id)
+
     def _entry(self, indicator_id: str, geo: tuple[str, str], row: tuple) -> dict:
         label, unit, value, moe, vstatus, mstatus, low, high, source_id, source, vintage, tier = row
         ref = self._ref(
@@ -590,7 +604,7 @@ class Session:
         self.tiers[ref] = tier
         if reliable is False:
             self.unreliable.add(ref)
-        return {
+        out = {
             "ref": ref,
             "indicator_id": indicator_id,
             "label": label,
@@ -606,6 +620,9 @@ class Session:
             else config.METHODS.get(tier, tier),
             "reliable": reliable,
         }
+        if note := self._note(indicator_id):
+            out["note"] = note
+        return out
 
     def _missing_reason(self, indicator_id: str, geo: tuple[str, str]) -> str:
         if not self.con.execute("SELECT 1 FROM indicator WHERE indicator_id = ?", [indicator_id]).fetchone():
@@ -744,7 +761,8 @@ class Session:
             r[0] for r in self.con.execute("SELECT indicator_id FROM indicator WHERE additive").fetchall()
         }
         against = ([("county", by_county[0][0])] if by_county else []) + [("state", "15")]
-        self._prefetch([i for _, ids in config.PROFILE_SECTIONS for i in ids], [geo, *against])
+        beside = sorted({b for b, _ in config.PROFILE_BESIDE.values() if b})
+        self._prefetch([i for _, ids in config.PROFILE_SECTIONS for i in ids] + beside, [geo, *against])
         out = {
             "district": self._geo(*geo),
             "counties": [self._geo("county", c, share=round(p / total, 4)) for c, p in by_county if p],
@@ -761,9 +779,105 @@ class Session:
                 if mine["facts"]:
                     fact = mine["facts"][0]
                     compared = [self._against(ind, fact, g, ind in additive) for g in against]
-                    rows.append({"fact": fact, "against": [c for c in compared if c]})
+                    row = {"fact": fact, "against": [c for c in compared if c]}
+                    if extra := self._beside(ind, geo):
+                        row["beside"] = extra
+                    rows.append(row)
             out["sections"].append({"title": title, "rows": rows})
         return out
+
+    def _beside(self, ind: str, geo: tuple[str, str]) -> dict | None:
+        """The figure a profile row is shown next to, with how the two differ."""
+        if ind not in config.PROFILE_BESIDE:
+            return None
+        other, text = config.PROFILE_BESIDE[ind]
+        if other is None:
+            return {"text": text}
+        facts = self._facts_for([other], [geo])["facts"]
+        return {"fact": facts[0], "text": text} if facts else None
+
+    # rank_districts
+
+    def _county_arg(self, value) -> tuple[str, str] | None:
+        if value is None:
+            return None
+        if not isinstance(value, str) or not value.strip():
+            raise ToolError("county must be a county as county:ID or a county name, for example county:15009")
+        geo = geo_key(value) if ":" in value else None
+        if geo is None:
+            county = config.COUNTY_NAMES.get(plain_name(value)) or config.COUNTY_NAMES.get(
+                plain_name(f"{value} county")
+            )
+            geo = ("county", county) if county else None
+        if geo is None or geo[0] != "county" or self._name(*geo) is None:
+            raise ToolError(f"unknown county {value!r}, give it as county:ID, for example county:15009")
+        return geo
+
+    def _districts(self, chamber: str, county: tuple[str, str] | None) -> list[tuple[str, str]]:
+        """Districts of a chamber, or those with most of their 2020 population in the county."""
+        if county is None:
+            rows = self.con.execute(
+                "SELECT geo_id FROM geography WHERE geo_type = ? ORDER BY geo_id", [chamber]
+            ).fetchall()
+        else:
+            rows = self.con.execute(
+                f"SELECT {chamber} FROM blocks WHERE {chamber} IS NOT NULL GROUP BY 1 "
+                "HAVING sum(CASE WHEN county = ? THEN pop2020 ELSE 0 END) * 2 > sum(pop2020) ORDER BY 1",
+                [county[1]],
+            ).fetchall()
+        return [(chamber, r[0]) for r in rows]
+
+    def _rank_districts(self, args: dict) -> dict:
+        ind = _str(args, "indicator")
+        chamber = args.get("chamber")
+        if chamber not in config.CHAMBER_TYPES:
+            raise ToolError(f"chamber must be one of {list(config.CHAMBER_TYPES)}")
+        row = self.con.execute("SELECT label, unit FROM indicator WHERE indicator_id = ?", [ind]).fetchone()
+        if row is None:
+            raise ToolError(f"unknown indicator {ind!r}; find ids with search_indicators")
+        county = self._county_arg(args.get("county"))
+        geos = self._districts(chamber, county)
+        if not geos:
+            raise ToolError(f"no {chamber} district has most of its people in {county[0]}:{county[1]}")
+        self._prefetch([ind], geos)
+        got = self._facts_for([ind], geos)
+        placed, unranked, seen = [], [], set()
+        for fact in got["facts"]:
+            if fact["geo"] in seen:
+                continue
+            seen.add(fact["geo"])
+            f = self.facts[fact["ref"]]
+            interval = self._fact_interval(f)
+            entry = {k: fact[k] for k in ("ref", "geo", "geo_name", "value_text", "reliable")}
+            if interval is None or fact["status"] == MOE_STATUSES["not_computable"]:
+                unranked.append(entry | {"reason": fact["status"]})
+            else:
+                placed.append((f.value, interval, entry))
+        placed.sort(key=lambda p: (-p[0], p[2]["geo"]))
+        tiers = []
+        while placed:
+            top = placed[0][1]
+            members = [p for p in placed if p[1][1] >= top[0]]
+            placed = [p for p in placed if p[1][1] < top[0]]
+            tiers.append({"tier": len(tiers) + 1, "districts": [p[2] for p in members]})
+        for g in [county, *geos] if county else geos:
+            self.resolved.add(g)
+            self.geos.add(g)
+        note = self._note(ind)
+        return {
+            "indicator_id": ind,
+            "label": row[0],
+            "unit": row[1],
+            "chamber": chamber,
+            "county": None if county is None else self._geo(*county)["geo"],
+            "order": "highest first",
+            "how_to_read": config.RANK_NOTE,
+            "tiers": tiers,
+            "unranked": unranked,
+            "missing": got["missing"],
+            "unreliable": sum(d["reliable"] is False for t in tiers for d in t["districts"]),
+            **({"note": note} if note else {}),
+        }
 
     # list_programs, find_sites, explain_source
 
@@ -875,11 +989,29 @@ TOOL_SPECS = [
         "district_profile",
         "The standard profile of a House or Senate district, the same one the website shows: its counties, "
         "Census places and overlapping districts in the other chamber with population shares, then sections "
-        "(People, Income, Housing, Health and access, Programs in use, Modeled needs, Help sites). Each row is a "
+        "(People, Income, Housing, Health and access, Programs in use, Who may qualify, Modeled needs, Help sites). "
+        "Each row is a "
         "fact with its ref, compared with the main county and the state: a direction for rates, and the "
         "district's share for totals. Use it when asked for a profile or overview of a district.",
         {"district": {**_GEO, "description": "House or Senate district as TYPE:ID, for example house:022."}},
         ["district"],
+    ),
+    _spec(
+        "rank_districts",
+        "Rank every House or Senate district by an indicator, highest first, optionally only the districts with "
+        "most of their people in one county. Districts are grouped into tiers: a tier starts at the highest "
+        "district not yet placed and holds every district whose range overlaps it, so the data cannot say which "
+        "district in a tier is higher. Each district has a fact ref, value text and reliability flag. Use it for "
+        "questions about where a measure is highest or lowest, or where outreach could reach the most people.",
+        {
+            "indicator": {**_STR, "description": "Indicator id from search_indicators."},
+            "chamber": {"type": "string", "enum": ["house", "senate"]},
+            "county": {
+                "type": "string",
+                "description": "Optional county as county:ID, for example county:15009.",
+            },
+        },
+        ["indicator", "chamber"],
     ),
     _spec(
         "list_programs",

@@ -271,6 +271,13 @@ PROFILE_LABELS = {
     "sites_health_center": "Health center sites",
     "sites_public_housing": "Public housing developments",
     "sites_lihtc": "Low-income housing tax credit projects",
+    "hh_poverty_no_snap": "Households below poverty without SNAP",
+    "pop_under_125pct_poverty": "People under 125% of poverty",
+    "pop_under_150pct_poverty": "People under 150% of poverty",
+    "uninsured_under_138pct_poverty": "Uninsured, income under 138% of poverty",
+    "uninsured_138_399pct_poverty": "Uninsured, income 138% to 399% of poverty",
+    "kupuna_under_200pct_poverty": "Kūpuna under 200% of poverty",
+    "working_below_poverty": "Working families and individuals below poverty",
 }
 NOUNS = {"percent": "rate", "dollars": "amount"}
 
@@ -290,11 +297,31 @@ def _compared(mine, theirs, unit: str, direction: str | None) -> str:
     return f"about {round(ratio * 10) * 10} percent of"
 
 
+def _source(f, store: _Store, fallback: str = "") -> dict:
+    name, url = store.sources.get(f.source_id, (fallback, ""))
+    return {"name": name, "url": url, "year": year_text(f.vintage, store.month)}
+
+
+def _beside(item: dict | None, session, store: _Store) -> dict | None:
+    """The figure shown next to a profile row, or only a sentence when the row has no second figure."""
+    if not item:
+        return None
+    if "fact" not in item:
+        return {"value": "", "spread": "", "text": item["text"], "source": None}
+    f = session.facts[item["fact"]["ref"]]
+    unit = store.unit(f)
+    return {
+        "value": _plain(f, unit),
+        "spread": _spread(f, unit),
+        "text": item["text"],
+        "source": _source(f, store, item["fact"]["source"]),
+    }
+
+
 def _profile_row(row: dict, session, store: _Store) -> dict:
     fact = row["fact"]
     f = session.facts[fact["ref"]]
     unit = store.unit(f)
-    year = year_text(fact["vintage"], store.month)
     against = []
     for a in row["against"]:
         theirs = session.facts[a["ref"]]
@@ -313,24 +340,36 @@ def _profile_row(row: dict, session, store: _Store) -> dict:
         "value": _plain(f, unit),
         "spread": _spread(f, unit),
         "caution": "Unreliable estimate: the margin of error is large" if fact["reliable"] is False else "",
-        "source": {
-            "name": store.sources.get(f.source_id, (fact["source"], ""))[0],
-            "url": store.sources.get(f.source_id, ("", ""))[1],
-            "year": year,
-        },
+        "caveat": fact.get("note", ""),
+        "source": _source(f, store, fact["source"]),
         "against": against,
+        "beside": _beside(row.get("beside"), session, store),
     }
 
 
 def _section(title: str, rows: list[dict]) -> dict:
-    """A profile section with its sources listed once; when there are several, each row notes which it uses."""
-    sources = list({(r["source"]["name"], r["source"]["year"]): r["source"] for r in rows}.values())
+    """A profile section with its sources listed once; when there are several, each row notes which it uses.
+    A caveat every row shares is stated once for the section."""
+    cited = [r["source"] for r in rows] + [
+        r["beside"]["source"] for r in rows if (r["beside"] or {}).get("source")
+    ]
+    sources = list({(x["name"], x["year"]): x for x in cited}.values())
     keys = [(x["name"], x["year"]) for x in sources]
+
+    def number(src: dict | None) -> int:
+        return keys.index((src["name"], src["year"])) + 1 if src and len(sources) > 1 else 0
+
     rows = [
-        r | {"note": keys.index((r["source"]["name"], r["source"]["year"])) + 1 if len(sources) > 1 else 0}
+        r
+        | {"note": number(r["source"])}
+        | ({"beside": r["beside"] | {"note": number(r["beside"]["source"])}} if r["beside"] else {})
         for r in rows
     ]
-    return {"title": title, "rows": rows, "sources": sources}
+    caveats = {r["caveat"] for r in rows}
+    shared = caveats.pop() if len(caveats) == 1 else ""
+    if shared:
+        rows = [r | {"caveat": ""} for r in rows]
+    return {"title": title, "rows": rows, "sources": sources, "caveat": shared}
 
 
 def profile(con, raw: dict, session, islands: str = "") -> dict:
