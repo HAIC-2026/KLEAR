@@ -36,10 +36,10 @@
             <form id="lookup"><label for="place">WHICH DISTRICT? ENTER A DISTRICT, TOWN, OR ZIP CODE</label><div class="inputrow"><input id="place" required maxlength="160" placeholder="e.g. Kāneʻohe or 96744" autocomplete="off"><button type="submit">Find district <span aria-hidden="true">↗</span></button></div><p class="help">A town or ZIP may span more than one district. We’ll show you the choices. <a href="#district-map">Or find it on the map ↓</a></p><p id="lookup-status" class="status" role="status"></p><div id="matches"></div></form>
           </div>
           <div id="messages" role="log" aria-label="Questions and answers" aria-live="polite"><div class="welcome"><span aria-hidden="true">✳</span><p>Hi, I’m KLEAR. Pick a district above, then ask me about its residents, housing, income, or support programs. I answer only from public data, and every figure shows its source, year, and uncertainty.</p></div></div>
-          <form id="question-form"><label for="question">YOUR QUESTION</label><div class="question-row"><textarea id="question" rows="3" required maxlength="2000" placeholder="Ask about residents, housing, income, or available programs…"></textarea><button id="send" type="submit">Ask KLEAR <span aria-hidden="true">↗</span></button></div></form>
+          <div id="suggest" class="suggest" role="group" aria-label="Suggested questions" hidden></div><form id="question-form"><label for="question">YOUR QUESTION</label><div class="question-row"><textarea id="question" rows="3" required maxlength="2000" placeholder="Ask about residents, housing, income, or available programs…"></textarea><button id="send" type="submit">Ask KLEAR <span aria-hidden="true">↗</span></button></div></form>
           <p id="chat-status" class="status" role="status"></p>
         </div>
-        <aside class="chat-aside"><p class="overline">NEED A STARTING POINT?</p><div id="examples" class="examples"></div><div class="aside-note"><span aria-hidden="true">✳</span><p>Answers describe communities, not individuals. KLEAR declines personal and partisan requests.</p></div></aside>
+        <aside class="chat-aside"><div id="starter"><p class="overline">NEED A STARTING POINT?</p><div id="examples" class="examples"></div></div><section id="profile" class="profile" aria-labelledby="profile-title" aria-live="polite" hidden></section></aside>
       </div>
     </section>
     <section class="map-section" id="district-map" aria-labelledby="map-title">
@@ -61,6 +61,6 @@
     </section>
     <section class="sources" id="sources"><p class="overline">03 / THE EVIDENCE</p><div class="sources-grid"><h2>Good questions deserve <em>traceable answers.</em></h2><div><p>KLEAR draws on the U.S. Census and ACS, Hawaiʻi DBEDT, IRS, HUD, CMS, CDC PLACES, HRSA, and published program rules. Data years and district coverage vary by measure.</p><p>Where ZIP or tract data is estimated for a district, KLEAR shows a range. Missing data stays missing.</p><a href="#chat-card">Ask KLEAR <span aria-hidden="true">↗</span></a></div></div></section>
   </main>
-  <footer><div class="brand footer-brand"><span class="brand-mark" aria-hidden="true">✳</span><span>KLEAR<small>KNOW YOUR DISTRICT</small></span></div><p>Public evidence for Hawaiʻi’s communities.</p><span>HAIC 2026 · MADE FOR HAWAIʻI</span></footer>
+  <footer><div class="brand footer-brand"><span class="brand-mark" aria-hidden="true">✳</span><span>KLEAR<small>KNOW YOUR DISTRICT</small></span></div><p>Public evidence for Hawaiʻi’s communities.</p><span>HAIC 2026 / MADE FOR HAWAIʻI</span></footer>
 </body>
 </html>

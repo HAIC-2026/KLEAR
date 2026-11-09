@@ -2,7 +2,8 @@ const $ = id => document.getElementById(id);
 let district = null, asked = null, busy = false, queued = null, lookupSeq = 0;
 const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 const uncertaintyLabels = {ok: '90% margin of error shown above', controlled: 'Fixed to official totals; no sampling margin of error', range: 'Estimated range shown above', open_ended: 'Open-ended published value', not_computable: 'Margin of error unavailable; treat as uncertain', not_applicable: 'No margin of error applies', unavailable: 'Uncertainty information unavailable'};
-const examples = ['Give me a socioeconomic profile of this district.', 'How many kūpuna live in this district?', 'What does the data say about housing needs in this district?', 'How does poverty here compare with the state?', 'What support programs could residents of this district explore?'];
+// Starter questions, with the short label each shows once it moves into the chat.
+const examples = [['Give me a socioeconomic profile of this district.', 'Profile'], ['How many kūpuna live in this district?', 'Kūpuna'], ['What does the data say about housing needs in this district?', 'Housing'], ['How does poverty here compare with the state?', 'Poverty vs. state'], ['What support programs could residents of this district explore?', 'Programs']];
 const refusalLabels = {decline_partisan: 'Partisan request declined', decline_individual: 'Personal request declined', not_available: 'Data not available', out_of_scope: 'Outside KLEAR’s scope'};
 function node(tag, text, className) { const n = document.createElement(tag); n.textContent = text; if (className) n.className = className; return n; }
 async function api(url, options) {
@@ -99,6 +100,7 @@ function choose(geo, name, quiet) {
     $('district-title').textContent = name;
     $('district-now').hidden = false;
     document.dispatchEvent(new CustomEvent('klear:district', {detail: {geo, name}}));
+    loadProfile(geo);
   }
   const ready = $('question').value.trim() ? 'Your question is ready. Press Ask KLEAR.' : '';
   $('chat-status').textContent = quiet && switched ? `Now asking about ${name}. ${ready}`.trim() : ready;
@@ -119,7 +121,7 @@ function matchGroups(matches) {
     const place = m.kind === 'zcta' ? `ZIP ${m.geo.split(':')[1]}` : m.name;
     const rank = g => (g.geo.startsWith('senate:') ? 1000 : 0) - Math.round((g.share ?? 1) * 100);
     rows.sort((a, b) => rank(a) - rank(b) || a.geo.localeCompare(b.geo));
-    groups.push({place, title: m.kind === 'district' ? '' : [place, county && county.name].filter(Boolean).join(' · '), pop: m.pop2020 || 0, rows});
+    groups.push({place, title: m.kind === 'district' ? '' : [place, county && county.name].filter(Boolean).join(', '), pop: m.pop2020 || 0, rows});
   }
   return groups.sort((a, b) => b.pop - a.pop);
 }
@@ -177,12 +179,84 @@ $('lookup').onsubmit = async e => {
     button.disabled = false;
   }
 };
-for (const question of examples) {
+for (const [question, label] of examples) {
   const b = node('button', question);
   b.type = 'button';
+  b.dataset.label = label;
   b.onclick = () => { $('question').value = question; if (district) $('question-form').requestSubmit(); else needDistrict(); };
   $('examples').append(b);
 }
+
+// Once a district is chosen, its profile takes the starter questions' place and they move into the chat as short buttons.
+let profileSeq = 0;
+async function loadProfile(geo) {
+  const seq = ++profileSeq, panel = $('profile');
+  if (!$('starter').hidden) {
+    for (const b of $('examples').children) { b.setAttribute('aria-label', b.textContent); b.textContent = b.dataset.label; }
+    $('suggest').append($('examples'));
+    $('suggest').hidden = false;
+    $('starter').hidden = true;
+  }
+  panel.hidden = false;
+  panel.replaceChildren(node('p', 'Loading the district profile…', 'profile-status'));
+  try {
+    const data = await api('/api/profile?district=' + encodeURIComponent(geo));
+    if (seq === profileSeq) panel.replaceChildren(...renderProfile(data));
+  } catch (err) {
+    if (seq === profileSeq) panel.replaceChildren(node('p', `The district profile could not load. ${err.message}`, 'profile-status'));
+  }
+}
+
+function profileRow(r) {
+  const row = node('div', '', 'profile-row');
+  row.title = r.title;
+  const figure = node('p', '', 'profile-figure');
+  figure.append(node('span', r.value, 'num'));
+  if (r.spread) figure.append(' ', node('span', r.spread, 'moe'));
+  const label = node('p', r.label, 'profile-label');
+  if (r.note) { const sup = node('sup', String(r.note)); sup.setAttribute('aria-label', `source ${r.note}`); label.append(sup); }
+  row.append(figure, label);
+  if (r.caution) row.append(node('p', r.caution, 'profile-caution'));
+  if (r.against.length) {
+    const list = node('ul', '', 'profile-against');
+    for (const a of r.against) { const li = document.createElement('li'); li.append(node('b', a.lead), ` ${a.rest}`); list.append(li); }
+    row.append(list);
+  }
+  return row;
+}
+
+// The section's citations, numbered when its figures come from more than one source.
+function profileSources(sources) {
+  const box = node('div', '', 'profile-sources');
+  box.append(node('p', sources.length > 1 ? 'Sources' : 'Source', 'profile-sources-title'));
+  const list = node(sources.length > 1 ? 'ol' : 'ul', '');
+  for (const s of sources) { const li = document.createElement('li'); li.append(link(s.name, s.url), `, ${s.year}`); list.append(li); }
+  box.append(list);
+  return box;
+}
+
+function renderProfile(p) {
+  const title = node('h3', p.district);
+  title.id = 'profile-title';
+  const out = [node('p', 'DISTRICT PROFILE', 'overline'), title];
+  if (p.where) out.push(node('p', p.where, 'profile-where'));
+  if (p.places.length) {
+    const more = p.places.length - 4;
+    out.push(node('p', 'Includes ' + p.places.slice(0, 4).map(x => `${x.name} (${x.share})`).join(', ') + (more > 0 ? `, and ${more} more places` : ''), 'profile-meta'));
+  }
+  if (p.overlaps.length) out.push(node('p', 'Overlaps ' + p.overlaps.map(o => `${o.name} (${o.share})`).join(', '), 'profile-meta'));
+  const stats = node('dl', '', 'profile-stats');
+  for (const h of p.headline) { const s = node('div', ''); s.append(node('dd', h.value), node('dt', h.label)); stats.append(s); }
+  out.push(stats);
+  for (const sec of p.sections) {
+    if (!sec.rows.length) continue;
+    const d = node('details', '', 'profile-section');
+    d.append(node('summary', sec.title), ...sec.rows.map(profileRow), profileSources(sec.sources));
+    out.push(d);
+  }
+  return out;
+}
+
 $('question-form').onsubmit = async e => {
   e.preventDefault();
   if (busy) return;
@@ -229,7 +303,7 @@ function heading(answer, name) {
   return h;
 }
 
-function basicAnswer(answer, name) { const article = document.createElement('article'); article.append(heading(answer, name)); for (const p of answer.text.split('\n\n')) article.append(node('p', p)); if (answer.facts.length) { const details = document.createElement('details'); details.open = true; details.append(node('summary', 'Figures & sources')); for (const f of answer.facts) { const card = node('div', '', 'fact'); card.append(node('b', f.label), node('p', f.value), node('small', `${f.year} · ${f.geography} · Uncertainty: ${uncertaintyLabels[f.uncertainty] || 'Uncertainty information unavailable'}`)); let source = node('span', f.source); try { const url = new URL(f.url); if (['http:', 'https:'].includes(url.protocol)) { source = node('a', f.source + ' ↗'); source.href = url.href; source.target = '_blank'; source.rel = 'noopener noreferrer'; } } catch {} card.append(source); details.append(card); } article.append(details); } if (answer.programs && answer.programs.length) { const details = document.createElement('details'); details.open = true; details.append(node('summary', 'Official program guidance')); for (const p of answer.programs) { const card = node('div', '', 'fact'); const link = node('a', p.name + ' ↗'); try { const url = new URL(p.url); if (['http:', 'https:'].includes(url.protocol)) { link.href = url.href; link.target = '_blank'; link.rel = 'noopener noreferrer'; card.append(link); } else card.append(node('span', p.name)); } catch { card.append(node('span', p.name)); } details.append(card); } article.append(details); }  return article; }
+function basicAnswer(answer, name) { const article = document.createElement('article'); article.append(heading(answer, name)); for (const p of answer.text.split('\n\n')) article.append(node('p', p)); if (answer.facts.length) { const details = document.createElement('details'); details.open = true; details.append(node('summary', 'Figures & sources')); for (const f of answer.facts) { const card = node('div', '', 'fact'); card.append(node('b', f.label), node('p', f.value), node('small', `${f.year}, ${f.geography}. Uncertainty: ${uncertaintyLabels[f.uncertainty] || 'Uncertainty information unavailable'}`)); let source = node('span', f.source); try { const url = new URL(f.url); if (['http:', 'https:'].includes(url.protocol)) { source = node('a', f.source + ' ↗'); source.href = url.href; source.target = '_blank'; source.rel = 'noopener noreferrer'; } } catch {} card.append(source); details.append(card); } article.append(details); } if (answer.programs && answer.programs.length) { const details = document.createElement('details'); details.open = true; details.append(node('summary', 'Official program guidance')); for (const p of answer.programs) { const card = node('div', '', 'fact'); const link = node('a', p.name + ' ↗'); try { const url = new URL(p.url); if (['http:', 'https:'].includes(url.protocol)) { link.href = url.href; link.target = '_blank'; link.rel = 'noopener noreferrer'; card.append(link); } else card.append(node('span', p.name)); } catch { card.append(node('span', p.name)); } details.append(card); } article.append(details); }  return article; }
 
 function link(text, href) {
   try { const url = new URL(href); if (['http:', 'https:'].includes(url.protocol)) { const a = node('a', text + ' ↗'); a.href = url.href; a.target = '_blank'; a.rel = 'noopener noreferrer'; return a; } } catch {}
@@ -299,7 +373,7 @@ function renderAnswer(answer, name) {
     for (const t of answer.tiles) {
       const tile = node('div', '', 'tile');
       tile.append(tileValue(t.value), node('div', t.label, 'tile-label'));
-      const meta = [t.geography, t.spread].filter(Boolean).join(' · ');
+      const meta = [t.geography, t.spread].filter(Boolean).join(', ');
       if (meta) tile.append(node('div', meta, 'tile-meta'));
       grid.append(tile);
     }
@@ -317,7 +391,7 @@ function renderAnswer(answer, name) {
     const details = document.createElement('details');
     details.append(node('summary', 'Sources'));
     const list = document.createElement('ul');
-    for (const s of answer.sources) { const li = document.createElement('li'); li.append(link(s.name, s.url), node('span', ` · ${s.year}`)); list.append(li); }
+    for (const s of answer.sources) { const li = document.createElement('li'); li.append(link(s.name, s.url), node('span', `, ${s.year}`)); list.append(li); }
     details.append(list);
     article.append(details);
   }

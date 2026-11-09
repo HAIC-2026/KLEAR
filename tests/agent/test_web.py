@@ -106,6 +106,27 @@ def test_page_assets_are_public():
     assert set(refs) <= set(web.PUBLIC)
 
 
+def test_profile_endpoint_lays_out_the_district_profile(endpoint):
+    status, data, headers = get(endpoint, "/api/profile?district=house:022")
+    profile = json.loads(data)
+    assert status == 200 and headers["Cache-Control"] == "no-store"
+    assert profile["district"] == "House District 22" and profile["where"].startswith("Honolulu County")
+    assert profile["overlaps"] == [{"name": "Senate District 12", "share": "100%"}]
+    row = next(r for s in profile["sections"] for r in s["rows"] if r["id"] == "pop_65_plus")
+    assert row["label"] == "Kūpuna (65 and over)" and row["value"] == "1,000" and row["spread"] == "± 100"
+    people = next(s for s in profile["sections"] if s["title"] == "People")
+    assert people["sources"] == [
+        {"name": "American Community Survey 5-year", "url": "https://example.org", "year": "2020-2024"}
+    ]
+    assert row["note"] == 0 and "·" not in profile["where"]
+    assert [a["lead"] + " " + a["rest"] for a in row["against"]] == [
+        "20.0% of the total in Honolulu County: 5,000",
+        "11.1% of the total in Hawaiʻi: 9,000",
+    ]
+    for bad in ["house:999", "county:15003", ""]:
+        assert get(endpoint, "/api/profile?district=" + bad)[0] == 400
+
+
 def test_validation_and_cross_origin(endpoint):
     assert request(endpoint, "POST", "/api/chat", "[]")[0] == 400
     assert request(endpoint, "POST", "/api/chat", "{}", {"Origin": "https://other.example"})[0] == 403

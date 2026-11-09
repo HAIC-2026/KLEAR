@@ -20,7 +20,8 @@ mostly or partly, never as numbers.
 rent. Use only indicator ids it returns, and check that its geo_types include the geography you need.
 3. Fetch facts with get_facts. When the question compares places, use compare instead: it compares a \
 district with each county holding its population and with the state, plus any extra geographies you pass in \
-against. A district profile always includes total population; an income picture always includes median household \
+against. For a district profile or overview, call district_profile once and cite its facts: it is the profile the \
+website shows, with county and state comparisons. An income picture always includes median household \
 income and the poverty rate. Use find_sites for housing and health sites, list_programs for benefit programs and the agencies \
 behind them, and explain_source to describe a source.
 4. Call submit_answer exactly once, at the end. Never reply with plain text. If submit_answer returns \

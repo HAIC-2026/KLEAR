@@ -57,9 +57,75 @@ AGENCIES = {
 }
 # Hawaiian group words by their plain spelling, as an answer must write them.
 GROUP_WORDS = {"kupuna": "kūpuna", "keiki": "keiki", "ohana": "ʻohana"}
+# The standard district profile: section titles and their indicators, read from the store with no model call.
+PROFILE_SECTIONS = (
+    (
+        "People",
+        (
+            "pop_total",
+            "pop_65_plus",
+            "pct_65_plus",
+            "pop_under_18",
+            "median_age",
+            "pop_native_hawaiian_alone_or_combo",
+            "pct_limited_english",
+            "civilian_veterans",
+            "pct_disability",
+        ),
+    ),
+    (
+        "Income",
+        (
+            "median_household_income",
+            "per_capita_income",
+            "pct_people_poverty",
+            "pct_children_poverty",
+            "pct_65_plus_poverty",
+        ),
+    ),
+    (
+        "Housing",
+        (
+            "pct_renter_occupied",
+            "median_gross_rent",
+            "pct_rent_burden_35_plus",
+            "pct_severe_overcrowding",
+            "median_home_value",
+        ),
+    ),
+    ("Health and access", ("pct_uninsured", "pct_public_coverage", "pct_broadband")),
+    (
+        "Programs in use",
+        (
+            "pct_hh_snap",
+            "pct_hh_ssi",
+            "pct_hh_public_assistance",
+            "irs_eitc_returns",
+            "irs_eitc_dollars",
+            "aca_consumers",
+            "aca_aptc_consumers",
+            "hud_vouchers",
+        ),
+    ),
+    (
+        "Modeled needs",
+        (
+            "places_food_insecurity",
+            "places_housing_insecurity",
+            "places_lack_transport",
+            "places_utility_shutoff_threat",
+        ),
+    ),
+    ("Help sites", ("sites_health_center", "sites_public_housing", "sites_lihtc")),
+)
+# Profile figures to show first, before the full sections.
+PROFILE_HEADLINE = ("pop_total", "median_household_income", "pct_people_poverty", "pct_65_plus")
+PROFILE_INDICATORS = tuple(
+    dict.fromkeys(PROFILE_HEADLINE + tuple(i for _, ids in PROFILE_SECTIONS for i in ids))
+)
 # Facts a question asks for by name: trigger words, then indicators the answer must cite for its district.
 REQUIRED_FACTS = (
-    (("profile",), ("pop_total",)),
+    (("profile",), PROFILE_INDICATORS),
     (("income", "picture"), ("median_household_income", "pct_people_poverty")),
 )
 # Indicators that measure a program at a place, such as its claims or receipt.

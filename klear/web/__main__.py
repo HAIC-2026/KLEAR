@@ -1,6 +1,7 @@
 """Web interface that answers district questions with the KLEAR assistant under a daily spend cap."""
 
 import argparse
+import functools
 import json
 import socket
 import socketserver
@@ -19,6 +20,7 @@ from klear.agent.config import DEFAULT_MODEL
 from klear.agent.tools import Session
 from klear.config import ROOT, MissingSecretError, load_secret
 from klear.eval.contract import geo_key
+from klear.web import display
 from klear.web.assistant import DAILY_CAP, Assistant, DailyBudget, basic
 
 STORE = ROOT / "data" / "build" / "klear.duckdb"
@@ -65,6 +67,13 @@ def _allowed(ip: str) -> bool:
             return False
         seen.append(now)
         return True
+
+
+@functools.cache
+def _islands() -> dict[str, str]:
+    """Islands of each district, as the map lists them."""
+    data = json.loads((STATIC / "districts.json").read_text(encoding="utf-8"))
+    return {row["geo"]: row["islands"] for rows in data["chambers"].values() for row in rows}
 
 
 def _district(con, text):
@@ -136,10 +145,28 @@ class Handler(SimpleHTTPRequestHandler):
                     503,
                     {"error": "District lookup is unavailable. The operator needs to build the data store."},
                 )
+        if path.path == "/api/profile":
+            return self.profile(parse_qs(path.query).get("district", [""])[0])
         # Explicit allowlist: never serve the repository or keys.
         if path.path not in PUBLIC:
             return self.reply(404, {"error": "Not found"})
         super().do_GET()
+
+    def profile(self, text: str):
+        """The standard district profile, read from the store with no model call."""
+        try:
+            with self.connect() as con:
+                try:
+                    geo = _district(con, text)
+                except ValueError:
+                    return self.reply(400, {"error": "Choose a valid stored House or Senate district."})
+                session = Session(con)
+                raw = json.loads(session.run("district_profile", {"district": ":".join(geo)}))
+                if "error" in raw:
+                    raise ValueError(raw["error"])
+                return self.reply(200, display.profile(con, raw, session, _islands().get(":".join(geo), "")))
+        except Exception:  # noqa: BLE001 - redact internal errors at the HTTP boundary
+            return self.reply(503, {"error": "The district profile is unavailable right now."})
 
     def do_POST(self):
         if self.path != "/api/chat":
