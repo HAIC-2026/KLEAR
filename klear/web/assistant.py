@@ -16,6 +16,7 @@ from klear.filelock import exclusive
 from klear.rules.registry import load_rules
 from klear.web import display
 from klear.web.answers import ask as lookup
+from klear.web.answers import asks_profile
 
 BUDGET = Path.home() / ".config" / "klear" / "web_spend.json"
 DAILY_CAP = 5.0
@@ -152,7 +153,11 @@ def basic(con, question: str, district: tuple[str, str], note: str = "") -> dict
     if refs:
         answer = Answer(VERSION, district, result["refusal"], [], refs, [], [])
         result |= display.build(con, answer)
-        result["lead"] = [note or "These are the closest published figures for this question."]
+        profile = asks_profile(question)
+        lead = "This is the standard profile for this district. The district profile on this page compares each figure with the county and the state."
+        result["lead"] = [
+            note or (lead if profile else "These are the closest published figures for this question.")
+        ]
     elif note and result["refusal"] in ("none", "not_available"):
         result["text"] = f"{note}\n\n{result['text']}"
     return result | {"mode": "basic"}

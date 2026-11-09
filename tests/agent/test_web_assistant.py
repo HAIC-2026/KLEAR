@@ -106,3 +106,15 @@ def test_chat_endpoint_uses_assistant(small_con, tmp_path, budget):
     finally:
         server.shutdown()
         server.server_close()
+
+
+def test_chat_profile_cites_the_same_figures_as_the_profile(real_con):
+    from klear.agent.tools import Session
+    from klear.web.assistant import basic
+
+    answer = basic(real_con, "Give me a profile of this district.", DISTRICT)
+    profile = json.loads(Session(real_con).run("district_profile", {"district": "house:022"}))
+    assert {f["label"] for f in answer["facts"]} == {
+        r["fact"]["label"] for s in profile["sections"] for r in s["rows"]
+    }
+    assert answer["lead"][0].startswith("This is the standard profile")

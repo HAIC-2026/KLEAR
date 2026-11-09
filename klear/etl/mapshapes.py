@@ -96,7 +96,7 @@ def build_map(layers: dict[str, gpd.GeoDataFrame]) -> dict:
                 {
                     "geo": f"{chamber}:{int(geo_id):03}",
                     "name": f"{CHAMBERS[chamber]} {int(geo_id)}",
-                    "islands": " · ".join(name for name, _ in islands),
+                    "islands": ", ".join(name for name, _ in islands),
                     "group": group,
                     "label": _label(geom),
                     "d": _path(geom),

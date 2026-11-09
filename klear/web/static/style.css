@@ -33,7 +33,7 @@
   --r-sm:4px;--r-ctl:8px;--r-card:12px;--r-bubble:16px;--r-pill:999px;--control-h:48px;
 
   /* Spacing */
-  --gutter:clamp(16px,4vw,40px);--card-pad:clamp(16px,2.4vw,28px);--section-y:clamp(48px,7vw,80px);
+  --gutter:clamp(16px,3vw,32px);--card-pad:clamp(16px,2.4vw,28px);--section-y:clamp(48px,7vw,80px);
   --head-gap:28px;--block-gap:24px;--measure:46rem;
 
   font-family:var(--sans);color:var(--ink);background:var(--bg);font-synthesis:none;line-height:1.55
@@ -51,7 +51,7 @@ h1,h2,h3{text-wrap:balance;letter-spacing:-.01em;font-weight:700}
 p,li{text-wrap:pretty}
 h2{font-size:var(--fs-h2);line-height:1.2;margin:0 0 12px}
 h3{font-size:var(--fs-lg);line-height:1.3;margin:0 0 8px}
-.wrap{max-width:1160px;margin:0 auto;padding:0 var(--gutter)}
+.wrap{max-width:1280px;margin:0 auto;padding:0 var(--gutter)}
 .visually-hidden{position:absolute;width:1px;height:1px;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 .muted{color:var(--muted)}
 .skip{position:absolute;top:-100px;left:12px;background:#fff;color:var(--ink);padding:10px;border-radius:var(--r-ctl);z-index:20}
@@ -150,8 +150,7 @@ article{max-width:min(100%,46rem);padding:16px 18px;white-space:pre-wrap;overflo
 #messages article>:last-child{margin-bottom:0}
 #messages article>p{white-space:pre-line}
 article h3{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 0;font-size:var(--fs-sm);font-weight:700;letter-spacing:0;margin:0 0 8px}
-.answer-for{font-size:var(--fs-sm);font-weight:400;color:var(--muted)}
-.answer-for:before{content:"·";margin:0 6px}
+.answer-for{margin-left:8px;font-size:var(--fs-sm);font-weight:400;color:var(--muted)}
 article p{line-height:1.7}
 details{white-space:normal;border-top:1px solid var(--line);margin-top:24px;padding-top:16px}
 summary{font-weight:600;color:var(--accent);cursor:pointer}
@@ -170,13 +169,49 @@ summary{font-weight:600;color:var(--accent);cursor:pointer}
 #question-form{padding:16px var(--card-pad) 0;border-top:1px solid var(--line)}
 .question-row{align-items:flex-end}
 .question-row textarea{display:block;resize:none;overflow-y:hidden;min-height:var(--control-h);max-height:192px}
-#chat-status{margin:8px 0 16px;padding:0 var(--card-pad);min-height:1.5em}
+/* Below the question box the card's own padding applies, so that gap matches the sides. A message adds a line above it. */
+#chat-status{margin:0;padding:8px var(--card-pad) var(--card-pad);min-height:0}
+#chat-status:empty{padding-top:0}
 .error{width:fit-content;max-width:min(100%,46rem);padding:12px 16px;background:var(--error-bg);color:var(--error-ink);border:1px solid var(--error-line)}
 .chat-aside h3{font-size:var(--fs-base);margin:0 0 12px}
 .examples{display:grid;gap:8px}
 .examples button{border:1px solid var(--line);border-radius:var(--r-ctl);background:#fff;text-align:left;padding:12px 14px;color:var(--ink);font-size:var(--fs-base);line-height:1.4;text-wrap:pretty}
+/* District profile beside the chat: big figures, plain labels, and comparisons written as sentences. */
+/* Side by side, the profile is as wide as the chat. It always takes the height its figures need and never scrolls inside
+   itself. The chat stays compact until a question is sent. */
+@media(min-width:1200px){.chat-layout:has(#profile:not([hidden])){grid-template-columns:repeat(2,minmax(0,1fr))}}
+.profile{background:#fff;border:1px solid var(--line);border-radius:var(--r-card);padding:20px 20px 4px}
+.chat-aside .profile h3{font-size:var(--fs-xl);line-height:1.25;margin:4px 0 8px}
+.profile-where{margin:0 0 4px;font-size:var(--fs-sm);line-height:1.5}
+.profile-meta{margin:0 0 2px;font-size:var(--fs-xs);color:var(--muted);line-height:1.5}
+.profile-status{margin:0 0 16px;font-size:var(--fs-sm);color:var(--muted)}
+.profile-stats{display:grid;grid-template-columns:1fr 1fr;gap:0 20px;margin:16px 0 8px}
+.profile-stats div{border-top:1px solid var(--line);padding:10px 0 12px;min-width:0}
+.profile-stats dd{margin:0;font-size:var(--fs-xl);line-height:1.15;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.profile-stats dt{margin-top:2px;font-size:var(--fs-xs);line-height:1.35;color:var(--muted)}
+.profile .profile-section{margin:0;padding:0}
+.profile-section summary{padding:12px 0}
+.profile-row{padding:12px 0 14px;border-top:1px solid var(--line)}
+.profile-figure{margin:0;line-height:1.2;font-variant-numeric:tabular-nums}
+.profile-figure .num{font-size:var(--fs-lg);letter-spacing:-.015em}
+.profile-figure .moe{font-size:var(--fs-xs);color:var(--muted)}
+.profile-label{margin:2px 0 0;font-size:var(--fs-sm);line-height:1.4}
+.profile-label sup{margin-left:3px;font-size:var(--fs-xs);line-height:0;color:var(--muted)}
+.profile-against{list-style:none;margin:6px 0 0;padding:0;font-size:var(--fs-xs);line-height:1.5;color:var(--muted)}
+.profile-against li+li{margin-top:2px}
+.profile-against b{font-weight:600;color:var(--ink)}
+.profile-caution{margin:4px 0 0;font-size:var(--fs-xs);color:var(--error-ink)}
+.profile-sources{border-top:1px solid var(--line);padding:10px 0 14px;font-size:var(--fs-xs);line-height:1.5;color:var(--muted)}
+.profile-sources-title{margin:0 0 2px;font-weight:600;color:var(--ink)}
+.profile-sources ul,.profile-sources ol{margin:0;padding-left:18px}.profile-sources ul{list-style:none;padding-left:0}
+@media(min-width:641px) and (max-width:1199px){.profile-stats{grid-template-columns:repeat(4,minmax(0,1fr))}}
+/* Suggested questions: short buttons between the conversation and the question box. */
+.suggest{padding:12px var(--card-pad) 0;border-top:1px solid var(--line)}
+.suggest:not([hidden])+#question-form{border-top:0;padding-top:12px}
+.suggest .examples{display:flex;flex-wrap:wrap;gap:8px}
+.suggest .examples button{border:1px solid var(--accent);border-radius:var(--r-pill);padding:6px 14px;color:var(--accent-dark);font-size:var(--fs-sm);font-weight:600;line-height:1.4;white-space:nowrap}
 /* The card is compact until the first question; then it grows and the conversation scrolls inside it. */
-@media(min-width:1024px) and (min-height:640px){.chat-card.started{min-height:min(680px,calc(100vh - 120px))}.district-bar,#question-form,#chat-status{flex:none}.chat-card.started #messages{flex:1 1 0px;min-height:180px;overflow-y:auto;scroll-padding-block:12px}}
+@media(min-width:1024px) and (min-height:640px){.chat-card.started{min-height:min(680px,calc(100vh - 120px))}.district-bar,#suggest,#question-form,#chat-status{flex:none}.chat-card.started #messages{flex:1 1 0px;min-height:180px;overflow-y:auto;scroll-padding-block:12px}}
 
 /* Answer tiles, charts, and sources */
 .answer .lead{font-size:var(--fs-lead);line-height:1.55;margin:0 0 16px}
@@ -331,7 +366,7 @@ footer a{color:#fff}
 /* Touch screens: larger targets for controls and for links that stand alone in lists. */
 @media(pointer:coarse){
 #map.free{touch-action:pan-y;cursor:auto}
-.island-tabs button,.segmented button,.match{min-height:44px}
+.island-tabs button,.segmented button,.match,.suggest .examples button{min-height:44px}
 .site-header nav a{padding:12px 0}
 .zoom-buttons button{width:40px;height:40px}
 .footer-col ul{gap:0}.footer-col a{display:inline-block;padding:10px 0}

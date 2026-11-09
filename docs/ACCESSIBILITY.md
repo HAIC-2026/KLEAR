@@ -2,7 +2,7 @@
 
 KLEAR aims to meet the Web Content Accessibility Guidelines (WCAG) 2.1 at level AA. This page says what is in place, how it has been checked so far, what is known not to work yet, and how to report a problem.
 
-Last updated: November 8, 2026.
+Last updated: November 9, 2026.
 
 ## What is in place
 
@@ -12,10 +12,14 @@ Last updated: November 8, 2026.
 - The ↗ arrow marks only links that leave the site.
 - The loading indicator, highlight animation, and smooth scrolling stop when your device asks for reduced motion.
 - The page fits a 320 px wide screen without scrolling sideways.
+- The district profile beside the chat does not interrupt a screen reader as it loads. A short status line ("Profile for House District 22 loaded.") is announced, and the figures are read only when you move to them.
+- The suggested-question buttons above the question box show short labels, and each button's spoken name begins with that label, so voice control can use the words on screen.
 
 ## How it has been checked
 
 - November 8, 2026: an automated check in headless Microsoft Edge at 1440, 1366, 1280, 390, and 320 px wide found no sideways scrolling, no visible text under 12 px, and no script errors. Contrast ratios were calculated from the colors in the site's stylesheet.
+
+- November 9, 2026: an automated check in headless Google Chrome at 1440, 1280, 1200, 1100, and 390 px wide, with a district chosen, every profile section open, and a question asked, found no sideways scrolling and no script errors.
 
 Not done yet: an automated axe scan, a keyboard-only pass, screen reader testing (NVDA and VoiceOver), and a 200% zoom check. These are planned in [issue #23](https://github.com/HAIC-2026/KLEAR/issues/23).
 

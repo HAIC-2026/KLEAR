@@ -126,6 +126,7 @@ class Session:
         self.directions: list[tuple[str, str, str]] = []
         self._refs: dict[tuple[str, str, str, str], str] = {}
         self._rules = None
+        self._prefetched: dict[tuple[str, str, str], list[tuple]] = {}
 
     def run(self, tool: str, args: dict) -> str:
         try:
@@ -264,14 +265,35 @@ class Session:
             self.facts[ref] = make(ref)
         return self._refs[key]
 
+    _ROW_SQL = (
+        "SELECT i.label, i.unit, f.value, f.moe, f.value_status, f.moe_status, f.value_low, f.value_high, "
+        "f.source_id, s.name, s.vintage, f.tier, f.indicator_id, f.geo_type, f.geo_id FROM fact f "
+        "JOIN indicator i USING (indicator_id) JOIN source s USING (source_id) "
+    )
+
     def _rows(self, indicator_id: str, geo: tuple[str, str]) -> list[tuple]:
-        return self.con.execute(
-            "SELECT i.label, i.unit, f.value, f.moe, f.value_status, f.moe_status, f.value_low, f.value_high, "
-            "f.source_id, s.name, s.vintage, f.tier FROM fact f JOIN indicator i USING (indicator_id) "
-            "JOIN source s USING (source_id) WHERE f.indicator_id = ? AND f.geo_type = ? AND f.geo_id = ? "
-            "ORDER BY f.source_id",
+        if (indicator_id, *geo) in self._prefetched:
+            return self._prefetched[(indicator_id, *geo)]
+        rows = self.con.execute(
+            self._ROW_SQL
+            + "WHERE f.indicator_id = ? AND f.geo_type = ? AND f.geo_id = ? ORDER BY f.source_id",
             [indicator_id, *geo],
         ).fetchall()
+        return [r[:12] for r in rows]
+
+    def _prefetch(self, indicator_ids, geos) -> None:
+        """Read the rows for many indicators and geographies in one query, for _rows to serve."""
+        keys = [(i, *g) for i in indicator_ids for g in geos]
+        for key in keys:
+            self._prefetched.setdefault(key, [])
+        rows = self.con.execute(
+            self._ROW_SQL
+            + "WHERE f.indicator_id IN (SELECT unnest(?)) AND (f.geo_type || ':' || f.geo_id) IN "
+            "(SELECT unnest(?)) ORDER BY f.source_id",
+            [list(indicator_ids), [f"{g[0]}:{g[1]}" for g in geos]],
+        ).fetchall()
+        for r in rows:
+            self._prefetched[(r[12], r[13], r[14])].append(r[:12])
 
     def _entry(self, indicator_id: str, geo: tuple[str, str], row: tuple) -> dict:
         label, unit, value, moe, vstatus, mstatus, low, high, source_id, source, vintage, tier = row
@@ -386,6 +408,80 @@ class Session:
                 self.directions.append((base["facts"][0]["ref"], theirs["facts"][0]["ref"], direction))
         return out
 
+    # district_profile
+
+    @staticmethod
+    def _fact_interval(f: FactRef) -> tuple[float, float] | None:
+        if f.value_low is not None and f.value_high is not None:
+            return f.value_low, f.value_high
+        return None if f.value is None else (f.value - (f.moe or 0), f.value + (f.moe or 0))
+
+    def _against(self, ind: str, mine: dict, other: tuple[str, str], additive: bool) -> dict | None:
+        """One comparison for a profile row: the other place's value, and the district's share of a total
+        or the direction of a rate."""
+        theirs = self._facts_for([ind], [other])["facts"]
+        if not theirs:
+            return None
+        t = theirs[0]
+        entry = {"geo": t["geo"], "geo_name": t["geo_name"], "ref": t["ref"], "value_text": t["value_text"]}
+        a, b = self.facts[mine["ref"]], self.facts[t["ref"]]
+        if additive:
+            if a.value is not None and b.value:
+                part = a.value / b.value
+                entry["share"] = "<0.1%" if 0 < part < 0.001 else f"{part:.1%}"
+            return entry
+        x, y = self._fact_interval(a), self._fact_interval(b)
+        if x is not None and y is not None:
+            entry["direction"] = (
+                "within_margin" if x[0] <= y[1] and y[0] <= x[1] else "higher" if x[0] > y[1] else "lower"
+            )
+            self.directions.append((a.ref, b.ref, entry["direction"]))
+        return entry
+
+    def _district_profile(self, args: dict) -> dict:
+        geo = _geo_arg(args.get("district"))
+        if geo[0] not in ("house", "senate") or self._name(*geo) is None:
+            raise ToolError("district must be a stored House or Senate district, for example house:022")
+        self.resolved.add(geo)
+        other = "senate" if geo[0] == "house" else "house"
+        by_county = self.con.execute(
+            f"SELECT county, sum(pop2020) FROM blocks WHERE {geo[0]} = ? GROUP BY 1 ORDER BY 2 DESC", [geo[1]]
+        ).fetchall()
+        total = sum(p for _, p in by_county) or 1
+        overlaps = self.con.execute(
+            f"SELECT {other}, sum(pop2020) FROM blocks WHERE {geo[0]} = ? AND pop2020 > 0 GROUP BY 1 ORDER BY 2 DESC",
+            [geo[1]],
+        ).fetchall()
+        places = self.con.execute(
+            "SELECT p.name, o.pop2020 FROM place_overlap o JOIN place p USING (place_id) "
+            "WHERE o.geo_type = ? AND o.geo_id = ? AND o.pop2020 > 0 ORDER BY o.pop2020 DESC",
+            list(geo),
+        ).fetchall()
+        additive = {
+            r[0] for r in self.con.execute("SELECT indicator_id FROM indicator WHERE additive").fetchall()
+        }
+        against = ([("county", by_county[0][0])] if by_county else []) + [("state", "15")]
+        self._prefetch([i for _, ids in config.PROFILE_SECTIONS for i in ids], [geo, *against])
+        out = {
+            "district": self._geo(*geo),
+            "counties": [self._geo("county", c, share=round(p / total, 4)) for c, p in by_county if p],
+            "places": [{"name": n, "share": round(p / total, 4)} for n, p in places],
+            "overlaps": [self._geo(other, g, share=round(p / total, 4)) for g, p in overlaps],
+            "sections": [],
+            "missing": [],
+        }
+        for title, ids in config.PROFILE_SECTIONS:
+            rows = []
+            for ind in ids:
+                mine = self._facts_for([ind], [geo])
+                out["missing"] += mine["missing"]
+                if mine["facts"]:
+                    fact = mine["facts"][0]
+                    compared = [self._against(ind, fact, g, ind in additive) for g in against]
+                    rows.append({"fact": fact, "against": [c for c in compared if c]})
+            out["sections"].append({"title": title, "rows": rows})
+        return out
+
     # list_programs, find_sites, explain_source
 
     def _list_programs(self, args: dict) -> dict:
@@ -489,6 +585,16 @@ TOOL_SPECS = [
             },
         },
         ["indicator_id", "geo"],
+    ),
+    _spec(
+        "district_profile",
+        "The standard profile of a House or Senate district, the same one the website shows: its counties, "
+        "Census places and overlapping districts in the other chamber with population shares, then sections "
+        "(People, Income, Housing, Health and access, Programs in use, Modeled needs, Help sites). Each row is a "
+        "fact with its ref, compared with the main county and the state: a direction for rates, and the "
+        "district's share for totals. Use it when asked for a profile or overview of a district.",
+        {"district": {**_GEO, "description": "House or Senate district as TYPE:ID, for example house:022."}},
+        ["district"],
     ),
     _spec(
         "list_programs",

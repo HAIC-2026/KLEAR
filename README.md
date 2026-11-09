@@ -85,7 +85,7 @@ No `source`, environment export, or `--env-file` option is needed. Restart the w
 - klear/validation: the build's validation checks and the docs/VALIDATION.md report.
 - klear/rules: loads the program rules and checks each value against its official source quote.
 - klear/agent: the agent, its data tools and the code that builds and checks each answer (python -m klear.agent).
-- klear/web: the local web server, landing page and chat interface (python -m klear.web).
+- klear/web: the local web server, landing page, district profile and chat interface (python -m klear.web).
 - klear/eval: the answer format, eval runner, answer checks, reports and spending cap (python -m klear.eval run).
 - data: the checked-in indicator catalog (data/catalog), Hawaiian place names (data/places) and program rules (data/rules). The build also writes data/raw (download cache), data/manual (hand downloads) and data/build (the store), none of them tracked.
 - eval: test questions (eval/golden), saved model replies (eval/scripts), recorded live answers (eval/recordings) and model prices. Run reports go to eval/reports, which is not tracked.
@@ -261,12 +261,37 @@ without a data build. After a build changes the boundaries, regenerate it with:
 
 The landing page resolves House/Senate numbers, towns and ZIPs using the
 built store. Overlaps are shown as choices instead of guessing a district.
-Chat includes example questions, a waiting state, explicit refusal labels,
+Chat offers five example questions, a waiting state, explicit refusal labels,
 and figure cards with uncertainty, vintage, geography and official source
-links. Program questions list official guidance without assessing individual
-eligibility. Questions outside the available measures receive a clear limit
-instead of a guessed answer. Questions are independent: previous messages
-are displayed locally but are not sent as conversation history.
+links. The examples are a list until a district is chosen, then short buttons
+above the question box. Program questions list official guidance without
+assessing individual eligibility. Questions outside the available measures
+receive a clear limit instead of a guessed answer. Questions are independent:
+previous messages are displayed locally but are not sent as conversation history.
+
+Choosing a district also shows its district profile next to the chat. The profile is read
+straight from the store with no model call, through `GET /api/profile?district=house:022`.
+It names the district's counties, islands, Census places and the overlapping districts
+in the other chamber, shows four headline figures, then 37 figures in seven sections:
+People, Income, Housing, Health and access, Programs in use, Modeled needs and Help sites.
+Each figure shows its margin of error or range, is compared with the county that holds most
+of the district's population and with the state, flags an unreliable estimate, and is cited
+under its section. Rates are compared in plain sentences ("about 40 percent higher than the
+rate in Maui County: 9.2%", or "about the same as" when the gap is inside the margins of
+error), and totals show the district's share of the county and state total.
+The figures and labels are in `PROFILE_SECTIONS` in klear/agent/config.py and
+`PROFILE_LABELS` in klear/web/display.py.
+
+The agent's `district_profile` tool returns the same set, so a profile question in chat,
+the free lookup and the page cite the same figures. A question that contains the word
+"profile" must cite every profile figure the store holds for its district, and the free
+lookup returns them all for a profile, socioeconomic or overview question.
+
+On screens at least 1200 px wide the profile and the chat are equal-width columns; below that
+the profile sits under the chat at full width. The chat card stays compact until the first
+question is sent, then grows to a fixed height and scrolls its conversation inside it. The
+profile never scrolls inside itself: it takes the height its figures need, and each section
+opens and closes on its own.
 
 Only the static web assets are served; the repository and store cannot be
 downloaded. The server rejects cross-origin browser requests. HTTP logs are disabled to avoid recording questions.

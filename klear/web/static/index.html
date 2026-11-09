@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#ffffff">
   <meta name="description" content="Look up any Hawaiʻi House or Senate district: who lives there, what households earn and pay for housing, and which programs residents use. Every number shows its source and margin of error.">
-  <title>KLEAR · Hawaiʻi legislative district data</title>
+  <title>KLEAR: Hawaiʻi legislative district data</title>
   <link rel="icon" href="/favicon.ico?v=2" sizes="32x32">
   <link rel="icon" href="/favicon.svg?v=2" type="image/svg+xml">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=2">
@@ -52,10 +52,15 @@
               <div class="bot-msg welcome"><p class="sender">KLEAR</p><p id="welcome-text">Ask about this district.</p></div>
               <div id="log" role="log" aria-label="Questions and answers" aria-live="polite"></div>
             </div>
+            <div id="suggest" class="suggest" role="group" aria-label="Suggested questions" hidden></div>
             <form id="question-form"><label for="question" class="visually-hidden">Your question</label><div class="question-row"><textarea id="question" rows="1" required maxlength="2000" placeholder="Type your question here"></textarea><button id="send" type="submit">Ask KLEAR</button></div></form>
             <p id="chat-status" class="status" role="status"></p>
           </div>
-          <aside class="chat-aside" aria-labelledby="examples-title"><h3 id="examples-title">Questions to try</h3><div id="examples" class="examples"></div></aside>
+          <aside class="chat-aside" aria-label="Questions to try and district profile">
+            <div id="starter"><h3 id="examples-title">Questions to try</h3><div id="examples" class="examples"></div></div>
+            <section id="profile" class="profile" aria-labelledby="profile-title" hidden></section>
+            <p id="profile-live" class="visually-hidden" role="status"></p>
+          </aside>
         </div>
       </div>
     </section>
@@ -90,9 +95,9 @@
           <p>The pictures below are screenshots, not buttons. To try it yourself, <a href="#find-place">use the search at the top of the page</a>.</p>
         </div>
         <ol class="steps">
-          <li><h3>Pick a district</h3><p>Search by district number, town, or ZIP code, or tap the district on the map. When a town spans districts, KLEAR lists the House and Senate districts separately and shows how its residents split.</p><figure class="shot"><figcaption><strong>Screenshot</strong> · not clickable</figcaption><img src="/shots/step-1.png" width="1394" height="833" loading="lazy" draggable="false" alt="The district search with Kāneʻohe entered. KLEAR lists the matches in two groups. House districts 49, 50, and 48 hold 67, 18, and 14 percent of Kāneʻohe residents. Senate districts 24 and 23 hold 92 and 8 percent. A line below suggests finding the district on the map."></figure></li>
-          <li><h3>Ask a question</h3><p>Ask in plain words about residents, housing, income, or programs, or start from a suggested question.</p><figure class="shot"><figcaption><strong>Screenshot</strong> · not clickable</figcaption><img src="/shots/step-2.png" width="1442" height="996" loading="lazy" draggable="false" alt="The question box with “How does poverty here compare with the state?” typed in, above five suggested questions to try."></figure></li>
-          <li><h3>Check the numbers</h3><p>Each figure shows its margin of error or range, the state value for comparison, and the source and survey years behind it.</p><figure class="shot"><figcaption><strong>Screenshot</strong> · not clickable</figcaption><img src="/shots/step-3.png" width="1370" height="1079" loading="lazy" draggable="false" alt="KLEAR’s answer for House District 49: three bar charts compare the district’s poverty rates for all residents, children, and people 65 and over with the state. Each shows its margin of error and is marked within the margin of error. Below them are the survey years and a Sources link."></figure></li>
+          <li><h3>Pick a district</h3><p>Search by district number, town, or ZIP code, or tap the district on the map. When a town spans districts, KLEAR lists the House and Senate districts separately and shows how its residents split.</p><figure class="shot"><figcaption><strong>Screenshot</strong>, not clickable</figcaption><img src="/shots/step-1.png" width="1394" height="833" loading="lazy" draggable="false" alt="The district search with Kāneʻohe entered. KLEAR lists the matches in two groups. House districts 49, 50, and 48 hold 67, 18, and 14 percent of Kāneʻohe residents. Senate districts 24 and 23 hold 92 and 8 percent. A line below suggests finding the district on the map."></figure></li>
+          <li><h3>Ask a question</h3><p>Ask in plain words about residents, housing, income, or programs, or start from a suggested question.</p><figure class="shot"><figcaption><strong>Screenshot</strong>, not clickable</figcaption><img src="/shots/step-2.png" width="1442" height="996" loading="lazy" draggable="false" alt="The question box with “How does poverty here compare with the state?” typed in, above five suggested questions to try."></figure></li>
+          <li><h3>Check the numbers</h3><p>Each figure shows its margin of error or range, the state value for comparison, and the source and survey years behind it.</p><figure class="shot"><figcaption><strong>Screenshot</strong>, not clickable</figcaption><img src="/shots/step-3.png" width="1370" height="1079" loading="lazy" draggable="false" alt="KLEAR’s answer for House District 49: three bar charts compare the district’s poverty rates for all residents, children, and people 65 and over with the state. Each shows its margin of error and is marked within the margin of error. Below them are the survey years and a Sources link."></figure></li>
         </ol>
       </div>
     </section>
@@ -125,11 +130,11 @@
         </div>
         <h3>Team</h3>
         <ul class="team">
-          <li>[Name], [role] · [GitHub profile]</li>
-          <li>[Name], [role] · [GitHub profile]</li>
-          <li>[Name], [role] · [GitHub profile]</li>
-          <li>[Name], [role] · [GitHub profile]</li>
-          <li>[Name], [role] · [GitHub profile]</li>
+          <li>[Name], [role], [GitHub profile]</li>
+          <li>[Name], [role], [GitHub profile]</li>
+          <li>[Name], [role], [GitHub profile]</li>
+          <li>[Name], [role], [GitHub profile]</li>
+          <li>[Name], [role], [GitHub profile]</li>
         </ul>
       </div>
     </section>

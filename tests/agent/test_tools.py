@@ -1,9 +1,11 @@
 # Tests for the deterministic agent tools against the built store and a small fixture store.
 import json
+import time
 
 import pytest
 
-from klear.agent.tools import TOOL_SPECS
+from klear.agent.config import PROFILE_SECTIONS
+from klear.agent.tools import TOOL_SPECS, Session
 from klear.eval.golden import load_golden
 
 
@@ -123,7 +125,7 @@ def test_bad_args_return_error_json(session):
 
 def test_specs_cover_every_tool(session):
     assert [t["name"] for t in TOOL_SPECS] == [
-        "resolve_place", "search_indicators", "get_facts", "compare", "list_programs", "find_sites",
+        "resolve_place", "search_indicators", "get_facts", "compare", "district_profile", "list_programs", "find_sites",
         "explain_source",
     ]  # fmt: skip
     assert all(t["input_schema"]["type"] == "object" and t["description"] for t in TOOL_SPECS)
@@ -332,3 +334,48 @@ def test_fuzzy_tier_is_single_word_only(small):
 @pytest.mark.parametrize("text", ["the Big Island", "Big Island of Hawaiʻi", "the island of Hawaii"])
 def test_big_island_phrases_resolve_to_hawaii_county(small, text):
     assert [m["geo"] for m in call(small, "resolve_place", text=text)["matches"]] == ["county:15001"]
+
+
+def test_district_profile_header_and_comparisons(small):
+    out = call(small, "district_profile", district="house:022")
+    assert out["district"] == {"geo": "house:022", "name": "House District 22"}
+    assert [(c["geo"], c["share"]) for c in out["counties"]] == [
+        ("county:15003", round(50 / 53, 4)),
+        ("county:15001", round(3 / 53, 4)),
+    ]
+    assert [(o["geo"], o["share"]) for o in out["overlaps"]] == [("senate:012", 1.0)]
+    assert {p["name"] for p in out["places"]} == {"Kāneʻohe", "Kailua"}
+    assert [s["title"] for s in out["sections"]] == [title for title, _ in PROFILE_SECTIONS]
+    rows = {r["fact"]["indicator_id"]: r for s in out["sections"] for r in s["rows"]}
+    # A total is set against its main county and the state as the district's share.
+    assert [(a["geo"], a["share"]) for a in rows["pop_65_plus"]["against"]] == [
+        ("county:15003", "20.0%"),
+        ("state:15", "11.1%"),
+    ]
+    assert rows["sites_lihtc"]["fact"]["value_text"] == "2"
+    assert {"indicator_id": "pop_under_18", "geo": "house:022"}.items() <= next(
+        m for m in out["missing"] if m["indicator_id"] == "pop_under_18"
+    ).items()
+
+
+def test_district_profile_needs_a_district(small):
+    assert "error" in call(small, "district_profile", district="county:15003")
+    assert "error" in call(small, "district_profile", district="house:999")
+
+
+def test_every_district_profile_is_complete_and_fast(real_con):
+    districts = real_con.execute(
+        "SELECT geo_type, geo_id FROM geography WHERE geo_type IN ('house', 'senate') ORDER BY 1, 2"
+    ).fetchall()
+    assert len(districts) == 76
+    for geo_type, geo_id in districts:
+        start = time.perf_counter()
+        out = json.loads(Session(real_con).run("district_profile", {"district": f"{geo_type}:{geo_id}"}))
+        assert time.perf_counter() - start < 1, f"{geo_type}:{geo_id} took too long"
+        rows = [r for s in out["sections"] for r in s["rows"]]
+        assert len(rows) >= 30 and out["counties"], f"{geo_type}:{geo_id}"
+        for r in rows:
+            f = r["fact"]
+            assert f["geo"] == f"{geo_type}:{geo_id}" and f["source"] and f["vintage"] and f["status"], f
+        rates = [a for r in rows for a in r["against"] if "direction" in a]
+        assert rates and all(a["direction"] in ("higher", "lower", "within_margin") for a in rates)
