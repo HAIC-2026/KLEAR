@@ -1,5 +1,5 @@
 const $ = id => document.getElementById(id);
-let district = null, asked = null, busy = false, queued = null, lookupSeq = 0;
+let district = null, asked = null, busy = false, queued = null;
 const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 const uncertaintyLabels = {ok: '90% margin of error shown above', controlled: 'Fixed to official totals; no sampling margin of error', range: 'Estimated range shown above', open_ended: 'Open-ended published value', not_computable: 'Margin of error unavailable; treat as uncertain', not_applicable: 'No margin of error applies', unavailable: 'Uncertainty information unavailable'};
 const examples = ['Give me a socioeconomic profile of this district.', 'How many kūpuna live in this district?', 'What does the data say about housing needs in this district?', 'How does poverty here compare with the state?', 'What support programs could residents of this district explore?'];
@@ -19,6 +19,19 @@ function showChat() {
   const card = $('chat-card');
   (card.offsetHeight <= window.innerHeight ? card : $('question-form')).scrollIntoView({block: 'center'});
 }
+
+// Grow the question box with its text, up to a limit, then scroll inside it.
+const QUESTION_MAX = 192;
+function fitQuestion() {
+  const q = $('question');
+  q.style.height = 'auto';
+  const full = q.scrollHeight + q.offsetHeight - q.clientHeight;
+  q.style.height = `${Math.min(full, QUESTION_MAX)}px`;
+  q.style.overflowY = full > QUESTION_MAX ? 'auto' : 'hidden';
+}
+$('question').addEventListener('input', fitQuestion);
+window.addEventListener('resize', fitQuestion);
+document.fonts.ready.then(fitQuestion);
 
 function logScrolls() { return getComputedStyle($('messages')).overflowY === 'auto'; }
 // Whether a node shows on screen, and inside the log's own scroll area when the log scrolls.
@@ -56,8 +69,8 @@ function reveal(message) {
 function setLookup(open) {
   $('lookup').hidden = !open;
   $('change').setAttribute('aria-expanded', String(open));
-  $('change').textContent = open ? 'Cancel' : 'Change district';
-  if (!open) { lookupSeq++; $('matches').replaceChildren(); $('lookup-status').textContent = ''; }
+  $('change').textContent = open ? 'Cancel' : district ? 'Change district' : 'Choose a district';
+  if (!open) resetLookup();
 }
 
 function needDistrict() {
@@ -87,17 +100,19 @@ function choose(geo, name, quiet) {
   }
   const switched = geo !== district;
   if (switched) {
-    const log = $('messages'), last = log.lastElementChild;
+    const log = $('log'), last = log.lastElementChild;
     if (last && last.classList.contains('switch')) last.remove();
     if (asked && geo !== asked) {
       const line = node('p', '', 'switch');
       line.append(node('span', `Now asking about ${name}`));
       log.append(line);
-      if (!quiet) log.scrollTop = log.scrollHeight;
+      if (!quiet) $('messages').scrollTop = $('messages').scrollHeight;
     }
     district = geo;
+    $('chat').dataset.chamber = geo.split(':')[0];
     $('district-title').textContent = name;
-    $('district-now').hidden = false;
+    $('welcome-text').textContent = `Ask about ${name}.`;
+    $('change').textContent = 'Change district';
     document.dispatchEvent(new CustomEvent('klear:district', {detail: {geo, name}}));
   }
   const ready = $('question').value.trim() ? 'Your question is ready. Press Ask KLEAR.' : '';
@@ -116,7 +131,7 @@ function matchGroups(matches) {
     const rows = [m, ...(m.overlaps || [])].filter(g => /^(house|senate):/.test(g.geo || ''));
     if (!rows.length) continue;
     const county = (m.overlaps || []).find(g => /^county:/.test(g.geo || ''));
-    const place = m.kind === 'zcta' ? `ZIP ${m.geo.split(':')[1]}` : m.name;
+    const place = m.kind === 'zcta' ? `ZIP code ${m.geo.split(':')[1]}` : m.name;
     const rank = g => (g.geo.startsWith('senate:') ? 1000 : 0) - Math.round((g.share ?? 1) * 100);
     rows.sort((a, b) => rank(a) - rank(b) || a.geo.localeCompare(b.geo));
     groups.push({place, title: m.kind === 'district' ? '' : [place, county && county.name].filter(Boolean).join(' · '), pop: m.pop2020 || 0, rows});
@@ -124,25 +139,80 @@ function matchGroups(matches) {
   return groups.sort((a, b) => b.pop - a.pop);
 }
 
-function showMatches(groups) {
+const chamberNames = {house: 'House districts', senate: 'Senate districts'};
+
+// A line that points a reader who is unsure of their district to the map.
+function mapNudge(lead) {
+  const line = node('p', `${lead} `, 'map-nudge'), link = node('a', 'Find it on the map');
+  link.href = '#district-map';
+  line.append(link, '.');
+  return line;
+}
+
+// Each place's districts in a House column and a Senate column, largest share first.
+function showMatches(groups, box, pick) {
   for (const g of groups) {
-    const wrap = node('div', '', 'match-group'), chips = node('div', '', 'chips');
-    if (g.title) wrap.append(node('p', g.title, 'overline'));
-    for (const r of g.rows) {
-      const b = node('button', '', 'match');
-      b.type = 'button';
-      const label = r.name.replace(' District', '');
-      b.append(node('span', label));
-      if (r.share != null) {
-        b.append(node('span', share(r.share), 'share'));
-        b.setAttribute('aria-label', `${label} ${share(r.share)} of ${g.place} residents`);
+    const wrap = node('div', '', 'match-group'), cols = node('div', '', 'chamber-cols');
+    if (g.title) wrap.append(node('p', g.title, 'match-title'));
+    for (const chamber of ['house', 'senate']) {
+      const rows = g.rows.filter(r => r.geo.startsWith(`${chamber}:`));
+      if (!rows.length) continue;
+      const col = node('div', '', 'chamber-col'), chips = node('div', '', 'chips');
+      col.setAttribute('role', 'group');
+      col.setAttribute('aria-label', g.title ? `${chamberNames[chamber]} for ${g.place}` : chamberNames[chamber]);
+      col.append(node('p', chamberNames[chamber], `chamber-title ${chamber}`));
+      for (const r of rows) {
+        const b = node('button', '', `match ${chamber}`);
+        b.type = 'button';
+        const label = r.name.replace(' District', '');
+        b.append(node('span', label));
+        if (r.share != null) {
+          b.append(node('span', share(r.share), 'share'));
+          b.setAttribute('aria-label', `${label} ${share(r.share)} of ${g.place} residents`);
+        }
+        b.onclick = () => pick(r.geo, r.name);
+        chips.append(b);
       }
-      b.onclick = () => choose(r.geo, r.name);
-      chips.append(b);
+      col.append(chips);
+      cols.append(col);
     }
-    wrap.append(chips);
-    $('matches').append(wrap);
+    wrap.append(cols);
+    box.append(wrap);
   }
+  box.append(mapNudge('Still not sure which is yours?'));
+}
+
+// Wire a district search form: matching districts appear as buttons under it, and a single match is picked at once.
+// Returns a function that clears the form's results and drops any search still loading.
+function lookupForm(form, input, status, box, pick) {
+  let seq = 0;
+  form.onsubmit = async e => {
+    e.preventDefault();
+    const mine = ++seq, button = form.querySelector('button[type=submit]');
+    button.disabled = true;
+    box.replaceChildren();
+    status.textContent = 'Finding matching districts…';
+    try {
+      const data = await api('/api/resolve?q=' + encodeURIComponent(input.value));
+      if (mine !== seq) return;
+      const groups = matchGroups(data.matches || []);
+      const found = new Map(groups.flatMap(g => g.rows.map(r => [r.geo, r.name])));
+      if (found.size === 1) { const [[geo, name]] = found; status.textContent = ''; pick(geo, name); return; }
+      const county = (data.matches || []).find(m => m.kind === 'county');
+      if (!found.size) {
+        status.textContent = county ? `${county.name} is a whole county. Try a town or ZIP code in it.` : 'No matching districts. Try House 22, Senate 17, a town, or a Hawaiʻi ZIP code.';
+        box.append(mapNudge('Not sure which district is yours?'));
+        return;
+      }
+      status.textContent = groups.some(g => g.title) ? 'Choose a district. The percent beside each one is the share of that area’s residents who live in it.' : 'Choose a district:';
+      showMatches(groups, box, pick);
+    } catch (err) {
+      if (mine === seq) status.textContent = err.message;
+    } finally {
+      button.disabled = false;
+    }
+  };
+  return () => { seq++; box.replaceChildren(); status.textContent = ''; };
 }
 
 $('change').onclick = () => {
@@ -152,35 +222,13 @@ $('change').onclick = () => {
   setLookup(open);
   if (open) $('place').focus();
 };
-$('lookup').onsubmit = async e => {
-  e.preventDefault();
-  const seq = ++lookupSeq, button = $('lookup').querySelector('button[type=submit]');
-  button.disabled = true;
-  $('matches').replaceChildren();
-  $('lookup-status').textContent = 'Finding matching districts…';
-  try {
-    const data = await api('/api/resolve?q=' + encodeURIComponent($('place').value));
-    if (seq !== lookupSeq) return;
-    const groups = matchGroups(data.matches || []);
-    const found = new Map(groups.flatMap(g => g.rows.map(r => [r.geo, r.name])));
-    if (found.size === 1) { const [[geo, name]] = found; choose(geo, name); return; }
-    const county = (data.matches || []).find(m => m.kind === 'county');
-    if (!found.size) {
-      $('lookup-status').textContent = county ? `${county.name} is a whole county. Try a town or ZIP code in it, or find your district on the map.` : 'No matching districts. Try House 22, Senate 17, a town, or a Hawaiʻi ZIP code.';
-      return;
-    }
-    $('lookup-status').textContent = groups.some(g => g.title) ? 'Choose a district. Percents show how each area’s residents split across districts.' : 'Choose a district:';
-    showMatches(groups);
-  } catch (err) {
-    if (seq === lookupSeq) $('lookup-status').textContent = err.message;
-  } finally {
-    button.disabled = false;
-  }
-};
+const resetLookup = lookupForm($('lookup'), $('place'), $('lookup-status'), $('matches'), choose);
+// The search at the top of the page sets the chat's district and moves to the chat.
+const resetFind = lookupForm($('find'), $('find-place'), $('find-status'), $('find-matches'), (geo, name) => { resetFind(); choose(geo, name); });
 for (const question of examples) {
   const b = node('button', question);
   b.type = 'button';
-  b.onclick = () => { $('question').value = question; if (district) $('question-form').requestSubmit(); else needDistrict(); };
+  b.onclick = () => { $('question').value = question; fitQuestion(); if (district) $('question-form').requestSubmit(); else needDistrict(); };
   $('examples').append(b);
 }
 $('question-form').onsubmit = async e => {
@@ -189,25 +237,34 @@ $('question-form').onsubmit = async e => {
   const question = $('question').value.trim();
   if (!question) return;
   if (!district) { needDistrict(); return; }
+  // The card stays compact until the first question, then grows to hold the conversation.
+  const card = $('chat-card');
+  if (!card.classList.contains('started')) { card.classList.add('started'); showChat(); }
   setBusy(true);
   asked = district;
   const name = $('district-title').textContent;
   const sent = node('p', question, 'user'), pending = node('p', 'Checking district data and sources…', 'pending');
-  $('messages').append(sent, pending);
+  // Each exchange keeps the color of the chamber it was about, even after the chat switches district.
+  const chamber = district.split(':')[0];
+  sent.dataset.chamber = pending.dataset.chamber = chamber;
+  $('log').append(sent, pending);
   reveal(sent);
   $('question').value = '';
+  fitQuestion();
   $('chat-status').textContent = '';
   let follow = true, hold = null;
   try {
     const answer = await api('/api/chat', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({question, district})});
     hold = holdPage(pending);
     follow = onScreen(pending);
-    pending.replaceWith(renderAnswer(answer, name));
+    const reply = renderAnswer(answer, name);
+    reply.dataset.chamber = chamber;
+    pending.replaceWith(reply);
   } catch (err) {
     hold = holdPage(pending);
     follow = onScreen(pending);
     pending.replaceWith(node('p', err.message, 'error'));
-    if (!$('question').value.trim()) { $('question').value = question; $('chat-status').textContent = 'Your question is ready to retry.'; }
+    if (!$('question').value.trim()) { $('question').value = question; fitQuestion(); $('chat-status').textContent = 'Your question is ready to retry.'; }
   } finally {
     setBusy(false);
     // Leave the page and focus alone while the reader works in the district search or another field.
@@ -224,15 +281,15 @@ $('question-form').onsubmit = async e => {
 
 // Answer heading that names the district the question was asked about.
 function heading(answer, name) {
-  const h = node('h2', refusalLabels[answer.refusal] || 'KLEAR');
+  const h = node('h3', refusalLabels[answer.refusal] || 'KLEAR');
   if (name) h.append(' ', node('span', name, 'answer-for'));
   return h;
 }
 
-function basicAnswer(answer, name) { const article = document.createElement('article'); article.append(heading(answer, name)); for (const p of answer.text.split('\n\n')) article.append(node('p', p)); if (answer.facts.length) { const details = document.createElement('details'); details.open = true; details.append(node('summary', 'Figures & sources')); for (const f of answer.facts) { const card = node('div', '', 'fact'); card.append(node('b', f.label), node('p', f.value), node('small', `${f.year} · ${f.geography} · Uncertainty: ${uncertaintyLabels[f.uncertainty] || 'Uncertainty information unavailable'}`)); let source = node('span', f.source); try { const url = new URL(f.url); if (['http:', 'https:'].includes(url.protocol)) { source = node('a', f.source + ' ↗'); source.href = url.href; source.target = '_blank'; source.rel = 'noopener noreferrer'; } } catch {} card.append(source); details.append(card); } article.append(details); } if (answer.programs && answer.programs.length) { const details = document.createElement('details'); details.open = true; details.append(node('summary', 'Official program guidance')); for (const p of answer.programs) { const card = node('div', '', 'fact'); const link = node('a', p.name + ' ↗'); try { const url = new URL(p.url); if (['http:', 'https:'].includes(url.protocol)) { link.href = url.href; link.target = '_blank'; link.rel = 'noopener noreferrer'; card.append(link); } else card.append(node('span', p.name)); } catch { card.append(node('span', p.name)); } details.append(card); } article.append(details); }  return article; }
+function basicAnswer(answer, name) { const article = document.createElement('article'); article.append(heading(answer, name)); for (const p of answer.text.split('\n\n')) article.append(node('p', p)); if (answer.facts.length) { const details = document.createElement('details'); details.open = true; details.append(node('summary', 'Figures & sources')); for (const f of answer.facts) { const card = node('div', '', 'fact'); card.append(node('b', f.label), node('p', f.value), node('small', `${f.year} · ${f.geography} · Uncertainty: ${uncertaintyLabels[f.uncertainty] || 'Uncertainty information unavailable'}`)); let source = node('span', f.source); try { const url = new URL(f.url); if (['http:', 'https:'].includes(url.protocol)) { source = node('a', f.source, 'ext'); source.href = url.href; source.target = '_blank'; source.rel = 'noopener noreferrer'; } } catch {} card.append(source); details.append(card); } article.append(details); } if (answer.programs && answer.programs.length) { const details = document.createElement('details'); details.open = true; details.append(node('summary', 'Official program guidance')); for (const p of answer.programs) { const card = node('div', '', 'fact'); const link = node('a', p.name, 'ext'); try { const url = new URL(p.url); if (['http:', 'https:'].includes(url.protocol)) { link.href = url.href; link.target = '_blank'; link.rel = 'noopener noreferrer'; card.append(link); } else card.append(node('span', p.name)); } catch { card.append(node('span', p.name)); } details.append(card); } article.append(details); }  return article; }
 
 function link(text, href) {
-  try { const url = new URL(href); if (['http:', 'https:'].includes(url.protocol)) { const a = node('a', text + ' ↗'); a.href = url.href; a.target = '_blank'; a.rel = 'noopener noreferrer'; return a; } } catch {}
+  try { const url = new URL(href); if (['http:', 'https:'].includes(url.protocol)) { const a = node('a', text, 'ext'); a.href = url.href; a.target = '_blank'; a.rel = 'noopener noreferrer'; return a; } } catch {}
   return node('span', text);
 }
 
@@ -267,7 +324,7 @@ function chartFigure(c) {
 }
 
 const ruler = document.createElement('canvas').getContext('2d');
-function ems(text, weight) { ruler.font = `${weight} 100px Inter, system-ui, sans-serif`; return ruler.measureText(text).width / 100; }
+function ems(text, weight) { ruler.font = `${weight} 100px "Public Sans", system-ui, sans-serif`; return ruler.measureText(text).width / 100; }
 
 // Big tile number after a small 'about' for estimates. --ems and --about are their widths in em, so the CSS can shrink long numbers to fit.
 function tileValue(text) {
@@ -277,7 +334,7 @@ function tileValue(text) {
     value.style.setProperty('--about', ems('about ', 600).toFixed(3));
   }
   value.append(num);
-  if (/\d/.test(figure)) num.style.setProperty('--ems', (ems(figure, 500) - 0.02 * figure.length).toFixed(3));
+  if (/\d/.test(figure)) num.style.setProperty('--ems', (ems(figure, 400) - 0.02 * figure.length).toFixed(3));
   else value.classList.add('none');
   return value;
 }
@@ -332,3 +389,30 @@ function renderAnswer(answer, name) {
   }
   return article;
 }
+
+// Facts line and source list, read from the data store. Without a store the page keeps its fallbacks.
+async function loadAbout() {
+  let data;
+  try { data = await api('/api/about'); } catch (err) {
+    // Say why there is no source list, for example that no data store has been built.
+    $('sources-missing').textContent = err.message;
+    return;
+  }
+  if (data.facts && data.facts.length) {
+    $('facts').textContent = data.facts.join(' · ') + '.';
+    $('facts').hidden = false;
+  }
+  if (data.sources && data.sources.length) {
+    const body = $('source-table').tBodies[0];
+    for (const s of data.sources) {
+      const row = document.createElement('tr'), name = document.createElement('td');
+      name.append(link(s.name, s.url));
+      row.append(name, node('td', s.publisher), node('td', s.years));
+      body.append(row);
+    }
+    $('source-wrap').hidden = false;
+    $('sources-missing').hidden = true;
+  }
+  if (data.crosscheck) { $('crosscheck').textContent = data.crosscheck; $('crosscheck').hidden = false; }
+}
+loadAbout();

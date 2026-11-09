@@ -19,6 +19,7 @@ from klear.agent.config import DEFAULT_MODEL
 from klear.agent.tools import Session
 from klear.config import ROOT, MissingSecretError, load_secret
 from klear.eval.contract import geo_key
+from klear.web.about import about
 from klear.web.assistant import DAILY_CAP, Assistant, DailyBudget, basic
 
 STORE = ROOT / "data" / "build" / "klear.duckdb"
@@ -29,10 +30,17 @@ PUBLIC = (
     "/app.js",
     "/style.css",
     "/background1.jpg",
+    "/logo.svg",
+    "/favicon.svg",
+    "/favicon.ico",
+    "/apple-touch-icon.png",
     "/map.js",
     "/districts.json",
-    "/fonts/inter.woff2",
-    "/fonts/inter-ext.woff2",
+    "/fonts/public-sans.woff2",
+    "/fonts/public-sans-ext.woff2",
+    "/shots/step-1.png",
+    "/shots/step-2.png",
+    "/shots/step-3.png",
 )
 BUSY = threading.BoundedSemaphore(3)
 PER_MINUTE = 6
@@ -78,7 +86,11 @@ def _district(con, text):
 
 
 class Handler(SimpleHTTPRequestHandler):
-    extensions_map = SimpleHTTPRequestHandler.extensions_map | {".woff2": "font/woff2"}
+    extensions_map = SimpleHTTPRequestHandler.extensions_map | {
+        ".woff2": "font/woff2",
+        ".svg": "image/svg+xml",
+        ".ico": "image/x-icon",
+    }
 
     def __init__(self, *args, store, assistant=None, **kwargs):
         self.store, self.assistant, self.status = store, assistant, 0
@@ -135,6 +147,23 @@ class Handler(SimpleHTTPRequestHandler):
                 return self.reply(
                     503,
                     {"error": "District lookup is unavailable. The operator needs to build the data store."},
+                )
+        if path.path == "/api/about":
+            if not self.store.is_file():
+                return self.reply(
+                    503,
+                    {
+                        "error": "No data store has been built yet. "
+                        "The source list and data checks appear here once it is built."
+                    },
+                )
+            try:
+                with self.connect() as con:
+                    return self.reply(200, about(con, self.store.parent / "validation.json"))
+            except Exception:  # noqa: BLE001 - redact internal errors at the HTTP boundary
+                return self.reply(
+                    503,
+                    {"error": "The source list is unavailable right now. Please try again later."},
                 )
         # Explicit allowlist: never serve the repository or keys.
         if path.path not in PUBLIC:
