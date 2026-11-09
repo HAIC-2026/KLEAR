@@ -322,3 +322,11 @@ def test_web_command_serves_real_store_and_assets(small_con, tmp_path):
             process.wait(timeout=10)
         process.stdout.close()
         reader.join(timeout=5)
+
+
+def test_web_server_starts_without_loading_the_model_sdk():
+    code = "import sys, klear.web.__main__; print('anthropic' in sys.modules)"
+    result = subprocess.run(
+        [sys.executable, "-c", code], cwd=config.ROOT, capture_output=True, text=True, check=True
+    )
+    assert result.stdout.strip() == "False"

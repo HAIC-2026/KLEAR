@@ -8,7 +8,6 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from klear.agent.config import DEFAULT_MODEL
-from klear.agent.loop import KlearAgent
 from klear.config import MissingSecretError
 from klear.eval.contract import VERSION, Answer, fill_value, geo_display, render
 from klear.eval.spend import load_prices, request_cost
@@ -122,10 +121,14 @@ class Assistant:
 
     def client(self):
         if self._client is None:
+            from klear.agent.loop import KlearAgent  # Import on first use to keep startup fast.
+
             self._client = KlearAgent(None, self.model).client
         return self._client
 
     def ask(self, con, question: str, district: tuple[str, str]) -> dict:
+        from klear.agent.loop import KlearAgent
+
         try:
             agent = KlearAgent(con, self.model, client=self.client())
             rid = self.budget.reserve(agent.max_call_cost(self.model, question, self.prices))
