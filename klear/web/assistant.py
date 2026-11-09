@@ -75,6 +75,7 @@ class DailyBudget:
 def _payload(con, answer, mode: str) -> dict:
     units = dict(con.execute("SELECT indicator_id, unit FROM indicator").fetchall())
     labels = dict(con.execute("SELECT indicator_id, label FROM indicator").fetchall())
+    month = display.build_month(con)
     facts = []
     for f in answer.facts:
         source = con.execute("SELECT name, url FROM source WHERE source_id = ?", [f.source_id]).fetchone()
@@ -89,7 +90,7 @@ def _payload(con, answer, mode: str) -> dict:
             {
                 "label": labels.get(f.indicator_id, f.indicator_id),
                 "value": fill_value(f, units.get(f.indicator_id, "count")),
-                "year": f.vintage,
+                "year": display.year_text(f.vintage, month),
                 "source": source[0] if source else f.source_id,
                 "url": source[1] if source else "",
                 "geography": geo_display(f.geo_type, f.geo_id, place[0] if place else f.geo_id),

@@ -1,6 +1,8 @@
 """Website answers show a plain lead, number tiles, comparison charts and one source list."""
 
+from klear.config import CURRENT_LAYER
 from klear.eval.contract import Answer, FactRef
+from klear.store.db import add_source
 from klear.web.display import build
 
 
@@ -59,3 +61,27 @@ def test_lead_drops_inline_vintages(small_con):
     f = fact("f1", "022", 1000.0, 100.0)
     out = build(small_con, answer([f], ["* {label:f1}: {fact:f1} ({vintage:f1})"]))
     assert out["lead"] == ["* Population 65 years and over: 1,000"]
+
+
+def test_district_total_against_the_state_reads_as_a_share(small_con):
+    state = FactRef("f2", "pop_65_plus", "state", "15", "acs", 50000.0, None, None, 500.0, "2020-2024")
+    (chart,) = build(small_con, answer([fact("f1", "022", 1000.0, 100.0), state], ["Kūpuna here."]))["charts"]
+    assert chart["tag"] == "2.0% of Hawaiʻi" and chart["lower"] is False
+
+
+def test_layers_downloaded_by_the_build_read_as_a_current_list(small_con):
+    add_source(
+        small_con,
+        "lihtc",
+        "Low-Income Housing Tax Credit projects",
+        "HUD",
+        "https://example.org",
+        CURRENT_LAYER,
+        "pd",
+    )
+    f = FactRef("f1", "sites_lihtc", "house", "022", "lihtc", 3.0, None, None, None, CURRENT_LAYER)
+    assert build(small_con, answer([f], ["x"]))["sources"][0]["year"] == "Current list"
+    small_con.execute(
+        "INSERT INTO build_info VALUES ('2026-10-30 19:39:09 HST (2026-10-31T05:39:09Z UTC)', 'x', 0, 'ok', '[]', '{}')"
+    )
+    assert build(small_con, answer([f], ["x"]))["sources"][0]["year"] == "Current list as of October 2026"

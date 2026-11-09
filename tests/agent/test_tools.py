@@ -237,6 +237,7 @@ def test_county_and_island_names_resolve_to_counties(small):
     assert ("county", "15003") in small.resolved
     assert call(small, "resolve_place", text="Maui")["matches"][0]["geo"] == "county:15009"
     assert call(small, "resolve_place", text="Kalawao")["matches"][0]["geo"] == "county:15005"
+    assert [m["geo"] for m in call(small, "resolve_place", text="Kalaupapa")["matches"]] == ["county:15005"]
 
 
 def test_whole_word_place_match(session):

@@ -3,6 +3,8 @@
 import json
 import os
 import queue
+import re
+import socket
 import subprocess
 import sys
 import threading
@@ -21,7 +23,7 @@ from tests.eval.conftest import _home  # noqa: F401
 @pytest.fixture
 def endpoint(small_con, tmp_path):
     small_con.close()
-    server = ThreadingHTTPServer(("127.0.0.1", 0), partial(web.Handler, store=tmp_path / "small.duckdb"))
+    server = web.Server(("127.0.0.1", 0), partial(web.Handler, store=tmp_path / "small.duckdb"))
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     yield server.server_port
@@ -39,6 +41,15 @@ def request(port, method, path, body=None, headers=None):
     return response.status, data
 
 
+def get(port, path):
+    con = HTTPConnection("127.0.0.1", port)
+    con.request("GET", path)
+    response = con.getresponse()
+    data = response.read()
+    con.close()
+    return response.status, data, response.headers
+
+
 def chat(port, question, district="house:022"):
     status, data = request(
         port, "POST", "/api/chat", json.dumps({"question": question, "district": district})
@@ -53,6 +64,46 @@ def test_lookup_and_private_files(endpoint):
     for path in ["/../pyproject.toml", "/.env", "/data/build/klear.duckdb"]:
         assert request(endpoint, "GET", path)[0] == 404
     assert request(endpoint, "GET", "/background1.jpg")[0] == 200
+
+
+def test_public_files_and_cache_policy(endpoint):
+    for path in web.PUBLIC:
+        assert get(endpoint, path)[0] == 200, path
+    _, body, headers = get(endpoint, "/fonts/inter.woff2")
+    assert body[:4] == b"wOF2" and headers["Content-Type"] == "font/woff2"
+    assert headers["Cache-Control"] == "public, max-age=604800"
+    assert get(endpoint, "/")[2]["Cache-Control"] == "no-cache"
+    for path in ["/api/resolve?q=House%2022", "/.env"]:
+        assert get(endpoint, path)[2]["Cache-Control"] == "no-store"
+    con = HTTPConnection("127.0.0.1", endpoint)
+    con.request("POST", "/api/chat", "[]")
+    response = con.getresponse()
+    response.read()
+    con.close()
+    assert response.status == 400 and response.headers["Cache-Control"] == "no-store"
+
+
+def test_missing_public_file_is_not_cached(endpoint, monkeypatch, tmp_path):
+    monkeypatch.setattr(web, "STATIC", tmp_path)
+    status, _, headers = get(endpoint, "/fonts/inter.woff2")
+    assert status == 404 and headers["Cache-Control"] == "no-store"
+
+
+def test_malformed_requests_get_error_pages(endpoint):
+    for line in [b"GET / XTTP/1.1", b"HELLO", b"BREW / HTTP/1.1"]:
+        with socket.create_connection(("127.0.0.1", endpoint), timeout=10) as sock:
+            sock.sendall(line + b"\r\n\r\n")
+            reply = b"".join(iter(lambda s=sock: s.recv(65536), b""))
+        assert re.search(rb"Error code: (400|501)", reply), line
+    assert b"Cache-Control: no-store" in reply
+
+
+def test_page_assets_are_public():
+    css = (web.STATIC / "style.css").read_text(encoding="utf-8")
+    html = (web.STATIC / "index.html").read_text(encoding="utf-8")
+    refs = re.findall(r"url\(['\"]?(/[^)'\"]+)", css) + re.findall(r'(?:src|href)="(/[^"#]*)"', html)
+    assert "/fonts/inter-ext.woff2" in refs
+    assert set(refs) <= set(web.PUBLIC)
 
 
 def test_validation_and_cross_origin(endpoint):
@@ -147,6 +198,18 @@ def test_server_can_restart_after_serving_a_request(tmp_path):
         assert restarted.server_port == port
 
 
+def test_server_start_does_not_look_up_host_names(monkeypatch):
+    def lookup(*args):
+        raise AssertionError("reverse DNS lookups can stall startup")
+
+    monkeypatch.setattr(socket, "getfqdn", lookup)
+    server = web.Server(("127.0.0.1", 0), web.Handler)
+    try:
+        assert server.server_name == "127.0.0.1" and server.server_port > 0
+    finally:
+        server.server_close()
+
+
 def test_web_command_serves_real_store_and_assets(small_con, tmp_path):
     small_con.close()
     # Cover store paths containing spaces on both platforms.
@@ -171,10 +234,16 @@ def test_web_command_serves_real_store_and_assets(small_con, tmp_path):
     reader = threading.Thread(target=read_startup, daemon=True)
     reader.start()
     try:
-        line = startup.get(timeout=30)
+        try:
+            line = startup.get(timeout=30)
+        except queue.Empty:
+            process.kill()
+            pytest.fail(
+                "klear.web printed nothing within 30 s. Its output: " + repr(process.communicate()[0])
+            )
         assert line.startswith("KLEAR: http://127.0.0.1:"), line
         port = urlsplit(line.split()[1]).port
-        for path in ["/", "/app.js", "/style.css", "/background1.jpg", "/fonts/google-sans-latin.woff2"]:
+        for path in ["/", "/app.js", "/map.js", "/style.css", "/background1.jpg", "/fonts/inter.woff2"]:
             assert request(port, "GET", path)[0] == 200
         assert request(port, "GET", "/.env")[0] == 404
         status, resolved = request(port, "GET", "/api/resolve?q=House%2022")

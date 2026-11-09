@@ -6,6 +6,7 @@ import re
 from klear.agent.tools import Session
 from klear.eval.contract import geo_display
 from klear.rules.registry import load_rules
+from klear.web.display import build_month, year_text
 
 PERSONAL = re.compile(
     r"\b(?:a specific person|an individual|named resident|home address|phone number|personal information|who lives at|identify a resident|my neighbor|specific resident)\b",
@@ -36,37 +37,96 @@ STOP = {
     "there",
     "people",
     "residents",
+    "a",
+    "an",
+    "is",
+    "of",
+    "in",
+    "on",
+    "to",
+    "at",
+    "by",
+    "or",
+    "as",
+    "it",
+    "be",
+    "do",
+    "i",
+    "me",
+    "my",
+    "we",
+    "you",
+    "your",
+    "can",
+    "will",
+    "who",
+    "when",
+    "where",
+    "why",
+    "which",
+    "tell",
+    "give",
+    "show",
+    "write",
+    "please",
+    "any",
+    "some",
+    "each",
+    "more",
+    "less",
+    "than",
+    "much",
+    "very",
+    "not",
+    "one",
+    "last",
+    "live",
+    "lives",
+    "get",
+    "good",
+    "year",
+    "time",
 }
+# Words that name a kind of measure rather than a topic, so they never match a label on their own.
+GENERIC = {"rate", "rates", "percent", "percentage", "share", "number", "total", "count", "median", "average"}
+
+
+def _has(q, *stems):
+    """Whether any word in q starts with one of the stems."""
+    return any(re.search(r"\b" + re.escape(stem), q) for stem in stems)
 
 
 def indicators(con, question):
+    """Up to three indicator ids for a question: topic keywords first, then words shared with labels."""
     q = question.casefold()
-    if "profile" in q or "socioeconomic" in q or "overview" in q:
+    if _has(q, "profile", "socioeconomic", "overview"):
         return ["pop_total", "median_household_income", "pct_people_poverty", "pct_65_plus"]
-    if "kūpuna" in q or "kupuna" in q or "senior" in q or "older adult" in q or "65" in q:
+    if _has(q, "kūpuna", "kupuna", "senior", "older adult", "65"):
         return ["pop_65_plus", "pct_65_plus", "pct_65_plus_poverty"]
-    if "poverty" in q or "low income" in q:
+    if _has(q, "poverty", "low income"):
         return ["pct_people_poverty", "pct_children_poverty", "pct_65_plus_poverty"]
-    if "housing" in q or "rent" in q or "cost burden" in q:
+    if _has(q, "housing", "rent", "cost burden"):
         return ["median_gross_rent", "pct_rent_burden_35_plus", "pct_owner_cost_burden_35_plus"]
-    if "income" in q or "wage" in q or "earn" in q:
+    if _has(q, "income", "wage", "earn"):
         return ["median_household_income", "per_capita_income", "pct_people_poverty"]
-    if "unemploy" in q or "jobs" in q or "work" in q:
+    if _has(q, "unemploy", "jobs", "work"):
         return ["unemployment_rate", "pct_in_labor_force", "pct_work_from_home"]
-    if "health" in q or "uninsured" in q or "disabil" in q:
+    if _has(q, "health", "uninsured", "disabil"):
         return ["pct_uninsured", "pct_disability", "pct_public_coverage"]
-    if "child" in q or "keiki" in q or "young" in q:
+    if _has(q, "child", "keiki", "young"):
         return ["pop_under_18", "pct_children_poverty", "pct_hh_with_children"]
-    if "population" in q or "people" in q or "residents" in q:
+    if _has(q, "population", "people", "residents"):
         return ["pop_total", "pop_under_18", "pop_65_plus"]
     terms = set(WORDS.findall(q)) - STOP
-    if not terms:
+    if not terms - GENERIC:
         return []
     rows = con.execute("SELECT indicator_id, label FROM indicator ORDER BY indicator_id").fetchall()
-    ranked = sorted(
-        ((len(terms & set(WORDS.findall(label.casefold()))), key) for key, label in rows), reverse=True
-    )
-    return [key for score, key in ranked if score > 0][:3]
+    ranked = []
+    for key, label in rows:
+        shared = terms & set(WORDS.findall(label.casefold()))
+        if shared - GENERIC:
+            ranked.append((len(shared), key))
+    return [key for _, key in sorted(ranked, reverse=True)[:3]]
 
 
 def ask(con, question, district):
@@ -116,7 +176,7 @@ def ask(con, question, district):
     result = json.loads(session.run("get_facts", {"indicator_ids": ids, "geos": geos}))
     if "error" in result:
         raise ValueError("Could not read district facts")
-    facts = []
+    facts, month = [], build_month(con)
     for fact in result["facts"]:
         if len(facts) >= 8:
             break
@@ -128,7 +188,7 @@ def ask(con, question, district):
             {
                 "label": fact["label"],
                 "value": fact["value_text"],
-                "year": fact["vintage"],
+                "year": year_text(fact["vintage"], month),
                 "source": row[0],
                 "url": row[1],
                 "geography": fact["geo_name"],

@@ -84,11 +84,15 @@ def _check_fpg(rule: Rule, fetch_text, details: list[dict]) -> int:
 
 
 def _check_hud(rule: Rule, details: list[dict]) -> int:
-    ws = openpyxl.load_workbook(manual_file(HUD_FILE, HUD_URL), read_only=True, data_only=True).active
-    rows = ws.iter_rows(values_only=True)
-    header = [str(h).strip().lower() if h is not None else "" for h in next(rows)]
-    ci = {h: i for i, h in enumerate(header)}
-    table = [r for r in rows if str(r[ci["state_alpha"]]).strip() == "HI"]
+    # A read-only workbook keeps its file open until closed, which blocks deleting it on Windows.
+    wb = openpyxl.load_workbook(manual_file(HUD_FILE, HUD_URL), read_only=True, data_only=True)
+    try:
+        rows = wb.active.iter_rows(values_only=True)
+        header = [str(h).strip().lower() if h is not None else "" for h in next(rows)]
+        ci = {h: i for i, h in enumerate(header)}
+        table = [r for r in rows if str(r[ci["state_alpha"]]).strip() == "HI"]
+    finally:
+        wb.close()
     n = 0
     for county in HUD_COUNTIES:
         row = next((r for r in table if str(r[ci["county_name"]]).startswith(county)), None)
