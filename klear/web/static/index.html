@@ -6,6 +6,7 @@
   <meta name="theme-color" content="#f4f2e9">
   <meta name="description" content="Explore Hawaiʻi legislative districts through sourced public data, clear uncertainty, and plain-language answers.">
   <title>KLEAR — A closer look at every district</title>
+  <link rel="preload" href="/fonts/inter.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/style.css">
   <script src="/app.js" defer></script>
   <script src="/map.js" defer></script>
@@ -14,64 +15,51 @@
   <a class="skip" href="#main">Skip to content</a>
   <header class="site-header">
     <a class="brand" href="/" aria-label="KLEAR home"><span class="brand-mark" aria-hidden="true">✳</span><span>KLEAR<small>KNOW YOUR DISTRICT</small></span></a>
-    <nav aria-label="Main navigation"><a href="#about">About</a><a href="#sources">Data &amp; sources</a><a class="nav-action" href="#district-search">Explore a district <span aria-hidden="true">↗</span></a></nav>
+    <nav aria-label="Main navigation"><a href="#district-map">Map</a><a href="#sources">Data &amp; sources</a><a class="nav-action" href="#chat-card">Ask KLEAR <span aria-hidden="true">↗</span></a></nav>
   </header>
   <main id="main">
-    <section id="landing">
-      <div class="hero">
-        <div class="hero-content">
-          <p class="overline hero-overline"><span class="line"></span> HAWAIʻI, IN FOCUS</p>
-          <h1>Every district<br>has a story.<br><em>Know yours.</em></h1>
-          <p>See the people, places, and needs behind Hawaiʻi’s legislative districts—with evidence you can follow.</p>
-          <a class="hero-link" href="#district-search">Find your district <span aria-hidden="true">↗</span></a>
-        </div>
-        <div class="hero-caption">HAWAIʻI / KNOW YOUR DISTRICT <span>01 — 76 DISTRICTS</span></div>
+    <div class="hero">
+      <div class="hero-content">
+        <p class="overline hero-overline"><span class="line"></span> HAWAIʻI, IN FOCUS</p>
+        <h1>Every district<br>has a story.<br><em>Know yours.</em></h1>
+        <p>See the people, places, and needs behind Hawaiʻi’s legislative districts—with evidence you can follow.</p>
+        <a class="hero-link" href="#chat-card">Ask KLEAR <span aria-hidden="true">↗</span></a>
       </div>
-      <div class="intro-band" id="about">
-        <p class="overline dark-overline">WHAT IS KLEAR?</p>
-        <div><h2>Local insight,<br><em>grounded in evidence.</em></h2><p>KLEAR is a public-data assistant for Hawaiʻi’s legislators, legislative staff, and economists. Ask about a district’s residents, housing, income, and existing support programs. Every figure is tied to a source, year, and its uncertainty.</p></div>
+      <div class="hero-caption">HAWAIʻI / KNOW YOUR DISTRICT <span>01 — 76 DISTRICTS</span></div>
+    </div>
+    <section class="chat-section" id="chat" aria-labelledby="chat-title">
+      <div class="chat-heading" id="about"><p class="overline">01 / ASK KLEAR</p><h2 id="chat-title">Ask about any district. <em>Follow every number.</em></h2><p>KLEAR is a public-data assistant for Hawaiʻi’s legislators, legislative staff, and economists. Ask about a district’s residents, housing, income, and support programs. Every figure comes with its source, year, and uncertainty.</p></div>
+      <div class="chat-layout">
+        <div class="chat-card" id="chat-card">
+          <div class="district-bar" id="district-bar">
+            <div class="district-now" id="district-now" hidden><div><span class="overline">ASKING ABOUT</span><strong id="district-title"></strong></div><button type="button" id="change" class="textbutton" aria-expanded="false" aria-controls="lookup">Change district</button></div>
+            <form id="lookup"><label for="place">WHICH DISTRICT? ENTER A DISTRICT, TOWN, OR ZIP CODE</label><div class="inputrow"><input id="place" required maxlength="160" placeholder="e.g. Kāneʻohe or 96744" autocomplete="off"><button type="submit">Find district <span aria-hidden="true">↗</span></button></div><p class="help">A town or ZIP may span more than one district. We’ll show you the choices. <a href="#district-map">Or find it on the map ↓</a></p><p id="lookup-status" class="status" role="status"></p><div id="matches"></div></form>
+          </div>
+          <div id="messages" role="log" aria-label="Questions and answers" aria-live="polite"><div class="welcome"><span aria-hidden="true">✳</span><p>Hi, I’m KLEAR. Pick a district above, then ask me about its residents, housing, income, or support programs. I answer only from public data, and every figure shows its source, year, and uncertainty.</p></div></div>
+          <form id="question-form"><label for="question">YOUR QUESTION</label><div class="question-row"><textarea id="question" rows="3" required maxlength="2000" placeholder="Ask about residents, housing, income, or available programs…"></textarea><button id="send" type="submit">Ask KLEAR <span aria-hidden="true">↗</span></button></div></form>
+          <p id="chat-status" class="status" role="status"></p>
+        </div>
+        <aside class="chat-aside"><p class="overline">NEED A STARTING POINT?</p><div id="examples" class="examples"></div><div class="aside-note"><span aria-hidden="true">✳</span><p>Answers describe communities, not individuals. KLEAR declines personal and partisan requests.</p></div></aside>
       </div>
-      <section class="discover" aria-labelledby="discover-title">
-        <div class="discover-heading"><p class="overline">DISCOVER YOUR DISTRICT</p><h2 id="discover-title">Begin with what matters<br><em>to your community.</em></h2></div>
-        <div class="topic-grid">
-          <button class="topic" type="button" data-question="Give me a socioeconomic profile of this district."><span>01 / PEOPLE</span><strong>Who lives here?</strong><small>Age, income, and the community at a glance</small><i aria-hidden="true">↗</i></button>
-          <button class="topic" type="button" data-question="What does the data say about housing needs in this district?"><span>02 / HOUSING</span><strong>What pressures do residents face?</strong><small>Housing costs and local needs</small><i aria-hidden="true">↗</i></button>
-          <button class="topic" type="button" data-question="What support programs could residents of this district explore?"><span>03 / SUPPORT</span><strong>What help is available?</strong><small>Existing programs worth exploring</small><i aria-hidden="true">↗</i></button>
-        </div>
-      </section>
-      <section class="search-section" id="district-search" aria-labelledby="search-title">
-        <div class="search-heading"><p class="overline">01 / EXPLORE</p><h2 id="search-title">Start with a place.</h2><p>Choose a district, or find one through a community you know.</p></div>
-        <div class="search-card">
-          <form id="lookup"><label for="place">DISTRICT, TOWN, OR ZIP CODE</label><div class="inputrow"><input id="place" required maxlength="160" placeholder="e.g. House 22, Kāneʻohe, 96744" autocomplete="off"><button type="submit">Find district <span aria-hidden="true">↗</span></button></div></form>
-          <p class="help">A town or ZIP may span more than one district. We’ll show you the choices.</p>
-          <p id="lookup-status" class="status" role="status"></p><div id="matches" class="matches"></div>
-        </div>
-      </section>
-      <section class="map-section" id="district-map" aria-labelledby="map-title">
-        <div class="map-heading"><p class="overline">01 / EXPLORE BY MAP</p><h2 id="map-title">Not sure of your district?<br><em>Find it on the map.</em></h2><p>Pick an island or zoom in to the area you know, then tap your district. District lines are the 2022 boundaries in use today.</p></div>
-        <div class="map-card">
-          <form class="zip-form" id="zip-form" novalidate><label for="zip">FIND BY ZIP CODE</label><div class="inputrow"><input id="zip" inputmode="numeric" maxlength="5" placeholder="e.g. 96744" autocomplete="postal-code"><button type="submit">Show on map <span aria-hidden="true">↗</span></button></div><p id="zip-status" class="status" role="status"></p><div id="zip-matches" class="matches"></div></form>
-          <div class="map-controls">
-            <div class="segmented" role="group" aria-label="Chamber"><button type="button" data-chamber="house" aria-pressed="true">House</button><button type="button" data-chamber="senate" aria-pressed="false">Senate</button></div>
-            <div class="island-tabs" id="island-tabs" role="group" aria-label="Zoom to island"></div>
-          </div>
-          <div class="map-frame"><svg id="map" role="img" aria-labelledby="map-title" preserveAspectRatio="xMidYMid meet"></svg><p id="map-loading" class="map-loading">Loading map…</p><div class="zoom-buttons"><button type="button" id="zoom-in" aria-label="Zoom in">+</button><button type="button" id="zoom-out" aria-label="Zoom out">−</button></div><p id="map-hint" class="map-hint" hidden>Pinch, or hold Ctrl while scrolling, to zoom</p></div>
-          <div class="map-footer">
-            <div class="map-pick" aria-live="polite"><span class="overline" id="pick-island">SELECT A DISTRICT</span><strong id="pick-name">Tap an area on the map</strong></div>
-            <button type="button" id="pick-go" class="map-go" disabled>Explore this district <span aria-hidden="true">↗</span></button>
-          </div>
-          <label for="map-list" class="map-list-label">OR CHOOSE FROM A LIST</label>
-          <select id="map-list"><option value="">Choose a district…</option></select>
-        </div>
-      </section>
-      <div class="editorial-row"><div class="row-number">01</div><div><h3>Ask in your own words.</h3><p>Get a clear district answer without digging through separate datasets.</p></div><div class="row-number">02</div><div><h3>See the evidence.</h3><p>Figures include their year, source, and margin of error or estimated range.</p></div><div class="row-number">03</div><div><h3>Serve with care.</h3><p>Public, aggregated data helps guide outreach while protecting individuals.</p></div></div>
     </section>
-    <section id="chat" hidden aria-labelledby="district-title">
-      <div class="chat-head"><button id="change" class="textbutton">← Choose another district</button><span class="overline">KLEAR / DISTRICT EXPLORER</span></div>
-      <div class="chat-intro"><div><p class="overline">YOUR DISTRICT</p><h1 id="district-title"></h1><p>What would you like to know about this community?</p></div><div class="chat-seal" aria-hidden="true">K<span>✳</span></div></div>
-      <div class="chat-layout"><div class="chat-main"><div id="messages" role="log" aria-label="Questions and answers" aria-live="polite"></div><form id="question-form"><label for="question">YOUR QUESTION</label><div class="question-row"><textarea id="question" rows="3" required maxlength="2000" placeholder="Ask about residents, housing, income, or available programs…"></textarea><button id="send" type="submit">Ask KLEAR <span aria-hidden="true">↗</span></button></div></form><p id="chat-status" class="status" role="status"></p></div><aside class="chat-aside"><p class="overline">NEED A STARTING POINT?</p><div id="examples" class="examples"></div><div class="aside-note"><span aria-hidden="true">✳</span><p>Answers describe communities, not individuals. KLEAR declines personal and partisan requests.</p></div></aside></div>
+    <section class="map-section" id="district-map" aria-labelledby="map-title">
+      <div class="map-heading"><p class="overline">02 / FIND IT ON THE MAP</p><h2 id="map-title">Not sure of your district? <em>Find it on the map.</em></h2><p>Pick an island or zoom in to the area you know, then tap your district and ask about it. District lines are the 2022 boundaries in use today.</p></div>
+      <div class="map-card">
+        <form class="zip-form" id="zip-form" novalidate><label for="zip">FIND BY ZIP CODE</label><div class="inputrow"><input id="zip" inputmode="numeric" maxlength="5" placeholder="e.g. 96744" autocomplete="postal-code"><button type="submit">Show on map <span aria-hidden="true">↗</span></button></div><p id="zip-status" class="status" role="status"></p><div id="zip-matches" class="chips"></div></form>
+        <div class="map-controls">
+          <div class="segmented" role="group" aria-label="Chamber"><button type="button" data-chamber="house" aria-pressed="true">House</button><button type="button" data-chamber="senate" aria-pressed="false">Senate</button></div>
+          <div class="island-tabs" id="island-tabs" role="group" aria-label="Zoom to island"></div>
+        </div>
+        <div class="map-frame"><svg id="map" role="group" tabindex="-1" aria-labelledby="map-title" aria-describedby="map-keys" preserveAspectRatio="xMidYMid meet"></svg><p id="map-keys" hidden>Arrow keys move between districts. Enter picks one, and Enter again asks about it.</p><p id="map-loading" class="map-loading">Loading map…</p><div class="zoom-buttons"><button type="button" id="zoom-in" aria-label="Zoom in">+</button><button type="button" id="zoom-out" aria-label="Zoom out">−</button></div><p id="map-hint" class="map-hint" hidden>Pinch, or hold Ctrl while scrolling, to zoom</p></div>
+        <div class="map-footer">
+          <div class="map-pick" aria-live="polite"><span class="overline" id="pick-island">SELECT A DISTRICT</span><strong id="pick-name">Tap an area on the map</strong></div>
+          <button type="button" id="pick-go" class="map-go" disabled>Ask about this district <span aria-hidden="true">↗</span></button>
+        </div>
+        <label for="map-list" class="map-list-label">OR CHOOSE FROM A LIST</label>
+        <select id="map-list"><option value="">Choose a district…</option></select>
+      </div>
     </section>
-    <section class="sources" id="sources"><p class="overline">02 / THE EVIDENCE</p><div class="sources-grid"><h2>Good questions deserve<br><em>traceable answers.</em></h2><div><p>KLEAR draws on the U.S. Census and ACS, Hawaiʻi DBEDT, IRS, HUD, CMS, CDC PLACES, HRSA, and published program rules. Data years and district coverage vary by measure.</p><p>Where ZIP or tract data is estimated for a district, KLEAR shows a range. Missing data stays missing.</p><a href="#district-search">Explore a district <span aria-hidden="true">↗</span></a></div></div></section>
+    <section class="sources" id="sources"><p class="overline">03 / THE EVIDENCE</p><div class="sources-grid"><h2>Good questions deserve <em>traceable answers.</em></h2><div><p>KLEAR draws on the U.S. Census and ACS, Hawaiʻi DBEDT, IRS, HUD, CMS, CDC PLACES, HRSA, and published program rules. Data years and district coverage vary by measure.</p><p>Where ZIP or tract data is estimated for a district, KLEAR shows a range. Missing data stays missing.</p><a href="#chat-card">Ask KLEAR <span aria-hidden="true">↗</span></a></div></div></section>
   </main>
   <footer><div class="brand footer-brand"><span class="brand-mark" aria-hidden="true">✳</span><span>KLEAR<small>KNOW YOUR DISTRICT</small></span></div><p>Public evidence for Hawaiʻi’s communities.</p><span>HAIC 2026 · MADE FOR HAWAIʻI</span></footer>
 </body>

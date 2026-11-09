@@ -30,8 +30,8 @@ PUBLIC = (
     "/background1.jpg",
     "/map.js",
     "/districts.json",
-    "/fonts/google-sans-latin.woff2",
-    "/fonts/google-sans-latin-ext.woff2",
+    "/fonts/inter.woff2",
+    "/fonts/inter-ext.woff2",
 )
 BUSY = threading.BoundedSemaphore(3)
 PER_MINUTE = 6
@@ -78,11 +78,15 @@ class Handler(SimpleHTTPRequestHandler):
     extensions_map = SimpleHTTPRequestHandler.extensions_map | {".woff2": "font/woff2"}
 
     def __init__(self, *args, store, assistant=None, **kwargs):
-        self.store, self.assistant = store, assistant
+        self.store, self.assistant, self.status = store, assistant, 0
         super().__init__(*args, directory=str(STATIC), **kwargs)
 
     def log_message(self, *args):
         pass  # Do not log questions, URLs or credentials.
+
+    def send_response(self, code, message=None):
+        self.status = code
+        super().send_response(code, message)
 
     def end_headers(self):
         self.send_header(
@@ -90,8 +94,16 @@ class Handler(SimpleHTTPRequestHandler):
             "default-src 'self'; style-src 'self'; script-src 'self'; frame-ancestors 'none'",
         )
         self.send_header("X-Content-Type-Options", "nosniff")
-        self.send_header("Cache-Control", "no-store")
+        self.send_header("Cache-Control", self.cache_policy())
         super().end_headers()
+
+    def cache_policy(self):
+        """Never store answers or errors, revalidate pages, and keep fonts for a week."""
+        # A malformed request line fails before http.server sets the path.
+        path = urlsplit(getattr(self, "path", "")).path
+        if self.status >= 400 or getattr(self, "command", None) not in ("GET", "HEAD") or path not in PUBLIC:
+            return "no-store"
+        return "public, max-age=604800" if path.startswith("/fonts/") else "no-cache"
 
     def reply(self, status, payload):
         body = json.dumps(payload, ensure_ascii=False, allow_nan=False).encode()
