@@ -8,6 +8,8 @@ RAW_DIR = ROOT / "data" / "raw"
 BUILD_DIR = ROOT / "data" / "build"
 PROJECT_ENV_FILE = ROOT / ".env"
 ENV_FILE = Path.home() / ".config" / "klear" / "env"
+# Vintage of source layers that have no edition and are downloaded fresh by each data build.
+CURRENT_LAYER = "Current layer as retrieved by this build"
 
 
 class MissingSecretError(Exception):

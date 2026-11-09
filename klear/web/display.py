@@ -1,8 +1,10 @@
 """Turns an agent answer into a short lead, number tiles, comparison charts and a source list for the website."""
 
 import re
+from datetime import datetime
 
 from klear.agent.answer import actual_direction
+from klear.config import CURRENT_LAYER
 from klear.eval.contract import MARKER, _has, _number, geo_display, geo_key, short_name
 
 MAX_TILES = 6
@@ -24,6 +26,10 @@ class _Store:
         self.sources = {
             r[0]: (r[1], r[2]) for r in con.execute("SELECT source_id, name, url FROM source").fetchall()
         }
+        self.additive = {
+            r[0] for r in con.execute("SELECT indicator_id FROM indicator WHERE additive").fetchall()
+        }
+        self.month = build_month(con)
 
     def place(self, geo_type: str, geo_id: str) -> str:
         row = self.con.execute(
@@ -37,7 +43,36 @@ class _Store:
     def vintage(self, f) -> str:
         name = self.sources.get(f.source_id, (f.source_id, ""))[0]
         short = short_name(name)
-        return f.vintage if short.casefold() in f.vintage.casefold() else f"{f.vintage} {short}"
+        year = year_text(f.vintage, self.month)
+        return year if short.casefold() in year.casefold() else f"{year} {short}"
+
+
+def build_month(con) -> str:
+    """Month the store was built, like 'October 2026', or '' when the store does not record it."""
+    row = con.execute("SELECT built_at FROM build_info").fetchone()
+    return f"{datetime.strptime(row[0][:10], '%Y-%m-%d'):%B %Y}" if row else ""
+
+
+def year_text(vintage: str, month: str) -> str:
+    """Reader text for a vintage. Layers that each build downloads fresh read as a current list."""
+    if vintage != CURRENT_LAYER:
+        return vintage
+    return f"Current list as of {month}" if month else "Current list"
+
+
+def _share(facts, home, store: _Store) -> str:
+    """The district's share, like '1.9%', when a total is set against the whole state, else ''."""
+    here, other = facts
+    if (
+        (here.geo_type, here.geo_id) != home
+        or other.geo_type != "state"
+        or here.indicator_id not in store.additive
+    ):
+        return ""
+    if not _has(here.value) or not _has(other.value) or other.value <= 0:
+        return ""
+    part = here.value / other.value
+    return "<0.1%" if 0 < part < 0.001 else f"{part:.1%}"
 
 
 def _plain(f, unit: str) -> str:
@@ -107,7 +142,11 @@ def charts(answer, store: _Store) -> tuple[list[dict], set[str]]:
             "bars": [_bar(f, store) for f in facts],
             "tag": "",
         }
-        if len(facts) == 2 and (way := actual_direction(facts[0], facts[1])):
+        # A district's total is always below the state's, so name its share instead of a direction.
+        if len(facts) == 2 and (share := _share(facts, home, store)):
+            chart["tag"] = f"{share} of {chart['bars'][1]['geography']}"
+            chart["lower"] = False
+        elif len(facts) == 2 and (way := actual_direction(facts[0], facts[1])):
             chart["tag"] = TAGS[way].format(other=chart["bars"][1]["geography"])
             chart["lower"] = way != "within_margin"
         out.append(chart)
@@ -140,7 +179,7 @@ def sources(answer, store: _Store) -> list[dict]:
         name, url = store.sources.get(f.source_id, (f.source_id, ""))
         if (name, f.vintage) not in seen:
             seen.add((name, f.vintage))
-            out.append({"name": name, "url": url, "year": f.vintage})
+            out.append({"name": name, "url": url, "year": year_text(f.vintage, store.month)})
     return out
 
 

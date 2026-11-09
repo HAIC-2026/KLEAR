@@ -72,7 +72,7 @@ REQUIRED_RULES = REQUIRED_RULE_IDS
 HUD_RULE = "hud_il_fy2026_hi"
 LICENSE = "Public domain, U.S. Government work"
 HUD_PUBLISHER = "U.S. Department of Housing and Urban Development"
-CURRENT = "Current layer as retrieved by this build"
+CURRENT = config.CURRENT_LAYER
 # source_id: name, publisher, url, vintage
 SOURCES = {
     irs.SOURCE_ID: (
