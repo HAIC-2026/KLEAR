@@ -217,6 +217,8 @@
     if (dragged) settleSoon(120);
   }
   svg.addEventListener('pointerup', endPointer);
+  // A drag captures the pointer, so a district may miss its pointerleave; leaving the map always clears the outline.
+  svg.addEventListener('pointerleave', () => showHover(null));
   svg.addEventListener('pointercancel', endPointer);
   // A drag ends with a click on whatever district is under the finger; ignore it.
   svg.addEventListener('click', e => { if (dragged) { e.stopPropagation(); dragged = false; } }, true);
@@ -234,6 +236,7 @@
   function pick(row) {
     picked = row;
     for (const p of svg.querySelectorAll('[data-geo]')) p.classList.toggle('picked', Boolean(row) && p.dataset.geo === row.geo);
+    for (const d of districts) d.path.setAttribute('aria-pressed', String(d.row === row));
     document.getElementById('pick-name').textContent = row ? row.name : 'Tap an area on the map';
     document.getElementById('pick-island').textContent = row ? row.islands : 'No district picked yet';
     go.disabled = !row;
@@ -276,15 +279,36 @@
     if (shown(next) < 0.99 || Math.min(r.width, r.height) < 16) zoom(next.row.group);
   }
 
+  // The keyboard focus ring and the mouse hover outline are drawn over every district, so neighbors drawn later never
+  // cover half of them. The focus ring is a white halo under a dark line, which shows on light and dark fills alike;
+  // the hover outline is a thinner dark line, so the two never look the same.
+  const hoverLine = el('path', {class: 'hover-line'}), focusRing = [el('path', {class: 'ring-halo'}), el('path', {class: 'ring-line'})];
+  const ring = el('g', {class: 'focus-ring', 'aria-hidden': 'true'});
+  ring.append(hoverLine, ...focusRing);
+  function showRing(path) {
+    const on = Boolean(path) && path.matches(':focus-visible');
+    for (const p of focusRing) p.setAttribute('d', on ? path.getAttribute('d') : '');
+  }
+  // Only a mouse or pen hovers; a finger would leave the outline behind after a tap.
+  function showHover(path, e) {
+    if (e && e.pointerType === 'touch') return;
+    hoverLine.setAttribute('d', path ? path.getAttribute('d') : '');
+  }
+
   function draw() {
     const rows = data.chambers[chamber];
     const shapes = el('g'), labels = el('g', {class: 'labels', 'aria-hidden': 'true'}), pairs = [];
     for (const row of rows) {
-      const path = el('path', {d: row.d, class: 'district', tabindex: '-1', role: 'button'});
+      // WebKit does not name a button from an SVG title, so the name is set directly; the title is the hover tooltip.
+      const name = `${row.name}, ${row.islands}`;
+      const path = el('path', {d: row.d, class: 'district', tabindex: '-1', role: 'button', 'aria-pressed': 'false', 'aria-label': name});
       path.dataset.geo = row.geo;
-      // The title is the button's name and the hover tooltip.
-      const title = el('title'); title.textContent = `${row.name}, ${row.islands}`; path.append(title);
+      const title = el('title'); title.textContent = name; path.append(title);
       path.addEventListener('click', () => pick(row));
+      path.addEventListener('focus', () => showRing(path));
+      path.addEventListener('blur', () => showRing(null));
+      path.addEventListener('pointerenter', e => showHover(path, e));
+      path.addEventListener('pointerleave', e => showHover(null, e));
       shapes.append(path);
       const text = el('text', {x: row.label[0], y: row.label[1], class: 'label'});
       text.dataset.geo = row.geo;
@@ -292,7 +316,9 @@
       labels.append(text);
       pairs.push([path, text, row]);
     }
-    svg.replaceChildren(shapes, labels);
+    showRing(null);
+    showHover(null);
+    svg.replaceChildren(shapes, ring, labels);
     stop = null;
     districts = pairs.map(([path, , row]) => { const b = path.getBBox(); return {path, row, box: [b.x, b.y, b.width, b.height]}; });
     for (const d of districts) d.path.addEventListener('keydown', e => onKey(e, d));
@@ -333,8 +359,8 @@
         const chip = document.createElement('button');
         chip.type = 'button'; chip.className = `match ${chamber}`;
         const label = `${kind} ${row.name.replace(/\D+/g, '')}`, part = share < 0.01 ? '<1%' : `${Math.round(share * 100)}%`;
-        chip.append(span(label), span(part, 'share'));
-        chip.setAttribute('aria-label', `${label} ${part} of ZIP ${zipCode} residents`);
+        // The spoken name is the visible text with the rest of the sentence hidden after it.
+        chip.append(span(label), ' ', span(part, 'share'), span(` of ZIP ${zipCode} residents`, 'visually-hidden'));
         chip.addEventListener('click', () => pick(row));
         zipMatches.append(chip);
       }

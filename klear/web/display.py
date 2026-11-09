@@ -121,7 +121,42 @@ def _bar(f, store: _Store) -> dict:
         "low": max(low, 0.0),
         "high": high,
         "text": f"{_number(unit, f.value)} {spread}".strip(),
+        # The estimate and its margin or range apart, for the chart's data table.
+        "number": _plain(f, unit),
+        "spread": spread,
     }
+
+
+def _said(bar: dict, inside: bool = False) -> str:
+    """A bar's figure for a sentence, like '12.3% ± 2.1 points' or 'about 900 (range 800 to 1,000)'."""
+    number, spread = bar["number"], bar["spread"]
+    if not spread:
+        return number
+    if spread.startswith("range"):
+        return f"{number}, {spread}" if inside else f"{number} ({spread})"
+    return f"{number} {spread}"
+
+
+def _summary(facts, bars: list[dict], home, store: _Store) -> str:
+    """One sentence that says what a chart shows: the first place's figure, then how each other place compares."""
+    here, first = facts[0], bars[0]
+    clauses = []
+    for f, bar in zip(facts[1:], bars[1:]):
+        other = f"{bar['geography']} ({_said(bar, inside=True)})"
+        # A district's total is part of its county's and the state's, so only its share of the state says anything.
+        if f.indicator_id in store.additive and f.geo_type in ("county", "state"):
+            share = _share([here, f], home, store)
+            clauses.append(f"is {share} of the total for {other}" if share else f"compares with {other}")
+            continue
+        way = actual_direction(here, f)
+        verb = {
+            "higher": "is higher than",
+            "lower": "is lower than",
+            "within_margin": "is within the margin of error of",
+        }
+        clauses.append(f"{verb.get(way, 'compares with')} {other}")
+    joined = clauses[0] if len(clauses) == 1 else f"{', '.join(clauses[:-1])} and {clauses[-1]}"
+    return f"{first['geography']}, at {_said(first)}, {joined}."
 
 
 def charts(answer, store: _Store) -> tuple[list[dict], set[str]]:
@@ -150,6 +185,7 @@ def charts(answer, store: _Store) -> tuple[list[dict], set[str]]:
         elif len(facts) == 2 and (way := actual_direction(facts[0], facts[1])):
             chart["tag"] = TAGS[way].format(other=chart["bars"][1]["geography"])
             chart["lower"] = way != "within_margin"
+        chart["summary"] = _summary(facts, chart["bars"], home, store)
         out.append(chart)
         used.update(f.ref for f in facts)
     return out, used

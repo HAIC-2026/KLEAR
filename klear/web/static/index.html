@@ -50,11 +50,12 @@
             </div>
             <div id="messages">
               <div class="bot-msg welcome"><p class="sender">KLEAR</p><p id="welcome-text">Ask about this district.</p></div>
-              <div id="log" role="log" aria-label="Questions and answers" aria-live="polite"></div>
+              <div id="log"></div>
             </div>
             <div id="suggest" class="suggest" role="group" aria-label="Suggested questions" hidden></div>
             <form id="question-form"><label for="question" class="visually-hidden">Your question</label><div class="question-row"><textarea id="question" rows="1" required maxlength="2000" placeholder="Type your question here"></textarea><button id="send" type="submit">Ask KLEAR</button></div></form>
             <p id="chat-status" class="status" role="status"></p>
+            <p id="chat-live" class="visually-hidden" role="status"></p>
           </div>
           <aside class="chat-aside" aria-label="Questions to try and district profile">
             <div id="starter"><h3 id="examples-title">Questions to try</h3><div id="examples" class="examples"></div></div>
@@ -118,7 +119,7 @@
           <li>Missing data stays missing. KLEAR does not fill gaps with guesses.</li>
           <li>Program links go to each program’s official page. KLEAR does not decide anyone’s eligibility.</li>
         </ul>
-        <p class="validation-link">Every check, the build date, and the checks still waiting on files are listed in the <a class="ext" href="https://github.com/HAIC-2026/KLEAR/blob/main/docs/VALIDATION.md">validation report</a>.</p>
+        <p class="validation-link">Every check, the build date, and the checks still waiting on files are listed in the <a class="ext" href="https://github.com/HAIC-2026/KLEAR/blob/main/docs/VALIDATION.md">validation report<span class="visually-hidden"> (external site)</span></a>.</p>
       </div>
     </section>
 
@@ -146,13 +147,13 @@
         <div class="footer-col">
           <h2 class="footer-title">Reports</h2>
           <ul>
-            <li><a class="ext" href="https://github.com/HAIC-2026/KLEAR/blob/main/docs/VALIDATION.md">Validation report</a></li>
-            <li><a class="ext" href="https://github.com/HAIC-2026/KLEAR/blob/main/docs/ACCESSIBILITY.md">Accessibility statement</a></li>
+            <li><a class="ext" href="https://github.com/HAIC-2026/KLEAR/blob/main/docs/VALIDATION.md">Validation report<span class="visually-hidden"> (external site)</span></a></li>
+            <li><a class="ext" href="https://github.com/HAIC-2026/KLEAR/blob/main/docs/ACCESSIBILITY.md">Accessibility statement<span class="visually-hidden"> (external site)</span></a></li>
           </ul>
         </div>
         <div class="footer-col">
           <h2 class="footer-title">Questions or corrections</h2>
-          <p><a class="ext" href="https://github.com/HAIC-2026/KLEAR/issues">Open a GitHub issue</a></p>
+          <p><a class="ext" href="https://github.com/HAIC-2026/KLEAR/issues">Open a GitHub issue<span class="visually-hidden"> (external site)</span></a></p>
         </div>
       </div>
       <p class="footer-note">Public, aggregated data. Not an official State of Hawaiʻi product.</p>

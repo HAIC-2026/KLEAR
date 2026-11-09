@@ -85,3 +85,27 @@ def test_layers_downloaded_by_the_build_read_as_a_current_list(small_con):
         "INSERT INTO build_info VALUES ('2026-10-30 19:39:09 HST (2026-10-31T05:39:09Z UTC)', 'x', 0, 'ok', '[]', '{}')"
     )
     assert build(small_con, answer([f], ["x"]))["sources"][0]["year"] == "Current list as of October 2026"
+
+
+def test_charts_say_what_they_show_in_a_sentence_and_keep_table_figures(small_con):
+    facts = [fact("f1", "022", 1000.0, 100.0), fact("f2", "023", 100.0, 80.0)]
+    (chart,) = build(small_con, answer(facts, ["x"]))["charts"]
+    assert (
+        chart["summary"] == "House District 22, at 1,000 ± 100, is higher than House District 23 (100 ± 80)."
+    )
+    assert [(b["number"], b["spread"]) for b in chart["bars"]] == [("1,000", "± 100"), ("100", "± 80")]
+
+
+def test_chart_sentences_name_shares_ranges_and_overlapping_margins(small_con):
+    state = FactRef("f3", "pop_65_plus", "state", "15", "acs", 50000.0, None, None, None, "2020-2024")
+    county = FactRef("f4", "pop_65_plus", "county", "15003", "acs", 20000.0, None, None, 500.0, "2020-2024")
+    ranged = fact("f1", "022", 1000.0, None, 900.0, 1100.0)
+    (chart,) = build(small_con, answer([ranged, county, state], ["x"]))["charts"]
+    # A district's total is part of the county's and the state's, so it has no direction against them.
+    assert chart["summary"] == (
+        "House District 22, at about 1,000 (range 900 to 1,100), compares with Honolulu County (20,000 ± 500)"
+        " and is 2.0% of the total for Hawaiʻi (50,000)."
+    )
+    close = [fact("f1", "022", 1000.0, 100.0), fact("f2", "023", 950.0, 80.0)]
+    (chart,) = build(small_con, answer(close, ["x"]))["charts"]
+    assert chart["summary"].endswith("is within the margin of error of House District 23 (950 ± 80).")
