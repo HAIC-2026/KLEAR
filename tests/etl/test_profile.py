@@ -343,7 +343,8 @@ def test_catalog_vars_exist_in_api():
         "acs/acs5": get_variable_labels("acs/acs5"),
     }
     for i in load_catalog():
-        assert f"{i.acs_var}E" in labels[i.dataset], i.indicator_id
+        for v in i.variables:
+            assert f"{v}E" in labels[i.dataset], i.indicator_id
 
 
 @pytest.mark.network
@@ -478,3 +479,17 @@ def test_facts_from_api_sums_bins_per_geography():
     assert set(out.table_id) == {"C17002"} and set(out.indicator_id) == {"u125"}
     with pytest.raises(ValueError, match="C17002_003"):
         facts_from_api(api[api.variable != "C17002_003"], cat, "s")
+
+
+def test_catalog_fixed_income_entries():
+    cat = {i.indicator_id: i for i in load_catalog()}
+    under_100 = cat["kupuna_under_100pct_poverty"]
+    assert under_100.variables == tuple(f"B17024_{n:03d}" for n in (107, 108, 109, 120, 121, 122))
+    assert set(under_100.variables) < set(cat["kupuna_under_200pct_poverty"].variables)
+    assert (under_100.dataset, under_100.unit, under_100.note) == ("acs/acs5", "count", None)
+    income = cat["median_household_income_65_plus"]
+    assert (income.acs_var, income.dataset, income.unit) == ("B19049_005", "acs/acs5", "dollars")
+    alone = cat["householders_65_plus_alone"]
+    assert (alone.acs_var, alone.dataset, alone.unit) == ("B11007_003", "acs/acs5", "count")
+    for iid in ("pct_hh_social_security", "pct_hh_retirement_income", "pct_hh_ssi", "hh_ssi"):
+        assert cat[iid].universe == "Households" and "all households" in cat[iid].note, iid

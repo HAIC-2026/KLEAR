@@ -150,14 +150,19 @@ def basic(con, question: str, district: tuple[str, str], note: str = "") -> dict
     """Free keyword lookup, laid out like an assistant answer when it found figures."""
     result = lookup(con, question, district)
     refs = result.pop("fact_refs", [])
+    written, caveats = result.pop("lead", []), result.pop("caveats", [])
     if refs:
         answer = Answer(VERSION, district, result["refusal"], [], refs, [], [])
         result |= display.build(con, answer)
         profile = asks_profile(question)
         lead = "This is the standard profile for this district. The district profile on this page compares each figure with the county and the state."
-        result["lead"] = [
-            note or (lead if profile else "These are the closest published figures for this question.")
-        ]
+        if written:
+            result["lead"] = ([note] if note else []) + written
+        else:
+            result["lead"] = [
+                note or (lead if profile else "These are the closest published figures for this question.")
+            ]
+        result["caveats"] = caveats
     elif note and result["refusal"] in ("none", "not_available"):
         result["text"] = f"{note}\n\n{result['text']}"
     return result | {"mode": "basic"}

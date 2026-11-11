@@ -22,9 +22,10 @@ rent. Use only indicator ids it returns, and check that its geo_types include th
 district with each county holding its population and with the state, plus any extra geographies you pass in \
 against. For a district profile or overview, call district_profile once and cite its facts: it is the profile the \
 website shows, with county and state comparisons. An income picture always includes median household \
-income and the poverty rate. To find where a measure is highest or lowest across districts, call \
-rank_districts once. Use find_sites for housing and health sites, list_programs for benefit programs and \
-the agencies behind them, and explain_source to describe a source.
+income and the poverty rate. For kūpuna on fixed incomes, search fixed income, give its rates for the main \
+county and the state too, and list SSI, Kūpuna Care, SNAP and Med-QUEST. To find where a measure is highest \
+or lowest across districts, call rank_districts once. Use find_sites for housing and health sites, \
+list_programs for benefit programs and the agencies behind them, and explain_source to describe a source.
 4. Call submit_answer exactly once, at the end. Never reply with plain text. If submit_answer returns \
 problems, fix every one and call it again.
 

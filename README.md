@@ -334,6 +334,15 @@ the free lookup and the page cite the same figures. A question that contains the
 "profile" must cite every profile figure the store holds for its district, and the free
 lookup returns them all for a profile, socioeconomic or overview question.
 
+A question about kūpuna on fixed incomes, such as the challenge deck's "How many kūpuna in my district live on
+fixed incomes?", gets the same figures from the assistant and the free lookup: the kūpuna count and share, the
+median household income of householders 65 and over (B19049), kūpuna under 100 and 200 percent of poverty (B17024),
+householders 65 and over living alone (B11007, equal to DP02_0009 plus DP02_0013), and the shares of households
+with Social Security, retirement income and SSI. Those shares cover households of every age, and their note says so.
+The rates and the median are compared with the county holding most of the district's people and with the state,
+and the answer lists SSI, Kūpuna Care, SNAP and Med-QUEST with official links. The assistant's answer is rejected
+until it cites each figure, comparison and program, as listed in FIXED_INCOME in klear/agent/config.py.
+
 On screens at least 1200 px wide the profile and the chat are equal-width columns; below that
 the profile sits under the chat at full width. The chat card stays compact until the first
 question is sent, then grows to a fixed height and scrolls its conversation inside it. The
