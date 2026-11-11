@@ -126,6 +126,15 @@ def _decline() -> dict:
     }
 
 
+# The one street address the browser tests search for, on the fixture store's House 23 block.
+TEST_ADDRESS = ("150030001001001", "1 TEST ST, KANEOHE, HI, 96744")
+
+
+def geocoder(text: str) -> list[tuple[str, str]]:
+    """Stands in for the Census geocoder, so address search runs with no network."""
+    return [TEST_ADDRESS] if text.strip().lower().startswith("1 test st") else []
+
+
 class Server(web.Server):
     # Several browsers load the page at once; the default backlog of 5 refuses connections on Windows.
     request_queue_size = 128
@@ -149,7 +158,9 @@ def main(argv: list[str] | None = None) -> None:
     web.PER_MINUTE = 10_000
     web.BUSY = threading.BoundedSemaphore(64)
     assistant = Assistant(DailyBudget(1_000.0, work / "spend.json"), client=ScriptedClient())
-    server = Server(("127.0.0.1", args.port), partial(web.Handler, store=store, assistant=assistant))
+    server = Server(
+        ("127.0.0.1", args.port), partial(web.Handler, store=store, assistant=assistant, geocoder=geocoder)
+    )
     print(f"KLEAR e2e server: http://127.0.0.1:{server.server_port}", flush=True)
     try:
         server.serve_forever()

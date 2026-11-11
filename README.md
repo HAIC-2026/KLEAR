@@ -87,7 +87,7 @@ No `source`, environment export, or `--env-file` option is needed. Restart the w
 - klear/agent: the agent, its data tools and the code that builds and checks each answer (python -m klear.agent).
 - klear/web: the local web server, landing page, district profile and chat interface (python -m klear.web).
 - klear/eval: the answer format, eval runner, answer checks, reports and spending cap (python -m klear.eval run).
-- data: the checked-in indicator catalog (data/catalog), Hawaiian place names (data/places) and program rules (data/rules). The build also writes data/raw (download cache), data/manual (hand downloads) and data/build (the store), none of them tracked.
+- data: the checked-in indicator catalog (data/catalog), Hawaiian place names and district search names (data/places) and program rules (data/rules). The build also writes data/raw (download cache), data/manual (hand downloads) and data/build (the store), none of them tracked.
 - eval: test questions (eval/golden), saved model replies (eval/scripts), recorded live answers (eval/recordings) and model prices. Run reports go to eval/reports, which is not tracked.
 - tests: the pytest suite, laid out like the klear packages, with small fixtures in tests/fixtures.
 - e2e: browser and accessibility tests with Playwright and axe (see [Browser and accessibility tests](#browser-and-accessibility-tests)).
@@ -200,6 +200,8 @@ The DuckDB store in data/build/klear.duckdb has these tables (schema in klear/st
 - build_info: one row describing the build that wrote the store.
 - fact: one value per geography, indicator and source, with its margin of error, value_status, moe_status, tier (D direct, A apportioned, P points, M modeled, C context) and source table. Tier A and M facts with a value carry value_low and value_high with moe_status range, and tier D and P facts leave both empty.
 - site: public housing, LIHTC and health center points with their House and Senate district, the meters the point was snapped to reach it, and source.
+- place and place_overlap: Census 2020 places (CDPs) with Hawaiian names, and the share of each place's 2020 residents in each county, House and Senate district and ZIP code area.
+- area, area_overlap and area_alias: what district search finds beyond Census places. Islands, Honolulu neighborhood board areas (City and County of Honolulu) on Oʻahu and Census county divisions (TIGER 2020) on the other islands, each with its main island and its residents' shares in each county, district, ZIP code area and place. Each 2020 block counts in the area holding its internal point. area_alias holds other names people use, such as Kona, upcountry Maui or Lanikai, from data/places/areas.yaml.
 
 Sources beyond the Census Bureau, each moved to House and Senate districts with a range: IRS SOI tax year 2023 returns and earned income tax credit by ZIP code, CMS 2026 marketplace enrollment by ZIP code, HUD housing choice vouchers by tract, CDC PLACES 2025 modeled need by tract and HUD CHAS 2018-2022 cost burden by tract. HUD public housing, LIHTC projects and HRSA health center sites are stored as points with their districts. Program rules (poverty guidelines, SNAP, WIC, EITC, SSI and others) live in data/rules/ as YAML, and every build checks each confirmed value against a quote on its official page.
 
@@ -249,6 +251,7 @@ Website spending has its own cap of 5 dollars per HST day, kept in ~/.config/kle
 | `--store PATH` | Use a different DuckDB store. |
 | `--daily-cap 5` | Set the website's model budget in dollars per HST day. |
 | `--model MODEL` | Choose the model used by the assistant. |
+| `--no-address-lookup` | Turn off street address search, so the server never contacts the Census geocoder. |
 
 The landing page uses the project-provided `background1.png` photo, copied
 as a smaller metadata-free `klear/web/static/background1.jpg`. It loads no
@@ -282,8 +285,28 @@ without a data build. After a build changes the boundaries, regenerate it with:
 
     uv run python -m klear.etl.mapshapes
 
-The landing page resolves House/Senate numbers, towns and ZIPs using the
-built store. Overlaps are shown as choices instead of guessing a district.
+The landing page resolves House/Senate numbers, towns, neighborhoods, islands, counties
+and ZIPs using the built store. Overlaps are shown as choices instead of guessing a district:
+each place is listed with its island and the share of its residents in each district, and a
+place spanning more than eight districts in a chamber leads with a summary, a link that
+highlights its districts on the map, and its full list folded. A number out of range says how
+many districts the chamber has.
+
+As someone types two or more characters, the search box suggests up to eight matches from the
+store through `GET /api/suggest?q=ko`: towns, neighborhoods, islands, counties, county divisions
+and other names such as Kona, then ZIP codes for digits and districts for a chamber and a number
+(house 2 lists House 2 and 20 to 29). Each suggestion shows its island and kind, and picking one
+searches at once for exactly that place, so the Oʻahu Kailua never returns the Hawaiʻi Island one.
+The list follows the ARIA combobox pattern: the arrow keys move through it while focus stays in
+the box, Enter or a click picks, and Escape closes it. Suggestions never use the geocoder, so
+nothing typed leaves the server until the search itself runs.
+
+Search also takes a street address. The server sends it to the U.S. Census Bureau geocoder
+(geocoding.geo.census.gov), which returns its 2020 Census block, and looks the block up in the
+store, so the districts come from the same 2022 plan as the rest of the site. The address is
+used only for that request: it is not stored, the server keeps no request log, and the page
+says so beside the search box. If the geocoder is unreachable, search falls back to names and
+says so. Start the site with `--no-address-lookup` to keep every request local.
 Chat offers five example questions, a waiting state, explicit refusal labels,
 and figure cards with uncertainty, vintage, geography and official source
 links. Each comparison chart has a sentence saying what it shows (written in

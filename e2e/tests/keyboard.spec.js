@@ -17,7 +17,7 @@ test('skip link, search, ask, and read the answer with the keyboard', async ({pa
   await expect(skip).toBeInViewport();
   await page.keyboard.press('Enter');
   await page.keyboard.press('Tab');
-  await expect(page.getByLabel('District, town, or ZIP code').first()).toBeFocused();
+  await expect(page.getByLabel('District, place, ZIP code, or street address').first()).toBeFocused();
 
   // A search with one match picks it and moves to the question box.
   await page.keyboard.type('House 22');
@@ -102,7 +102,7 @@ test('a district under the mouse is outlined above its neighbors, and the outlin
 });
 
 test('the Ask button keeps focus while the answer loads, then focus moves to the answer', async ({page}) => {
-  await page.getByLabel('District, town, or ZIP code').first().fill('House 22');
+  await page.getByLabel('District, place, ZIP code, or street address').first().fill('House 22');
   await page.keyboard.press('Enter');
   await expect(page.locator('#district-title')).toHaveText(DISTRICT);
   let release;

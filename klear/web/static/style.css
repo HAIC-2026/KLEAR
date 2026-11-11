@@ -85,7 +85,7 @@ a.ext::after{content:"";display:inline-block;width:.5em;height:.5em;margin-left:
 .find .inputrow button{border-color:var(--on-dark-control)}
 .find .status{color:#fff}
 .find .status:empty{margin:0;min-height:0}
-.find .match-title,.find .help,.find .map-nudge{color:var(--on-dark)}.find a{color:#fff}
+.find .match-title,.find .match-note,.find .match-summary,.find .match-all summary,.find .help,.find .map-nudge{color:var(--on-dark)}.find a{color:#fff}
 .find .chamber-title{color:#fff;border-bottom-color:var(--house-hover)}.find .chamber-title.senate{border-bottom-color:var(--senate-hover)}
 .band :focus-visible{outline-color:#fff}
 #find-matches:not(:empty){margin-top:12px;padding:16px;background:rgb(var(--band-rgb) / .72);border-radius:var(--r-card)}
@@ -104,6 +104,16 @@ section{scroll-margin-top:16px}
 label,.small-label{display:block;color:var(--ink);font-weight:600;font-size:var(--fs-sm);margin-bottom:8px}
 .small-label{color:var(--muted);font-weight:400;margin:0}
 .inputrow,.question-row{display:flex;gap:8px}
+/* Search suggestions: a list under the search box that follows typing (an ARIA combobox) */
+.combo{position:relative;flex:1;min-width:0}
+/* The open list sits above the photo credit, which shares the hero's layer. */
+.band-inner:has(.suggestions:not([hidden])){z-index:2}
+.suggestions{position:absolute;z-index:20;top:calc(100% + 4px);left:0;right:0;margin:0;padding:4px;list-style:none;background:#fff;border:1px solid var(--control);border-radius:var(--r-ctl);box-shadow:0 8px 24px rgb(0 0 0 / .18);max-height:min(24rem,60vh);overflow-y:auto}
+.suggestions li{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:2px 12px;padding:10px 12px;border-radius:var(--r-sm);color:var(--ink);cursor:pointer}
+.suggestion-label{font-weight:600}
+.suggestion-detail{font-size:var(--fs-xs);color:var(--muted)}
+.suggestions li[aria-selected=true]{background:var(--accent-soft);outline:2px solid var(--accent);outline-offset:-2px}
+@media(hover:hover){.suggestions li:hover{background:var(--surface)}.suggestions li[aria-selected=true]:hover{background:var(--accent-soft)}}
 input,textarea,select{width:100%;min-width:0;border:1px solid var(--control);border-radius:var(--r-ctl);background:#fff;color:var(--ink);outline:none}
 input,select{height:var(--control-h);padding:0 14px}
 textarea{padding:11px 14px;line-height:24px}
@@ -112,6 +122,7 @@ input:focus,textarea:focus,select:focus{border-color:var(--accent)}
 input:focus-visible,textarea:focus-visible,select:focus-visible{outline-offset:1px}
 .inputrow button,.question-row button,.map-go{flex:none;min-height:var(--control-h);padding:0 18px;background:var(--accent);color:#fff;border:1px solid var(--accent);border-radius:var(--r-ctl);font-weight:600}
 .help{font-size:var(--fs-sm);color:var(--muted);margin:12px 0 0}
+.help+.help{margin-top:4px}
 .status{font-size:var(--fs-sm);font-weight:600;color:var(--accent);min-height:1.5em}
 .textbutton{padding:8px 0;border:0;background:transparent;color:var(--accent);font-weight:600;text-decoration:underline;text-underline-offset:3px}
 
@@ -122,11 +133,17 @@ input:focus-visible,textarea:focus-visible,select:focus-visible{outline-offset:1
 .match.house{background:var(--house-soft);border-color:var(--house)}.match.senate{background:var(--senate-soft);border-color:var(--senate)}
 .match-group+.match-group{margin-top:16px}
 .match-title{margin:0 0 8px;color:var(--muted);font-size:var(--fs-xs);font-weight:600}
+.match-title:has(+.match-note){margin-bottom:2px}
+.match-note{margin:0 0 8px;color:var(--muted);font-size:var(--fs-xs)}
+.match-summary{margin:0 0 8px;font-size:var(--fs-sm);color:var(--ink)}.match-summary a{font-weight:600}
+.match-all{border-top:0;margin-top:0;padding-top:0}
+.match-all summary{padding:8px 0;font-size:var(--fs-sm);font-weight:600;color:var(--accent);cursor:pointer}
+.match-all[open] summary{margin-bottom:8px}
 .chamber-cols{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 16px}
 .chamber-title{margin:0 0 8px;padding-bottom:4px;font-size:var(--fs-sm);font-weight:700;color:var(--ink);border-bottom:3px solid var(--house)}.chamber-title.senate{border-bottom-color:var(--senate)}
 .chamber-col .chips{grid-template-columns:1fr}
 .map-nudge{margin:16px 0 0;font-size:var(--fs-sm);color:var(--muted)}.map-nudge a{font-weight:600}.map-nudge:first-child{margin-top:0}
-form:has(.map-nudge) .help{display:none}
+form:has(.map-nudge) .help:not(.privacy){display:none}
 
 /* Chat */
 .chat-section[data-chamber=senate]{--accent:var(--senate);--accent-dark:var(--senate-dark);--accent-soft:var(--senate-soft)}
@@ -348,6 +365,8 @@ footer a{color:#fff}
   .band-inner{padding-bottom:52px}
   .inputrow,.question-row{flex-direction:column}
   .inputrow button,.question-row button{width:100%}
+  /* The button sits under the box here, so the suggestions open below the button instead of covering it. */
+  .inputrow{position:relative}.combo{position:static}
   .examples{grid-template-columns:1fr}
   .district-now{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;column-gap:12px}.district-now>div{display:contents}.district-now .small-label{grid-area:1/1;white-space:nowrap}.district-now strong{grid-area:2/1/3/3}.district-now .textbutton{grid-area:1/2;padding:10px 0;margin:-10px 0}
   #messages{padding:20px 16px 8px}#messages article{padding:14px 14px}

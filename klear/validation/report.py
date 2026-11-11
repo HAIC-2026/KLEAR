@@ -26,6 +26,7 @@ TITLES = {
     "places": "CDC PLACES modeled need by tract",
     "chas": "HUD CHAS housing cost burden",
     "gazetteer": "Census places and their districts",
+    "areas": "Islands, neighborhoods and county divisions for district search",
     "rules": "Program rules against their official sources",
     "hud_income_limits": "HUD FY2026 income limits",
 }
@@ -152,6 +153,17 @@ PROVES = {
         "matches the Census name once ʻokina, kahakō and case are ignored. Places without a GNIS spelling "
         "keep the Census name, and the key numbers count them."
     ),
+    "areas": (
+        "District search also finds islands, Honolulu neighborhood board areas (City and County of Honolulu) "
+        "and, on the other islands, Census county divisions (TIGER 2020). Each 2020 block goes to the island, "
+        "board area or division holding its internal point. A pass means every block with residents lies on "
+        "exactly one island, and in one board area on Oʻahu or one county division elsewhere. The islands add "
+        "up to the state population, and each area's shares of people add up to 1 for every county, House "
+        "district, Senate district and ZIP code area. Every board in the City's layer has a name, every "
+        "division name in data/places/areas.yaml matches the Census name once ʻokina, kahakō and case are "
+        "ignored, and every other name such as Kona points to exactly one area or place. Board areas follow "
+        "block points, so a block split by a board line counts wholly on one side."
+    ),
     "chas": (
         "HUD CHAS 2018-2022 Table 8 renter and owner households at or below 80% of HUD area median family "
         "income, with and without housing cost burden over 30%, by tract. The published tract totals equal, "
@@ -252,6 +264,8 @@ def summary(r: CheckResult) -> str:
         return f"{r.n_compared - r.n_mismatch:,} of {r.n_compared:,} indicator totals conserved"
     if r.name == "gazetteer":
         return f"{r.n_compared:,} places, {r.n_mismatch:,} problems"
+    if r.name == "areas":
+        return f"{r.n_compared:,} areas, {r.n_mismatch:,} problems"
     if r.name == "sites":
         return f"{r.n_compared:,} sites, {r.n_mismatch:,} problems"
     if r.name == "rules":

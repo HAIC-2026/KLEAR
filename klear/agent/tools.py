@@ -1,9 +1,10 @@
 # Deterministic tools the KLEAR agent calls, plus the session that numbers and remembers what they return.
 import json
 import re
+from typing import NamedTuple
 
 from klear.agent import config
-from klear.etl.places_gazetteer import plain_name
+from klear.etl.places_gazetteer import plain_name, search_plain
 from klear.eval.contract import FactRef, fill_value, geo_display, geo_key, short_name
 from klear.eval.scorers import CV_LIMIT, counties, cv
 from klear.rules.registry import load_rules
@@ -60,6 +61,48 @@ STATE_TAIL = re.compile(r"\b(?:in\s+)?(?:the\s+)?(?:state\s+of\s+)?(?:hawaii|hi)
 NO_MATCH_HINT = (
     "No match. Give a district like House District 22 or Senate District 12, a place name, or a ZIP code."
 )
+NO_ZIP_NOTE = (
+    "ZIP code {} has no area with residents in Hawaiʻi. Home ZIP codes there start with 967 or 968, "
+    "and PO box ZIP codes have no area."
+)
+# A search for one exact result, as a picked suggestion sends it: place:1523000, area:nb09 or county:15003.
+ID_FORM = re.compile(r"^\s*(place|area|county):([0-9a-z]+)\s*$", re.IGNORECASE)
+# What search suggests while someone types: at most this many, once they have typed this many characters.
+SUGGEST_LIMIT = 8
+SUGGEST_MIN = 2
+# A chamber and the start of a district number, as typed: h2, hd 2, house 2, sen 1, senate district 1.
+DISTRICT_START = re.compile(r"^(h|hd|hse|house|s|sd|sen|senate)\s*(?:d|dist|district)?\s*(\d{1,2})$")
+KIND_LABELS = {
+    "place": "Town",
+    "island": "Island",
+    "neighborhood": "Neighborhood",
+    "division": "County division",
+    "county": "County",
+}
+# When an island, Census place, neighborhood board area and county division share a name on one island,
+# search keeps the first of these.
+KIND_ORDER = {"island": 0, "place": 1, "neighborhood": 2, "division": 3}
+
+
+class _Named(NamedTuple):
+    kind: str
+    id: str
+    name: str
+    plain: str
+    pop: int
+    island: str | None
+
+
+def _dedupe(names: list[_Named]) -> list[_Named]:
+    """Each name once, dropping an area that repeats a higher kind's name on the same island."""
+    first: dict[tuple[str, str | None], str] = {}
+    out, seen = [], set()
+    for n in sorted(names, key=lambda n: KIND_ORDER[n.kind]):
+        if first.setdefault((n.plain, n.island), n.kind) != n.kind or (n.kind, n.id) in seen:
+            continue
+        seen.add((n.kind, n.id))
+        out.append(n)
+    return out
 
 
 def _strip_state(text: str, head: bool = True) -> str:
@@ -127,6 +170,10 @@ class Session:
         self._refs: dict[tuple[str, str, str, str], str] = {}
         self._rules = None
         self._prefetched: dict[tuple[str, str, str], list[tuple]] = {}
+        self._areas: bool | None = None
+        self._named: list[_Named] | None = None
+        self._aliases: dict[str, list[_Named]] = {}
+        self._alias_names: dict[str, str] = {}
 
     def run(self, tool: str, args: dict) -> str:
         try:
@@ -162,76 +209,312 @@ class Session:
 
     def _resolve_place(self, args: dict) -> dict:
         text = _str(args, "text")
-        if (d := _district_form(text)) and self._name(*d):
-            self.resolved.add(d)
-            return {"matches": [{"kind": "district", **self._geo(*d)}]}
-        zipm = ZIP.match(text.strip().casefold())
-        if zipm and self._name("zcta", zipm.group(1)):
-            return {"matches": [self._zcta_match(zipm.group(1))]}
-        plain = plain_name(text)
-        if county := config.COUNTY_NAMES.get(plain):
-            self.resolved.add(("county", county))
-            return {"matches": [{"kind": "county", **self._geo("county", county)}]}
+        if m := ID_FORM.match(text):
+            return self._resolve_id(m.group(1).lower(), m.group(2).lower())
+        if d := _district_form(text):
+            if self._name(*d):
+                self.resolved.add(d)
+                return {"matches": [{"kind": "district", **self._geo(*d)}]}
+            return {"matches": [], "note": self._range_note(d[0]), "hint": NO_MATCH_HINT}
+        if zipm := ZIP.match(text.strip().casefold()):
+            if self._name("zcta", zipm.group(1)):
+                return {"matches": [self._zcta_match(zipm.group(1))]}
+            return {"matches": [], "note": NO_ZIP_NOTE.format(zipm.group(1)), "hint": NO_MATCH_HINT}
+        key = search_plain(text)
+        if found := self._exact(key):
+            return {"matches": self._name_matches(found)}
+        if county := config.COUNTY_NAMES.get(key) or config.COUNTY_NAMES.get(plain_name(text)):
+            return {"matches": [self._county_match(county)]}
         if not _strip_state(text):
             return {"matches": [{"kind": "state", **self._geo("state", "15")}]}
-        bare = _strip_state(text, head=False)
-        found = self._find_places(plain) or (self._find_places(bare) if bare != plain else [])
-        matches = [self._place_match(p) for p in found]
-        return {"matches": matches} if matches else {"matches": [], "hint": NO_MATCH_HINT}
+        bare = search_plain(_strip_state(text, head=False))
+        found = self._near(key) or (bare != key and (self._exact(bare) or self._near(bare))) or []
+        return {"matches": self._name_matches(found)} if found else {"matches": [], "hint": NO_MATCH_HINT}
+
+    def _resolve_id(self, kind: str, id_: str) -> dict:
+        """Exactly one Census place, area or county, by its id."""
+        if kind == "county":
+            found = [self._county_match(id_)] if self._name("county", id_) else []
+        else:
+            found = self._name_matches(
+                [n for n in self._names() if (n.kind == "place") == (kind == "place") and n.id == id_]
+            )
+        return {"matches": found} if found else {"matches": [], "hint": NO_MATCH_HINT}
+
+    def _range_note(self, chamber: str) -> str:
+        n = self.con.execute("SELECT count(*) FROM geography WHERE geo_type = ?", [chamber]).fetchone()[0]
+        return f"Hawaiʻi has {n} {chamber.title()} districts, numbered 1 to {n}."
+
+    def _has_areas(self) -> bool:
+        """Whether the store has the area tables; stores built before them search Census places only."""
+        if self._areas is None:
+            self._areas = bool(
+                self.con.execute(
+                    "SELECT count(*) FROM information_schema.tables WHERE table_name = 'area_alias'"
+                ).fetchone()[0]
+            )
+        return self._areas
+
+    def _island_of(self, geo_type: str, geo_id: str) -> str | None:
+        """The island holding most of a ZIP code area's or Census place's residents."""
+        if not self._has_areas():
+            return None
+        row = self.con.execute(
+            "SELECT a.name FROM area_overlap o JOIN area a USING (area_id) WHERE a.kind = 'island' "
+            "AND o.geo_type = ? AND o.geo_id = ? ORDER BY o.pop2020 DESC, a.name LIMIT 1",
+            [geo_type, geo_id],
+        ).fetchone()
+        return row[0] if row else None
+
+    def _overlaps(self, table: str, column: str, value: str) -> list[dict]:
+        rows = self.con.execute(
+            f"SELECT geo_type, geo_id, pop2020, share FROM {table} "
+            f"WHERE {column} = ? AND geo_type IN ('house', 'senate', 'county') "
+            "ORDER BY geo_type = 'county', geo_type, share DESC, geo_id",
+            [value],
+        ).fetchall()
+        return [self._overlap_entry(t, i, s, int(p)) for t, i, p, s in rows]
+
+    def _block_overlaps(self, column: str, value: str) -> tuple[int, list[dict]]:
+        """2020 residents with this block column value, and their shares in each district and county."""
+        total = self.con.execute(f"SELECT sum(pop2020) FROM blocks WHERE {column} = ?", [value]).fetchone()[0]
+        if not total:
+            return 0, []
+        rows = []
+        for geo_type in ("house", "senate", "county"):
+            rows += self.con.execute(
+                f"SELECT '{geo_type}', {geo_type}, sum(pop2020) FROM blocks "
+                f"WHERE {column} = ? AND pop2020 > 0 AND {geo_type} IS NOT NULL GROUP BY 2 ORDER BY 2",
+                [value],
+            ).fetchall()
+        return int(total), [self._overlap_entry(t, i, p / total, int(p)) for t, i, p in rows]
 
     def _zcta_match(self, zcta: str) -> dict:
-        rows = []
-        for column, geo_type in (("house", "house"), ("senate", "senate"), ("county", "county")):
-            rows += self.con.execute(
-                f"SELECT '{geo_type}', {column}, sum(pop2020) FROM blocks "
-                f"WHERE zcta = ? AND pop2020 > 0 AND {column} IS NOT NULL GROUP BY {column} ORDER BY {column}",
-                [zcta],
-            ).fetchall()
-        total = self.con.execute("SELECT sum(pop2020) FROM blocks WHERE zcta = ?", [zcta]).fetchone()[0] or 0
         self.resolved.add(("zcta", zcta))
-        overlaps = [self._overlap_entry(t, i, p / total, int(p)) for t, i, p in rows]
-        return {"kind": "zcta", **self._geo("zcta", zcta), "overlaps": overlaps}
+        _, overlaps = self._block_overlaps("zcta", zcta)
+        island = self._island_of("zcta", zcta)
+        return {"kind": "zcta", **self._geo("zcta", zcta), "island": island, "overlaps": overlaps}
 
-    def _find_places(self, plain: str) -> list[tuple]:
-        if not plain:
-            return []
+    def _county_match(self, county: str) -> dict:
+        self.resolved.add(("county", county))
+        pop, overlaps = self._block_overlaps("county", county)
+        overlaps = [o for o in overlaps if not o["geo"].startswith("county:")]
+        return {"kind": "county", **self._geo("county", county), "pop2020": pop, "overlaps": overlaps}
+
+    def block_match(self, block: str, label: str) -> dict | None:
+        """Districts and county of one 2020 Census block, for a street address the website geocoded to it."""
+        row = self.con.execute(
+            "SELECT county, zcta, house, senate FROM blocks WHERE block = ?", [block]
+        ).fetchone()
+        if row is None or row[2] is None or row[3] is None:
+            return None
+        county, zcta, house, senate = row
+        geos = [("house", house), ("senate", senate), ("county", county)]
+        self.resolved.update(geos)
+        island = self._island_of("zcta", zcta) if zcta else None
+        return {"kind": "address", "name": label, "island": island, "overlaps": [self._geo(*g) for g in geos]}
+
+    def _names(self) -> list[_Named]:
+        """Census places, then islands, neighborhood board areas and county divisions, each with its island."""
+        if self._named is not None:
+            return self._named
         places = self.con.execute(
             "SELECT place_id, name, plain, pop2020 FROM place ORDER BY name, place_id"
         ).fetchall()
-        if hit := [p for p in places if p[2] == plain]:
-            return hit
-        if len(plain) >= 3 and (hit := [p for p in places if p[2].startswith(plain)]):
-            return hit
-        words = set(plain.split())
+        if not self._has_areas():
+            self._named = [_Named("place", i, n, search_plain(p), int(pop), None) for i, n, p, pop in places]
+            return self._named
+        islands = dict(
+            self.con.execute(
+                "SELECT o.geo_id, arg_max(a.name, o.pop2020) FROM area_overlap o JOIN area a USING (area_id) "
+                "WHERE a.kind = 'island' AND o.geo_type = 'place' GROUP BY 1"
+            ).fetchall()
+        )
+        rows = [_Named("place", i, n, search_plain(p), int(pop), islands.get(i)) for i, n, p, pop in places]
+        rows += [
+            _Named(k, i, n, p, int(pop), island)
+            for i, k, n, p, island, pop in self.con.execute(
+                "SELECT area_id, kind, name, plain, island, pop2020 FROM area ORDER BY name, area_id"
+            ).fetchall()
+        ]
+        by_id = {(r.kind == "place", r.id): r for r in rows}
+        for plain, name, target_type, target_id in self.con.execute(
+            "SELECT plain, name, target_type, target_id FROM area_alias ORDER BY plain, target_type, target_id"
+        ).fetchall():
+            if (hit := by_id.get((target_type == "place", target_id))) is not None:
+                self._aliases.setdefault(plain, []).append(hit)
+                self._alias_names[plain] = name
+        self._named = rows
+        return rows
+
+    def _exact(self, key: str) -> list[_Named]:
+        if not key:
+            return []
+        return _dedupe([n for n in self._names() if n.plain == key] + self._aliases.get(key, []))
+
+    def _near(self, key: str) -> list[_Named]:
+        """Names that start with key as a word, then as letters, then names holding all its words, then the
+        closest spellings."""
+        names = self._names()
+        for prefix in (key + " ", key):
+            if len(key) >= 3 and (hit := [n for n in names if n.plain.startswith(prefix)]):
+                return _dedupe(hit)
+        words = set(key.split())
         if (
-            len(plain) >= 3
-            and plain not in config.STOP_WORDS
-            and (hit := [p for p in places if words <= set(p[2].split())])
+            len(key) >= 3
+            and key not in config.STOP_WORDS
+            and (hit := [n for n in names if words <= set(n.plain.split())])
         ):
-            return hit
-        limit = _fuzzy_limit(plain)
+            return _dedupe(hit)
+        limit = _fuzzy_limit(key)
         if limit == 0:
             return []
-        dist = [(edit_distance(plain, p[2]), p) for p in places]
+        pool = [(n.plain, [n]) for n in names] + list(self._aliases.items())
+        dist = [(edit_distance(key, p), hits) for p, hits in pool]
         best = min((d for d, _ in dist), default=99)
-        return [p for d, p in dist if d == best] if best <= limit else []
+        return _dedupe([n for d, hits in dist if d == best for n in hits]) if best <= limit else []
 
-    def _place_match(self, place: tuple) -> dict:
-        place_id, name, _, pop = place
-        self.places.add(name)
+    def _name_matches(self, found: list[_Named]) -> list[dict]:
+        out = []
+        for n in found:
+            self.places.add(n.name)
+            table, column = (
+                ("place_overlap", "place_id") if n.kind == "place" else ("area_overlap", "area_id")
+            )
+            overlaps = self._overlaps(table, column, n.id)
+            if n.kind == "island":
+                for o in overlaps:
+                    if o["geo"].startswith("county:"):
+                        whole = self.con.execute(
+                            "SELECT sum(pop2020) FROM blocks WHERE county = ?", [o["geo"].split(":")[1]]
+                        ).fetchone()[0]
+                        o["of_county"] = round(o["pop2020"] / whole, 4)
+            out.append(
+                {
+                    "kind": n.kind,
+                    "name": n.name,
+                    f"{'place' if n.kind == 'place' else 'area'}_id": n.id,
+                    "island": n.island,
+                    "pop2020": n.pop,
+                    "overlaps": overlaps,
+                }
+            )
+        return out
+
+    # suggestions for the website's search box (not an agent tool)
+
+    def suggest(self, text: str, limit: int = SUGGEST_LIMIT) -> list[dict]:
+        """What search can find that starts with the text typed so far: ZIP codes for digits, districts for a
+        chamber and digits, else names. Each has a label, a detail line and the exact query that finds it."""
+        key = search_plain(text)
+        if len(key) < SUGGEST_MIN:
+            return []
+        if key.isdigit():
+            return self._suggest_zips(key, limit)
+        if m := DISTRICT_START.match(key):
+            return self._suggest_districts(_chamber(m.group(1)) or "house", m.group(2), limit)
+        return self._suggest_names(key, limit)
+
+    def _main_islands(self, geo_type: str) -> dict[str, str]:
+        if not self._has_areas():
+            return {}
+        return dict(
+            self.con.execute(
+                "SELECT o.geo_id, arg_max(a.name, o.pop2020) FROM area_overlap o JOIN area a USING (area_id) "
+                "WHERE a.kind = 'island' AND o.geo_type = ? GROUP BY 1",
+                [geo_type],
+            ).fetchall()
+        )
+
+    def _suggest_zips(self, digits: str, limit: int) -> list[dict]:
+        islands = self._main_islands("zcta")
         rows = self.con.execute(
-            "SELECT geo_type, geo_id, pop2020, share FROM place_overlap "
-            "WHERE place_id = ? AND geo_type IN ('house', 'senate', 'county') "
-            "ORDER BY geo_type = 'county', geo_type, share DESC, geo_id",
-            [place_id],
+            "SELECT geo_id FROM geography WHERE geo_type = 'zcta' AND starts_with(geo_id, ?) ORDER BY geo_id LIMIT ?",
+            [digits, limit],
         ).fetchall()
-        return {
-            "kind": "place",
-            "name": name,
-            "place_id": place_id,
-            "pop2020": int(pop),
-            "overlaps": [self._overlap_entry(t, i, s, int(p)) for t, i, p, s in rows],
-        }
+        return [
+            {"label": f"ZIP code {z}", "detail": islands.get(z) or "ZIP code", "query": z, "kind": "zcta"}
+            for (z,) in rows
+        ]
+
+    def _suggest_districts(self, chamber: str, digits: str, limit: int) -> list[dict]:
+        islands = self._main_islands(chamber)
+        ids = [
+            r[0]
+            for r in self.con.execute(
+                "SELECT geo_id FROM geography WHERE geo_type = ? ORDER BY geo_id", [chamber]
+            ).fetchall()
+        ]
+        word = chamber.title()
+        hits = [i for i in ids if i.isdigit() and str(int(i)).startswith(digits.lstrip("0") or "0")]
+        return [
+            {
+                "label": f"{word} District {int(i)}",
+                "detail": islands.get(i) or f"{word} district",
+                "query": f"{word} {int(i)}",
+                "kind": chamber,
+            }
+            for i in hits[:limit]
+        ]
+
+    def _suggest_names(self, key: str, limit: int) -> list[dict]:
+        """Names whose first word starts with key, then names with a later word that does. Within each, towns,
+        islands, neighborhoods, divisions and other names for whole regions come first, then counties, then
+        other names for a part of one area such as Lanikai, each most residents first."""
+
+        def rank(plain: str) -> int | None:
+            if plain.startswith(key):
+                return 0
+            return 1 if f" {key}" in f" {plain}" else None
+
+        found = []  # (rank, group, -residents, label, suggestion)
+        for n in _dedupe([n for n in self._names() if rank(n.plain) is not None]):
+            detail = " · ".join(
+                x for x in (n.island if n.island != n.name else None, KIND_LABELS[n.kind]) if x
+            )
+            query = f"{'place' if n.kind == 'place' else 'area'}:{n.id}"
+            item = {"label": n.name, "detail": detail, "query": query, "kind": n.kind}
+            found.append((rank(n.plain), 0, -n.pop, n.name, item))
+        for geo_id, name in self.con.execute(
+            "SELECT geo_id, name FROM geography WHERE geo_type = 'county' ORDER BY geo_id"
+        ).fetchall():
+            label = geo_display("county", geo_id, name)
+            if (r := rank(search_plain(label))) is not None:
+                pop = self.con.execute(
+                    "SELECT sum(pop2020) FROM blocks WHERE county = ?", [geo_id]
+                ).fetchone()[0]
+                item = {
+                    "label": label,
+                    "detail": KIND_LABELS["county"],
+                    "query": f"county:{geo_id}",
+                    "kind": "county",
+                }
+                found.append((r, 1, -(pop or 0), label, item))
+        # Other names, once for each set of places they stand for: Upcountry and Upcountry Maui are one entry.
+        seen = set()
+        for plain in sorted(
+            (p for p in self._aliases if rank(p) is not None), key=lambda p: (rank(p), len(p), p)
+        ):
+            targets = self._aliases[plain]
+            ids = frozenset((t.kind, t.id) for t in targets)
+            if ids in seen:
+                continue
+            seen.add(ids)
+            islands = list(dict.fromkeys(t.island for t in targets if t.island))
+            whole = len(targets) > 1 or targets[0].kind == "island" or targets[0].plain == plain
+            what = (
+                f"{len(targets)} areas"
+                if len(targets) > 1
+                else KIND_LABELS["island"]
+                if targets[0].kind == "island"
+                else f"in {targets[0].name}"
+            )
+            label = self._alias_names.get(plain, plain)
+            item = {"label": label, "detail": " · ".join([*islands, what]), "query": plain, "kind": "alias"}
+            # A name for part of one area, such as Lanikai in Kailua, has fewer residents than the whole area.
+            found.append((rank(plain), 0 if whole else 2, -sum(t.pop for t in targets), label, item))
+        found.sort(key=lambda f: f[:4])
+        return [f[4] for f in found[:limit]]
 
     # search_indicators
 
@@ -552,8 +835,10 @@ _GEO = {
 TOOL_SPECS = [
     _spec(
         "resolve_place",
-        "Resolve a district, ZIP code or place name to geographies. Returns every candidate with its overlapping "
-        "districts and counties, or no matches. Never guess between candidates.",
+        "Resolve a district, ZIP code, island, county, neighborhood or town to geographies. Returns every "
+        "candidate with its island and the districts and counties it overlaps, or no matches with a note on why. "
+        "Islands, neighborhood board areas and county divisions have no facts of their own: use their districts, "
+        "or their county when of_county is close to 1. Never guess between candidates.",
         {"text": {"type": "string", "description": "District, ZIP code or place name as the user wrote it."}},
         ["text"],
     ),

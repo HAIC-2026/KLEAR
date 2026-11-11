@@ -8,7 +8,7 @@ test('search, choose, read the profile, ask, open a source, and come back', asyn
   await page.goto('/');
 
   // Search: a town that spans districts lists them, with each share in the button's spoken name.
-  await page.getByLabel('District, town, or ZIP code').first().fill('Kāneʻohe');
+  await page.getByLabel('District, place, ZIP code, or street address').first().fill('Kāneʻohe');
   await page.getByRole('button', {name: 'Find district'}).first().click();
   await expect(page.locator('#find-status')).toContainText('Choose a district.');
   const matches = page.locator('#find-matches');
@@ -64,7 +64,7 @@ test('search, choose, read the profile, ask, open a source, and come back', asyn
 
 test('a failed question is announced and waits in the box to retry', async ({page}) => {
   await page.goto('/');
-  await page.getByLabel('District, town, or ZIP code').first().fill('House 22');
+  await page.getByLabel('District, place, ZIP code, or street address').first().fill('House 22');
   await page.getByRole('button', {name: 'Find district'}).first().click();
   await expect(page.locator('#district-title')).toHaveText(DISTRICT);
   await page.route('**/api/chat', route => route.fulfill({status: 503, contentType: 'application/json', body: '{"error": "KLEAR could not answer. Please try again."}'}));
@@ -78,7 +78,7 @@ test('a failed question is announced and waits in the box to retry', async ({pag
 
 test('focus stays put when the reader has moved on before the answer arrives', async ({page}) => {
   await page.goto('/');
-  await page.getByLabel('District, town, or ZIP code').first().fill('House 22');
+  await page.getByLabel('District, place, ZIP code, or street address').first().fill('House 22');
   await page.getByRole('button', {name: 'Find district'}).first().click();
   await expect(page.locator('#district-title')).toHaveText(DISTRICT);
   let release;

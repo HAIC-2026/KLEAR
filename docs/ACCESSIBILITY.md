@@ -7,7 +7,7 @@ Last updated: November 9, 2026.
 ## What is in place
 
 - A "Skip to content" link, labels on every form field, and a visible outline on whatever has keyboard focus. On the map, the focused district gets a dark outline with a white edge, drawn above its neighbors.
-- Three ways to pick a district: a search by district, town, or ZIP code; a map you can use with the keyboard (arrow keys move between districts, Enter picks one, and Enter again asks about it); and a plain list of all districts.
+- Three ways to pick a district: a search by district, town, neighborhood, island, ZIP code, or street address; a map you can use with the keyboard (arrow keys move between districts, Enter picks one, and Enter again asks about it); and a plain list of all districts.
 - Answers are not read aloud as they arrive. A short status line says "Answer ready for House District 22.", and if you are still in the chat, focus moves to the new answer's heading, so you can read it from the top. If you have moved to another field, focus stays where you are.
 - The district profile beside the chat works the same way: a short status line ("Profile for House District 22 loaded.") is announced, and the figures are read only when you move to them.
 - Every bar chart has a sentence that says what it shows, such as "House District 22, at 12.3% ± 2.1 points, is higher than Honolulu County and is within the margin of error of Hawaiʻi.", and a "Show the data table" button that opens the same figures as a table. Screen readers skip the bars themselves.

@@ -143,8 +143,18 @@ function choose(geo, name, quiet) {
 }
 
 const share = s => s < 0.01 ? '<1%' : `${Math.round(s * 100)}%`;
+// A place with more districts than this in one chamber shows a summary first, with its full list folded.
+const MANY = 8;
+// What kind of area a result is, when its name alone does not say.
+const kindNotes = {
+  neighborhood: 'Honolulu neighborhood board area',
+  division: 'Census county division',
+  island: 'Whole island',
+  county: 'Whole county',
+  address: 'Address as matched by the U.S. Census Bureau',
+};
 
-// One group of district buttons per matched place or ZIP code, largest place first.
+// One group of district buttons per matched place, area, ZIP code or address, largest first.
 function matchGroups(matches) {
   const groups = [];
   for (const m of matches) {
@@ -152,9 +162,12 @@ function matchGroups(matches) {
     if (!rows.length) continue;
     const county = (m.overlaps || []).find(g => /^county:/.test(g.geo || ''));
     const place = m.kind === 'zcta' ? `ZIP code ${m.geo.split(':')[1]}` : m.name;
+    // Name the island, or the county when the store has no islands. An island, county or address names itself.
+    const where = ['island', 'county', 'address'].includes(m.kind) ? '' : m.island || (county && county.name);
     const rank = g => (g.geo.startsWith('senate:') ? 1000 : 0) - Math.round((g.share ?? 1) * 100);
     rows.sort((a, b) => rank(a) - rank(b) || a.geo.localeCompare(b.geo));
-    groups.push({place, title: m.kind === 'district' ? '' : [place, county && county.name].filter(Boolean).join(', '), pop: m.pop2020 || 0, rows});
+    const title = m.kind === 'district' ? '' : [place, where].filter(Boolean).join(', ');
+    groups.push({place, kind: m.kind, title, note: kindNotes[m.kind] || '', pop: m.pop2020 || 0, rows});
   }
   return groups.sort((a, b) => b.pop - a.pop);
 }
@@ -169,13 +182,25 @@ function mapNudge(lead) {
   return line;
 }
 
-// Each place's districts in a House column and a Senate column, largest share first.
+// A link that moves to the map with a place's districts highlighted and its shares listed.
+function mapLink(g, text) {
+  const link = node('a', text), pairs = c => g.rows.filter(r => r.geo.startsWith(`${c}:`)).map(r => [r.geo, r.share ?? 1]);
+  link.href = '#district-map';
+  link.onclick = () => document.dispatchEvent(new CustomEvent('klear:area', {detail: {label: g.place, house: pairs('house'), senate: pairs('senate')}}));
+  return link;
+}
+
+// Each place's districts in a House column and a Senate column, largest share first. A place with many districts
+// leads with how many it spans and where to narrow it down, and keeps the full list in a disclosure.
 function showMatches(groups, box, pick) {
   for (const g of groups) {
     const wrap = node('div', '', 'match-group'), cols = node('div', '', 'chamber-cols');
     if (g.title) wrap.append(node('p', g.title, 'match-title'));
+    if (g.note) wrap.append(node('p', g.note, 'match-note'));
+    const counts = {};
     for (const chamber of ['house', 'senate']) {
       const rows = g.rows.filter(r => r.geo.startsWith(`${chamber}:`));
+      counts[chamber] = rows.length;
       if (!rows.length) continue;
       const col = node('div', '', 'chamber-col'), chips = node('div', '', 'chips');
       col.setAttribute('role', 'group');
@@ -194,35 +219,132 @@ function showMatches(groups, box, pick) {
       col.append(chips);
       cols.append(col);
     }
-    wrap.append(cols);
+    if (counts.house > MANY || counts.senate > MANY) {
+      const spans = [['house', 'House'], ['senate', 'Senate']].filter(([c]) => counts[c]).map(([c, word]) => `${counts[c]} ${word}`);
+      const summary = node('p', `${g.place} spans ${spans.join(' and ')} districts. Search for a neighborhood, town or ZIP code in it, or `, 'match-summary');
+      summary.append(mapLink(g, 'see its districts on the map'), '.');
+      const all = node('details', '', 'match-all'), label = node('summary', `All ${g.rows.length} districts`);
+      all.append(label, cols);
+      wrap.append(summary, all);
+    } else {
+      wrap.append(cols);
+    }
     box.append(wrap);
   }
   box.append(mapNudge('Still not sure which is yours?'));
 }
 
+// Suggestions under a search box as an ARIA 1.2 combobox. The list follows typing, the arrow keys move through it
+// while focus stays in the box, Enter or a click picks one, and Escape closes it. Suggestions come from names in the
+// store only, so nothing typed goes to another service. Returns a function that closes the list.
+const SUGGEST_MIN = 2, SUGGEST_WAIT = 150;
+function suggestBox(input, list, live, onPick) {
+  // stale: the text changed since the list was filled, so the keys must not act on its old options
+  let items = [], active = -1, seq = 0, timer = 0, stale = false;
+  const close = () => {
+    seq++;
+    clearTimeout(timer);
+    items = [];
+    active = -1;
+    list.hidden = true;
+    list.replaceChildren();
+    input.setAttribute('aria-expanded', 'false');
+    input.removeAttribute('aria-activedescendant');
+  };
+  const mark = i => {
+    active = i;
+    [...list.children].forEach((li, j) => li.setAttribute('aria-selected', String(j === i)));
+    input.setAttribute('aria-activedescendant', list.children[i].id);
+    list.children[i].scrollIntoView({block: 'nearest'});
+  };
+  const pick = i => {
+    const s = items[i];
+    input.value = s.label;
+    close();
+    live.textContent = '';
+    onPick(s.query);
+  };
+  const show = found => {
+    items = found;
+    active = -1;
+    stale = false;
+    list.replaceChildren(...found.map((s, i) => {
+      const li = node('li', '');
+      li.id = `${list.id}-${i}`;
+      li.setAttribute('role', 'option');
+      li.setAttribute('aria-selected', 'false');
+      li.append(node('span', s.label, 'suggestion-label'), ' ', node('span', s.detail, 'suggestion-detail'));
+      // Keep focus in the box, so a tap or click picks without the box losing focus and closing the list first.
+      li.addEventListener('pointerdown', e => e.preventDefault());
+      li.addEventListener('click', () => pick(i));
+      return li;
+    }));
+    list.hidden = !found.length;
+    input.setAttribute('aria-expanded', String(Boolean(found.length)));
+    input.removeAttribute('aria-activedescendant');
+    live.textContent = found.length ? `${found.length} suggestion${found.length === 1 ? '' : 's'}. Use the up and down arrows to choose.` : '';
+  };
+  const load = async () => {
+    const text = input.value.trim(), mine = ++seq;
+    if (text.length < SUGGEST_MIN) { close(); live.textContent = ''; return; }
+    try {
+      const r = await fetch('/api/suggest?q=' + encodeURIComponent(text));
+      const data = r.ok ? await r.json() : null;
+      if (mine === seq && document.activeElement === input) show((data && data.suggestions) || []);
+    } catch {
+      if (mine === seq) close();
+    }
+  };
+  input.addEventListener('input', () => {
+    stale = true;
+    active = -1;
+    [...list.children].forEach(li => li.setAttribute('aria-selected', 'false'));
+    input.removeAttribute('aria-activedescendant');
+    clearTimeout(timer);
+    timer = setTimeout(load, SUGGEST_WAIT);
+  });
+  input.addEventListener('keydown', e => {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      // A closed or outdated list loads the suggestions for the text as it is now, without waiting.
+      if (list.hidden || stale) { clearTimeout(timer); load(); return; }
+      const n = items.length, down = e.key === 'ArrowDown';
+      mark(down ? (active + 1) % n : (active <= 0 ? n - 1 : active - 1));
+    } else if (e.key === 'Enter' && !list.hidden && !stale && active >= 0) {
+      e.preventDefault();
+      pick(active);
+    } else if (e.key === 'Escape' && !list.hidden) {
+      e.preventDefault();
+      close();
+    }
+  });
+  input.addEventListener('blur', close);
+  return close;
+}
+
 // Wire a district search form: matching districts appear as buttons under it, and a single match is picked at once.
-// Returns a function that clears the form's results and drops any search still loading.
+// A picked suggestion searches at once for exactly what it names. Returns a function that clears the form's results
+// and drops any search still loading.
 function lookupForm(form, input, status, box, pick) {
   let seq = 0;
-  form.onsubmit = async e => {
-    e.preventDefault();
+  const search = async query => {
     const mine = ++seq, button = form.querySelector('button[type=submit]');
     button.disabled = true;
     box.replaceChildren();
     status.textContent = 'Finding matching districts…';
     try {
-      const data = await api('/api/resolve?q=' + encodeURIComponent(input.value));
+      const data = await api('/api/resolve?q=' + encodeURIComponent(query));
       if (mine !== seq) return;
       const groups = matchGroups(data.matches || []);
       const found = new Map(groups.flatMap(g => g.rows.map(r => [r.geo, r.name])));
       if (found.size === 1) { const [[geo, name]] = found; status.textContent = ''; pick(geo, name); return; }
-      const county = (data.matches || []).find(m => m.kind === 'county');
       if (!found.size) {
-        status.textContent = county ? `${county.name} is a whole county. Try a town or ZIP code in it.` : 'No matching districts. Try House 22, Senate 17, a town, or a Hawaiʻi ZIP code.';
+        status.textContent = data.note || 'No matching districts. Try House 22, a town or neighborhood, a ZIP code, or a street address.';
         box.append(mapNudge('Not sure which district is yours?'));
         return;
       }
-      status.textContent = groups.some(g => g.title) ? 'Choose a district. The percent beside each one is the share of that area’s residents who live in it.' : 'Choose a district:';
+      if (groups.every(g => g.kind === 'address')) status.textContent = 'Choose the House or Senate district to ask about.';
+      else status.textContent = groups.some(g => g.title) ? 'Choose a district. The percent beside each one is the share of that area’s residents who live in it.' : 'Choose a district:';
       showMatches(groups, box, pick);
     } catch (err) {
       if (mine === seq) status.textContent = err.message;
@@ -230,7 +352,9 @@ function lookupForm(form, input, status, box, pick) {
       button.disabled = false;
     }
   };
-  return () => { seq++; box.replaceChildren(); status.textContent = ''; };
+  const closeList = suggestBox(input, $(`${input.id}-list`), $(`${input.id}-count`), search);
+  form.onsubmit = e => { e.preventDefault(); closeList(); search(input.value); };
+  return () => { seq++; closeList(); box.replaceChildren(); status.textContent = ''; };
 }
 
 $('change').onclick = () => {
