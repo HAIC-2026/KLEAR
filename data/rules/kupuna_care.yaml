@@ -1,9 +1,31 @@
 rule_id: kupuna_care
 program: Kūpuna Care
-status: needs_manual
+status: confirmed
 effective: '2026-01-01'
-url: https://www.capitol.hawaii.gov/hrscurrent/Vol05_Ch0261-0319/HRS0349/HRS_0349-0017.htm
-values: {}
-verified_by: not read in this session
-retrieved: '2026-10-30'
-note: site blocks scripts (HTTP 403), confirm criteria under HRS 349-17 by hand
+url: https://data.capitol.hawaii.gov/hrscurrent/Vol07_Ch0346-0398/HRS0349/HRS_0349-0017.htm
+saved: hrs-349-17.html
+values:
+  min_age:
+    value: sixty years of age or older
+    url: https://data.capitol.hawaii.gov/hrscurrent/Vol07_Ch0346-0398/HRS0349/HRS_0349-0016.htm
+    quote: (2) Is sixty years of age or older
+  no_comparable_coverage:
+    value: Is not covered by any comparable government or private home- and community-based care service
+    url: https://data.capitol.hawaii.gov/hrscurrent/Vol07_Ch0346-0398/HRS0349/HRS_0349-0016.htm
+    quote: (3) Is not covered by any comparable government or private home- and community-based care service
+  employed_caregiver_hours:
+    value: at least twenty hours per week
+    url: https://data.capitol.hawaii.gov/hrscurrent/Vol07_Ch0346-0398/HRS0349/HRS_0349-0016.htm
+    quote: Is employed at least twenty hours per week by one or more employers or is self-employed
+  who_qualifies:
+    value: care recipient, caregiver, or employed caregiver
+    quote: To qualify for the kupuna care program, an individual shall be a care recipient, caregiver, or employed caregiver as defined in section 349-16.
+  eligibility_by:
+    value: aging and disability resource center
+    quote: An area agency on aging, through the aging and disability resource center or any other entity designated by the executive office on aging, shall determine eligibility for the program
+  in_home_assessment:
+    value: comprehensive in-home assessment
+    quote: (2) A comprehensive in-home assessment of the care recipient or a caregiver assessment, if necessary
+verified_by: read from HRS §349-16 and §349-17 on data.capitol.hawaii.gov, with a copy of §349-17 saved by hand
+retrieved: '2026-11-09'
+note: Kūpuna Care has no income limit in statute. A care recipient must be 60 or older, a U.S. citizen or lawful permanent resident, live outside a long-term care facility, have no comparable home- and community-based service, and have impairments in at least two activities of daily living, or a substantive cognitive impairment, among the combinations HRS §349-16 lists. The statute was last amended in 2022, so effective is the start of the year it was read in.

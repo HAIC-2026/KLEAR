@@ -3,14 +3,51 @@ program: Federal EITC (tax year 2026)
 status: confirmed
 effective: '2026-01-01'
 url: https://www.irs.gov/newsroom/irs-releases-tax-inflation-adjustments-for-tax-year-2026-including-amendments-from-the-one-big-beautiful-bill
+fetch_url: https://www.irs.gov/pub/irs-drop/rp-25-32.pdf
 effective_source:
   url: https://www.irs.gov/newsroom/irs-releases-tax-inflation-adjustments-for-tax-year-2026-including-amendments-from-the-one-big-beautiful-bill
   quote: The tax year 2026 maximum Earned Income Tax Credit
   shown: tax year 2026
 values:
+  max_credit_0_children:
+    value: 664
+    quote: Maximum Amount of Credit $4,427 $7,316 $8,231 $664
+  max_credit_1_child:
+    value: 4427
+    quote: Maximum Amount of Credit $4,427 $7,316 $8,231 $664
+  max_credit_2_children:
+    value: 7316
+    quote: Maximum Amount of Credit $4,427 $7,316 $8,231 $664
   max_credit_3_plus_children:
     value: 8231
-    quote: The tax year 2026 maximum Earned Income Tax Credit (EITC) amount is $8,231 for qualifying taxpayers who have three or more qualifying children
-verified_by: read from the IRS tax year 2026 inflation adjustments release in this session
-retrieved: '2026-10-30'
-note: 'pending: max credit for 0, 1 and 2 children and income limits are only in Revenue Procedure 2025-32 (PDF)'
+    quote: Maximum Amount of Credit $4,427 $7,316 $8,231 $664
+  investment_income_limit:
+    value: 12200
+    quote: the earned income tax credit is not allowed under § 32(i) if the aggregate amount of certain investment income exceeds $12,200
+  agi_limit_single_0_children:
+    value: 19540
+    quote: Completed Phaseout Amount (All other filing statuses) $51,593 $58,629 $62,974 $19,540
+  agi_limit_joint_0_children:
+    value: 26820
+    quote: Completed Phaseout Amount (Married Filing Jointly) $58,863 $65,899 $70,244 $26,820
+  agi_limit_single_1_children:
+    value: 51593
+    quote: Completed Phaseout Amount (All other filing statuses) $51,593 $58,629 $62,974 $19,540
+  agi_limit_joint_1_children:
+    value: 58863
+    quote: Completed Phaseout Amount (Married Filing Jointly) $58,863 $65,899 $70,244 $26,820
+  agi_limit_single_2_children:
+    value: 58629
+    quote: Completed Phaseout Amount (All other filing statuses) $51,593 $58,629 $62,974 $19,540
+  agi_limit_joint_2_children:
+    value: 65899
+    quote: Completed Phaseout Amount (Married Filing Jointly) $58,863 $65,899 $70,244 $26,820
+  agi_limit_single_3_plus_children:
+    value: 62974
+    quote: Completed Phaseout Amount (All other filing statuses) $51,593 $58,629 $62,974 $19,540
+  agi_limit_joint_3_plus_children:
+    value: 70244
+    quote: Completed Phaseout Amount (Married Filing Jointly) $58,863 $65,899 $70,244 $26,820
+verified_by: read from Revenue Procedure 2025-32, section 4.06 (earned income credit table and investment income limit)
+retrieved: '2026-11-09'
+note: The table lists columns in the order one, two, three or more, then no qualifying children.
