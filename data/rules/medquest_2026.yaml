@@ -1,9 +1,28 @@
 rule_id: medquest_2026
 program: Med-QUEST
-status: needs_manual
+status: confirmed
 effective: '2026-01-13'
-url: https://medquest.hawaii.gov/
-values: {}
-verified_by: not read in this session
-retrieved: '2026-10-30'
-note: site blocks scripts (HTTP 403), confirm the 2026 income chart by hand. Figures seen so far match the 2024 chart
+url: https://medquest.hawaii.gov/content/dam/formsanddocuments/resources/magi-and-magi-excepted-income-standard-charts/2026%20PPDO%20MAGI%20and%20MAGI-Excepted%20Income%20Standards%20CHART.pdf
+saved: medquest-2026-magi-income-standards.pdf
+values:
+  adult_limit_pct_fpl:
+    value: 133
+    quote: FPL** 100% 105% 133% 138% 133% 138%
+  adult_limit_pct_fpl_with_disregard:
+    value: 138
+    quote: FPL** 100% 105% 133% 138% 133% 138%
+  adult_monthly_limit_1:
+    value: 2112
+    quote: HH 1 $1,530 $1,607 $2,035 $2,112 $2,035 $2,112
+  adult_monthly_limit_4:
+    value: 4365
+    quote: 4 $3,163 $3,321 $4,207 $4,365 $4,207 $4,365
+  disregard_pct:
+    value: 5
+    quote: the minimum MAGI income standard plus the 5% disregard
+  ssi_income_standard_1:
+    value: 994
+    quote: HH Size MNIL* SSI Income Standard* 100%** 120%** 135%** 200%** 300%** 1 $469 $994
+verified_by: read from the Med-QUEST 2026 MAGI and MAGI-Excepted Income Standards Chart, saved by hand from medquest.hawaii.gov (which blocks scripts)
+retrieved: '2026-11-09'
+note: The chart is listed on https://medquest.hawaii.gov/content/medquest/en/resources/rules-and-policy.html. Adults 19 to 64 qualify at 133% of the Hawaiʻi poverty guideline, or 138% with the 5% disregard. Assets are exempt for groups under MAGI rules. Only the adult limits are stored, because the chart's columns for children and pregnant women do not line up one to one with its group headings.
