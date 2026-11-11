@@ -8,6 +8,7 @@ import pytest
 from klear.etl import chas, manual
 from klear.etl.bounded import NotAdditiveError
 from klear.etl.chas import (
+    BAND_STARTS,
     CHAS_INDICATORS,
     SOURCE_ID,
     chas_columns,
@@ -19,7 +20,9 @@ from klear.etl.chas import (
 from klear.etl.geographies import small_geographies
 from klear.etl.manual import ManualInputMissing
 from klear.store.db import add_facts, add_geographies, add_indicators, add_source
+from klear.validation import chas as chas_check
 from klear.validation.chas import check_chas
+from tests.fixtures.make_chas_sample import table8
 
 FIXTURES = Path(__file__).parent.parent / "fixtures"
 ZIP = FIXTURES / "chas_sample" / "2018thru2022-140-csv.zip"
@@ -31,31 +34,40 @@ def chas_sample():
     return read_chas(ZIP)
 
 
-@pytest.fixture
-def chas_dictionary():
-    with zipfile.ZipFile(ZIP) as z:
-        return pd.read_csv(z.open("CHAS data dictionary 18-22.csv"))
+@pytest.fixture(autouse=True)
+def fixture_state_totals(monkeypatch):
+    # The sample's Hawaiʻi tracts stand in for HUD's state summary.
+    sums = read_chas(ZIP).groupby("indicator_id").value.sum().to_dict()
+    monkeypatch.setattr(chas_check, "HUD_STATE", sums)
 
 
-def test_columns_chosen_by_dictionary_text(chas_dictionary):
-    cols = chas_columns(chas_dictionary)
+def test_columns_follow_table8_layout():
+    cols = chas_columns()
     assert set(cols) == set(CHAS_INDICATORS)
-    assert len(cols[RB]) == 3 and len(cols["chas_renter_lowinc"]) == 3
-    assert all(c.startswith("T8_est") for v in cols.values() for c in v)
-    assert len({c for v in cols.values() for c in v}) == 12
-    # the fixture's renter burdened columns, picked by text and not by number
-    d = chas_dictionary.set_index("Column Name").Description
-    assert all(
-        d[c].startswith("Renter occupied") and d[c].endswith("cost burden greater than 30%") for c in cols[RB]
-    )
-    renamed = chas_dictionary.assign(
-        Description=chas_dictionary.Description.str.replace("Renter occupied", "Renters", regex=False)
-    )
-    with pytest.raises(ValueError, match="renter occupied"):
-        chas_columns(renamed)
-    dup = pd.concat([chas_dictionary, chas_dictionary.iloc[[5]]], ignore_index=True)
-    with pytest.raises(ValueError, match="more than one"):
-        chas_columns(dup)
+    # band totals for the three income bands at or below 80% HAMFI
+    assert cols["chas_owner_lowinc"] == ["T8_est3", "T8_est16", "T8_est29"]
+    assert cols["chas_renter_lowinc"] == ["T8_est69", "T8_est82", "T8_est95"]
+    # cost burden over 30% is the over 30% to 50% line plus the over 50% line
+    assert cols[RB] == ["T8_est73", "T8_est76", "T8_est86", "T8_est89", "T8_est99", "T8_est102"]
+    assert set(BAND_STARTS) == {"owner", "renter"}
+
+
+def test_check_compares_hawaii_with_hud_state_summary(blocks_fixture, monkeypatch):
+    facts = chas_facts(ZIP, blocks_fixture)
+    assert any("HUD state summary" in n for n in check_chas(facts).notes)
+    off = {k: v * 1.01 for k, v in chas_check.HUD_STATE.items()}
+    monkeypatch.setattr(chas_check, "HUD_STATE", off)
+    res = check_chas(facts)
+    assert not res.passed and {d["check"] for d in res.details} == {"state"}
+
+
+def test_reads_latin1_place_names(tmp_path):
+    raw = table8(["14000US15003008001"])
+    raw["name"] = "Census Tract 1, Doña Ana County"
+    z = tmp_path / "chas.zip"
+    with zipfile.ZipFile(z, "w") as f:
+        f.writestr("140/Table8.csv", raw.to_csv(index=False).encode("latin-1"))
+    assert set(read_chas(z).src_id) == {"15003008001"}
 
 
 def test_tract_ids_are_11_digits(chas_sample):
