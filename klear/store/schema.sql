@@ -143,3 +143,34 @@ CREATE TABLE IF NOT EXISTS place_overlap (
     share DOUBLE NOT NULL CHECK (share > 0 AND share <= 1),
     PRIMARY KEY (place_id, geo_type, geo_id)
 );
+
+-- Islands, Honolulu neighborhood board areas and Census county divisions, for resolving names that are not
+-- Census places. island is the island holding most of the area's 2020 residents.
+CREATE TABLE IF NOT EXISTS area (
+    area_id VARCHAR PRIMARY KEY,
+    kind VARCHAR NOT NULL CHECK (kind IN ('island', 'neighborhood', 'division')),
+    name VARCHAR NOT NULL,
+    plain VARCHAR NOT NULL,
+    island VARCHAR NOT NULL,
+    pop2020 BIGINT NOT NULL CHECK (pop2020 > 0)
+);
+
+-- 2020 population of each area inside a county, House or Senate district, ZCTA or Census place.
+CREATE TABLE IF NOT EXISTS area_overlap (
+    area_id VARCHAR NOT NULL REFERENCES area (area_id),
+    geo_type VARCHAR NOT NULL CHECK (geo_type IN ('county', 'house', 'senate', 'zcta', 'place')),
+    geo_id VARCHAR NOT NULL,
+    pop2020 BIGINT NOT NULL,
+    share DOUBLE NOT NULL CHECK (share > 0 AND share <= 1),
+    PRIMARY KEY (area_id, geo_type, geo_id)
+);
+
+-- Other names people use for an area or Census place, such as Kona or upcountry Maui: plain is the form search
+-- matches and name the spelling search suggests.
+CREATE TABLE IF NOT EXISTS area_alias (
+    plain VARCHAR NOT NULL,
+    name VARCHAR NOT NULL,
+    target_type VARCHAR NOT NULL CHECK (target_type IN ('area', 'place')),
+    target_id VARCHAR NOT NULL,
+    PRIMARY KEY (plain, target_type, target_id)
+);

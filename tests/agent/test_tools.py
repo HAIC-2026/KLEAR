@@ -5,7 +5,7 @@ import time
 import pytest
 
 from klear.agent.config import PROFILE_SECTIONS
-from klear.agent.tools import TOOL_SPECS, Session
+from klear.agent.tools import TOOL_SPECS, Session, _dedupe, _Named
 from klear.eval.golden import load_golden
 
 
@@ -229,14 +229,18 @@ def test_programs_and_source(small):
     assert "error" in call(small, "explain_source", source_id="nope")
 
 
-def test_county_and_island_names_resolve_to_counties(small):
-    for text, geo in (
-        ("Honolulu County", "county:15003"),
-        ("Oʻahu", "county:15003"),
-        ("Big Island", "county:15001"),
-    ):
+def test_county_and_island_names(small):
+    for text, geo in (("Honolulu County", "county:15003"), ("Big Island", "county:15001")):
         assert call(small, "resolve_place", text=text)["matches"][0]["geo"] == geo
     assert ("county", "15003") in small.resolved
+    county = call(small, "resolve_place", text="Honolulu County")["matches"][0]
+    assert [(o["geo"], o["share"]) for o in county["overlaps"]] == [
+        ("house:022", 0.8475), ("house:023", 0.1525), ("senate:012", 1.0)
+    ]  # fmt: skip
+    oahu = call(small, "resolve_place", text="Oʻahu")["matches"]
+    assert [(m["kind"], m["name"], m["island"]) for m in oahu] == [("island", "Oʻahu", "Oʻahu")]
+    assert {"geo": "county:15003", "of_county": 1.0}.items() <= oahu[0]["overlaps"][-1].items()
+    assert "Oʻahu" in small.places
     assert call(small, "resolve_place", text="Maui")["matches"][0]["geo"] == "county:15009"
     assert call(small, "resolve_place", text="Kalawao")["matches"][0]["geo"] == "county:15005"
     assert [m["geo"] for m in call(small, "resolve_place", text="Kalaupapa")["matches"]] == ["county:15005"]
@@ -245,7 +249,6 @@ def test_county_and_island_names_resolve_to_counties(small):
 def test_whole_word_place_match(session):
     names = {m["name"] for m in call(session, "resolve_place", text="Honolulu")["matches"]}
     assert names == {"Urban Honolulu", "East Honolulu"}
-    assert call(session, "resolve_place", text="Waikiki")["matches"] == []
 
 
 def test_short_words_never_fuzzy_match_places(session):
@@ -318,7 +321,7 @@ def test_main_runs_tools_in_one_session(real_con, capsys):
     assert main(["resolve_place"]) == 2
 
 
-@pytest.mark.parametrize("text", ["Hawaii Kai", "Hawaiʻi Kai"])
+@pytest.mark.parametrize("text", ["Atlantis Kai", "Hawaiʻi Atlantis"])
 def test_multiword_unknown_place_is_no_match_with_hint(session, text):
     out = call(session, "resolve_place", text=text)
     assert out["matches"] == [] and "hint" in out
@@ -379,3 +382,164 @@ def test_every_district_profile_is_complete_and_fast(real_con):
             assert f["geo"] == f"{geo_type}:{geo_id}" and f["source"] and f["vintage"] and f["status"], f
         rates = [a for r in rows for a in r["against"] if "direction" in a]
         assert rates and all(a["direction"] in ("higher", "lower", "within_margin") for a in rates)
+
+
+def test_neighborhoods_other_names_and_islands(small):
+    out = call(small, "resolve_place", text="Waikiki")["matches"]
+    assert [(m["kind"], m["name"], m["island"]) for m in out] == [("neighborhood", "Waikīkī", "Oʻahu")]
+    assert [o["geo"] for o in out[0]["overlaps"]] == ["house:022", "senate:012", "county:15003"]
+    assert "Waikīkī" in small.places and ("house", "022") in small.resolved
+    assert [m["area_id"] for m in call(small, "resolve_place", text="Waikiki Beach")["matches"]] == ["nb09"]
+    kailua = call(small, "resolve_place", text="Kailua")["matches"]
+    assert sorted(m["island"] for m in kailua) == ["Hawaiʻi Island", "Oʻahu"]
+    assert call(small, "resolve_place", text="96744")["matches"][0]["island"] == "Oʻahu"
+
+
+def test_no_match_says_why(small):
+    out = call(small, "resolve_place", text="House 52")
+    assert out["matches"] == [] and out["note"].startswith("Hawaiʻi has 2 House districts") and "hint" in out
+    out = call(small, "resolve_place", text="96799")
+    assert out["matches"] == [] and "ZIP code 96799 has no area" in out["note"]
+
+
+def test_shared_name_keeps_the_island_then_the_place():
+    def named(kind, id_, island="Oʻahu"):
+        return _Named(kind, id_, "Kailua", "kailua", 1, island)
+
+    found = [
+        named("division", "d"),
+        named("neighborhood", "n"),
+        named("place", "p"),
+        named("place", "q", "Maui"),
+    ]
+    assert [n.id for n in _dedupe(found)] == ["p", "q"]
+    assert [n.id for n in _dedupe([named("division", "d"), named("island", "i")])] == ["i"]
+    assert [n.id for n in _dedupe([named("place", "p"), named("place", "p")])] == ["p"]
+
+
+def test_store_without_area_tables_searches_places(small_con):
+    for table in ("area_alias", "area_overlap", "area"):
+        small_con.execute(f"DROP TABLE {table}")
+    s = Session(small_con)
+    assert [m["island"] for m in call(s, "resolve_place", text="Kailua")["matches"]] == [None, None]
+    assert call(s, "resolve_place", text="Waikiki")["matches"] == []
+    assert call(s, "resolve_place", text="96744")["matches"][0]["island"] is None
+
+
+def test_block_match_lists_the_address_districts(small):
+    m = small.block_match("150030001001001", "1 TEST ST, HONOLULU, HI, 96744")
+    assert m["kind"] == "address" and m["island"] == "Oʻahu"
+    assert [o["geo"] for o in m["overlaps"]] == ["house:023", "senate:012", "county:15003"]
+    assert ("house", "023") in small.resolved
+    assert small.block_match("159999999999999", "nowhere") is None
+
+
+def _shares_add_up(match):
+    for chamber in ("house", "senate"):
+        shares = [o["share"] for o in match["overlaps"] if o["geo"].startswith(chamber)]
+        assert shares and abs(sum(shares) - 1) < 1e-3, (match["name"], chamber)
+
+
+@pytest.mark.parametrize(
+    ("text", "want"),
+    [
+        (
+            "Kona",
+            [("division", "North Kona", "Hawaiʻi Island"), ("division", "South Kona", "Hawaiʻi Island")],
+        ),
+        ("Waikīkī", [("neighborhood", "Waikīkī", "Oʻahu")]),
+        ("waikiki", [("neighborhood", "Waikīkī", "Oʻahu")]),
+        ("Honolulu", [("place", "East Honolulu", "Oʻahu"), ("place", "Urban Honolulu", "Oʻahu")]),
+        ("Maui", [("island", "Maui", "Maui")]),
+        ("Molokaʻi", [("island", "Molokaʻi", "Molokaʻi")]),
+        ("Oʻahu", [("island", "Oʻahu", "Oʻahu")]),
+        ("Big Island", [("island", "Hawaiʻi Island", "Hawaiʻi Island")]),
+        ("Kailua", [("place", "Kailua", "Hawaiʻi Island"), ("place", "Kailua", "Oʻahu")]),
+        ("Kāneʻohe", [("place", "Kāneʻohe", "Oʻahu")]),
+        ("Kalihi", [("neighborhood", "Kalihi Valley", "Oʻahu"), ("neighborhood", "Kalihi-Pālama", "Oʻahu")]),
+        ("Kakaako", [("neighborhood", "Ala Moana-Kakaʻako", "Oʻahu")]),
+        ("upcountry Maui", [("division", "Kula", "Maui"), ("division", "Makawao-Pāʻia", "Maui")]),
+        ("Kailua-Kona", [("place", "Kailua", "Hawaiʻi Island")]),
+        ("Lānaʻi", [("island", "Lānaʻi", "Lānaʻi")]),
+    ],
+)
+def test_issue_examples_name_their_island_and_shares(session, text, want):
+    out = call(session, "resolve_place", text=text)["matches"]
+    assert sorted((m["kind"], m["name"], m["island"]) for m in out) == want
+    for m in out:
+        _shares_add_up(m)
+
+
+def test_islands_list_their_districts(session):
+    molokai = call(session, "resolve_place", text="Molokai")["matches"][0]
+    assert [(o["geo"], o["share"]) for o in molokai["overlaps"] if o["geo"][0] in "hs"] == [
+        ("house:013", 1.0), ("senate:007", 1.0)
+    ]  # fmt: skip
+    maui = call(session, "resolve_place", text="Maui")["matches"][0]
+    assert next(o for o in maui["overlaps"] if o["geo"] == "county:15009")["of_county"] < 1
+    oahu = call(session, "resolve_place", text="Oahu")["matches"][0]
+    assert sum(o["geo"].startswith("house:") for o in oahu["overlaps"]) > 30
+    county = call(session, "resolve_place", text="Maui County")["matches"][0]
+    assert county["geo"] == "county:15009" and county["overlaps"]
+    _shares_add_up(county)
+
+
+def test_zip_and_place_name_their_island(session):
+    assert call(session, "resolve_place", text="96744")["matches"][0]["island"] == "Oʻahu"
+    assert call(session, "resolve_place", text="Lānaʻi City")["matches"][0]["island"] == "Lānaʻi"
+
+
+@pytest.mark.parametrize(("text", "note"), [("House 52", "51 House"), ("Senate 26", "25 Senate")])
+def test_out_of_range_district_says_how_many(session, text, note):
+    out = call(session, "resolve_place", text=text)
+    assert out["matches"] == [] and f"Hawaiʻi has {note} districts" in out["note"]
+
+
+def _suggested(s, text):
+    return [(x["label"], x["detail"], x["query"]) for x in s.suggest(text)]
+
+
+def test_suggestions_for_names_zips_and_districts(small):
+    assert small.suggest("k") == [] and small.suggest("") == []
+    assert _suggested(small, "ka") == [
+        ("Kāneʻohe", "Oʻahu · Town", "place:1500001"),
+        ("Kailua", "Oʻahu · Town", "place:1500002"),
+        ("Kailua", "Hawaiʻi Island · Town", "place:1500003"),
+        ("Kalawao County", "County", "county:15005"),
+    ]
+    assert _suggested(small, "Wai") == [
+        ("Waikīkī", "Oʻahu · Neighborhood", "area:nb09"),
+        ("Waikīkī Beach", "Oʻahu · in Waikīkī", "waikiki beach"),
+    ]
+    assert _suggested(small, "oah") == [("Oʻahu", "Island", "area:oahu")]
+    assert _suggested(small, "967") == [("ZIP code 96744", "Oʻahu", "96744")]
+    assert _suggested(small, "house 2") == [
+        ("House District 22", "Oʻahu", "House 22"),
+        ("House District 23", "Oʻahu", "House 23"),
+    ]
+    assert _suggested(small, "sd1") == [("Senate District 12", "Oʻahu", "Senate 12")]
+    assert small.suggest("h9") == [] and small.suggest("415 S Beretania") == []
+
+
+def test_picked_suggestion_finds_exactly_it(small):
+    out = call(small, "resolve_place", text="place:1500003")["matches"]
+    assert [(m["name"], m["island"]) for m in out] == [("Kailua", "Hawaiʻi Island")]
+    assert [m["name"] for m in call(small, "resolve_place", text="AREA:nb09")["matches"]] == ["Waikīkī"]
+    assert call(small, "resolve_place", text="county:15003")["matches"][0]["geo"] == "county:15003"
+    for text in ("place:9999999", "area:nb99", "county:15099"):
+        out = call(small, "resolve_place", text=text)
+        assert out["matches"] == [] and "hint" in out, text
+
+
+def test_suggestions_on_the_built_store(session):
+    ko = session.suggest("ko")
+    assert len(ko) == 8 and (ko[0]["label"], ko[0]["detail"]) == ("Kona", "Hawaiʻi Island · 2 areas")
+    assert {"North Kona", "Kōloa", "Koʻolauloa"} <= {s["label"] for s in ko}
+    assert [s["label"] for s in session.suggest("maui")][:2] == ["Maui", "Maui County"]
+    assert [s["label"] for s in session.suggest("upcountry")] == ["Upcountry"]
+    for text in ("ko", "wai", "hono", "maui", "lan", "kai", "96", "house 2", "sen 1", "st l"):
+        for s in session.suggest(text):
+            out = call(Session(session.con), "resolve_place", text=s["query"])["matches"]
+            assert out, (text, s)
+            if s["kind"] in ("place", "island", "neighborhood", "division"):
+                assert [m["name"] for m in out] == [s["label"]], (text, s)

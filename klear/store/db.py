@@ -41,6 +41,11 @@ BLOCK_COLS = ["block", "county", "tract", "zcta", "house", "senate", "pop2020"]
 PLACE_COLS = ["place_id", "name", "plain", "pop2020"]
 OVERLAP_COLS = ["place_id", "geo_type", "geo_id", "pop2020", "share"]
 OVERLAP_TYPES = {"county", "house", "senate", "zcta"}
+AREA_COLS = ["area_id", "kind", "name", "plain", "island", "pop2020"]
+AREA_KINDS = {"island", "neighborhood", "division"}
+AREA_OVERLAP_COLS = ["area_id", "geo_type", "geo_id", "pop2020", "share"]
+AREA_OVERLAP_TYPES = OVERLAP_TYPES | {"place"}
+ALIAS_COLS = ["plain", "name", "target_type", "target_id"]
 SITE_COLS = [
     "site_id", "kind", "name", "address", "lat", "lon", "house", "senate", "snapped_m", "units", "source_id",
 ]  # fmt: skip
@@ -113,6 +118,22 @@ def add_places(con, place: pd.DataFrame, overlap: pd.DataFrame) -> None:
     )
     _insert(con, "place", place)
     _insert(con, "place_overlap", overlap)
+
+
+def add_areas(con, area: pd.DataFrame, overlap: pd.DataFrame, alias: pd.DataFrame) -> None:
+    area = _require_columns(area, AREA_COLS, "areas")
+    overlap = _require_columns(overlap, AREA_OVERLAP_COLS, "area overlap")
+    alias = _require_columns(alias, ALIAS_COLS, "area aliases")
+    _fail("areas", f"kind not in {sorted(AREA_KINDS)}", area, _not_in(area, "kind", AREA_KINDS))
+    _fail(
+        "area overlap",
+        f"geo_type not in {sorted(AREA_OVERLAP_TYPES)}",
+        overlap,
+        _not_in(overlap, "geo_type", AREA_OVERLAP_TYPES),
+    )
+    _insert(con, "area", area)
+    _insert(con, "area_overlap", overlap)
+    _insert(con, "area_alias", alias)
 
 
 def add_indicators(con, df: pd.DataFrame) -> None:

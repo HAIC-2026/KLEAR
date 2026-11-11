@@ -16,10 +16,10 @@ import pandas as pd
 
 from klear import config
 from klear.config import MissingSecretError
-from klear.etl import chas, cms, hud, irs, manual, places, places_gazetteer, sites
+from klear.etl import areas, chas, cms, hud, irs, manual, places, places_gazetteer, sites
 from klear.etl import fetch as fetch_mod
 from klear.etl.blocks import build_block_table, load_block_points
-from klear.etl.boundaries import download_districts, export_web_geojson
+from klear.etl.boundaries import ArcGISError, download_districts, export_web_geojson
 from klear.etl.census_api import get_acs, get_variable_labels
 from klear.etl.census_cache import CacheMissError, CensusCache
 from klear.etl.dbedt import fetch_dbedt, parse_dbedt_profile
@@ -36,6 +36,7 @@ from klear.etl.profile import (
 )
 from klear.rules.registry import REQUIRED_RULE_IDS, Rule, load_rules, page_text
 from klear.store.db import (
+    add_areas,
     add_blocks,
     add_coverage,
     add_coverage_exclusions,
@@ -49,6 +50,7 @@ from klear.store.db import (
 )
 from klear.validation import CheckResult
 from klear.validation.apportionment import check_apportionment
+from klear.validation.areas import check_areas
 from klear.validation.blocks import check_blocks
 from klear.validation.boundaries import check_boundaries
 from klear.validation.chas import check_chas
@@ -110,7 +112,7 @@ CHAMBERS = {"house": True, "senate": True}
 KALAWAO_IRS = {("county", KALAWAO): "IRS publishes no Kalawao County row"}
 KALAWAO_CMS = {("county", KALAWAO): "CMS publishes no rows for Kalawao County"}
 # steps after the base build that need the fact store and the block table
-STORE_STEPS = ("geographies", "irs", "cms", "hud_vouchers", "sites", "places", "chas", "gazetteer")
+STORE_STEPS = ("geographies", "irs", "cms", "hud_vouchers", "sites", "places", "chas", "gazetteer", "areas")
 EXIT_MEANING = {
     0: "all gated checks ran and passed",
     1: "a gated check failed",
@@ -342,6 +344,23 @@ def _store_steps(con, blocks, house, senate, step, checks: list[CheckResult]) ->
         block_place = places_gazetteer.read_baf(baf_path)
         checks.append(check_gazetteer(con, block_place, census=census, overrides=overrides))
 
+    def areas_step():
+        # islands, neighborhood boards and county divisions for district search; aliases need the place table
+        if not con.execute("SELECT count(*) FROM place").fetchone()[0]:
+            raise StepSkipped("needs the place gazetteer, which was skipped")
+        try:
+            points = load_block_points()
+            block_place = places_gazetteer.read_baf(places_gazetteer.fetch_baf())
+            divisions = areas.read_divisions(areas.fetch_divisions())
+            boards = areas.read_boards(areas.fetch_boards())
+        except (httpx.HTTPError, ArcGISError) as e:
+            raise StepSkipped(f"area download failed: {e}") from None
+        names = areas.load_names()
+        built = areas.build_areas(con, points, block_place, divisions, boards, names)
+        add_areas(con, built.area, built.overlap, built.alias)
+        census = dict(zip(divisions["geo_id"], divisions["census_name"], strict=True))
+        checks.append(check_areas(built, names, census=census, boards=set(boards["geo_id"].astype(int))))
+
     for name, fn in (
         ("irs", irs_step),
         ("cms", cms_step),
@@ -350,6 +369,7 @@ def _store_steps(con, blocks, house, senate, step, checks: list[CheckResult]) ->
         ("places", places_step),
         ("chas", chas_step),
         ("gazetteer", gazetteer_step),
+        ("areas", areas_step),
     ):
         step(name, fn)
     return expected

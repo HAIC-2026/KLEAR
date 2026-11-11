@@ -13,6 +13,7 @@ from shapely.ops import polylabel
 
 from klear.agent.tools import Session
 from klear.config import ROOT
+from klear.etl.areas import ISLANDS
 
 BUILD = ROOT / "data" / "build"
 STORE = BUILD / "klear.duckdb"
@@ -21,16 +22,6 @@ TOLERANCE_DEG = 0.0008
 WEST, NORTH, LAT0 = -160.32, 22.3, 20.6
 SCALE = 190.0
 K = math.cos(math.radians(LAT0))
-ISLANDS = {
-    "Niʻihau": ("kauai", (-160.3, 21.7, -160.0, 22.1)),
-    "Kauaʻi": ("kauai", (-159.85, 21.8, -159.25, 22.3)),
-    "Oʻahu": ("oahu", (-158.35, 21.2, -157.6, 21.75)),
-    "Molokaʻi": ("maui", (-157.35, 21.0, -156.7, 21.25)),
-    "Lānaʻi": ("maui", (-157.1, 20.7, -156.78, 20.95)),
-    "Kahoʻolawe": ("maui", (-156.72, 20.48, -156.5, 20.62)),
-    "Maui": ("maui", (-156.72, 20.55, -155.95, 21.05)),
-    "Hawaiʻi": ("hawaii", (-156.1, 18.85, -154.75, 20.3)),
-}
 GROUPS = {"kauai": "Kauaʻi", "oahu": "Oʻahu", "maui": "Maui County", "hawaii": "Hawaiʻi Island"}
 HONOLULU = (-157.93, 21.255, -157.76, 21.36)
 CHAMBERS = {"house": "House District", "senate": "Senate District"}

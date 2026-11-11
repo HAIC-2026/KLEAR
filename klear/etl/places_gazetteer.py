@@ -31,6 +31,11 @@ def plain_name(text: str) -> str:
     return " ".join(s.replace("-", " ").split())
 
 
+def search_plain(text: str) -> str:
+    """plain_name with every character but a letter or digit read as a space, for matching what people type."""
+    return " ".join(re.sub(r"[^a-z0-9]+", " ", plain_name(text)).split())
+
+
 def fetch_baf(client: httpx.Client | None = None) -> Path:
     return fetch(BAF_URL, "blocks/BlockAssign_ST15_HI.zip", client=client)
 

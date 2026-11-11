@@ -23,6 +23,7 @@ from klear.eval.contract import geo_key
 from klear.web import display
 from klear.web.about import about
 from klear.web.assistant import DAILY_CAP, Assistant, DailyBudget, basic
+from klear.web.geocode import GeocoderError, find_blocks, looks_like_address
 
 STORE = ROOT / "data" / "build" / "klear.duckdb"
 STATIC = Path(__file__).with_name("static")
@@ -44,6 +45,11 @@ PUBLIC = (
     "/shots/step-2.png",
     "/shots/step-3.png",
 )
+ADDRESS_NOTES = {
+    "off": "Street address search is turned off on this server. Try a ZIP code or town instead.",
+    "failed": "The address lookup is unavailable right now. Try a ZIP code or town instead.",
+    "none": "No Hawaiʻi address matched. Check the house number and street name, or try a ZIP code or town.",
+}
 BUSY = threading.BoundedSemaphore(3)
 PER_MINUTE = 6
 _RECENT = defaultdict(deque)
@@ -101,8 +107,9 @@ class Handler(SimpleHTTPRequestHandler):
         ".ico": "image/x-icon",
     }
 
-    def __init__(self, *args, store, assistant=None, **kwargs):
-        self.store, self.assistant, self.status = store, assistant, 0
+    def __init__(self, *args, store, assistant=None, geocoder=None, **kwargs):
+        # geocoder finds the blocks of a street address, or is None to leave address search off
+        self.store, self.assistant, self.geocoder, self.status = store, assistant, geocoder, 0
         super().__init__(*args, directory=str(STATIC), **kwargs)
 
     def log_message(self, *args):
@@ -137,6 +144,23 @@ class Handler(SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def resolve(self, session, text):
+        """District search: a street address through the geocoder, else districts, ZIP codes and place names."""
+        address = looks_like_address(text)
+        outcome = "off" if self.geocoder is None else "none"
+        if address and self.geocoder is not None:
+            try:
+                found = self.geocoder(text)
+            except GeocoderError:
+                found, outcome = [], "failed"
+            matches = [m for block, label in found if (m := session.block_match(block, label))]
+            if matches:
+                return {"matches": matches}
+        result = json.loads(session.run("resolve_place", {"text": text}))
+        if address and not result.get("matches"):
+            result["note"] = ADDRESS_NOTES[outcome]
+        return result
+
     def connect(self):
         if not self.store.is_file():
             raise RuntimeError("Missing store")
@@ -150,13 +174,23 @@ class Handler(SimpleHTTPRequestHandler):
                 return self.reply(400, {"error": "Enter a district, town or ZIP code."})
             try:
                 with self.connect() as con:
-                    result = json.loads(Session(con).run("resolve_place", {"text": text}))
+                    result = self.resolve(Session(con), text)
                 return self.reply(200, result)
             except Exception:  # noqa: BLE001 - redact internal errors at the HTTP boundary
                 return self.reply(
                     503,
                     {"error": "District lookup is unavailable. The operator needs to build the data store."},
                 )
+        if path.path == "/api/suggest":
+            # Suggestions come only from names in the store: typed text, even an address, never leaves the server.
+            text = parse_qs(path.query).get("q", [""])[0].strip()
+            if len(text) > 160:
+                return self.reply(400, {"error": "Search text is too long."})
+            try:
+                with self.connect() as con:
+                    return self.reply(200, {"suggestions": Session(con).suggest(text)})
+            except Exception:  # noqa: BLE001 - redact internal errors at the HTTP boundary
+                return self.reply(503, {"error": "Suggestions are unavailable."})
         if path.path == "/api/profile":
             return self.profile(parse_qs(path.query).get("district", [""])[0])
         if path.path == "/api/about":
@@ -260,6 +294,11 @@ def main(argv: list[str] | None = None):
     parser.add_argument("--daily-cap", type=float, default=DAILY_CAP, help="dollars per HST day")
     parser.add_argument("--basic-only", action="store_true", help="answer with the free lookup only")
     parser.add_argument("--open", action="store_true", help="open the site in your default browser")
+    parser.add_argument(
+        "--no-address-lookup",
+        action="store_true",
+        help="turn off street address search, which sends typed addresses to the U.S. Census Bureau geocoder",
+    )
     args = parser.parse_args(argv)
     store = args.store.expanduser().resolve()
     assistant = None
@@ -270,8 +309,10 @@ def main(argv: list[str] | None = None):
             pass
         else:
             assistant = Assistant(DailyBudget(args.daily_cap), args.model)
+    geocoder = None if args.no_address_lookup else find_blocks
+    handler = partial(Handler, store=store, assistant=assistant, geocoder=geocoder)
     try:
-        server = Server((args.host, args.port), partial(Handler, store=store, assistant=assistant))
+        server = Server((args.host, args.port), handler)
     except OSError as error:
         parser.exit(
             2,
@@ -285,6 +326,10 @@ def main(argv: list[str] | None = None):
             mode = f"assistant, ${args.daily_cap:.2f} daily cap"
         print(f"KLEAR: {url} ({mode})", flush=True)
         print(f"Data store: {store}", flush=True)
+        if geocoder is not None:
+            print(
+                "Address search sends typed street addresses to the U.S. Census Bureau geocoder.", flush=True
+            )
         if not store.is_file():
             print("Landing page preview only: district search and chat need the data store.", flush=True)
             print("Build it with: uv run python -m klear.etl build", flush=True)

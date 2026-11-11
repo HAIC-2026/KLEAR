@@ -13,7 +13,7 @@ test('landing page', async ({page}, testInfo) => {
 });
 
 test('district search results', async ({page}, testInfo) => {
-  await page.getByLabel('District, town, or ZIP code').first().fill('Kāneʻohe');
+  await page.getByLabel('District, place, ZIP code, or street address').first().fill('Kāneʻohe');
   await page.getByRole('button', {name: 'Find district'}).first().click();
   await expect(page.locator('#find-matches .match')).toHaveCount(3);
   await expectAccessible(page, testInfo, 'search results');

@@ -13,8 +13,8 @@ import yaml
 from shapely.geometry import Point, box
 
 from klear import config
+from klear.etl import areas, census_api, chas, manual, profile
 from klear.etl import build as build_mod
-from klear.etl import census_api, chas, manual, profile
 from klear.etl import fetch as fetch_mod
 from klear.etl.__main__ import main
 from klear.etl.dbedt import COUNTY_FIPS
@@ -31,6 +31,8 @@ TOTAL = 1_455_271
 HOUSE_W = 0.01
 SENATE_W = HOUSE_W * N_HOUSE / N_SENATE
 LAT0, LAT1 = 21.30, 21.31
+# West edge of the fake districts, so every block lies inside the Oʻahu island box.
+LON0 = -158.3
 DBEDT_ROWS = [
     ("EMPLOYMENT STATUS",),
     ("Population 16 years and over", "100", "±10", "50.0%", "±5.0"),
@@ -42,7 +44,7 @@ PROFILE_LABELS = {
 }
 CHECKS = [
     "source_fidelity", "boundaries_house", "boundaries_senate", "blocks", "apportionment", "irs_state", "irs_county",
-    "cms_county", "hud_hcv", "sites", "places", "chas", "gazetteer", "rules", "store", "raw_files",
+    "cms_county", "hud_hcv", "sites", "places", "chas", "gazetteer", "areas", "rules", "store", "raw_files",
 ]  # fmt: skip
 NEW_TITLES = [
     "irs_state",
@@ -74,7 +76,7 @@ def _blocks():
         out.append(
             {
                 "block": f"15003{i // 10:04d}00{1000 + i}",
-                "lon": -158.0 + x,
+                "lon": LON0 + x,
                 "lat": (LAT0 + LAT1) / 2,
                 "house": f"{i + 1:03d}",
                 "senate": f"{int(x / SENATE_W) + 1:03d}",
@@ -94,7 +96,7 @@ def _districts(chamber):
         {
             "type": "Feature",
             "properties": {f"{chamber}_id": i + 1, f"{chamber}_name": f"State {chamber} District {i + 1}"},
-            "geometry": box(-158.0 + i * w, LAT0, -158.0 + (i + 1) * w, LAT1).__geo_interface__,
+            "geometry": box(LON0 + i * w, LAT0, LON0 + (i + 1) * w, LAT1).__geo_interface__,
         }
         for i in range(n)
     ]
@@ -131,6 +133,39 @@ def _gazetteer():
     return (
         head + "".join(f"HI\t{pid}\t1\t{n} CDP\t57\tS\t1\t1\t21.4\t-157.8   \n" for pid, n in names.items())
     ).encode()
+
+
+def _cousub(tmp):
+    # every named county division, as small squares on Hawaiʻi Island where no fake block lies
+    names = areas.load_names().divisions
+    gdf = gpd.GeoDataFrame(
+        {"GEOID": list(names), "NAME": [plain_name(n).title() for n in names.values()]},
+        geometry=[box(-155.5 + i * 0.01, 19.5, -155.495 + i * 0.01, 19.505) for i in range(len(names))],
+        crs="EPSG:4269",
+    )
+    shp_dir = tmp / "cousub"
+    shp_dir.mkdir()
+    gdf.to_file(shp_dir / "tl_2020_15_cousub.shp")
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as z:
+        for f in sorted(shp_dir.iterdir()):
+            z.write(f, f.name)
+    return buf.getvalue()
+
+
+def _boards():
+    # every named board as a strip of the fake districts, so each holds at least one block
+    boards = sorted(areas.load_names().neighborhoods)
+    w = N_HOUSE * HOUSE_W / len(boards)
+    feats = [
+        {
+            "type": "Feature",
+            "properties": {"board_num": b},
+            "geometry": box(LON0 + i * w, LAT0 - 0.01, LON0 + (i + 1) * w, LAT1 + 0.01).__geo_interface__,
+        }
+        for i, b in enumerate(boards)
+    ]
+    return json.dumps({"type": "FeatureCollection", "features": feats}).encode()
 
 
 def _zcta_of(i):
@@ -211,6 +246,8 @@ def _point(i):
 
 
 def _arcgis(path):
+    if "AdministrativePolitical" in path:
+        return _boards()
     if "Housing_Choice_Vouchers" in path:
         rows = [
             {"OBJECTID": n + 1, "GEOID": t, "HCV_PUBLIC": None if n == 0 else 20.0 * n}
@@ -339,6 +376,7 @@ class Stub:
             "BlockAssign_ST15_HI.zip": _baf(),
             "2020_gaz_place_15.txt": _gazetteer(),
             "tl_2020_15_tabblock20.zip": _tiger(tmp),
+            "tl_2020_15_cousub.zip": _cousub(tmp),
         }
         for g, f in (("house", "house"), ("senate", "senate"), ("county", "counties"), ("state", "state")):
             self.files[f"acs2024_5yr_{f}_hi.xlsx"] = _dbedt(tmp, g)

@@ -14,7 +14,7 @@ test('chamber colors, charts, and the map under simulated color blindness', asyn
   await page.goto('/');
   const cdp = await context.newCDPSession(page);
 
-  await page.getByLabel('District, town, or ZIP code').first().fill('Kāneʻohe');
+  await page.getByLabel('District, place, ZIP code, or street address').first().fill('Kāneʻohe');
   await page.getByRole('button', {name: 'Find district'}).first().click();
   await expect(page.locator('#find-matches .match')).toHaveCount(3);
   await shoot('search-results', page.locator('#find-matches'));

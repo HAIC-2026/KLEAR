@@ -1,4 +1,5 @@
-"""A small fact store with the real schema: two House districts, one Senate district, a ZIP code, and three places.
+"""A small fact store with the real schema: two House districts, one Senate district, a ZIP code, three places,
+two islands, a neighborhood board area and one other name for it.
 
 The agent and web tests use it through the small_con fixture, and the browser tests serve it (e2e/serve.py).
 """
@@ -8,6 +9,7 @@ from pathlib import Path
 import pandas as pd
 
 from klear.store.db import (
+    add_areas,
     add_blocks,
     add_facts,
     add_geographies,
@@ -99,6 +101,31 @@ def build_small_store(path: Path):
         columns=["place_id", "geo_type", "geo_id", "pop2020", "share"],
     )  # fmt: skip
     add_places(con, places, overlap)
+    areas = pd.DataFrame(
+        [
+            ("oahu", "island", "Oʻahu", "oahu", "Oʻahu", 59),
+            ("hawaii", "island", "Hawaiʻi Island", "hawaii island", "Hawaiʻi Island", 3),
+            ("nb09", "neighborhood", "Waikīkī", "waikiki", "Oʻahu", 50),
+        ],
+        columns=["area_id", "kind", "name", "plain", "island", "pop2020"],
+    )
+    area_overlap = pd.DataFrame(
+        [
+            ("oahu", "house", "022", 50, 50 / 59), ("oahu", "house", "023", 9, 9 / 59),
+            ("oahu", "senate", "012", 59, 1.0), ("oahu", "county", "15003", 59, 1.0),
+            ("oahu", "zcta", "96744", 59, 1.0), ("oahu", "place", "1500001", 40, 40 / 59),
+            ("oahu", "place", "1500002", 30, 30 / 59), ("hawaii", "house", "022", 3, 1.0),
+            ("hawaii", "senate", "012", 3, 1.0), ("hawaii", "county", "15001", 3, 1.0),
+            ("hawaii", "place", "1500003", 20, 1.0), ("nb09", "house", "022", 50, 1.0),
+            ("nb09", "senate", "012", 50, 1.0), ("nb09", "county", "15003", 50, 1.0),
+        ],
+        columns=["area_id", "geo_type", "geo_id", "pop2020", "share"],
+    )  # fmt: skip
+    alias = pd.DataFrame(
+        [("waikiki beach", "Waikīkī Beach", "area", "nb09")],
+        columns=["plain", "name", "target_type", "target_id"],
+    )
+    add_areas(con, areas, area_overlap, alias)
     con.execute(
         "INSERT INTO site VALUES ('s1', 'lihtc', 'Aloha Apts', '1 Main St', 21.4, -157.8, '022', '012', 1.0, 10, 'hud')"
     )

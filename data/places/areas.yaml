@@ -1,0 +1,122 @@
+# Names for district search beyond Census places, read by klear/etl/areas.py.
+
+# Census county divisions (TIGER 2020 county subdivisions) on the neighbor islands, by GEOID. Spellings follow
+# the Census places in hawaiian_names.yaml (USGS GNIS) and Place Names of Hawaii (Pukui, Elbert and Mookini).
+# Each must match the Census name once ʻokina, kahakō and case are ignored. Oʻahu uses neighborhood boards instead.
+divisions:
+  '1500190630': Hilo
+  '1500190720': Honokaʻa-Kukuihaele
+  '1500191170': Kaʻū
+  '1500191350': Keaʻau-Mountain View
+  '1500192430': North Hilo
+  '1500192520': North Kohala
+  '1500192610': North Kona
+  '1500192700': Paʻauhau-Paʻauilo
+  '1500192790': Pāhoa-Kalapana
+  '1500192880': Pāpaʻikou-Wailea
+  '1500193150': South Kohala
+  '1500193240': South Kona
+  '1500790180': ʻEleʻele-Kalāheo
+  '1500790540': Hanalei
+  '1500791080': Kapaʻa
+  '1500791260': Kaumakani-Hanapēpē
+  '1500791440': Kekaha-Waimea
+  '1500791620': Kōloa-Poʻipū
+  '1500792160': Līhuʻe
+  '1500792340': Niʻihau
+  '1500792970': Puhi-Hanamāʻulu
+  '1500793780': Wailua-Anahola
+  '1500990090': East Molokaʻi
+  '1500990360': Haʻikū-Pauwela
+  '1500990450': Hāna
+  '1500990900': Kahului
+  '1500991530': Kīhei
+  '1500991890': Kula
+  '1500991980': Lahaina
+  '1500992070': Lānaʻi
+  '1500992250': Makawao-Pāʻia
+  '1500993060': Puʻunēnē
+  '1500993330': Spreckelsville
+  '1500993690': Waiheʻe-Waikapū
+  '1500993870': Wailuku
+  '1500993960': West Molokaʻi
+
+# Honolulu neighborhood board areas by board number, named as the City's Neighborhood Commission Office writes
+# them (honolulu.gov/nco). Boards 17 and 33 have no active board but keep their areas in the City's layer.
+# Board 22 follows the Census place Waipahu, where the City page writes Waipahū.
+neighborhoods:
+  1: Hawaiʻi Kai
+  2: Kuliʻouʻou-Kalani Iki
+  3: Waiʻalae-Kāhala
+  4: Kaimukī
+  5: Diamond Head/Kapahulu/St. Louis
+  6: Pālolo
+  7: Mānoa
+  8: McCully-Mōʻiliʻili
+  9: Waikīkī
+  10: Makiki-Tantalus
+  11: Ala Moana-Kakaʻako
+  12: Nuʻuanu-Punchbowl
+  13: Downtown-Chinatown
+  14: Liliha/Puʻunui/ʻĀlewa
+  15: Kalihi-Pālama
+  16: Kalihi Valley
+  17: Moanalua
+  18: Āliamanu-Salt Lake
+  20: ʻAiea
+  21: Pearl City
+  22: Waipahu
+  23: ʻEwa
+  24: Waiʻanae Coast
+  25: Mililani-Waipiʻo
+  26: Wahiawā-Whitmore Village
+  27: North Shore
+  28: Koʻolauloa
+  29: Kahaluʻu
+  30: Kāneʻohe
+  31: Kailua
+  32: Waimānalo
+  33: Mōkapu
+  34: Makakilo/Kapolei/Honokai Hale
+  35: Mililani Mauka/Launani Valley
+  36: Nānākuli-Māʻili
+
+# Other names people use, as search suggests them, each pointing to islands, divisions, neighborhoods or Census
+# places by the names above. A Census place shared by two islands names its island in parentheses. Names already
+# found by search, such as Kakaʻako inside Ala Moana-Kakaʻako, need no entry here. Search ignores ʻokina, kahakō,
+# case and punctuation, so St. Louis Heights also matches st louis heights.
+aliases:
+  Big Island: {island: [Hawaiʻi Island]}
+  The Big Island: {island: [Hawaiʻi Island]}
+  Island of Hawaiʻi: {island: [Hawaiʻi Island]}
+  Big Island of Hawaiʻi: {island: [Hawaiʻi Island]}
+  Kona: {division: [North Kona, South Kona]}
+  Kailua-Kona: {place: [Kailua (Hawaiʻi Island)]}
+  Puna: {division: [Keaʻau-Mountain View, Pāhoa-Kalapana]}
+  Hāmākua: {division: [Honokaʻa-Kukuihaele, Paʻauhau-Paʻauilo]}
+  Kohala: {division: [North Kohala, South Kohala]}
+  Upcountry: {division: [Kula, Makawao-Pāʻia]}
+  Upcountry Maui: {division: [Kula, Makawao-Pāʻia]}
+  West Maui: {division: [Lahaina]}
+  South Maui: {division: [Kīhei]}
+  Central Maui: {division: [Kahului, Wailuku, Waiheʻe-Waikapū, Puʻunēnē]}
+  East Maui: {division: [Hāna]}
+  Windward Oʻahu: {neighborhood: [Kailua, Kāneʻohe, Kahaluʻu, Waimānalo, Koʻolauloa]}
+  Windward: {neighborhood: [Kailua, Kāneʻohe, Kahaluʻu, Waimānalo, Koʻolauloa]}
+  Leeward Coast: {neighborhood: [Waiʻanae Coast, Nānākuli-Māʻili]}
+  Lanikai: {neighborhood: [Kailua]}
+  Enchanted Lake: {neighborhood: [Kailua]}
+  Enchanted Lakes: {neighborhood: [Kailua]}
+  ʻĀina Haina: {neighborhood: [Kuliʻouʻou-Kalani Iki]}
+  Hawaiʻi Loa: {neighborhood: [Kuliʻouʻou-Kalani Iki]}
+  Kalama Valley: {neighborhood: [Hawaiʻi Kai]}
+  Portlock: {neighborhood: [Hawaiʻi Kai]}
+  St. Louis Heights: {neighborhood: [Diamond Head/Kapahulu/St. Louis]}
+  Saint Louis Heights: {neighborhood: [Diamond Head/Kapahulu/St. Louis]}
+  Kapālama: {neighborhood: [Liliha/Puʻunui/ʻĀlewa]}
+  Kamehameha Heights: {neighborhood: [Liliha/Puʻunui/ʻĀlewa]}
+  Foster Village: {neighborhood: [Āliamanu-Salt Lake]}
+  Kewalo: {neighborhood: [Ala Moana-Kakaʻako]}
+  Pearlridge: {neighborhood: [ʻAiea]}
+  Waikele: {neighborhood: [Waipahu]}
+  Sunset Beach: {neighborhood: [North Shore]}

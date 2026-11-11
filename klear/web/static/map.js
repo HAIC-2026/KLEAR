@@ -13,7 +13,7 @@
   const SNAP_SHOWN = 0.5, SNAP_FILL = 0.2, SNAP_ALL = 0.8, MIN_WIDTH = 12, DIGIT_PX = 7.6, LABEL_PX = 15;
   let data = null, chamber = 'house', group = 'all', picked = null, view = null, goal = null, anim = 0, settleTimer = 0, hintTimer = 0;
   const pointers = new Map();
-  let gesture = null, dragged = false, zipCode = null, waiting = null, labelInfo = [], districts = [], stop = null, fitted = null, frameSize = '';
+  let gesture = null, dragged = false, area = null, waiting = null, labelInfo = [], districts = [], stop = null, fitted = null, frameSize = '';
   const zipStatus = document.getElementById('zip-status'), zipMatches = document.getElementById('zip-matches');
 
   function el(tag, attrs) { const n = document.createElementNS(svgNS, tag); for (const [k, v] of Object.entries(attrs || {})) n.setAttribute(k, v); return n; }
@@ -258,7 +258,9 @@
   // Tab reaches the map at one district: the focused one (unless focus is leaving the map), else the picked one,
   // a ZIP match or the last stop when fully in view, else the first fully in view, so focus never lands out of sight.
   function updateStop(leaving) {
-    if (!districts.length || !view) return;
+    if (!districts.length) return;
+    // Before the first frame has a view, Tab still reaches the map at its first district.
+    if (!view) { setStop(stop || districts[0]); return; }
     const full = d => d && shown(d) > 0.99 ? d : null;
     const focused = !leaving && districts.find(d => d.path === document.activeElement);
     const mostShown = () => districts.reduce((a, d) => (shown(d) > shown(a) ? d : a));
@@ -333,21 +335,22 @@
       list.append(og);
     }
     pick(null);
-    showZip();
+    showArea();
   }
 
   const span = (text, className) => { const s = document.createElement('span'); s.textContent = text; if (className) s.className = className; return s; };
 
-  // Highlight the districts a ZIP area's residents live in and zoom to them.
-  function showZip() {
+  // Highlight the districts an area's residents live in, a ZIP code typed here or a place found by the search,
+  // and zoom to them. The area holds its label and, for each chamber, [district, share of residents] pairs.
+  function showArea() {
     zipMatches.replaceChildren();
     for (const p of svg.querySelectorAll('.zip-hit')) p.classList.remove('zip-hit');
-    svg.classList.toggle('zip-mode', Boolean(zipCode));
-    if (!zipCode) { declutter(); return; }
+    svg.classList.toggle('zip-mode', Boolean(area));
+    if (!area) { declutter(); return; }
     const rowsByGeo = new Map(data.chambers[chamber].map(r => [r.geo, r]));
-    const hits = data.zips[zipCode][chamber].map(([geo, share]) => ({row: rowsByGeo.get(geo), share}));
+    const hits = area[chamber].map(([geo, share]) => ({row: rowsByGeo.get(geo), share})).filter(h => h.row);
     const kind = chamber === 'house' ? 'House' : 'Senate';
-    zipStatus.textContent = hits.length === 1 ? `ZIP ${zipCode} is all in ${hits[0].row.name}.` : `ZIP ${zipCode} spans ${hits.length} ${kind} districts. Share of its residents in each:`;
+    zipStatus.textContent = hits.length === 1 ? `${area.label} is all in ${hits[0].row.name}.` : `${area.label} spans ${hits.length} ${kind} districts. Share of its residents in each:`;
     let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
     const main = hits.some(h => h.share >= 0.05) ? hits.filter(h => h.share >= 0.05) : hits;
     for (const {row, share} of hits) {
@@ -360,7 +363,7 @@
         chip.type = 'button'; chip.className = `match ${chamber}`;
         const label = `${kind} ${row.name.replace(/\D+/g, '')}`, part = share < 0.01 ? '<1%' : `${Math.round(share * 100)}%`;
         // The spoken name is the visible text with the rest of the sentence hidden after it.
-        chip.append(span(label), ' ', span(part, 'share'), span(` of ZIP ${zipCode} residents`, 'visually-hidden'));
+        chip.append(span(label), ' ', span(part, 'share'), span(` of ${area.label} residents`, 'visually-hidden'));
         chip.addEventListener('click', () => pick(row));
         zipMatches.append(chip);
       }
@@ -376,16 +379,16 @@
     e.preventDefault();
     if (!data) return;
     const zip = document.getElementById('zip').value.replace(/\D/g, '');
-    zipCode = null;
-    if (!/^\d{5}$/.test(zip)) { showZip(); zipStatus.textContent = 'Enter a 5-digit ZIP code.'; return; }
+    area = null;
+    if (!/^\d{5}$/.test(zip)) { showArea(); zipStatus.textContent = 'Enter a 5-digit ZIP code.'; return; }
     const entry = data.zips[zip];
-    if (!entry) { showZip(); zipStatus.textContent = `No map area for ZIP ${zip}. Hawaiʻi home ZIPs start with 967 or 968, and PO box ZIPs have no area. Try the ZIP where you live.`; return; }
-    if (!entry.house.length) { showZip(); zipStatus.textContent = `ZIP ${zip} had no residents in the 2020 census, so it has no district. Try the ZIP where you live.`; return; }
-    zipCode = zip;
+    if (!entry) { showArea(); zipStatus.textContent = `No map area for ZIP ${zip}. Hawaiʻi home ZIPs start with 967 or 968, and PO box ZIPs have no area. Try the ZIP where you live.`; return; }
+    if (!entry.house.length) { showArea(); zipStatus.textContent = `ZIP ${zip} had no residents in the 2020 census, so it has no district. Try the ZIP where you live.`; return; }
+    area = {label: `ZIP ${zip}`, ...entry};
     pick(null);
-    showZip();
+    showArea();
   });
-  document.getElementById('zip').addEventListener('input', e => { if (!e.target.value.trim() && zipCode) { zipCode = null; zipStatus.textContent = ''; showZip(); } });
+  document.getElementById('zip').addEventListener('input', e => { if (!e.target.value.trim() && area) { area = null; zipStatus.textContent = ''; showArea(); } });
 
   function setChamber(name) {
     chamber = name;
@@ -401,15 +404,25 @@
     if (!now && mapSection.contains(document.activeElement)) { waiting = geo; return; }
     waiting = null;
     if (picked && picked.geo === geo) return;
-    zipCode = null;
+    area = null;
     zipStatus.textContent = '';
     document.getElementById('zip').value = '';
     const kind = geo.split(':')[0];
-    if (kind !== chamber) setChamber(kind); else showZip();
+    if (kind !== chamber) setChamber(kind); else showArea();
     const row = data.chambers[chamber].find(r => r.geo === geo);
     if (row) { pick(row); zoom(row.group); }
   }
   document.addEventListener('klear:district', e => { if (data) follow(e.detail.geo); else waiting = e.detail.geo; });
+  // The search sends a place's districts here when the reader asks to see them on the map.
+  let waitingArea = null;
+  function showFound(found) {
+    waiting = null;
+    area = found;
+    document.getElementById('zip').value = '';
+    pick(null);
+    showArea();
+  }
+  document.addEventListener('klear:area', e => { if (data) showFound(e.detail); else waitingArea = e.detail; });
   list.addEventListener('change', () => { const row = data && data.chambers[chamber].find(r => r.geo === list.value); pick(row || null); if (row) zoom(row.group); });
   go.addEventListener('click', () => { if (picked) choose(picked.geo, picked.name); });
   // Refit when the frame itself changes size, not when only the window height does (phone toolbars).
@@ -441,7 +454,8 @@
     }
     draw();
     zoom('all');
-    if (waiting) follow(waiting);
+    if (waitingArea) showFound(waitingArea);
+    else if (waiting) follow(waiting);
     document.getElementById('map-loading').hidden = true;
   }).catch(() => { document.getElementById('map-loading').textContent = 'The map could not load. Use the search or the list below.'; });
 })();
