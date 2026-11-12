@@ -107,10 +107,16 @@ It makes no Claude calls. Request URLs in logs and provenance files mask the Cen
 - --refresh downloads every raw file and Census API response again instead of using the cache in data/raw.
 - --skip-network-checks serves Census API calls only from the cache. Checks the cache cannot serve are skipped and reported as skipped. A fully cached build needs no API key.
 
-Manual downloads. huduser.gov serves two files only to a browser. Download them by hand and save them under `data/manual/` with these names. Until both are there, the build skips the steps that need them, names the file and its URL, and exits 2. When all other required checks pass, it still writes a store usable for local district search and basic chat; the missing HUD data is unavailable.
+Manual downloads. Some official sites serve files only to a browser. Download them by hand and save them under `data/manual/` with these names. Until the two HUD files are there, the build skips the steps that need them, names the file and its URL, and exits 2. When all other required checks pass, it still writes a store usable for local district search and basic chat; the missing HUD data is unavailable.
 
-- 2018thru2022-140-csv.zip from https://www.huduser.gov/portal/datasets/cp/2018thru2022-140-csv.zip (HUD CHAS 2018-2022, tract level).
-- Section8-FY26.xlsx from https://www.huduser.gov/portal/datasets/il/il26/Section8-FY26.xlsx (HUD FY2026 income limits). Then fill in data/rules/hud_il_fy2026_hi.yaml from it and set its status to confirmed.
+- 2018thru2022-140-csv.zip from https://www.huduser.gov/portal/datasets/cp/2018thru2022-140-csv.zip (HUD CHAS 2018-2022, tract level). This release has no data dictionary, so klear/etl/chas.py names the Table 8 columns itself, and the build checks their Hawaiʻi totals against HUD's published state summary.
+- Section8-FY26.xlsx from https://www.huduser.gov/portal/datasets/il/il26/Section8-FY26.xlsx (HUD FY2026 income limits). The build compares data/rules/hud_il_fy2026_hi.yaml with it.
+
+Three program rules also read a saved copy when the live page blocks scripts. Save each from a browser under data/manual/ with the name in the rule's saved field:
+
+- medquest-2026-magi-income-standards.pdf, the 2026 MAGI and MAGI-Excepted Income Standards Chart listed on https://medquest.hawaii.gov/content/medquest/en/resources/rules-and-policy.html (rule medquest_2026).
+- ssa-ssi-in-hawaii-2026.pdf from https://www.ssa.gov/pubs/EN-05-11108.pdf (rule ssi_hi_supplement).
+- hrs-349-17.html, HRS §349-17 from https://data.capitol.hawaii.gov/hrscurrent/Vol07_Ch0346-0398/HRS0349/HRS_0349-0017.htm (rule kupuna_care). This page usually loads without a saved copy.
 
 The build hashes each manual file once, in a sidecar next to it, and lists it with the raw files in the manifest. Replacing a manual file later fails the raw file hash check. If the new file is intended, delete its .meta.json sidecar and rebuild.
 

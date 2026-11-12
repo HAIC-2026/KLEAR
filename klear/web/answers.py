@@ -8,7 +8,7 @@ from klear.agent.config import FIXED_INCOME, FIXED_INCOME_COMPARED, FIXED_INCOME
 from klear.agent.tools import Session
 from klear.eval.contract import geo_display
 from klear.rules.registry import load_rules
-from klear.web.display import PROFILE_LABELS, _plain, build_month, year_text
+from klear.web.display import PROFILE_LABELS, _plain, build_month, program_rules, year_text
 
 PERSONAL = re.compile(
     r"\b(?:a specific person|an individual|named resident|home address|phone number|personal information|who lives at|identify a resident|my neighbor|specific resident)\b",
@@ -282,11 +282,7 @@ def ask(con, question, district):
     if asks_fixed_income(q):
         return fixed_income(con, district, shown)
     if any(word in q for word in ("program", "benefit", "assistance", "support", "help available")):
-        chosen = [
-            r
-            for r in load_rules()
-            if r.status == "confirmed" and r.rule_id not in {"fpg_2026_hi", "hud_il_fy2026_hi", "hpha_limits"}
-        ][:6]
+        chosen = program_rules()[:6]
         return {
             "text": f"These published programs may be worth exploring for residents of {shown}. This district-level view cannot establish any person's eligibility; consult each program's official guidance.",
             "refusal": "none",

@@ -1,9 +1,40 @@
 rule_id: aca_ptc_2026
 program: ACA premium tax credit
-status: needs_manual
+status: confirmed
 effective: '2026-01-01'
 url: https://www.irs.gov/affordable-care-act/individuals-and-families/the-premium-tax-credit
-values: {}
-verified_by: not read in this session
-retrieved: '2026-10-30'
-note: confirm rules for 2026 and 2027 after the enhanced credits expired
+fetch_url: https://www.irs.gov/pub/irs-drop/rp-25-25.pdf
+effective_source:
+  url: https://www.irs.gov/pub/irs-drop/rp-25-25.pdf
+  quote: This revenue procedure is effective for taxable years and plan years beginning in calendar year 2026
+  shown: calendar year 2026
+values:
+  income_cap_pct_of_poverty:
+    value: 400
+    quote: At least 300% but not more than 400% 9.96% 9.96%
+  contribution_pct_under_133:
+    value: 2.1
+    shown: 2.10%
+    quote: Less than 133% 2.10% 2.10%
+  contribution_pct_133_to_150_initial:
+    value: 3.14
+    quote: At least 133% but less than 150% 3.14% 4.19%
+  contribution_pct_133_to_150_final:
+    value: 4.19
+    quote: At least 133% but less than 150% 3.14% 4.19%
+  contribution_pct_150_to_200_final:
+    value: 6.6
+    shown: 6.60%
+    quote: At least 150% but less than 200% 4.19% 6.60%
+  contribution_pct_200_to_250_final:
+    value: 8.44
+    quote: At least 200% but less than 250% 6.60% 8.44%
+  contribution_pct_300_to_400:
+    value: 9.96
+    quote: At least 300% but not more than 400% 9.96% 9.96%
+  required_contribution_pct:
+    value: 9.96
+    quote: the Required Contribution Percentage for purposes of § 36B(c)(2)(C)(i)(II) and § 1.36B-2(c)(3)(v)(C) is 9.96%
+verified_by: read from Revenue Procedure 2025-25, section 3 (Applicable Percentage Table and Required Contribution Percentage for 2026)
+retrieved: '2026-11-09'
+note: The 2026 table ends at 400% of the poverty line, so the cap on eligibility returns after the enhanced credits of 2021 to 2025 expired. Percentages are the share of household income a family pays toward the benchmark plan.

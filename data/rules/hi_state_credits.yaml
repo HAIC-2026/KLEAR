@@ -1,9 +1,38 @@
 rule_id: hi_state_credits
 program: Hawaiʻi state EITC, food/excise and renters credits
-status: needs_manual
-effective: '2026-01-01'
+status: confirmed
+effective: '2025-01-01'
 url: https://tax.hawaii.gov/geninfo/
-values: {}
-verified_by: not read in this session
-retrieved: '2026-10-30'
-note: confirm EITC rate and credit amounts and whether 2026 bills HB179, HB2174, HB2444 changed them
+fetch_url: https://files.hawaii.gov/tax/forms/2025/n11ins.pdf
+effective_source:
+  url: https://files.hawaii.gov/tax/forms/2025/n356_i.pdf
+  quote: FORM N-356 (REV. 2025)
+  shown: '2025'
+values:
+  eitc_pct_of_federal:
+    value: 40
+    url: https://files.hawaii.gov/tax/forms/2025/n356_i.pdf
+    quote: The earned income tax credit is refundable and 40% of the federal earned income credit
+  renters_credit_per_exemption:
+    value: 50
+    url: https://files.hawaii.gov/tax/forms/2025/schx_i.pdf
+    quote: Multiply the number of exemptions on line 11 by $50
+  renters_agi_limit:
+    value: 30000
+    quote: your Hawaii adjusted gross income was less than $30,000, and the rent you paid during 2025 was more than $1,000
+  renters_min_rent_paid:
+    value: 1000
+    quote: your Hawaii adjusted gross income was less than $30,000, and the rent you paid during 2025 was more than $1,000
+  food_excise_agi_limit:
+    value: 60000
+    quote: If your federal adjusted gross income was less than $60,000 (less than $40,000 if your filing status is
+  food_excise_agi_limit_single:
+    value: 40000
+    quote: If your federal adjusted gross income was less than $60,000 (less than $40,000 if your filing status is
+  food_excise_max_per_exemption:
+    value: 220
+    url: https://files.hawaii.gov/tax/forms/2025/n311_i.pdf
+    quote: Under $15,000 $220 $15,000 and over but under $20,000 200
+verified_by: read from the Department of Taxation's 2025 instructions for Forms N-11, N-356, N-311 and Schedule X
+retrieved: '2026-11-09'
+note: Tax year 2025 figures, the latest the Department has published. Act 25, SLH 2025 ends only the carryforward of the 2022 nonrefundable EITC from tax year 2026. Bills HB179, HB2174 and HB2444 could not be checked because capitol.hawaii.gov blocks scripts.
