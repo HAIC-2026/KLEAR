@@ -39,11 +39,11 @@ SUBMIT_SPEC = _spec(
     ["resolved", "refusal", "blocks", "facts", "programs", "caveats"],
 )
 REFUSAL_TEXT = {
-    "decline_individual": "I can only describe districts and areas from published data, so I cannot answer "
-    "questions about a particular person.",
-    "decline_partisan": "KLEAR shares neutral public data about districts and does not offer political guidance.",
-    "not_available": "That information is not available in the data I have.",
-    "out_of_scope": "That question is outside what I can answer, which is facts about Hawaiʻi legislative districts.",
+    "decline_individual": "I describe districts and places from public data. I cannot answer questions about one "
+    "person.",
+    "decline_partisan": "I share neutral public data about districts. I do not give political advice.",
+    "not_available": "The data I have does not include that.",
+    "out_of_scope": "That is outside what I can answer. I answer questions about Hawaiʻi House and Senate districts.",
 }
 OKINA_MARKS = str.maketrans("", "", "\u02bb\u2018\u02bc\u0060")
 NO_FACT_REFUSALS = ("decline_individual", "decline_partisan")

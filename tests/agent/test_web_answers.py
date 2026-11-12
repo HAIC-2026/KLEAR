@@ -5,10 +5,10 @@ import pytest
 
 from klear.agent.answer import main_county
 from klear.agent.config import FIXED_INCOME, FIXED_INCOME_COMPARED, FIXED_INCOME_PROGRAMS
+from klear.labels import plain_labels
 from klear.programs import by_rule
 from klear.web.answers import asks_fixed_income, indicators
 from klear.web.assistant import basic
-from klear.web.display import PROFILE_LABELS
 
 LABELS = {
     "poverty_universe": "Population for whom poverty status is determined",
@@ -90,7 +90,7 @@ def test_fixed_income_answer_for_every_district(real_con):
         lead = "\n".join(answer["lead"])
         assert answer["refusal"] == "none" and answer["mode"] == "basic", district
         lines = {
-            i: next(x for x in lead.split("\n") if x.startswith(f"- {PROFILE_LABELS[i]}: "))
+            i: next(x for x in lead.split("\n") if x.startswith(f"- {plain_labels()[i].short}: "))
             for i in FIXED_INCOME
         }
         for i in FIXED_INCOME_COMPARED:

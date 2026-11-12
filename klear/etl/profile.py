@@ -42,7 +42,8 @@ LICENSE = "public domain"
 VAR_RE = {PROFILE: re.compile(r"DP0[2-5]_\d{4}P?"), DETAILED: re.compile(r"[BC]\d{5}[A-Z]?_\d{3}")}
 FIELDS = ("indicator_id", "label", "unit", "universe", "acs_var", "dataset")
 GEO_TYPES = ("state", "county", "senate", "house")
-OPTIONAL_FIELDS = ("geo_types", "note")
+# short_label and plain are the website's reader text (klear/labels.py); the store does not keep them
+OPTIONAL_FIELDS = ("geo_types", "note", "short_label", "plain")
 # an entry may give bins instead of acs_var: detailed-table cells summed, margins of error by root sum of squares
 BINS_FIELD = "bins"
 

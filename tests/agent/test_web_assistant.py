@@ -114,7 +114,7 @@ def test_chat_profile_cites_the_same_figures_as_the_profile(real_con):
 
     answer = basic(real_con, "Give me a profile of this district.", DISTRICT)
     profile = json.loads(Session(real_con).run("district_profile", {"district": "house:022"}))
-    assert {f["label"] for f in answer["facts"]} == {
+    assert {f["meaning"]["official"] for f in answer["facts"]} == {
         r["fact"]["label"] for s in profile["sections"] for r in s["rows"]
     }
     assert answer["lead"][0].startswith("This is the standard profile")

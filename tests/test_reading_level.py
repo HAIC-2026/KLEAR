@@ -1,0 +1,73 @@
+"""Reader text stays at about a grade 8 reading level: measure definitions, the glossary, the site's pages and
+messages, and decline messages. Grades are Flesch-Kincaid estimates (tests/readability.py)."""
+
+import re
+
+import pytest
+
+from klear.agent.answer import REFUSAL_TEXT
+from klear.labels import plain_labels
+from klear.web.__main__ import ADDRESS_NOTES, STATIC
+from klear.web.answers import ask
+from tests.readability import grade, page_text, syllables
+
+TARGET = 8.0
+# One sentence full of names, like Supplemental Security Income, can read harder; none may read much harder.
+CEILING = 12.5
+# Blocks with fewer words are labels and buttons, which would pull a page's grade down.
+PROSE_WORDS = 6
+
+
+def test_the_estimate_tells_plain_text_from_hard_text():
+    assert [syllables(w) for w in ("home", "people", "insurance", "kūpuna", "SNAP")] == [1, 2, 3, 3, 1]
+    assert grade(["The cat sat on the mat."]) < 2
+    assert grade(["Noninstitutionalized civilian populations demonstrate considerable heterogeneity."]) > 16
+
+
+def test_measure_definitions():
+    plains = {i: p.plain for i, p in plain_labels().items()}
+    assert grade(list(plains.values())) <= TARGET
+    hard = {i: round(grade([p]), 1) for i, p in plains.items() if grade([p]) > CEILING}
+    assert not hard, hard
+
+
+@pytest.mark.parametrize("page", ["glossary.html", "index.html", "checks.html"])
+def test_page_prose(page):
+    blocks = [
+        b for b in page_text((STATIC / page).read_text(encoding="utf-8")) if len(b.split()) >= PROSE_WORDS
+    ]
+    assert blocks and grade(blocks) <= TARGET, page
+
+
+def _messages() -> list[str]:
+    """Sentences the site's script shows: string literals that start with a capital and end a sentence."""
+    js = (STATIC / "app.js").read_text(encoding="utf-8")
+    out = []
+    for single, template in re.findall(r"'((?:[^'\\\n]|\\.)*)'|`((?:[^`\\]|\\.)*)`", js):
+        text = re.sub(r"\$\{[^}]*\}", "it", single or template)
+        if (
+            re.match(r"[A-Z]", text)
+            and re.search(r"[.?!]$", text)
+            and len(text.split()) >= 4
+            and "<" not in text
+        ):
+            out.append(text)
+    return out
+
+
+def test_site_messages():
+    messages = _messages()
+    assert len(messages) > 20 and grade(messages) <= TARGET
+
+
+def test_decline_messages():
+    district = ("house", "022")
+    texts = [
+        *REFUSAL_TEXT.values(),
+        ask(None, "Who lives at 12 Main Street?", district)["text"],
+        ask(None, "Which candidate should I vote for?", district)["text"],
+        *ADDRESS_NOTES.values(),
+    ]
+    assert grade(texts) <= TARGET
+    hard = {t: round(grade([t]), 1) for t in texts if grade([t]) > 10}
+    assert not hard, hard

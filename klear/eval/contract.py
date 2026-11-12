@@ -8,7 +8,8 @@ from klear.store.db import GEO_TYPES
 VERSION = "1"
 REFUSALS = ("none", "decline_individual", "decline_partisan", "not_available", "out_of_scope")
 # Markers: {fact:REF} renders the cited value, {vintage:REF} its vintage and source, {label:REF} its
-# indicator label, {geo:TYPE:ID} a place name.
+# indicator label, {geo:TYPE:ID} a place name. render() writes the official label, which the eval and the review
+# step read; the website writes the short label from the catalog instead (klear/web/display.py, klear/labels.py).
 MARKER = re.compile(r"\{(fact|vintage|label|geo):([^{}\s]+)\}")
 TEXT_FIELDS = ("ref", "indicator_id", "geo_type", "geo_id", "source_id", "vintage")
 NUMBER_FIELDS = ("value", "value_low", "value_high", "moe")

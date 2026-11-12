@@ -82,3 +82,9 @@ test('map with a ZIP code and a picked district', async ({page}, testInfo) => {
   await expect(page.locator('#pick-name')).toHaveText('House District 22');
   await expectAccessible(page, testInfo, 'map');
 });
+
+test('glossary page', async ({page}, testInfo) => {
+  await page.goto('/glossary.html');
+  await expect(page.getByRole('heading', {level: 1})).toHaveText('Glossary');
+  await expectAccessible(page, testInfo, 'glossary page');
+});

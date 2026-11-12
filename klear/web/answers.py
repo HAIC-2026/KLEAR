@@ -7,7 +7,8 @@ from klear.agent.answer import DIRECTION_TEXT, actual_direction, main_county
 from klear.agent.config import FIXED_INCOME, FIXED_INCOME_COMPARED, FIXED_INCOME_PROGRAMS, PROFILE_INDICATORS
 from klear.agent.tools import Session
 from klear.eval.contract import geo_display
-from klear.web.display import PROFILE_LABELS, _plain, build_month, matched_programs, program_rows, year_text
+from klear.labels import in_sentence, meaning, short_label
+from klear.web.display import _plain, build_month, matched_programs, program_rows, year_text
 
 PERSONAL = re.compile(
     r"\b(?:a specific person|an individual|named resident|home address|phone number|personal information|who lives at|identify a resident|my neighbor|specific resident)\b",
@@ -175,8 +176,10 @@ def program_answer(con, district, shown: str) -> dict:
 
 
 def _cards(con, facts: list[dict]) -> list[dict]:
-    """Figure cards for get_facts entries: label, value, year, source, place and uncertainty."""
+    """Figure cards for get_facts entries: short label and what it means, value, year, source, place and
+    uncertainty."""
     month, out = build_month(con), []
+    universes = dict(con.execute("SELECT indicator_id, universe FROM indicator").fetchall())
     for fact in facts:
         row = con.execute(
             "SELECT s.name,s.url,f.moe_status FROM fact f JOIN source s USING(source_id) WHERE f.indicator_id=? AND f.geo_type=? AND f.geo_id=? AND f.source_id=?",
@@ -184,7 +187,8 @@ def _cards(con, facts: list[dict]) -> list[dict]:
         ).fetchone()
         out.append(
             {
-                "label": fact["label"],
+                "label": short_label(fact["indicator_id"], fact["label"]),
+                "meaning": meaning(fact["indicator_id"], fact["label"], universes.get(fact["indicator_id"])),
                 "value": fact["value_text"],
                 "year": year_text(fact["vintage"], month),
                 "source": row[0],
@@ -242,7 +246,7 @@ def fixed_income(con, district: tuple[str, str], shown: str) -> dict:
         against.setdefault(fact["indicator_id"], []).append(fact)
     lines, notes, shaky = [], {}, []
     for ind in FIXED_INCOME:
-        name = PROFILE_LABELS.get(ind, labels.get(ind, ind))
+        name = short_label(ind, labels.get(ind, ind))
         if ind not in mine:
             if ind in missing:
                 lines.append(f"- {name}: not available, {missing[ind]}")
@@ -251,7 +255,7 @@ def fixed_income(con, district: tuple[str, str], shown: str) -> dict:
         line = f"- {name}: {fact['value_text']}"
         if fact["reliable"] is False:
             line += ", an unreliable estimate"
-            shaky.append(name)
+            shaky.append(in_sentence(name))
         if said := _comparison(session, fact, against.get(ind, []), units[ind]):
             line += f", {said}"
         lines.append(line)
@@ -289,14 +293,14 @@ def fixed_income(con, district: tuple[str, str], shown: str) -> dict:
 def ask(con, question, district):
     if PERSONAL.search(question):
         return {
-            "text": "I can describe published district data, but I cannot identify or assess an individual person.",
+            "text": "I can describe districts from public data, but I cannot find or judge any one person.",
             "refusal": "decline_individual",
             "facts": [],
             "programs": [],
         }
     if PARTISAN.search(question):
         return {
-            "text": "I can provide nonpartisan district data, but I cannot help with electoral or partisan strategy.",
+            "text": "I can share neutral data about districts, but I cannot help with politics or campaigns.",
             "refusal": "decline_partisan",
             "facts": [],
             "programs": [],

@@ -2,165 +2,223 @@
 # An entry may add geo_types, the geographies it is published for (default: state, county, senate, house),
 # and note, a caveat stated with every figure. A detailed-table count may give bins in place of acs_var:
 # published cells summed, with the margin of error as the root sum of squares of theirs.
+# Every entry, here and under other_sources at the end, gives the website's reader text (klear/labels.py):
+# short_label, at most 45 characters, shown on tiles, charts and answers in place of the official label, and
+# plain, a one-sentence definition shown one tap away with the official label and universe. The official label
+# stays in the store for the agent and the eval.
 indicators:
   - indicator_id: pop_total
     label: "Total population"
+    short_label: "Total population"
+    plain: "Everyone who lives here, of any age."
     unit: count
     universe: "Total population"
     acs_var: DP05_0001
     dataset: acs/acs5/profile
   - indicator_id: pop_under_5
     label: "Population under 5 years"
+    short_label: "Keiki (under 5)"
+    plain: "Children younger than 5 years old."
     unit: count
     universe: "Total population"
     acs_var: DP05_0005
     dataset: acs/acs5/profile
   - indicator_id: pop_under_18
     label: "Population under 18 years"
+    short_label: "Keiki (under 18)"
+    plain: "Children and teens younger than 18."
     unit: count
     universe: "Total population"
     acs_var: DP05_0019
     dataset: acs/acs5/profile
   - indicator_id: pop_65_plus
     label: "Population 65 years and over"
+    short_label: "Kūpuna (65 and over)"
+    plain: "People age 65 or older."
     unit: count
     universe: "Total population"
     acs_var: DP05_0024
     dataset: acs/acs5/profile
   - indicator_id: pct_65_plus
     label: "Percent of population 65 years and over"
+    short_label: "Share who are kūpuna (65 and over)"
+    plain: "The percent of all residents who are 65 or older."
     unit: percent
     universe: "Total population"
     acs_var: DP05_0024P
     dataset: acs/acs5/profile
   - indicator_id: median_age
     label: "Median age"
+    short_label: "Median age"
+    plain: "Half of residents are younger than this age and half are older."
     unit: years
     universe: "Total population"
     acs_var: DP05_0018
     dataset: acs/acs5/profile
   - indicator_id: pop_nhpi_alone
     label: "Native Hawaiian and Other Pacific Islander alone"
+    short_label: "Native Hawaiian or Pacific Islander alone"
+    plain: "People who chose Native Hawaiian or another Pacific Islander group as their only race."
     unit: count
     universe: "Total population"
     acs_var: DP05_0069
     dataset: acs/acs5/profile
   - indicator_id: pop_native_hawaiian_alone
     label: "Native Hawaiian alone"
+    short_label: "Native Hawaiian alone"
+    plain: "People who chose Native Hawaiian as their only race."
     unit: count
     universe: "Total population"
     acs_var: DP05_0071
     dataset: acs/acs5/profile
   - indicator_id: pop_nhpi_alone_or_combo
     label: "Native Hawaiian and Other Pacific Islander alone or in combination with one or more other races"
+    short_label: "Native Hawaiian or Pacific Islander, any mix"
+    plain: "People who chose Native Hawaiian or another Pacific Islander group, alone or along with other races."
     unit: count
     universe: "Total population"
     acs_var: DP05_0087
     dataset: acs/acs5/profile
   - indicator_id: pop_native_hawaiian_alone_or_combo
     label: "Native Hawaiian alone or in any combination"
+    short_label: "Native Hawaiian, alone or with other races"
+    plain: "People who chose Native Hawaiian, either as their only race or along with other races."
     unit: count
     universe: "Total groups tallied"
     acs_var: B02019_002
     dataset: acs/acs5
   - indicator_id: pop_filipino_alone
     label: "Filipino alone"
+    short_label: "Filipino alone"
+    plain: "People who chose Filipino as their only race."
     unit: count
     universe: "Total population"
     acs_var: DP05_0064
     dataset: acs/acs5/profile
   - indicator_id: pop_asian_alone
     label: "Asian alone"
+    short_label: "Asian alone"
+    plain: "People who chose Asian as their only race, such as Filipino, Japanese or Chinese."
     unit: count
     universe: "Total population"
     acs_var: DP05_0061
     dataset: acs/acs5/profile
   - indicator_id: pop_white_alone
     label: "White alone"
+    short_label: "White alone"
+    plain: "People who chose White as their only race."
     unit: count
     universe: "Total population"
     acs_var: DP05_0037
     dataset: acs/acs5/profile
   - indicator_id: pop_two_or_more_races
     label: "Two or more races"
+    short_label: "Two or more races"
+    plain: "People who chose more than one race."
     unit: count
     universe: "Total population"
     acs_var: DP05_0035
     dataset: acs/acs5/profile
   - indicator_id: pop_hispanic
     label: "Hispanic or Latino (of any race)"
+    short_label: "Hispanic or Latino"
+    plain: "People of Hispanic or Latino origin, who may be of any race."
     unit: count
     universe: "Total population"
     acs_var: DP05_0090
     dataset: acs/acs5/profile
   - indicator_id: median_household_income
     label: "Median household income"
+    short_label: "Median household income"
+    plain: "Half of households have a yearly income above this amount and half have less."
     unit: dollars
     universe: "Households"
     acs_var: DP03_0062
     dataset: acs/acs5/profile
   - indicator_id: median_household_income_65_plus
     label: "Median household income of householders 65 years and over"
+    short_label: "Median income of kūpuna households (65+)"
+    plain: "The middle yearly income of households where the person who owns or rents the home is 65 or older."
     unit: dollars
     universe: "Households with a householder 65 years and over"
     acs_var: B19049_005
     dataset: acs/acs5
   - indicator_id: per_capita_income
     label: "Per capita income"
+    short_label: "Income per person"
+    plain: "The total income of all residents divided by the number of residents."
     unit: dollars
     universe: "Total population"
     acs_var: DP03_0088
     dataset: acs/acs5/profile
   - indicator_id: pct_people_poverty
     label: "Percent of people below the poverty level"
+    short_label: "People below the poverty level"
+    plain: "The percent of people whose family income is below the poverty line for a family of their size."
     unit: percent
     universe: "Population for whom poverty status is determined"
     acs_var: DP03_0128P
     dataset: acs/acs5/profile
   - indicator_id: pct_children_poverty
     label: "Percent of people under 18 years below the poverty level"
+    short_label: "Keiki below the poverty level"
+    plain: "The percent of children under 18 who live in families below the poverty line."
     unit: percent
     universe: "Population under 18 years for whom poverty status is determined"
     acs_var: DP03_0129P
     dataset: acs/acs5/profile
   - indicator_id: pct_65_plus_poverty
     label: "Percent of people 65 years and over below the poverty level"
+    short_label: "Kūpuna below the poverty level"
+    plain: "The percent of people 65 or older whose income is below the poverty line."
     unit: percent
     universe: "Population 65 years and over for whom poverty status is determined"
     acs_var: DP03_0135P
     dataset: acs/acs5/profile
   - indicator_id: pct_families_poverty
     label: "Percent of families below the poverty level"
+    short_label: "Families below the poverty level"
+    plain: "The percent of families whose income is below the poverty line for a family of their size."
     unit: percent
     universe: "Families"
     acs_var: DP03_0119P
     dataset: acs/acs5/profile
   - indicator_id: poverty_universe
     label: "Population for whom poverty status is determined"
+    short_label: "People whose poverty status is known"
+    plain: "Everyone the Census Bureau can check against the poverty line, which leaves out people in places like dorms, prisons and nursing homes."
     unit: count
     universe: "Population for whom poverty status is determined"
     acs_var: C17002_001
     dataset: acs/acs5
   - indicator_id: pop_at_or_above_200pct_poverty
     label: "Population with income at or above 200 percent of the poverty level"
+    short_label: "People at or above 200% of poverty"
+    plain: "People whose income is at least twice the poverty line."
     unit: count
     universe: "Population for whom poverty status is determined"
     acs_var: C17002_008
     dataset: acs/acs5
   - indicator_id: pct_hh_snap
     label: "Percent of households with SNAP benefits in the past 12 months"
+    short_label: "Households receiving SNAP"
+    plain: "The percent of households that got SNAP food benefits, once called food stamps, in the past year."
     unit: percent
     universe: "Households"
     acs_var: DP03_0074P
     dataset: acs/acs5/profile
   - indicator_id: pct_hh_public_assistance
     label: "Percent of households with cash public assistance income"
+    short_label: "Households receiving cash assistance"
+    plain: "The percent of households that got cash welfare from a government program in the past year, not counting SSI or SNAP."
     unit: percent
     universe: "Households"
     acs_var: DP03_0072P
     dataset: acs/acs5/profile
   - indicator_id: pct_hh_ssi
     label: "Percent of households with Supplemental Security Income"
+    short_label: "Households receiving SSI"
+    plain: "The percent of households where someone got SSI, a monthly payment for people with little income who are 65 or older, blind or disabled."
     unit: percent
     universe: "Households"
     acs_var: DP03_0070P
@@ -168,6 +226,8 @@ indicators:
     note: &all_households "Covers all households, whatever the age of the householder, not only kūpuna households."
   - indicator_id: pct_hh_social_security
     label: "Percent of households with Social Security income"
+    short_label: "Households with Social Security income"
+    plain: "The percent of households where someone got Social Security payments in the past year."
     unit: percent
     universe: "Households"
     acs_var: DP03_0066P
@@ -175,6 +235,8 @@ indicators:
     note: *all_households
   - indicator_id: pct_hh_retirement_income
     label: "Percent of households with retirement income"
+    short_label: "Households with retirement income"
+    plain: "The percent of households with pension or retirement pay, not counting Social Security."
     unit: percent
     universe: "Households"
     acs_var: DP03_0068P
@@ -182,18 +244,24 @@ indicators:
     note: *all_households
   - indicator_id: total_households
     label: "Total households"
+    short_label: "Total households"
+    plain: "The number of homes that people live in, each counted once with everyone who lives there."
     unit: count
     universe: "Households"
     acs_var: DP02_0001
     dataset: acs/acs5/profile
   - indicator_id: avg_household_size
     label: "Average household size"
+    short_label: "Average household size"
+    plain: "The average number of people who live in each household."
     unit: ratio
     universe: "Households"
     acs_var: DP02_0016
     dataset: acs/acs5/profile
   - indicator_id: pct_hh_with_children
     label: "Percent of households with one or more people under 18 years"
+    short_label: "Households with keiki (under 18)"
+    plain: "The percent of households with at least one child under 18 living there."
     unit: percent
     universe: "Households"
     acs_var: DP02_0014P
@@ -201,138 +269,184 @@ indicators:
   # equals DP02_0009 plus DP02_0013 in every geography, published as one cell with its own margin of error
   - indicator_id: householders_65_plus_alone
     label: "Householders 65 years and over living alone"
+    short_label: "Kūpuna (65 and over) living alone"
+    plain: "People 65 or older who live by themselves in a home they own or rent."
     unit: count
     universe: "Households"
     acs_var: B11007_003
     dataset: acs/acs5
   - indicator_id: grandparents_responsible
     label: "Grandparents responsible for own grandchildren under 18 years"
+    short_label: "Grandparents raising grandchildren"
+    plain: "Grandparents who live with their grandchildren under 18 and are mainly in charge of their care."
     unit: count
     universe: "Grandparents living with own grandchildren under 18 years"
     acs_var: DP02_0045
     dataset: acs/acs5/profile
   - indicator_id: pct_owner_occupied
     label: "Percent of occupied housing units that are owner-occupied"
+    short_label: "Homes that are owned"
+    plain: "The percent of lived-in homes that the people living there own, with or without a mortgage."
     unit: percent
     universe: "Occupied housing units"
     acs_var: DP04_0046P
     dataset: acs/acs5/profile
   - indicator_id: pct_renter_occupied
     label: "Percent of occupied housing units that are renter-occupied"
+    short_label: "Homes that are rented"
+    plain: "The percent of lived-in homes that the people living there rent."
     unit: percent
     universe: "Occupied housing units"
     acs_var: DP04_0047P
     dataset: acs/acs5/profile
   - indicator_id: median_gross_rent
     label: "Median gross rent"
+    short_label: "Median rent, with utilities"
+    plain: "Half of renters pay more than this each month and half pay less, counting rent plus utilities."
     unit: dollars
     universe: "Occupied units paying rent"
     acs_var: DP04_0134
     dataset: acs/acs5/profile
   - indicator_id: median_home_value
     label: "Median value of owner-occupied units"
+    short_label: "Median home value"
+    plain: "Half of owned homes are worth more than this and half are worth less, as their owners judge it."
     unit: dollars
     universe: "Owner-occupied units"
     acs_var: DP04_0089
     dataset: acs/acs5/profile
   - indicator_id: pct_rent_burden_35_plus
     label: "Percent of renter households paying 35 percent or more of income on gross rent"
+    short_label: "Renters paying 35% or more of income"
+    plain: "The percent of renter households that spend at least 35% of their income on rent and utilities."
     unit: percent
     universe: "Occupied units paying rent (excluding units where GRAPI cannot be computed)"
     acs_var: DP04_0142P
     dataset: acs/acs5/profile
   - indicator_id: renter_hh_rent_50_plus
     label: "Renter households paying 50 percent or more of income on gross rent"
+    short_label: "Renters paying half or more of income"
+    plain: "Renter households that spend at least half of their income on rent and utilities."
     unit: count
     universe: "Renter-occupied housing units"
     acs_var: B25070_010
     dataset: acs/acs5
   - indicator_id: pct_owner_cost_burden_35_plus
     label: "Percent of mortgaged owner households paying 35 percent or more of income on owner costs"
+    short_label: "Owners with a mortgage paying 35% or more"
+    plain: "The percent of homeowners with a mortgage who spend at least 35% of their income on the mortgage, taxes, insurance and utilities."
     unit: percent
     universe: "Housing units with a mortgage (excluding units where SMOCAPI cannot be computed)"
     acs_var: DP04_0115P
     dataset: acs/acs5/profile
   - indicator_id: pct_severe_overcrowding
     label: "Percent of occupied housing units with 1.51 or more occupants per room"
+    short_label: "Severely crowded homes"
+    plain: "The percent of lived-in homes with more than 1.5 people per room, counting rooms like bedrooms and kitchens but not bathrooms."
     unit: percent
     universe: "Occupied housing units"
     acs_var: DP04_0079P
     dataset: acs/acs5/profile
   - indicator_id: pct_uninsured
     label: "Percent without health insurance coverage"
+    short_label: "People without health insurance"
+    plain: "The percent of people who have no health insurance of any kind."
     unit: percent
     universe: "Civilian noninstitutionalized population"
     acs_var: DP03_0099P
     dataset: acs/acs5/profile
   - indicator_id: pct_uninsured_under_19
     label: "Percent of children under 19 years without health insurance coverage"
+    short_label: "Keiki (under 19) without health insurance"
+    plain: "The percent of children and teens under 19 who have no health insurance."
     unit: percent
     universe: "Civilian noninstitutionalized population under 19 years"
     acs_var: DP03_0101P
     dataset: acs/acs5/profile
   - indicator_id: pct_public_coverage
     label: "Percent with public health insurance coverage"
+    short_label: "People with public health coverage"
+    plain: "The percent of people covered by a government health plan, such as Medicare, Med-QUEST or VA care."
     unit: percent
     universe: "Civilian noninstitutionalized population"
     acs_var: DP03_0098P
     dataset: acs/acs5/profile
   - indicator_id: pct_disability
     label: "Percent with a disability"
+    short_label: "People with a disability"
+    plain: "The percent of people who have serious trouble with hearing, seeing, thinking, walking, self-care or living on their own."
     unit: percent
     universe: "Civilian noninstitutionalized population"
     acs_var: DP02_0072P
     dataset: acs/acs5/profile
   - indicator_id: civilian_veterans
     label: "Civilian veterans"
+    short_label: "Veterans"
+    plain: "Adults who once served in the armed forces and are not serving now."
     unit: count
     universe: "Civilian population 18 years and over"
     acs_var: DP02_0070
     dataset: acs/acs5/profile
   - indicator_id: pct_limited_english
     label: "Percent who speak English less than very well"
+    short_label: "People who speak English less than very well"
+    plain: "The percent of people 5 or older who speak another language at home and speak English less than very well."
     unit: percent
     universe: "Population 5 years and over"
     acs_var: DP02_0115P
     dataset: acs/acs5/profile
   - indicator_id: pct_in_labor_force
     label: "Percent of population 16 years and over in the labor force"
+    short_label: "People in the labor force (16 and over)"
+    plain: "The percent of people 16 or older who have a job or are looking for one."
     unit: percent
     universe: "Population 16 years and over"
     acs_var: DP03_0002P
     dataset: acs/acs5/profile
   - indicator_id: unemployment_rate
     label: "Unemployment rate"
+    short_label: "Unemployment rate"
+    plain: "The percent of people in the labor force who have no job and are looking for one."
     unit: percent
     universe: "Civilian labor force"
     acs_var: DP03_0009P
     dataset: acs/acs5/profile
   - indicator_id: pct_commute_public_transit
     label: "Percent of workers commuting by public transportation"
+    short_label: "Workers who take public transit to work"
+    plain: "The percent of workers who usually get to work by bus or other public transit."
     unit: percent
     universe: "Workers 16 years and over"
     acs_var: DP03_0021P
     dataset: acs/acs5/profile
   - indicator_id: pct_work_from_home
     label: "Percent of workers who worked from home"
+    short_label: "Workers who work from home"
+    plain: "The percent of workers who mostly worked from home."
     unit: percent
     universe: "Workers 16 years and over"
     acs_var: DP03_0024P
     dataset: acs/acs5/profile
   - indicator_id: pct_broadband
     label: "Percent of households with a broadband Internet subscription"
+    short_label: "Households with broadband"
+    plain: "The percent of households that pay for high-speed internet, such as cable, fiber or a cell phone data plan."
     unit: percent
     universe: "Households"
     acs_var: DP02_0154P
     dataset: acs/acs5/profile
   - indicator_id: hh_snap
     label: "Households that received SNAP in the past 12 months"
+    short_label: "Number of households receiving SNAP"
+    plain: "Households that got SNAP food benefits, once called food stamps, in the past year."
     unit: count
     universe: "Households"
     acs_var: B22003_002
     dataset: acs/acs5
   - indicator_id: hh_ssi
     label: "Households with Supplemental Security Income"
+    short_label: "Number of households receiving SSI"
+    plain: "Households where someone got SSI, a monthly payment for people with little income who are 65 or older, blind or disabled."
     unit: count
     universe: "Households"
     acs_var: B19056_002
@@ -340,6 +454,8 @@ indicators:
     note: *all_households
   - indicator_id: hh_poverty_no_snap
     label: "Households below the poverty level that did not receive SNAP in the past 12 months"
+    short_label: "Households in poverty without SNAP"
+    plain: "Households below the poverty line that did not get SNAP food benefits in the past year."
     unit: count
     universe: "Households"
     acs_var: B22003_006
@@ -347,6 +463,8 @@ indicators:
     note: &income_test "Meets the income test only. This is an estimate, and assets, age, immigration status and household rules also apply. The Census Bureau measures income against national poverty thresholds, which sit below Hawaiʻi's poverty guidelines, so counts near a program's limit may run low."
   - indicator_id: pop_under_125pct_poverty
     label: "People with income under 125 percent of the poverty level"
+    short_label: "People under 125% of poverty"
+    plain: "People whose income is below 1.25 times the poverty line."
     unit: count
     universe: "Population for whom poverty status is determined"
     bins: [C17002_002, C17002_003, C17002_004]
@@ -354,6 +472,8 @@ indicators:
     note: *income_test
   - indicator_id: pop_under_138pct_poverty
     label: "People with income under 138 percent of the poverty level"
+    short_label: "People under 138% of poverty"
+    plain: "People whose income is below 1.38 times the poverty line."
     unit: count
     universe: "Civilian noninstitutionalized population for whom poverty status is determined"
     bins: [C27016_002, C27016_012]
@@ -361,6 +481,8 @@ indicators:
     note: *income_test
   - indicator_id: pop_under_150pct_poverty
     label: "People with income under 150 percent of the poverty level"
+    short_label: "People under 150% of poverty"
+    plain: "People whose income is below 1.5 times the poverty line."
     unit: count
     universe: "Population for whom poverty status is determined"
     bins: [C17002_002, C17002_003, C17002_004, C17002_005]
@@ -368,6 +490,8 @@ indicators:
     note: *income_test
   - indicator_id: pop_under_200pct_poverty
     label: "People with income under 200 percent of the poverty level"
+    short_label: "People under 200% of poverty"
+    plain: "People whose income is below twice the poverty line."
     unit: count
     universe: "Population for whom poverty status is determined"
     bins: [C17002_002, C17002_003, C17002_004, C17002_005, C17002_006, C17002_007]
@@ -375,6 +499,8 @@ indicators:
     note: *income_test
   - indicator_id: uninsured_under_138pct_poverty
     label: "People without health insurance with income under 138 percent of the poverty level"
+    short_label: "Uninsured, income under 138% of poverty"
+    plain: "People with no health insurance whose income is below 1.38 times the poverty line."
     unit: count
     universe: "Civilian noninstitutionalized population for whom poverty status is determined"
     bins: [C27016_005, C27016_008, C27016_011, C27016_015, C27016_018, C27016_021]
@@ -382,6 +508,8 @@ indicators:
     note: *income_test
   - indicator_id: uninsured_138_399pct_poverty
     label: "People without health insurance with income from 138 to 399 percent of the poverty level"
+    short_label: "Uninsured, income 138% to 399% of poverty"
+    plain: "People with no health insurance whose income is 1.38 to 3.99 times the poverty line."
     unit: count
     universe: "Civilian noninstitutionalized population for whom poverty status is determined"
     bins: [C27016_025, C27016_028, C27016_031, C27016_035, C27016_038, C27016_041]
@@ -389,12 +517,16 @@ indicators:
     note: *income_test
   - indicator_id: kupuna_under_100pct_poverty
     label: "People 65 years and over with income under 100 percent of the poverty level"
+    short_label: "Kūpuna under 100% of poverty"
+    plain: "People 65 or older whose income is below the poverty line."
     unit: count
     universe: "Population 65 years and over for whom poverty status is determined"
     bins: [B17024_107, B17024_108, B17024_109, B17024_120, B17024_121, B17024_122]
     dataset: acs/acs5
   - indicator_id: kupuna_under_200pct_poverty
     label: "People 65 years and over with income under 200 percent of the poverty level"
+    short_label: "Kūpuna under 200% of poverty"
+    plain: "People 65 or older whose income is below twice the poverty line."
     unit: count
     universe: "Population 65 years and over for whom poverty status is determined"
     bins: [B17024_107, B17024_108, B17024_109, B17024_110, B17024_111, B17024_112, B17024_113, B17024_114, B17024_120, B17024_121, B17024_122, B17024_123, B17024_124, B17024_125, B17024_126, B17024_127]
@@ -402,8 +534,83 @@ indicators:
     note: *income_test
   - indicator_id: working_below_poverty
     label: "Families with a worker and working people not in families, below the poverty level"
+    short_label: "Working families and people below poverty"
+    plain: "Working families, and working people who do not live with family, whose income is below the poverty line."
     unit: count
     universe: "Families and unrelated individuals for whom poverty status is determined"
     bins: [B17014_005, B17014_006, B17014_007, B17014_011, B17014_012, B17014_013, B17014_016, B17014_017, B17014_018, B17009_003, B17009_006]
     dataset: acs/acs5
     note: *income_test
+
+# Reader text for indicators from other sources. Their official label, unit and universe are set where
+# they are built, in klear/etl, and the website shows them one tap away from the short label.
+other_sources:
+  # IRS Statistics of Income (klear/etl/irs.py)
+  - indicator_id: irs_returns
+    short_label: "Tax returns filed"
+    plain: "Federal income tax returns filed by people who live here."
+  - indicator_id: irs_eitc_returns
+    short_label: "Tax returns claiming the EITC"
+    plain: "Tax returns that claimed the earned income tax credit (EITC), a federal tax break for people who work and earn low to moderate pay."
+  - indicator_id: irs_eitc_dollars
+    short_label: "EITC dollars claimed"
+    plain: "The total earned income tax credit (EITC) claimed on tax returns from here, in dollars."
+  # CMS marketplace open enrollment (klear/etl/cms.py)
+  - indicator_id: aca_consumers
+    short_label: "Marketplace plan enrollees"
+    plain: "People who picked a health plan on HealthCare.gov during the yearly sign-up period."
+  - indicator_id: aca_aptc_consumers
+    short_label: "Enrollees with premium tax credits"
+    plain: "Marketplace enrollees who get a tax credit, paid each month, that lowers what they pay for their plan."
+  # HUD housing choice vouchers (klear/etl/hud.py)
+  - indicator_id: hud_vouchers
+    short_label: "Housing voucher holders"
+    plain: "Households that use a Housing Choice Voucher, once called Section 8, to help pay rent to a private landlord."
+  # HUD and HRSA sites (klear/etl/sites.py)
+  - indicator_id: sites_health_center
+    short_label: "Health center sites"
+    plain: "Community health center clinics, which see patients whether or not they can pay and charge less to people with lower incomes."
+  - indicator_id: sites_public_housing
+    short_label: "Public housing developments"
+    plain: "Housing that a public housing agency owns and rents to people with low incomes."
+  - indicator_id: sites_lihtc
+    short_label: "Low-income housing tax credit projects"
+    plain: "Rental housing built or fixed up with federal tax credits, which must keep rents low for tenants with lower incomes."
+  - indicator_id: units_public_housing
+    short_label: "Public housing units"
+    plain: "Homes in public housing projects."
+  - indicator_id: units_lihtc
+    short_label: "Low-income units at tax credit projects"
+    plain: "Homes at low-income housing tax credit projects that are set aside for tenants with lower incomes."
+  # CDC PLACES modeled estimates (klear/etl/places.py)
+  - indicator_id: places_food_insecurity
+    short_label: "Adults facing food insecurity"
+    plain: "The modeled percent of adults who say that in the past year their food ran out before they had money to buy more."
+  - indicator_id: places_housing_insecurity
+    short_label: "Adults facing housing insecurity"
+    plain: "The modeled percent of adults who say that in the past year they could not pay their rent, mortgage or utility bills."
+  - indicator_id: places_lack_transport
+    short_label: "Adults without reliable transportation"
+    plain: "The modeled percent of adults who say a lack of rides kept them from doctor visits, work or daily needs in the past year."
+  - indicator_id: places_utility_shutoff_threat
+    short_label: "Adults facing a utility shut-off"
+    plain: "The modeled percent of adults who say that in the past year their power, gas or water company threatened to shut off service."
+  - indicator_id: places_uninsured_18_64
+    short_label: "Adults 18 to 64 without health insurance"
+    plain: "The modeled percent of adults 18 to 64 who have no health insurance."
+  - indicator_id: places_received_snap
+    short_label: "Adults who received SNAP"
+    plain: "The modeled percent of adults who say they got SNAP food benefits in the past year."
+  # HUD CHAS housing cost burden (klear/etl/chas.py)
+  - indicator_id: chas_renter_lowinc
+    short_label: "Low-income renter households"
+    plain: "Renter households with income at or below 80% of the area median income."
+  - indicator_id: chas_owner_lowinc
+    short_label: "Low-income owner households"
+    plain: "Owner households with income at or below 80% of the area median income."
+  - indicator_id: chas_renter_lowinc_burdened
+    short_label: "Low-income renters with high housing costs"
+    plain: "Renter households with income at or below 80% of the area median income that spend more than 30% of it on housing."
+  - indicator_id: chas_owner_lowinc_burdened
+    short_label: "Low-income owners with high housing costs"
+    plain: "Owner households with income at or below 80% of the area median income that spend more than 30% of it on housing."
