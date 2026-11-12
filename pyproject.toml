@@ -13,6 +13,7 @@ dependencies = [
     "shapely",
     "pyyaml",
     "anthropic>=2.3.0",
+    "pypdf>=7.0.0",
 ]
 
 [dependency-groups]

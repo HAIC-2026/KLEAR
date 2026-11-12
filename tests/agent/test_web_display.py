@@ -1,13 +1,14 @@
 """Website answers show a plain lead, number tiles, comparison charts and one source list."""
 
 import json
+import shutil
 
 from klear.agent.config import PROFILE_BESIDE
 from klear.agent.tools import Session
 from klear.config import CURRENT_LAYER
 from klear.eval.contract import Answer, FactRef
 from klear.store.db import add_source
-from klear.web.display import PROFILE_LABELS, build, profile
+from klear.web.display import PROFILE_LABELS, RULES, build, profile, programs
 
 
 def fact(ref, geo_id, value, moe, low=None, high=None):
@@ -145,3 +146,19 @@ def test_who_may_qualify_section_states_its_caveat_once_and_shows_figures_beside
     assert "·" not in text and "—" not in text
     other = next(s for s in out["sections"] if s["title"] == "People")
     assert other["caveat"] == ""
+
+
+def test_programs_follow_rule_file_changes_and_survive_broken_rules(tmp_path):
+    rules = tmp_path / "rules"
+    shutil.copytree(RULES, rules)
+    names = [p["name"] for p in programs(rules)]
+    assert "WIC" in names and names.count("Federal EITC") == 1
+    # The list is read again when a rule file changes.
+    wic = rules / "wic_2026_27.yaml"
+    text = wic.read_text(encoding="utf-8")
+    wic.write_text(text.replace("status: confirmed", "status: needs_manual"), encoding="utf-8")
+    assert "WIC" not in [p["name"] for p in programs(rules)]
+    # A rule file that cannot be read leaves the list empty rather than failing the profile.
+    wic.write_text("status: [broken", encoding="utf-8")
+    assert programs(rules) == []
+    assert programs(tmp_path / "missing") == []

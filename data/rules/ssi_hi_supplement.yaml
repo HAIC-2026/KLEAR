@@ -1,9 +1,37 @@
 rule_id: ssi_hi_supplement
 program: Hawaiʻi SSI state supplement
-status: needs_manual
+status: confirmed
 effective: '2026-01-01'
-url: https://humanservices.hawaii.gov/bessd/
-values: {}
-verified_by: not read in this session
-retrieved: '2026-10-30'
-note: state supplement amounts not found, confirm by hand
+url: https://www.ssa.gov/pubs/EN-05-11108.pdf
+saved: ssa-ssi-in-hawaii-2026.pdf
+effective_source:
+  url: https://www.ssa.gov/pubs/EN-05-11108.pdf
+  quote: (January 2026 edition may be used)
+  shown: January 2026
+values:
+  who_gets_supplement:
+    value: foster or domiciliary care
+    quote: The state of Hawaii pays a state supplement, but only to SSI recipients, including children, who live in foster or domiciliary care.
+  foster_care_individual_monthly:
+    value: 1823
+    shown: '1,823.00'
+    quote: Living in adult foster care home Eligible person $1,823.00 Eligible couple $3,486.00
+  foster_care_couple_monthly:
+    value: 3486
+    shown: '3,486.00'
+    quote: Living in adult foster care home Eligible person $1,823.00 Eligible couple $3,486.00
+  small_facility_individual_monthly:
+    value: 1823
+    shown: '1,823.00'
+    quote: Private non-medical facility (five people or less) Eligible person $1,823.00
+  large_facility_individual_monthly:
+    value: 1931
+    shown: '1,931.00'
+    quote: Private non-medical facility (more than five people) Eligible person $1,931.00
+  independent_individual_monthly:
+    value: 994
+    shown: '994.00'
+    quote: Independent living status Eligible person $994.00 Eligible couple $1,491.00
+verified_by: read from SSA publication 05-11108, Supplemental Security Income (SSI) in Hawaii 2026, saved by hand from ssa.gov (which blocks scripts)
+retrieved: '2026-11-09'
+note: The amounts are the combined federal and state monthly payment. People living independently get only the federal amount ($994), so the state supplement is the difference in foster or domiciliary care, for example $1,823 minus $994 is $829 a month for one person in an adult foster care home. Hawaiʻi sets amounts for eligible children itself.

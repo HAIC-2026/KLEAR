@@ -21,9 +21,11 @@ from klear.etl.dbedt import COUNTY_FIPS
 from klear.etl.places import PLACES_MEASURES
 from klear.etl.places_gazetteer import load_overrides, plain_name
 from klear.validation import CheckResult
+from klear.validation import chas as chas_check
 from klear.validation.report import render_validation
 from klear.validation.rules import HUD_COLUMNS, HUD_COUNTIES, HUD_FILE, HUD_URL
 from tests.etl.test_dbedt import make_workbook
+from tests.fixtures.make_chas_sample import table8
 
 KEY = "SECRETKEY123"
 N_HOUSE, N_SENATE = 51, 25
@@ -298,22 +300,9 @@ def _places():
 
 
 def _chas_zip(path, base=50):
-    dic = []
-    n = 1
-    for tenure in chas.TENURES.values():
-        for band in chas.BANDS:
-            for measure in chas.MEASURES.values():
-                dic.append(("Table 8", f"T8_est{n}", "Detail", f"{tenure}, {band}, {measure}"))
-                n += 1
-    dictionary = pd.DataFrame(dic, columns=["Table", "Column Name", "Line Type", "Description"])
-    rows = []
-    for i, t in enumerate(TRACTS):
-        est = {c: base + 10 * i + j for j, c in enumerate(dictionary["Column Name"])}
-        moe = {c.replace("_est", "_moe"): 5 + j for j, c in enumerate(dictionary["Column Name"])}
-        rows.append({"geoid": f"14000US{t}", "name": f"Census Tract {i}", **est, **moe})
+    raw = table8([f"14000US{t}" for t in TRACTS], base=base, moe=5)
     with zipfile.ZipFile(path, "w") as z:
-        z.writestr("CHAS data dictionary 18-22.csv", dictionary.to_csv(index=False))
-        z.writestr("140/Table8.csv", pd.DataFrame(rows).to_csv(index=False))
+        z.writestr("140/Table8.csv", raw.to_csv(index=False))
 
 
 def _hud_xlsx(path):
@@ -464,6 +453,9 @@ def env(tmp_path, monkeypatch):
     manual_dir = tmp_path / "manual"
     manual_dir.mkdir()
     _chas_zip(manual_dir / chas.CHAS_FILE)
+    # the sample tracts stand in for HUD's Hawaiʻi state summary
+    sums = chas.read_chas(manual_dir / chas.CHAS_FILE).groupby("indicator_id").value.sum().to_dict()
+    monkeypatch.setattr(chas_check, "HUD_STATE", sums)
     _hud_xlsx(manual_dir / HUD_FILE)
     monkeypatch.setattr(manual, "MANUAL_DIR", manual_dir)
     _write_rules(tmp_path / "rules", "confirmed")
