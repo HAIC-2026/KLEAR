@@ -14,6 +14,7 @@ from klear.etl.profile import (
     facts_from_api,
     load_catalog,
     load_profile_facts,
+    sum_bins,
 )
 from klear.store.db import UNITS, open_store
 from klear.validation.store import check_store
@@ -342,7 +343,8 @@ def test_catalog_vars_exist_in_api():
         "acs/acs5": get_variable_labels("acs/acs5"),
     }
     for i in load_catalog():
-        assert f"{i.acs_var}E" in labels[i.dataset], i.indicator_id
+        for v in i.variables:
+            assert f"{v}E" in labels[i.dataset], i.indicator_id
 
 
 @pytest.mark.network
@@ -382,3 +384,112 @@ def test_build_geographies_spells_county_names(monkeypatch):
         "15001": "Hawaiʻi County",
         "15007": "Kauaʻi County",
     }
+
+
+# income-eligible estimates summed from published bins
+
+ELIGIBLE = {
+    "hh_poverty_no_snap": ["B22003_006"],
+    "pop_under_125pct_poverty": ["C17002_002", "C17002_003", "C17002_004"],
+    "pop_under_138pct_poverty": ["C27016_002", "C27016_012"],
+    "pop_under_150pct_poverty": ["C17002_002", "C17002_003", "C17002_004", "C17002_005"],
+    "pop_under_200pct_poverty": [f"C17002_{n:03d}" for n in range(2, 8)],
+    "uninsured_under_138pct_poverty": [f"C27016_{n:03d}" for n in (5, 8, 11, 15, 18, 21)],
+    "uninsured_138_399pct_poverty": [f"C27016_{n:03d}" for n in (25, 28, 31, 35, 38, 41)],
+    "kupuna_under_200pct_poverty": [f"B17024_{n:03d}" for n in [*range(107, 115), *range(120, 128)]],
+    "working_below_poverty": [f"B17014_{n:03d}" for n in (5, 6, 7, 11, 12, 13, 16, 17, 18)]
+    + ["B17009_003", "B17009_006"],
+}
+
+
+def test_catalog_eligible_estimates_use_only_published_bins_and_carry_the_income_test_note():
+    cat = {i.indicator_id: i for i in load_catalog()}
+    for iid, bins in ELIGIBLE.items():
+        i = cat[iid]
+        assert list(i.variables) == bins, iid
+        assert i.dataset == "acs/acs5" and i.unit == "count" and i.geo_types == GEO_TYPES
+        assert i.note.startswith("Meets the income test only.") and "household rules" in i.note
+        assert "\u2014" not in i.note and "\u00b7" not in i.note and ";" not in i.note
+    assert cat["working_below_poverty"].table_id == "B17014+B17009"
+    assert cat["hh_snap"].variables == ("B22003_002",) and cat["hh_snap"].note is None
+    # SNAP's 130 percent limit is left as the published 125 and 150 percent cuts, never interpolated
+    assert not any("130" in i.indicator_id for i in cat.values())
+
+
+def test_catalog_bins_entries_are_checked(tmp_path):
+    p = tmp_path / "c.yaml"
+    base = "  - indicator_id: a\n    label: X\n    unit: count\n    universe: U\n    dataset: acs/acs5\n"
+    p.write_text("indicators:\n" + base + "    bins: [C17002_002, C17002_003]\n    note: Only an estimate.\n")
+    (a,) = load_catalog(p)
+    assert a.acs_var == "C17002_002+C17002_003" and a.bins == ("C17002_002", "C17002_003")
+    assert a.note == "Only an estimate." and a.table_id == "C17002"
+    for bad, why in (("[C17002_002, C17002_002]", "distinct"), ("[DP05_0001, C17002_003]", "does not fit")):
+        p.write_text("indicators:\n" + base + f"    bins: {bad}\n")
+        with pytest.raises(ValueError, match=why):
+            load_catalog(p)
+    p.write_text("indicators:\n" + base.replace("count", "percent") + "    bins: [C17002_002, C17002_003]\n")
+    with pytest.raises(ValueError, match="count cells"):
+        load_catalog(p)
+
+
+def bins_frame(cells):
+    return pd.DataFrame([api_row(f"C17002_{k:03d}", *c) for k, c in enumerate(cells, start=2)])
+
+
+def test_sum_bins_adds_estimates_and_combines_margins_by_root_sum_of_squares():
+    value, moe, vs, ms = sum_bins(bins_frame([(100.0, 30.0), (50.0, 40.0), (0.0, 12.0)]))
+    assert (value, vs, ms) == (150.0, "ok", "ok")
+    assert moe == pytest.approx((30**2 + 40**2 + 12**2) ** 0.5)
+
+
+def test_sum_bins_statuses():
+    controlled = (10.0, None, "ok", "controlled")
+    assert sum_bins(bins_frame([controlled, controlled])) == (20.0, None, "ok", "controlled")
+    # a controlled cell has no sampling error and adds nothing to the margin
+    value, moe, _, ms = sum_bins(bins_frame([controlled, (5.0, 3.0)]))
+    assert (value, moe, ms) == (15.0, 3.0, "ok")
+    assert sum_bins(bins_frame([(5.0, None, "ok", "not_computable"), (5.0, 3.0)])) == (
+        10.0,
+        None,
+        "ok",
+        "not_computable",
+    )
+    assert sum_bins(bins_frame([(None, None, "suppressed", "not_computable"), (5.0, 3.0)])) == (
+        None,
+        None,
+        "suppressed",
+        "not_computable",
+    )
+
+
+def test_facts_from_api_sums_bins_per_geography():
+    cat = [Indicator("u125", "Under 125", "count", "U", "x", "acs/acs5", bins=("C17002_002", "C17002_003"))]
+    api = pd.DataFrame(
+        [
+            api_row("C17002_002", 10.0, 3.0),
+            api_row("C17002_003", 20.0, 4.0),
+            api_row("C17002_002", 1.0, 1.0, geo_id="002"),
+            api_row("C17002_003", 2.0, 1.0, geo_id="002"),
+            api_row("C17002_004", 99.0, 9.0),
+        ]
+    )
+    out = facts_from_api(api, cat, "acs2024_5yr_detailed").set_index("geo_id")
+    assert out.loc["001", ["value", "moe", "value_status", "moe_status"]].tolist() == [30.0, 5.0, "ok", "ok"]
+    assert out.loc["002", "value"] == 3.0 and out.loc["002", "moe"] == pytest.approx(2**0.5)
+    assert set(out.table_id) == {"C17002"} and set(out.indicator_id) == {"u125"}
+    with pytest.raises(ValueError, match="C17002_003"):
+        facts_from_api(api[api.variable != "C17002_003"], cat, "s")
+
+
+def test_catalog_fixed_income_entries():
+    cat = {i.indicator_id: i for i in load_catalog()}
+    under_100 = cat["kupuna_under_100pct_poverty"]
+    assert under_100.variables == tuple(f"B17024_{n:03d}" for n in (107, 108, 109, 120, 121, 122))
+    assert set(under_100.variables) < set(cat["kupuna_under_200pct_poverty"].variables)
+    assert (under_100.dataset, under_100.unit, under_100.note) == ("acs/acs5", "count", None)
+    income = cat["median_household_income_65_plus"]
+    assert (income.acs_var, income.dataset, income.unit) == ("B19049_005", "acs/acs5", "dollars")
+    alone = cat["householders_65_plus_alone"]
+    assert (alone.acs_var, alone.dataset, alone.unit) == ("B11007_003", "acs/acs5", "count")
+    for iid in ("pct_hh_social_security", "pct_hh_retirement_income", "pct_hh_ssi", "hh_ssi"):
+        assert cat[iid].universe == "Households" and "all households" in cat[iid].note, iid

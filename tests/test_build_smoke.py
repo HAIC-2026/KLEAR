@@ -46,7 +46,8 @@ PROFILE_LABELS = {
 }
 CHECKS = [
     "source_fidelity", "boundaries_house", "boundaries_senate", "blocks", "apportionment", "irs_state", "irs_county",
-    "cms_county", "hud_hcv", "sites", "places", "chas", "gazetteer", "areas", "rules", "store", "raw_files",
+    "cms_county", "hud_hcv", "sites", "places", "chas", "gazetteer", "areas", "rules", "district_sums", "admin_counts",
+    "store", "raw_files",
 ]  # fmt: skip
 NEW_TITLES = [
     "irs_state",
@@ -404,11 +405,13 @@ class Stub:
         get = request.url.params["get"].split(",")
         geos, cols = _geo_rows(request.url.params)
         out = [get + cols]
+        # a detailed-table state count equals its five counties, so district sums add up
+        state_sum = path.endswith("/acs/acs5") and request.url.params["for"] == "state:15"
         for g in geos:
             vals = []
             for v in get[1:]:
                 pct = v[:-1].endswith("P")
-                est, moe = ("50.0", "5.0") if pct else ("100", "10")
+                est, moe = ("50.0", "5.0") if pct else ("500" if state_sum else "100", "10")
                 vals.append(self.override.get((g[-1], v), est if v[-1] == "E" else moe))
             out.append(["X"] + vals + g)
         return httpx.Response(200, json=out)

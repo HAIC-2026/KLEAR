@@ -1,0 +1,13 @@
+program_id: eitc_federal
+name: Federal EITC
+description: A federal tax credit that lowers the tax owed or adds to the refund, claimed on a tax return.
+serves: People who work and have low to moderate income, with larger credits for families with children.
+agency: Internal Revenue Service
+url: https://www.irs.gov/credits-deductions/individuals/earned-income-tax-credit-eitc
+phone: 1-800-829-1040
+phone_label: IRS help line for individuals
+phone_source: https://www.irs.gov/help/let-us-help-you
+rules: [eitc_federal_ty2025, eitc_federal_ty2026]
+needs: [eitc_share, pct_families_poverty]
+verified: '2026-11-09'
+verification: Fetched the EITC page and the IRS help page (HTTP 200)

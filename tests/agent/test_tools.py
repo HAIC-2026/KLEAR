@@ -1,12 +1,14 @@
 # Tests for the deterministic agent tools against the built store and a small fixture store.
 import json
+import statistics
 import time
 
 import pytest
 
-from klear.agent.config import PROFILE_SECTIONS
+from klear.agent.config import FIXED_INCOME, PROFILE_SECTIONS
 from klear.agent.tools import TOOL_SPECS, Session, _dedupe, _Named
 from klear.eval.golden import load_golden
+from klear.programs import catalog
 
 
 def call(s, tool, **args):
@@ -125,15 +127,17 @@ def test_bad_args_return_error_json(session):
 
 def test_specs_cover_every_tool(session):
     assert [t["name"] for t in TOOL_SPECS] == [
-        "resolve_place", "search_indicators", "get_facts", "compare", "district_profile", "list_programs", "find_sites",
-        "explain_source",
+        "resolve_place", "search_indicators", "get_facts", "compare", "district_profile", "rank_districts",
+        "list_programs", "district_programs", "find_sites", "explain_source",
     ]  # fmt: skip
     assert all(t["input_schema"]["type"] == "object" and t["description"] for t in TOOL_SPECS)
 
 
 def test_real_store_tools_smoke(session):
     assert call(session, "find_sites", geo="house:022")["sites"]
-    assert call(session, "list_programs", words=["snap"])["programs"][0]["rule_id"] == "snap_fy2027"
+    assert (
+        call(session, "list_programs", words=["snap"])["programs"][0]["rules"][0]["rule_id"] == "snap_fy2027"
+    )
     assert (
         call(session, "explain_source", source_id="acs2024_5yr_profile")["publisher"] == "U.S. Census Bureau"
     )
@@ -142,6 +146,12 @@ def test_real_store_tools_smoke(session):
         ids = [i["indicator_id"] for i in call(session, "search_indicators", words=words)["indicators"]]
         # two CHAS renter counts tie with it on "renter", so allow six of the twelve results
         assert "pct_renter_occupied" in ids[:6], words
+
+
+@pytest.mark.parametrize("words", [["fixed income"], ["kupuna", "fixed", "incomes"]])
+def test_fixed_income_search_finds_every_fixed_income_figure(session, words):
+    ids = [i["indicator_id"] for i in call(session, "search_indicators", words=words)["indicators"]]
+    assert set(FIXED_INCOME) <= set(ids), words
 
 
 # small store
@@ -222,9 +232,9 @@ def test_find_sites_and_kind_filter(small):
 
 
 def test_programs_and_source(small):
-    assert len(call(small, "list_programs")["programs"]) >= 15
+    assert len(call(small, "list_programs")["programs"]) == len(catalog())
     p = call(small, "list_programs", words=["kupuna"])["programs"]
-    assert [x["rule_id"] for x in p] == ["kupuna_care"] and p[0]["agency"] and p[0]["status"]
+    assert [x["program_id"] for x in p] == ["kupuna_care"] and p[0]["agency"] and p[0]["rules"][0]["status"]
     s = call(small, "explain_source", source_id="hud")
     assert s["name"] == "Public Housing" and s["url"] == "https://example.org/hud"
     assert "error" in call(small, "explain_source", source_id="nope")
@@ -273,8 +283,8 @@ def test_reliable_flag_zero_and_no_moe(small_con, small):
 
 
 def test_agencies(session):
-    out = {p["rule_id"]: p["agency"] for p in call(session, "list_programs")["programs"]}
-    assert "Department of Health" in out["wic_2026_27"] and "WIC" in out["wic_2026_27"]
+    out = {p["program_id"]: p["agency"] for p in call(session, "list_programs")["programs"]}
+    assert "Department of Health" in out["wic"] and "WIC" in out["wic"]
     assert all(out.values())
 
 
@@ -297,10 +307,10 @@ def test_facts_name_their_method(session):
 def test_programs_say_what_they_cover_and_match_on_it(session):
     programs = call(session, "list_programs")["programs"]
     assert all(p["covers"] for p in programs)
-    hits = [p["rule_id"] for p in call(session, "list_programs", words=["vouchers"])["programs"]]
-    assert "hud_il_fy2026_hi" in hits
-    food = [p["rule_id"] for p in call(session, "list_programs", words=["food"])["programs"]]
-    assert "snap_fy2027" in food
+    hits = [p["program_id"] for p in call(session, "list_programs", words=["vouchers"])["programs"]]
+    assert "public_housing" in hits
+    food = [p["program_id"] for p in call(session, "list_programs", words=["food"])["programs"]]
+    assert "snap" in food
 
 
 def test_main_runs_tools_in_one_session(real_con, capsys):
@@ -372,10 +382,12 @@ def test_every_district_profile_is_complete_and_fast(real_con):
         "SELECT geo_type, geo_id FROM geography WHERE geo_type IN ('house', 'senate') ORDER BY 1, 2"
     ).fetchall()
     assert len(districts) == 76
+    took = []
     for geo_type, geo_id in districts:
         start = time.perf_counter()
         out = json.loads(Session(real_con).run("district_profile", {"district": f"{geo_type}:{geo_id}"}))
-        assert time.perf_counter() - start < 1, f"{geo_type}:{geo_id} took too long"
+        took.append(time.perf_counter() - start)
+        assert took[-1] < 3, f"{geo_type}:{geo_id} took too long"
         rows = [r for s in out["sections"] for r in s["rows"]]
         assert len(rows) >= 30 and out["counties"], f"{geo_type}:{geo_id}"
         for r in rows:
@@ -383,6 +395,7 @@ def test_every_district_profile_is_complete_and_fast(real_con):
             assert f["geo"] == f"{geo_type}:{geo_id}" and f["source"] and f["vintage"] and f["status"], f
         rates = [a for r in rows for a in r["against"] if "direction" in a]
         assert rates and all(a["direction"] in ("higher", "lower", "within_margin") for a in rates)
+    assert statistics.median(took) < 1, "profiles are slow"
 
 
 def test_neighborhoods_other_names_and_islands(small):

@@ -250,7 +250,12 @@ class Handler(SimpleHTTPRequestHandler):
                 if as_csv:
                     name = f"klear-{geo[0]}-district-{int(geo[1])}.csv"
                     return self.attachment(display.profile_csv(con, raw, session), "text/csv", name)
-                return self.reply(200, display.profile(con, raw, session, _islands().get(":".join(geo), "")))
+                matched = json.loads(session.run("district_programs", {"district": ":".join(geo)}))
+                # A program catalog that cannot be read or matched leaves the profile without programs.
+                if "error" in matched:
+                    matched = None
+                islands = _islands().get(":".join(geo), "")
+                return self.reply(200, display.profile(con, raw, session, islands, matched))
         except Exception:  # noqa: BLE001 - redact internal errors at the HTTP boundary
             return self.reply(503, {"error": "The district profile is unavailable right now."})
 
@@ -260,7 +265,9 @@ class Handler(SimpleHTTPRequestHandler):
         # Reject cross-origin browser requests to the chat endpoint.
         origin = self.headers.get("Origin")
         if origin and urlsplit(origin).netloc != self.headers.get("Host"):
-            return self.reply(403, {"error": "Request origin is not allowed."})
+            return self.reply(
+                403, {"error": "This question came from another site. Ask it on the KLEAR site instead."}
+            )
         try:
             length = int(self.headers.get("Content-Length", "0"))
             if not 0 < length <= 8192:

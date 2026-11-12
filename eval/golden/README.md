@@ -7,7 +7,7 @@ One YAML file per question, in a folder named for its category. Loaded and valid
 | Field | Required | Meaning |
 |---|---|---|
 | id | yes | Unique across all files, for example profile-001. Letters, digits, hyphen and underscore only, and equal to the file name. |
-| category | yes | One of profile, compare, find_district, programs_gap, help_sites, modeled_need, small_groups, no_data, decline_individual, decline_partisan, messy_input. Must match the folder name. |
+| category | yes | One of profile, compare, find_district, programs_gap, help_sites, modeled_need, small_groups, no_data, decline_individual, decline_partisan, messy_input, rank. Must match the folder name. rank questions ask where a measure is highest across districts and list the first tier's districts in facts. |
 | question | yes | Exact user text, typos and missing ʻokina included where the category calls for it. |
 | ideal | yes | Short paragraph a human reviewer reads, saying what a perfect answer covers. Not compared word for word. |
 | context | no | District already picked in the UI, as [geo_type, geo_id]. Default none. |

@@ -146,6 +146,22 @@ def test_fallback_fetches_facts_the_question_asks_for(small_con, monkeypatch):
     assert {f.indicator_id for f in ans.facts} == {"pop_65_plus", "sites_lihtc"}
 
 
+def test_fallback_adds_required_comparisons_and_programs(small_con, monkeypatch):
+    monkeypatch.setattr(agent_config, "REQUIRED_FACTS", ((("fixed",), ("pop_65_plus",)),))
+    monkeypatch.setattr(agent_config, "REQUIRED_COMPARISONS", ((("fixed",), ("pop_65_plus",)),))
+    monkeypatch.setattr(agent_config, "REQUIRED_PROGRAMS", ((("fixed",), ("snap_fy2027",)),))
+    place = tool("resolve_place", {"text": "House 22"})
+    agent = KlearAgent(small_con, client=FakeClient([place] + [submit(BAD)] * (MAX_CALLS - 1)))
+    ans, _ = agent.answer("x", "Fixed incomes in House 22", None)
+    assert agent.trace[-1] == {"stop": "fallback"}
+    assert {(f.indicator_id, f.geo_type, f.geo_id) for f in ans.facts} == {
+        ("pop_65_plus", "house", "022"),
+        ("pop_65_plus", "county", "15003"),
+        ("pop_65_plus", "state", "15"),
+    }
+    assert ans.programs == ["snap_fy2027"] and "SNAP" in ans.blocks[-1]
+
+
 def test_bad_then_good_submit(small_con):
     ans, _, fake = run(small_con, [FACTS, submit(BAD), submit(ok())])
     assert ans.facts[0].ref == "f1" and fake.calls == 3

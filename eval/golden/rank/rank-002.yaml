@@ -1,0 +1,28 @@
+id: rank-002
+category: rank
+question: Where in Maui County could SNAP outreach reach the most households in poverty that are not getting SNAP?
+ideal: Ranks the House districts with most of their people in Maui County by households below poverty that did not
+  receive SNAP, naming the first tier together because their ranges overlap. Notes the count meets the income test
+  only and that other SNAP rules also apply in Hawaiʻi.
+facts:
+- - hh_poverty_no_snap
+  - house
+  - '011'
+- - hh_poverty_no_snap
+  - house
+  - '013'
+- - hh_poverty_no_snap
+  - house
+  - '012'
+- - hh_poverty_no_snap
+  - house
+  - '009'
+must_say:
+- overlap
+- income test
+programs:
+- snap_fy2027
+allowed_geos:
+- - county
+  - '15009'
+refusal: none
