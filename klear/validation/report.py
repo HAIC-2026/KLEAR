@@ -9,6 +9,7 @@ TITLES = {
     "boundaries_house": "House district boundaries",
     "boundaries_senate": "Senate district boundaries",
     "blocks": "2020 Census blocks and district membership",
+    "population": "2020 district populations against the Census Bureau and the Reapportionment Commission",
     "apportionment": "Tract to district apportionment",
     "store": "Fact store integrity and stored values",
     "store_values": "Stored values against DBEDT",
@@ -54,6 +55,15 @@ PROVES = {
         "block interior points to the official polygons for at least 99.5% of the population. The equivalency "
         "files are the official assignment and are used. The key numbers say where and why the two "
         "methods differ."
+    ),
+    "population": (
+        "Each district's 2020 population, the sum of its census blocks as KLEAR assigns them, equals the "
+        "Census Bureau's published 2020 count for the same 2022 district, for every House and Senate "
+        "district. Any difference fails the build. The Census Bureau's 2020 redistricting data tabulate the "
+        "2018 districts, so the comparison uses its 118th Congressional District Summary File, which "
+        "tabulates the 2022 ones. The key numbers also compare each district with the Reapportionment "
+        "Commission's final plan files. These are reported, not gated: the Commission's permanent-resident "
+        "base is smaller than the census count by design."
     ),
     "apportionment": (
         "Tract-level ACS counts are moved to districts with 2020 block population weights. The gate is "
@@ -234,10 +244,6 @@ CAVEATS = [
         "guidelines, so counts near a program limit may run low."
     ),
     (
-        "Not yet checked: per-district 2020 populations against the Reapportionment Commission's published "
-        "district tables. This is a planned check, and this report makes no claim about it."
-    ),
-    (
         "Ranges. Every apportioned (tier A) and modeled (tier M) fact with a value carries value_low and "
         "value_high. For counts moved from ZIP codes or tracts, the low counts only units wholly inside the "
         "district, and the high counts every unit touching it plus the most a suppressed unit touching it "
@@ -287,6 +293,11 @@ def summary(r: CheckResult) -> str:
         )
     if r.name == "apportionment":
         return f"{r.n_compared - r.n_mismatch:,} of {r.n_compared:,} indicator totals conserved"
+    if r.name == "population":
+        return (
+            f"{r.n_compared:,} districts compared with the Census Bureau's 2020 counts, "
+            f"{r.n_mismatch:,} differences"
+        )
     if r.name == "gazetteer":
         return f"{r.n_compared:,} places, {r.n_mismatch:,} problems"
     if r.name == "areas":
@@ -338,49 +349,88 @@ def _pct(v) -> str:
     return "n/a" if v is None or math.isnan(v) else f"{v:.2f}%"
 
 
-def _apportionment_table(r: CheckResult) -> list[str]:
+ACC_COLS = (
+    "Chamber", "Indicator", "Districts", "Median abs. error", "90th percentile abs. error", "Within direct MOE",
+    "Conserved",
+)  # fmt: skip
+
+
+def _col(label: str, align: str = "left") -> dict:
+    return {"label": label, "align": align}
+
+
+def _apportionment_table(r: CheckResult) -> dict | None:
     rows = [d for d in r.details if d.get("kind") == "summary"]
     if not rows:
-        return []
-    out = [
-        "",
-        (
-            "| Chamber | Indicator | Districts | Median abs. error | 90th percentile abs. error "
-            "| Within direct MOE | Conserved |"
-        ),
-        "| --- | --- | ---: | ---: | ---: | ---: | --- |",
-    ]
-    for d in rows:
-        within = d["share_within_moe"]
-        out.append(
-            f"| {d['chamber'].title()} | {LABELS.get(d['indicator'], d['indicator'])} | {d['n_districts']} "
-            f"| {_pct(d['median_ape'])} | {_pct(d['p90_ape'])} "
-            f"| {'n/a' if within is None else f'{within:.0%}'} | {'yes' if d['conserved'] else 'NO'} |"
-        )
-    out += [
-        "",
-        (
+        return None
+    return {
+        "title": "Accuracy of apportioned district values",
+        "columns": [
+            _col(c, "left" if c in ("Chamber", "Indicator", "Conserved") else "right") for c in ACC_COLS
+        ],
+        "rows": [
+            [
+                d["chamber"].title(),
+                LABELS.get(d["indicator"], d["indicator"]),
+                str(d["n_districts"]),
+                _pct(d["median_ape"]),
+                _pct(d["p90_ape"]),
+                "n/a" if d["share_within_moe"] is None else f"{d['share_within_moe']:.0%}",
+                "yes" if d["conserved"] else "NO",
+            ]
+            for d in rows
+        ],
+        "note": (
             "Absolute error is the absolute difference between the apportioned and the direct value, as a "
             "percent of the direct value. Within direct MOE means the apportioned value lies inside the 90% "
             "margin of error of the Census Bureau's direct estimate."
         ),
-    ]
-    return out
+    }
+
+
+def _count(v) -> str:
+    return "missing" if v is None else f"{v:,}"
+
+
+def _population_table(r: CheckResult) -> dict | None:
+    rows = [d for d in r.details if d.get("check") == "district"]
+    if not rows:
+        return None
+    commission = r.stats.get("commission") and all(d.get("permanent") is not None for d in rows)
+    columns = [_col("District"), _col("KLEAR blocks", "right"), _col("Census Bureau", "right"), _col("Match")]
+    if commission:
+        columns += [_col("Commission permanent residents", "right"), _col("Not permanent residents", "right")]
+    out = []
+    for d in rows:
+        row = [d["name"], _count(d["blocks"]), _count(d["census"]), "yes" if d["passed"] else "NO"]
+        if commission:
+            gap = d["not_permanent"]
+            row += [f"{d['permanent']:,}", f"{gap:,} ({gap / d['blocks']:.1%})" if d["blocks"] else "n/a"]
+        out.append(row)
+    note = (
+        "KLEAR blocks is the 2020 census population of the blocks KLEAR assigns to the district. Census Bureau "
+        "is the published 2020 count for the same 2022 district."
+    )
+    if commission:
+        note += (
+            " Commission permanent residents is the population the Reapportionment Commission drew the "
+            "district on. Not permanent residents is the census count minus that base, mostly non-resident "
+            "military members, their dependents and non-resident students."
+        )
+    return {"title": "District populations", "columns": columns, "rows": out, "note": note}
 
 
 SUM_PARTS = {"house": "House sum", "senate": "Senate sum", "county": "County sum"}
 
 
-def _sums_table(r: CheckResult) -> list[str]:
+def _sums_table(r: CheckResult) -> dict | None:
     by: dict[str, dict] = {}
     for d in r.details:
         by.setdefault(d["indicator"], {})[d["parts"]] = d
+    if not by:
+        return None
     parts = [p for p in SUM_PARTS if any(p in v for v in by.values())]
-    out = [
-        "",
-        "| Indicator | State estimate | " + " | ".join(SUM_PARTS[p] for p in parts) + " | Within state MOE |",
-        "| --- | ---: | " + " | ".join("---:" for _ in parts) + " | --- |",
-    ]
+    out = []
     for ind, rows in by.items():
         first = next(iter(rows.values()))
         state = "n/a" if first["state"] is None else f"{first['state']:,.0f}"
@@ -388,8 +438,18 @@ def _sums_table(r: CheckResult) -> list[str]:
             state += f" ± {first['state_moe']:,.0f}"
         sums = ["n/a" if rows[p]["sum"] is None else f"{rows[p]['sum']:,.0f}" for p in parts]
         ok = all(rows[p]["passed"] for p in parts)
-        out.append(f"| {ind} | {state} | " + " | ".join(sums) + f" | {'yes' if ok else 'NO'} |")
-    return out
+        out.append([ind, state, *sums, "yes" if ok else "NO"])
+    return {
+        "title": "District and county sums against the state",
+        "columns": [
+            _col("Indicator"),
+            _col("State estimate", "right"),
+            *(_col(SUM_PARTS[p], "right") for p in parts),
+            _col("Within state MOE"),
+        ],
+        "rows": out,
+        "note": None,
+    }
 
 
 ADMIN_LABELS = {
@@ -423,15 +483,12 @@ def _admin_reading(d: dict) -> str:
     )
 
 
-def _admin_table(r: CheckResult) -> list[str]:
+def _admin_table(r: CheckResult) -> dict | None:
     rows = [d for d in r.details if d.get("kind") == "comparison"]
-    sources = [d for d in r.details if d.get("kind") == "source"]
-    out = [
-        "",
-        "| KLEAR state estimate | Value | Program figure | Value | What it shows |",
-        "| --- | ---: | --- | ---: | --- |",
-    ]
-    names = {s["id"]: s["label"] for s in sources}
+    if not rows:
+        return None
+    names = {s["id"]: s["label"] for s in r.details if s.get("kind") == "source"}
+    out = []
     for d in rows:
         value = "n/a" if d["value"] is None else f"{d['value']:,.0f}"
         if d.get("moe") is not None:
@@ -440,17 +497,61 @@ def _admin_table(r: CheckResult) -> list[str]:
         label = names.get(d["admin"], d["admin"])
         if d["admin"] == "eitc_participation_rate":
             label = f"EITC returns that met the rules, implied by the IRS {label}"
-        out.append(
-            f"| {ADMIN_LABELS.get(d['estimate'], d['estimate'])} | {value} | {label} | {admin} "
-            f"| {_admin_reading(d)} |"
-        )
-    out += ["", "Program figures:", ""]
+        out.append([ADMIN_LABELS.get(d["estimate"], d["estimate"]), value, label, admin, _admin_reading(d)])
+    return {
+        "title": "KLEAR state estimates beside program counts",
+        "columns": [
+            _col("KLEAR state estimate"),
+            _col("Value", "right"),
+            _col("Program figure"),
+            _col("Value", "right"),
+            _col("What it shows"),
+        ],
+        "rows": out,
+        "note": None,
+    }
+
+
+def _admin_sources_table(r: CheckResult) -> dict | None:
+    sources = [d for d in r.details if d.get("kind") == "source"]
+    if not sources:
+        return None
+    rows = []
     for s in sources:
         value = f"{s['value']:,}" + (" percent" if s["unit"] == "percent" else "")
-        out.append(
-            f"- {s['label']}: {value}. {s['publisher']}. {s['source']} Read {s['retrieved']} from {s['url']}"
-        )
-    return out
+        where = f"{s['publisher']}. {s['source']} Read {s['retrieved']} from {s['url']}"
+        rows.append([s["label"], value, where])
+    return {
+        "title": "Program figures",
+        "columns": [_col("Program figure"), _col("Value", "right"), _col("Where it was read")],
+        "rows": rows,
+        "note": None,
+    }
+
+
+TABLES = {
+    "apportionment": (_apportionment_table,),
+    "population": (_population_table,),
+    "district_sums": (_sums_table,),
+    "admin_counts": (_admin_table, _admin_sources_table),
+}
+
+
+def tables(r: CheckResult) -> list[dict]:
+    # structured tables for a check, rendered here as Markdown and by the website as HTML
+    return [t for build in TABLES.get(r.name, ()) if (t := build(r))]
+
+
+def _md_table(t: dict, *, title: bool) -> list[str]:
+    aligns = {"left": "---", "right": "---:"}
+    out = ["", f"### {t['title']}"] if title else []
+    out += [
+        "",
+        "| " + " | ".join(c["label"] for c in t["columns"]) + " |",
+        "| " + " | ".join(aligns[c["align"]] for c in t["columns"]) + " |",
+    ]
+    out += ["| " + " | ".join(row) + " |" for row in t["rows"]]
+    return out + (["", t["note"]] if t.get("note") else [])
 
 
 def _detail_line(d: dict) -> str:
@@ -467,12 +568,8 @@ def _section(r: CheckResult) -> list[str]:
     ]
     if r.notes:
         out += ["", "Key numbers:", ""] + [f"- {n}" for n in r.notes]
-    if r.name == "apportionment":
-        out += _apportionment_table(r)
-    if r.name == "district_sums":
-        out += _sums_table(r)
-    if r.name == "admin_counts":
-        out += _admin_table(r)
+    for table in tables(r):
+        out += _md_table(table, title=r.name != "apportionment")
     if not r.passed:
         bad = [d for d in r.details if d.get("kind") != "summary" and d.get("passed", False) is not True]
         out += ["", f"First {min(len(bad), MAX_DETAILS)} of {len(bad)} findings:", ""]
@@ -495,17 +592,125 @@ def _skipped_section(s: dict) -> list[str]:
     ]
 
 
-def render_validation(checks: list[CheckResult], skipped: list[dict], meta: dict) -> str:
+def verdict(checks: list[CheckResult], skipped: list[dict]) -> str:
     gated_fail = [r.name for r in checks if r.gate and not r.passed]
     if gated_fail:
-        verdict = f"Gated checks failed: {', '.join(gated_fail)}."
-    elif skipped:
-        verdict = (
+        return f"Gated checks failed: {', '.join(gated_fail)}."
+    if skipped:
+        return (
             "Build incomplete. All checks that ran passed, but some gated checks were skipped and prove "
             "nothing for this build."
         )
+    return "All gated checks passed."
+
+
+def check_view(r: CheckResult) -> dict:
+    # the report text of one check, stored in validation.json so the website shows the same words
+    return {
+        "title": _title(r.name),
+        "result": _status(r),
+        "summary": summary(r),
+        "about": _proves(r.name),
+        "tables": tables(r),
+    }
+
+
+def skipped_view(s: dict) -> dict:
+    return {
+        "title": _title(s["name"]),
+        "result": "SKIPPED",
+        "summary": "did not run",
+        "about": _proves(s["name"]),
+    }
+
+
+def _share(passed: int, total: int) -> str:
+    return f"{passed:,} of {total:,} ({passed / total:.0%})" if total else "none asked"
+
+
+def eval_tables(ev: dict) -> list[dict]:
+    # practice and held-out results side by side, then the practice set by category
+    practice, held = ev.get("practice") or {}, ev.get("heldout") or {}
+    p_gates = {g["name"]: g for g in practice.get("gates", [])}
+    h_gates = {g["name"]: g for g in held.get("results", [])}
+    names = list(dict.fromkeys([*h_gates, *p_gates]))
+    order = ("overall", "fidelity", "district", "refusal")
+    names.sort(key=lambda n: order.index(n) if n in order else len(order))
+
+    def cell(side: dict, value) -> str:
+        return "not available" if "error" in side else value
+
+    rows = [
+        ["Model", cell(practice, practice.get("model")), cell(held, held.get("model"))],
+        [
+            "Run",
+            cell(practice, f"{practice.get('recorded_at')}, rescored with this build"),
+            cell(held, held.get("run")),
+        ],
+        ["Questions", cell(practice, str(practice.get("questions"))), cell(held, str(held.get("questions")))],
+    ]
+    for n in names:
+        g = p_gates.get(n) or h_gates[n]
+        p, h = p_gates.get(n), h_gates.get(n)
+        rows.append(
+            [
+                g["label"],
+                cell(practice, _share(p["passed"], p["total"]) if p else "not measured"),
+                cell(held, _share(h["passed"], h["total"]) if h else "not published"),
+            ]
+        )
+    out = [
+        {
+            "title": "Practice and held-out results",
+            "columns": [_col("Result"), _col("Practice set"), _col("Held-out set")],
+            "rows": rows,
+            "note": None,
+        }
+    ]
+    if practice.get("categories"):
+        out.append(
+            {
+                "title": "Practice set by category",
+                "columns": [_col("Category"), _col("Passed", "right")],
+                "rows": [[c["label"], _share(c["passed"], c["answered"])] for c in practice["categories"]],
+                "note": None,
+            }
+        )
+    return out
+
+
+def _eval_section(ev: dict) -> list[str]:
+    practice, held = ev.get("practice") or {}, ev.get("heldout") or {}
+    out = [
+        "## Assistant answers",
+        "",
+        (
+            "The assistant is scored with the answer checks in klear/eval on two sets of questions. The practice "
+            "set is in eval/golden. The newest recorded live run in eval/recordings is rescored against this "
+            "build's data, which makes no model calls. The held-out set is kept outside this repository so it "
+            "cannot be used to tune the assistant, and only its published totals are shown, from "
+            "eval/heldout_summary.yaml."
+        ),
+    ]
+    for table in ev.get("tables") or eval_tables(ev):
+        out += _md_table(table, title=True)
+    out.append("")
+    if "error" in practice:
+        out.append(f"- Practice set not rescored: {practice['error']}.")
     else:
-        verdict = "All gated checks passed."
+        failed = ", ".join(practice.get("failed", [])) or "none"
+        out.append(
+            f"- Practice recording: eval/recordings/{practice['recording']}. Questions that failed: {failed}."
+        )
+    if "error" in held:
+        out.append(f"- Held-out totals not shown: {held['error']}.")
+    else:
+        out.append(f"- Held-out run: safety reviewer {held['reviewer']}. {held['source']}")
+    out += [f"- Limit: {c}" for c in ev.get("limits", [])]
+    return out + [""]
+
+
+def render_validation(checks: list[CheckResult], skipped: list[dict], meta: dict) -> str:
     out = [
         HEADER,
         "",
@@ -541,7 +746,7 @@ def render_validation(checks: list[CheckResult], skipped: list[dict], meta: dict
     for k, v in meta.get("store_counts", {}).items():
         label = f"Store {k}" if k in STORE_TABLES else k[0].upper() + k[1:]
         out.append(f"- {label}: {_num(v)}")
-    out += ["", f"**{verdict}**", "", "| Check | Gate | Result | Key numbers |"]
+    out += ["", f"**{verdict(checks, skipped)}**", "", "| Check | Gate | Result | Key numbers |"]
     out.append("| --- | --- | --- | --- |")
     for r in checks:
         out.append(f"| {r.name} | {'yes' if r.gate else 'no'} | {_status(r)} | {summary(r)} |")
@@ -552,5 +757,7 @@ def render_validation(checks: list[CheckResult], skipped: list[dict], meta: dict
         out += _section(r)
     for s in skipped:
         out += _skipped_section(s)
+    if meta.get("eval"):
+        out += _eval_section(meta["eval"])
     out += ["## Caveats", ""] + [f"- {c}" for c in CAVEATS]
     return "\n".join(out) + "\n"

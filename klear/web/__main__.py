@@ -25,6 +25,7 @@ from klear.web import display
 from klear.web.about import about
 from klear.web.assistant import DAILY_CAP, Assistant, DailyBudget, basic
 from klear.web.cache import AnswerCache
+from klear.web.checks import checks_report
 from klear.web.geocode import GeocoderError, find_blocks, looks_like_address
 
 STORE = ROOT / "data" / "build" / "klear.duckdb"
@@ -32,6 +33,9 @@ STATIC = Path(__file__).with_name("static")
 PUBLIC = (
     "/",
     "/index.html",
+    "/checks.html",
+    "/checks.js",
+    "/checks.css",
     "/app.js",
     "/style.css",
     "/background1.jpg",
@@ -226,6 +230,14 @@ class Handler(SimpleHTTPRequestHandler):
                 return self.reply(
                     503,
                     {"error": "The source list is unavailable right now. Please try again later."},
+                )
+        if path.path == "/api/checks":
+            try:
+                return self.reply(200, checks_report(self.store.parent / "validation.json"))
+            except Exception:  # noqa: BLE001 - redact internal errors at the HTTP boundary
+                return self.reply(
+                    503,
+                    {"error": "No checked build yet. The results appear here once the data build has run."},
                 )
         if DISTRICT_PAGE.fullmatch(path.path):
             self.path = "/index.html"

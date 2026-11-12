@@ -13,7 +13,7 @@ import yaml
 from shapely.geometry import Point, box
 
 from klear import config
-from klear.etl import areas, census_api, chas, manual, profile
+from klear.etl import areas, census_api, chas, manual, profile, reapportionment
 from klear.etl import build as build_mod
 from klear.etl import fetch as fetch_mod
 from klear.etl.__main__ import main
@@ -45,9 +45,9 @@ PROFILE_LABELS = {
     "DP03_0002": "Estimate!!EMPLOYMENT STATUS!!In labor force",
 }
 CHECKS = [
-    "source_fidelity", "boundaries_house", "boundaries_senate", "blocks", "apportionment", "irs_state", "irs_county",
-    "cms_county", "hud_hcv", "sites", "places", "chas", "gazetteer", "areas", "rules", "district_sums", "admin_counts",
-    "store", "raw_files",
+    "source_fidelity", "boundaries_house", "boundaries_senate", "blocks", "population", "apportionment", "irs_state",
+    "irs_county", "cms_county", "hud_hcv", "sites", "places", "chas", "gazetteer", "areas", "rules", "district_sums",
+    "admin_counts", "store", "raw_files",
 ]  # fmt: skip
 NEW_TITLES = [
     "irs_state",
@@ -196,6 +196,37 @@ def _tiger(tmp):
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w") as z:
         for f in sorted(shp_dir.iterdir()):
+            z.write(f, f.name)
+    return buf.getvalue()
+
+
+def _district_pops(chamber):
+    out = {}
+    for b in BLOCKS:
+        out[b[chamber]] = out.get(b[chamber], 0) + b["pop"]
+    return out
+
+
+def _commission(tmp, unit, chamber):
+    # the Commission's files split districts by island unit: district 1 to Hawaii, 2 to Maui, 3 to Kauai
+    units = dict(zip(reapportionment.UNITS, (1, 2, 3), strict=False))
+    pops = _district_pops(chamber)
+    ids = [int(g) for g in pops if units.get(unit) == int(g) or (unit == "Oahu" and int(g) > 3)]
+    gdf = gpd.GeoDataFrame(
+        {
+            "DISTRICT": ids,
+            "TOTAL": [pops[f"{i:03d}"] for i in ids],
+            "PopHaw2022": [pops[f"{i:03d}"] - 10 for i in ids],
+        },
+        geometry=[Point(-158.0, 21.3) for _ in ids],
+        crs="EPSG:4326",
+    )
+    out = tmp / "commission" / f"{unit}_{chamber}"
+    out.mkdir(parents=True)
+    gdf.to_file(out / "districts.shp")
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as z:
+        for f in sorted(out.iterdir()):
             z.write(f, f.name)
     return buf.getvalue()
 
@@ -368,6 +399,9 @@ class Stub:
             "tl_2020_15_tabblock20.zip": _tiger(tmp),
             "tl_2020_15_cousub.zip": _cousub(tmp),
         }
+        for unit in reapportionment.UNITS:
+            for chamber in ("house", "senate"):
+                self.files[reapportionment.file_name(unit, chamber)] = _commission(tmp, unit, chamber)
         for g, f in (("house", "house"), ("senate", "senate"), ("county", "counties"), ("state", "state")):
             self.files[f"acs2024_5yr_{f}_hi.xlsx"] = _dbedt(tmp, g)
         cms_zip, cms_county = _cms()
@@ -394,6 +428,14 @@ class Stub:
             labels = {f"{k}E": {"label": v} for k, v in PROFILE_LABELS.items()}
             labels |= {f"{k}PE": {"label": "Percent" + v[8:]} for k, v in PROFILE_LABELS.items()}
             return httpx.Response(200, json={"variables": labels})
+        if path.endswith("/dec/cd118"):
+            geos, cols = _geo_rows(request.url.params)
+            chamber = "house" if "lower" in cols[-1] else "senate"
+            pops, word = _district_pops(chamber), chamber.title()
+            rows = [
+                [f"State {word} District {int(g[-1])} (2022), Hawaii", str(pops[g[-1]]), *g] for g in geos
+            ]
+            return httpx.Response(200, json=[["NAME", "P1_001N", *cols], *rows])
         if path.endswith("/dec/pl"):
             county = next(v for v in request.url.params.get_list("in") if v.startswith("county:"))[7:]
             rows = [
@@ -461,6 +503,7 @@ def env(tmp_path, monkeypatch):
     _write_rules(tmp_path / "rules", "confirmed")
     monkeypatch.setattr(build_mod, "RULES_DIR", tmp_path / "rules")
     monkeypatch.setattr(build_mod, "REQUIRED_RULES", ())
+    monkeypatch.setattr(build_mod, "EVAL_RECORDINGS", tmp_path / "recordings")
     return stub
 
 

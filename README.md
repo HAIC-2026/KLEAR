@@ -132,10 +132,10 @@ Outputs in data/build:
 
 - klear.duckdb: the fact store.
 - manifest.json: build time, code commit, skipped checks, store counts and every raw file with its source URL, retrieval time and SHA-256 hash.
-- validation.json: full results of every check.
+- validation.json: full results of every check, the report text the website shows, and the assistant eval results.
 - house.geojson and senate.geojson: simplified district polygons for the web.
 
-The build also rewrites docs/VALIDATION.md, the public validation report.
+The build also rewrites docs/VALIDATION.md, the public validation report. After the checks it rescores the newest recorded live run in eval/recordings against the new store (free, no model calls) and adds the published held-out totals from eval/heldout_summary.yaml. The website's How we check KLEAR page (/checks.html, linked from the footer) reads validation.json through /api/checks, so it always shows the latest build.
 
 ## Tests and evaluation
 

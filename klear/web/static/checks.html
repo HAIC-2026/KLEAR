@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#ffffff">
+  <meta name="description" content="How KLEAR checks its Hawaiʻi district data and its assistant's answers, with the results of the latest data build.">
+  <title>How we check KLEAR</title>
+  <link rel="icon" href="/favicon.ico?v=2" sizes="32x32">
+  <link rel="icon" href="/favicon.svg?v=2" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=2">
+  <link rel="preload" href="/fonts/public-sans.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="/checks.css">
+  <script src="/checks.js" defer></script>
+</head>
+<body class="checks-page">
+  <a class="skip" href="#main">Skip to content</a>
+  <header class="site-header">
+    <a class="brand" href="/"><img class="brand-logo" src="/logo.svg" width="36" height="36" alt=""><span class="brand-text"><strong>KLEAR</strong><span class="brand-sub">Hawaiʻi district data</span></span></a>
+    <nav aria-label="Main navigation"><a href="/#district-map">Map</a><a href="/#how">How it works</a><a href="/#sources">Sources</a><a href="/#about">About</a></nav>
+  </header>
+  <main id="main">
+    <section class="check-intro" aria-labelledby="page-title">
+      <div class="wrap">
+        <p class="crumb"><a href="/">KLEAR</a> <span aria-hidden="true">/</span> How we check KLEAR</p>
+        <h1 id="page-title">How we check KLEAR</h1>
+        <p class="lede">KLEAR rebuilds every number it shows from public sources with one command. Each build checks its own work, and a build that fails a required check never replaces the data the site serves. This page reads the results of the latest build directly, so it always matches what the site is serving.</p>
+        <div class="build-card" id="build" aria-live="polite">
+          <p class="build-status" id="build-status">Loading the latest build…</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="check-section" id="checks" aria-labelledby="checks-title" hidden>
+      <div class="wrap">
+        <div class="section-head">
+          <h2 id="checks-title">Data checks</h2>
+          <p>A required check stops the build when it fails. Some checks also report numbers that need judgment, such as how close estimates come to the Census Bureau’s own district figures. Those numbers are shown but do not stop the build. Choose a check to see what it does.</p>
+        </div>
+        <div class="table-scroll"><table id="check-table" class="stack"><caption class="visually-hidden">Data checks in the latest build</caption><thead><tr><th scope="col">Check</th><th scope="col">Type</th><th scope="col">Result</th><th scope="col">What it found</th></tr></thead><tbody></tbody></table></div>
+      </div>
+    </section>
+
+    <section class="check-section alt" id="populations" aria-labelledby="populations-title" hidden>
+      <div class="wrap">
+        <div class="section-head">
+          <h2 id="populations-title">Do the districts add up?</h2>
+          <p>KLEAR places every 2020 census block in one House and one Senate district. If that is right, each district’s population matches the count the Census Bureau publishes for it. The Reapportionment Commission drew the districts on a smaller base that counts permanent residents only, so its numbers differ on purpose.</p>
+        </div>
+        <ul class="key-list" id="population-notes"></ul>
+        <div id="population-table"></div>
+      </div>
+    </section>
+
+    <section class="check-section" id="accuracy" aria-labelledby="accuracy-title" hidden>
+      <div class="wrap">
+        <div class="section-head">
+          <h2 id="accuracy-title">How close are estimated district numbers?</h2>
+          <p>Some sources publish numbers only for census tracts or ZIP codes. KLEAR moves them into districts by where people live. To measure how well that works, KLEAR does the same with six counts the Census Bureau also publishes for each district, and compares the two.</p>
+        </div>
+        <div id="accuracy-table"></div>
+      </div>
+    </section>
+
+    <section class="check-section alt" id="answers" aria-labelledby="answers-title" hidden>
+      <div class="wrap">
+        <div class="section-head">
+          <h2 id="answers-title">Are the assistant’s answers right?</h2>
+          <p>The assistant is scored on two sets of questions. The practice set is public, and its recorded answers are scored again against each new build. The held-out set is kept private so it cannot be used to tune the assistant. Only its totals are published.</p>
+        </div>
+        <div id="answer-tables" class="answer-tables"></div>
+        <ul class="key-list" id="answer-notes"></ul>
+      </div>
+    </section>
+
+    <section class="check-section" id="details" aria-labelledby="details-title" hidden>
+      <div class="wrap">
+        <div class="section-head">
+          <h2 id="details-title">What each check does</h2>
+          <p>The same words and numbers as the build’s validation report.</p>
+        </div>
+        <div id="check-details" class="check-details"></div>
+      </div>
+    </section>
+
+    <section class="check-section alt" id="limits" aria-labelledby="limits-title" hidden>
+      <div class="wrap">
+        <div class="section-head">
+          <h2 id="limits-title">Known limits</h2>
+          <p>What these checks do not prove, and where the numbers need care.</p>
+        </div>
+        <ul class="limit-list" id="limit-list"></ul>
+        <p class="report-link">The full report, with every finding, is <a class="ext" href="https://github.com/HAIC-2026/KLEAR/blob/main/docs/VALIDATION.md">VALIDATION.md on GitHub</a>.</p>
+      </div>
+    </section>
+  </main>
+  <footer>
+    <div class="wrap">
+      <div class="footer-inner">
+        <div class="footer-brand"><img src="/favicon.svg" width="40" height="40" alt=""><p class="footer-name"><strong>KLEAR</strong><span>Hawaiʻi district data</span></p></div>
+        <div class="footer-col">
+          <h2 class="footer-title">Reports</h2>
+          <ul>
+            <li><a href="/checks.html" aria-current="page">How we check KLEAR</a></li>
+            <li><a class="ext" href="https://github.com/HAIC-2026/KLEAR/blob/main/docs/VALIDATION.md">Validation report</a></li>
+            <li><a class="ext" href="https://github.com/HAIC-2026/KLEAR/blob/main/docs/ACCESSIBILITY.md">Accessibility statement</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h2 class="footer-title">Questions or corrections</h2>
+          <p><a class="ext" href="https://github.com/HAIC-2026/KLEAR/issues">Open a GitHub issue</a></p>
+        </div>
+      </div>
+      <p class="footer-note">Public, aggregated data. Not an official State of Hawaiʻi product.</p>
+    </div>
+  </footer>
+</body>
+</html>
