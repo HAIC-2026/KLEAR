@@ -38,6 +38,7 @@ MAX_EDIT_DISTANCE = 2
 # Query words expanded to the words used in indicator labels.
 ALIASES = {
     "kupuna": ("65", "over"),
+    "fixed": ("social", "security", "retirement", "supplemental", "65", "over", "poverty"),
     "keiki": ("under", "18"),
     "rent": ("rent", "renter"),
     "renting": ("renter",),
@@ -166,11 +167,40 @@ PROFILE_HEADLINE = ("pop_total", "median_household_income", "pct_people_poverty"
 PROFILE_INDICATORS = tuple(
     dict.fromkeys(PROFILE_HEADLINE + tuple(i for _, ids in PROFILE_SECTIONS for i in ids))
 )
+# Kūpuna on fixed incomes: the figures for the district, the rates and medians also compared with its main
+# county and the state, and the programs to name.
+FIXED_INCOME = (
+    "pop_65_plus",
+    "pct_65_plus",
+    "median_household_income_65_plus",
+    "pct_65_plus_poverty",
+    "kupuna_under_100pct_poverty",
+    "kupuna_under_200pct_poverty",
+    "householders_65_plus_alone",
+    "pct_hh_social_security",
+    "pct_hh_retirement_income",
+    "pct_hh_ssi",
+)
+FIXED_INCOME_COMPARED = (
+    "pct_65_plus",
+    "median_household_income_65_plus",
+    "pct_65_plus_poverty",
+    "pct_hh_social_security",
+    "pct_hh_retirement_income",
+    "pct_hh_ssi",
+)
+FIXED_INCOME_PROGRAMS = ("ssi_federal_2026", "kupuna_care", "snap_fy2027", "medquest_2026")
 # Facts a question asks for by name: trigger words, then indicators the answer must cite for its district.
 REQUIRED_FACTS = (
     (("profile",), PROFILE_INDICATORS),
     (("income", "picture"), ("median_household_income", "pct_people_poverty")),
+    (("fixed",), FIXED_INCOME),
 )
+# Comparisons a question asks for: trigger words, then indicators the answer must also cite for the district's
+# main county and the state.
+REQUIRED_COMPARISONS = ((("fixed",), FIXED_INCOME_COMPARED),)
+# Programs a question asks about: trigger words, then rule ids the answer must list.
+REQUIRED_PROGRAMS = ((("fixed",), FIXED_INCOME_PROGRAMS),)
 # Indicators that measure a program at a place, such as its claims or receipt.
 MEASURES = {
     "aca_ptc_2026": ("aca_consumers", "aca_aptc_consumers"),

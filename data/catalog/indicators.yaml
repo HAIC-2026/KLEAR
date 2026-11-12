@@ -99,6 +99,12 @@ indicators:
     universe: "Households"
     acs_var: DP03_0062
     dataset: acs/acs5/profile
+  - indicator_id: median_household_income_65_plus
+    label: "Median household income of householders 65 years and over"
+    unit: dollars
+    universe: "Households with a householder 65 years and over"
+    acs_var: B19049_005
+    dataset: acs/acs5
   - indicator_id: per_capita_income
     label: "Per capita income"
     unit: dollars
@@ -159,18 +165,21 @@ indicators:
     universe: "Households"
     acs_var: DP03_0070P
     dataset: acs/acs5/profile
+    note: &all_households "Covers all households, whatever the age of the householder, not only kūpuna households."
   - indicator_id: pct_hh_social_security
     label: "Percent of households with Social Security income"
     unit: percent
     universe: "Households"
     acs_var: DP03_0066P
     dataset: acs/acs5/profile
+    note: *all_households
   - indicator_id: pct_hh_retirement_income
     label: "Percent of households with retirement income"
     unit: percent
     universe: "Households"
     acs_var: DP03_0068P
     dataset: acs/acs5/profile
+    note: *all_households
   - indicator_id: total_households
     label: "Total households"
     unit: count
@@ -189,6 +198,13 @@ indicators:
     universe: "Households"
     acs_var: DP02_0014P
     dataset: acs/acs5/profile
+  # equals DP02_0009 plus DP02_0013 in every geography, published as one cell with its own margin of error
+  - indicator_id: householders_65_plus_alone
+    label: "Householders 65 years and over living alone"
+    unit: count
+    universe: "Households"
+    acs_var: B11007_003
+    dataset: acs/acs5
   - indicator_id: grandparents_responsible
     label: "Grandparents responsible for own grandchildren under 18 years"
     unit: count
@@ -321,6 +337,7 @@ indicators:
     universe: "Households"
     acs_var: B19056_002
     dataset: acs/acs5
+    note: *all_households
   - indicator_id: hh_poverty_no_snap
     label: "Households below the poverty level that did not receive SNAP in the past 12 months"
     unit: count
@@ -370,6 +387,12 @@ indicators:
     bins: [C27016_025, C27016_028, C27016_031, C27016_035, C27016_038, C27016_041]
     dataset: acs/acs5
     note: *income_test
+  - indicator_id: kupuna_under_100pct_poverty
+    label: "People 65 years and over with income under 100 percent of the poverty level"
+    unit: count
+    universe: "Population 65 years and over for whom poverty status is determined"
+    bins: [B17024_107, B17024_108, B17024_109, B17024_120, B17024_121, B17024_122]
+    dataset: acs/acs5
   - indicator_id: kupuna_under_200pct_poverty
     label: "People 65 years and over with income under 200 percent of the poverty level"
     unit: count

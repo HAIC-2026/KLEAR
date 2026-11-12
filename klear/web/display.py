@@ -296,7 +296,7 @@ def build(con, answer) -> dict:
     }
 
 
-# Short names for profile rows; the full indicator label stays available as each row's title.
+# Short names for profile rows and free answers; the full indicator label stays available as each row's title.
 PROFILE_LABELS = {
     "pop_total": "Total population",
     "pop_65_plus": "Kūpuna (65 and over)",
@@ -342,6 +342,11 @@ PROFILE_LABELS = {
     "uninsured_138_399pct_poverty": "Uninsured, income 138% to 399% of poverty",
     "kupuna_under_200pct_poverty": "Kūpuna under 200% of poverty",
     "working_below_poverty": "Working families and individuals below poverty",
+    "median_household_income_65_plus": "Median household income, householder 65 and over",
+    "kupuna_under_100pct_poverty": "Kūpuna under 100% of poverty",
+    "householders_65_plus_alone": "Kūpuna living alone (householders 65 and over)",
+    "pct_hh_social_security": "Households with Social Security income",
+    "pct_hh_retirement_income": "Households with retirement income",
 }
 NOUNS = {"percent": "rate", "dollars": "amount"}
 

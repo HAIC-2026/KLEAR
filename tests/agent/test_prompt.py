@@ -47,6 +47,8 @@ WRITING = (
     "in a decline, which has no label markers, write it in plain text",
 )
 WORKFLOW = (
+    "kūpuna on fixed incomes",
+    "SSI, Kūpuna Care, SNAP and Med-QUEST",
     "resolve_place",
     "search_indicators",
     "get_facts",
