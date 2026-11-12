@@ -426,6 +426,8 @@ def main(argv: list[str] | None = None):
         elif note := prepared.summary(assistant is not None):
             print(note, flush=True)
         threading.Thread(target=prepared.warm, daemon=True).start()
+        if assistant is not None:
+            threading.Thread(target=assistant.warm, daemon=True).start()
         if assistant is None and not args.basic_only:
             print("Add ANTHROPIC_API_KEY to .env and restart to enable the assistant.", flush=True)
         print("Press Ctrl+C to stop.", flush=True)

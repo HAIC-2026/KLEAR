@@ -9,6 +9,8 @@ const VISION = ['none', 'protanopia', 'deuteranopia', 'tritanopia', 'achromatops
 test.skip(({browserName, isMobile}) => browserName !== 'chromium' || isMobile, 'vision simulation needs desktop Chromium');
 
 test('chamber colors, charts, and the map under simulated color blindness', async ({context, page}, testInfo) => {
+  // Twenty screenshots take longer than the default limit on a busy machine.
+  test.slow();
   await offline(context);
   await page.emulateMedia({reducedMotion: 'reduce'});
   await page.goto('/');
