@@ -319,13 +319,15 @@ def ask(con, question, district):
             "programs": [],
         }
     geos = [f"{district[0]}:{district[1]}"]
+    if "county" in q and (county := main_county(con, district)):
+        geos.append(":".join(county))
     if "compare" in q or "state" in q or "hawaiʻi" in q or "hawaii" in q:
         geos.append("state:15")
     session = Session(con)
     result = json.loads(session.run("get_facts", {"indicator_ids": ids, "geos": geos}))
     if "error" in result:
         raise ValueError("Could not read district facts")
-    facts = _cards(con, result["facts"][: max(8, len(ids))])
+    facts = _cards(con, result["facts"][: max(8, len(ids) * len(geos))])
     if not facts:
         return {
             "text": f"I do not have a published figure for that question in {shown}. I will not fill the gap with a guess.",
@@ -337,6 +339,7 @@ def ask(con, question, district):
         f"{f['label']} in {f['geography']}: {f['value']}. Source: {f['source']}, {f['year']}." for f in facts
     )
     if len(geos) > 1:
-        text += "\n\nDistrict and state figures are shown side by side. Consider their margins of error before drawing a conclusion."
+        places = "District, county and state" if len(geos) == 3 else "District and " + geos[1].split(":")[0]
+        text += f"\n\n{places} figures are shown side by side. Consider their margins of error before drawing a conclusion."
     shown = [session.facts[f["ref"]] for f in result["facts"][: len(facts)]]
     return {"text": text, "refusal": "none", "facts": facts, "programs": [], "fact_refs": shown}

@@ -79,7 +79,7 @@ test('a question still loading, or failed, when the page reloads waits in the bo
   // A failed answer shows its error until the reload, which keeps only the question.
   await page.route('**/api/chat', route => route.fulfill({status: 503, contentType: 'application/json', body: '{"error": "KLEAR could not answer. Please try again."}'}));
   await page.getByRole('button', {name: 'Ask KLEAR'}).click();
-  await expect(page.locator('#log .error')).toHaveText('KLEAR could not answer. Please try again.');
+  await expect(page.locator('#log .error p')).toHaveText('KLEAR could not answer. Please try again.');
   await page.reload();
   await expect(page.getByLabel('Your question')).toHaveValue('How many kūpuna live here?');
   await expect(page.locator('#log .error, #log .user')).toHaveCount(0);

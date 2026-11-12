@@ -262,7 +262,9 @@ class Handler(SimpleHTTPRequestHandler):
         # Reject cross-origin browser requests to the chat endpoint.
         origin = self.headers.get("Origin")
         if origin and urlsplit(origin).netloc != self.headers.get("Host"):
-            return self.reply(403, {"error": "Request origin is not allowed."})
+            return self.reply(
+                403, {"error": "This question came from another site. Ask it on the KLEAR site instead."}
+            )
         try:
             length = int(self.headers.get("Content-Length", "0"))
             if not 0 < length <= 8192:
