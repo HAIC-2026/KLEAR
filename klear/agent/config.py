@@ -46,6 +46,13 @@ ALIASES = {
     "tenure": ("renter", "owner", "occupied"),
     "homeowner": ("owner", "occupied"),
     "household": ("household", "occupied"),
+    "insecure": ("insecurity",),
+    "hunger": ("food", "insecurity"),
+    "hungry": ("food", "insecurity"),
+    "shutoff": ("utility", "shut", "off"),
+    "disconnection": ("utility", "shut", "off"),
+    "transit": ("transportation",),
+    "stamp": ("snap", "food", "stamp"),
 }
 # Hawaiian group words by their plain spelling, as an answer must write them.
 GROUP_WORDS = {"kupuna": "kūpuna", "keiki": "keiki", "ohana": "ʻohana"}
@@ -177,6 +184,15 @@ REQUIRED_FACTS = (
     (("profile",), PROFILE_INDICATORS),
     (("income", "picture"), ("median_household_income", "pct_people_poverty")),
     (("fixed",), FIXED_INCOME),
+    (("housing", "insecurity"), ("places_housing_insecurity",)),
+    (("housing", "insecure"), ("places_housing_insecurity",)),
+    (("food", "insecurity"), ("places_food_insecurity",)),
+    (("food", "insecure"), ("places_food_insecurity",)),
+    (("shut", "off"), ("places_utility_shutoff_threat",)),
+    (("shutoff",), ("places_utility_shutoff_threat",)),
+    (("lack", "transportation"), ("places_lack_transport",)),
+    (("reliable", "transportation"), ("places_lack_transport",)),
+    (("public", "housing", "units"), ("units_public_housing",)),
 )
 # Comparisons a question asks for: trigger words, then indicators the answer must also cite for the district's
 # main county and the state.
@@ -193,6 +209,47 @@ MEASURES = {
     "ssi_federal_2026": ("pct_hh_ssi", "hh_ssi"),
     "ssi_hi_supplement": ("pct_hh_ssi", "hh_ssi"),
 }
+# Programs tied to a figure: an answer citing the indicator lists the first rule id unless it already lists a
+# rule of the same program, and names the program in its text.
+_SNAP, _SSI, _EITC, _ACA, _HUD, _HPHA = (
+    ("snap_fy2027",),
+    ("ssi_federal_2026",),
+    ("eitc_federal_ty2025",),
+    ("aca_ptc_2026",),
+    ("hud_il_fy2026_hi",),
+    ("hpha_limits",),
+)
+TIED_PROGRAMS = {
+    "pct_hh_snap": _SNAP,
+    "hh_snap": _SNAP,
+    "hh_poverty_no_snap": _SNAP,
+    "places_received_snap": _SNAP,
+    "places_food_insecurity": _SNAP,
+    "pct_hh_ssi": _SSI,
+    "hh_ssi": _SSI,
+    "irs_eitc_returns": _EITC,
+    "irs_eitc_dollars": _EITC,
+    "aca_consumers": _ACA,
+    "aca_aptc_consumers": _ACA,
+    "uninsured_138_399pct_poverty": _ACA,
+    "uninsured_under_138pct_poverty": ("medquest_2026",),
+    "hud_vouchers": _HUD,
+    "pct_rent_burden_35_plus": _HUD,
+    "renter_hh_rent_50_plus": _HUD,
+    "chas_renter_lowinc": _HUD,
+    "chas_renter_lowinc_burdened": _HUD,
+    "chas_owner_lowinc": _HUD,
+    "chas_owner_lowinc_burdened": _HUD,
+    "sites_public_housing": _HPHA,
+    "units_public_housing": _HPHA,
+    "places_housing_insecurity": _HUD,
+    "places_utility_shutoff_threat": ("h_heap_fy2026",),
+}
+# Words that make a question about the whole state rather than one place.
+STATEWIDE = (
+    r"\bstate\s*-?\s*wide\b|\b(?:whole|entire)\s+state\b|\bacross\s+(?:the\s+)?state\b|\bstate\s+as\s+a\s+whole\b"
+    r"|\b(?:all\s+of|across)\s+hawai\S?i\b|\bhawai\S?i\s+(?:overall|as\s+a\s+whole)\b|\boverall\s+in\s+hawai\S?i\b"
+)
 # Null-valued fact statuses and why such facts are listed as missing.
 NULL_REASONS = {
     "suppressed": "too few cases for the source to publish",

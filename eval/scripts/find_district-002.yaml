@@ -76,40 +76,40 @@
 
         * {label:f82}: {fact:f82} ({vintage:f82})
 
-        * {label:f84}: {fact:f84}
+        * {label:f85}: {fact:f85}
 
-        * {label:f86}: {fact:f86} ({vintage:f86})'
+        * {label:f88}: {fact:f88} ({vintage:f88})'
       - 'Who may qualify
-
-        * {label:f87}: {fact:f87}
 
         * {label:f91}: {fact:f91}
 
-        * {label:f94}: {fact:f94}
+        * {label:f95}: {fact:f95}
 
-        * {label:f97}: {fact:f97}
+        * {label:f98}: {fact:f98}
 
-        * {label:f100}: {fact:f100}
+        * {label:f101}: {fact:f101}
 
-        * {label:f103}: {fact:f103}
+        * {label:f104}: {fact:f104}
 
-        * {label:f107}: {fact:f107}'
+        * {label:f107}: {fact:f107}
+
+        * {label:f111}: {fact:f111}'
       - 'Modeled needs
-
-        * {label:f110}: {fact:f110} ({vintage:f110})
-
-        * {label:f111}: {fact:f111}
-
-        * {label:f112}: {fact:f112}
-
-        * {label:f113}: {fact:f113}'
-      - 'Help sites
 
         * {label:f114}: {fact:f114} ({vintage:f114})
 
-        * {label:f115}: {fact:f115} ({vintage:f115})
+        * {label:f117}: {fact:f117}
 
-        * {label:f116}: {fact:f116} ({vintage:f116})'
+        * {label:f120}: {fact:f120}
+
+        * {label:f123}: {fact:f123}'
+      - 'Help sites
+
+        * {label:f126}: {fact:f126} ({vintage:f126})
+
+        * {label:f129}: {fact:f129} ({vintage:f129})
+
+        * {label:f132}: {fact:f132} ({vintage:f132})'
       facts:
       - f1
       - f4
@@ -139,22 +139,22 @@
       - f76
       - f79
       - f82
-      - f84
-      - f86
-      - f87
+      - f85
+      - f88
       - f91
-      - f94
-      - f97
-      - f100
-      - f103
+      - f95
+      - f98
+      - f101
+      - f104
       - f107
-      - f110
       - f111
-      - f112
-      - f113
       - f114
-      - f115
-      - f116
+      - f117
+      - f120
+      - f123
+      - f126
+      - f129
+      - f132
       programs: []
       caveats:
       - Figures marked unreliable have large margins of error, so read them with care. Apportioned figures are estimates

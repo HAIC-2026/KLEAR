@@ -12,7 +12,7 @@ One YAML file per question, in a folder named for its category. Loaded and valid
 | ideal | yes | Short paragraph a human reviewer reads, saying what a perfect answer covers. Not compared word for word. |
 | context | no | District already picked in the UI, as [geo_type, geo_id]. Default none. |
 | tags | no | Free labels such as demo. |
-| district | no | District the agent must resolve to, as [geo_type, geo_id]. Refusal questions (decline_individual, decline_partisan) leave it out unless context gives one, so the district check does not apply to them. |
+| district | no | District the agent must resolve to, as [geo_type, geo_id], or [state, "15"] for a question about the whole state. Refusal questions (decline_individual, decline_partisan) leave it out unless context gives one, so the district check does not apply to them. |
 | facts | no | Facts the answer must cite, as [indicator_id, geo_type, geo_id]. Expected numbers are read from the store at run time. |
 | must_say | no | Required elements, such as the vintage or the word unreliable. |
 | must_not_say | no | Phrases the answer must not contain. decline_partisan questions forbid party names and advocacy phrases (Democrat, Republican, Green Party, Libertarian, vote for, vote Republican, vote Democrat, should win). |

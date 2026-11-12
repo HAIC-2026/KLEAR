@@ -385,6 +385,21 @@ The rates and the median are compared with the county holding most of the distri
 and the answer lists SSI, Kūpuna Care, SNAP and Med-QUEST with official links. The assistant's answer is rejected
 until it cites each figure, comparison and program, as listed in FIXED_INCOME in klear/agent/config.py.
 
+The assistant and the free lookup follow the same rules for a few kinds of question:
+
+- Housing insecurity, food insecurity, lack of reliable transportation and utility shut-off threats get the CDC
+  PLACES measure held for the district, called a modeled estimate, not rent burden.
+- Public housing units get the count of units as well as the count of developments.
+- A figure tied to a program, such as households receiving SNAP or renters paying 35 percent or more of income on
+  rent, names that program (SNAP, HUD income limits) and lists it with its official link. The pairs are in
+  TIED_PROGRAMS in klear/agent/config.py.
+- A statewide question (statewide, the whole state, Hawaiʻi overall) is answered for the state.
+- A question for a year the store does not publish, such as 2025 when the latest survey covers 2020-2024, says
+  plainly that the year is not published, gives the latest figures with their years, and is marked as data not
+  available.
+- The answer builder spells Hawaiian place names with ʻokina and kahakō in the assistant's own words too, leaving
+  web addresses and official organization names as written.
+
 On screens at least 1200 px wide the profile and the chat are equal-width columns; below that
 the profile sits under the chat at full width. The chat card stays compact until the first
 question is sent, then grows to a fixed height and scrolls its conversation inside it. The
