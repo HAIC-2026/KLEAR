@@ -31,7 +31,7 @@ def test_measure_definitions():
     assert not hard, hard
 
 
-@pytest.mark.parametrize("page", ["glossary.html", "index.html", "checks.html"])
+@pytest.mark.parametrize("page", ["glossary.html", "index.html", "checks.html", "outreach.html"])
 def test_page_prose(page):
     blocks = [
         b for b in page_text((STATIC / page).read_text(encoding="utf-8")) if len(b.split()) >= PROSE_WORDS
@@ -39,9 +39,9 @@ def test_page_prose(page):
     assert blocks and grade(blocks) <= TARGET, page
 
 
-def _messages() -> list[str]:
-    """Sentences the site's script shows: string literals that start with a capital and end a sentence."""
-    js = (STATIC / "app.js").read_text(encoding="utf-8")
+def _messages(script: str = "app.js") -> list[str]:
+    """Sentences a site script shows: string literals that start with a capital and end a sentence."""
+    js = (STATIC / script).read_text(encoding="utf-8")
     out = []
     for single, template in re.findall(r"'((?:[^'\\\n]|\\.)*)'|`((?:[^`\\]|\\.)*)`", js):
         text = re.sub(r"\$\{[^}]*\}", "it", single or template)
@@ -58,6 +58,29 @@ def _messages() -> list[str]:
 def test_site_messages():
     messages = _messages()
     assert len(messages) > 20 and grade(messages) <= TARGET
+
+
+def test_outreach_page_messages():
+    """The outreach page's own messages, and the sentences the server writes for it and for the profile note."""
+    from klear.agent.config import OUTREACH_PAIRS
+    from klear.web import display
+
+    who = OUTREACH_PAIRS["kupuna"]["who"]
+    texts = [
+        *_messages("outreach.js"),
+        *(display._tier_note(i, n) for i in (0, 1) for n in (1, 3)),
+        display._unreliable_text(1, 25),
+        display._unreliable_text(12, 51),
+        (
+            f"House District 4 is one of 2 House districts in the top group for {who}, with 2,839 ± 618. "
+            "Their ranges overlap."
+        ),
+        (
+            "29 of 51 House districts share the top group for uninsured people with income under 138% of poverty, "
+            "from 214 to 601 each. Their ranges overlap, so no one district stands out."
+        ),
+    ]
+    assert grade(texts) <= TARGET
 
 
 def test_decline_messages():

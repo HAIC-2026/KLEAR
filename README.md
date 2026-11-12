@@ -264,6 +264,10 @@ Website spending has its own cap of 5 dollars per HST day, kept in ~/.config/kle
 | `--model MODEL` | Choose the model used by the assistant. |
 | `--no-address-lookup` | Turn off street address search, so the server never contacts the Census geocoder. |
 
+### Outreach page
+
+/outreach.html ("Outreach" in the site menu) compares districts for five pairs of a group and the programs it may qualify for, set in `OUTREACH_PAIRS` in klear/agent/config.py: households in poverty without SNAP (SNAP), uninsured people under 138% of poverty (Med-QUEST), uninsured people from 138% to 399% of poverty (Marketplace premium tax credits), kūpuna under 200% of poverty (SSI, Kūpuna Care and Medicare Savings Programs) and working families and people below poverty (Federal EITC). The reader picks a pair and House or Senate. `GET /api/outreach?pair=ID&chamber=house|senate` ranks the group's direct ACS count with the same tiers as the assistant's rank_districts tool, so districts whose ranges overlap share a group and are listed by number, never in an order the data cannot support. Each district also shows its program-use figure from `PROFILE_BESIDE` (SNAP households, SSI households, EITC returns or Marketplace enrollees with premium tax credits) for comparison only. Figures moved from ZIP codes are too wide to rank. The page opens with a sentence naming the top tier, flags unreliable estimates, and lists each program's page and phone with the income-test caveat. Each district profile has an "Outreach opportunities" note naming up to two pairs whose top tier holds the district, the smallest tier first.
+
 ### Prepared answers to the starter questions
 
 The five starter questions ask the same thing for every district, so their answers can be prepared once after each

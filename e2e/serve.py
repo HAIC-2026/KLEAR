@@ -24,7 +24,7 @@ from klear.store.db import add_coverage, add_facts, add_indicators, add_source
 from klear.web import __main__ as web
 from klear.web.assistant import Assistant, DailyBudget
 from tests.agent.fake_client import tool, turn
-from tests.fixtures.small_store import _fact, build_small_store
+from tests.fixtures.small_store import _fact, add_outreach, build_small_store
 
 DISTRICT = "house:022"
 PARTISAN = ("vote", "candidate", "campaign", "party")
@@ -83,6 +83,8 @@ def build_store(path: Path) -> None:
         ),
     ]  # fmt: skip
     add_facts(con, pd.DataFrame(rows))
+    # The SNAP outreach pair, so the outreach page and the profile's outreach note have figures.
+    add_outreach(con)
     con.close()
 
 

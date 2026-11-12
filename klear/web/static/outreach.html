@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#ffffff">
+  <meta name="description" content="Compare Hawaiʻi House and Senate districts by how many residents meet a program’s income test, to see where outreach could reach the most people.">
+  <title>Where outreach could help most – KLEAR</title>
+  <link rel="icon" href="/favicon.ico?v=2" sizes="32x32">
+  <link rel="icon" href="/favicon.svg?v=2" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=2">
+  <link rel="preload" href="/fonts/public-sans.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/style.css">
+  <script src="/outreach.js" defer></script>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+  <header class="site-header">
+    <a class="brand" href="/"><img class="brand-logo" src="/logo.svg" width="36" height="36" alt=""><span class="brand-text"><strong>KLEAR</strong><span class="brand-sub">Hawaiʻi district data</span></span></a>
+    <nav aria-label="Main navigation"><a href="/#district-map">Map</a><a href="/outreach.html" aria-current="page">Outreach</a><a href="/#how">How it works</a><a href="/#sources">Sources</a><a href="/#about">About</a></nav>
+  </header>
+  <main id="main" class="outreach">
+    <div class="wrap">
+      <p class="crumb"><a href="/">KLEAR</a> <span aria-hidden="true">/</span> Outreach</p>
+      <h1>Where outreach could help most</h1>
+      <p class="lede">Pick a program, then House or Senate. KLEAR puts the districts into groups by how many people meet the program’s income test. In a group, the ranges overlap. So the data cannot say which of those districts has more.</p>
+
+      <form id="choose" class="outreach-choose">
+        <fieldset class="pair-choice">
+          <legend>Program</legend>
+          <div class="pair-options">
+            <label class="pair-option"><input type="radio" name="pair" value="snap" checked><span class="pair-title">SNAP</span><span class="pair-who">Households in poverty that did not get SNAP</span></label>
+            <label class="pair-option"><input type="radio" name="pair" value="med_quest"><span class="pair-title">Med-QUEST</span><span class="pair-who">Uninsured people with income under 138% of poverty</span></label>
+            <label class="pair-option"><input type="radio" name="pair" value="marketplace"><span class="pair-title">Marketplace tax credits</span><span class="pair-who">Uninsured people with income from 138% to 399% of poverty</span></label>
+            <label class="pair-option"><input type="radio" name="pair" value="kupuna"><span class="pair-title"><span lang="haw">Kūpuna</span> programs</span><span class="pair-who"><span lang="haw">Kūpuna</span> with income under 200% of poverty</span></label>
+            <label class="pair-option"><input type="radio" name="pair" value="eitc"><span class="pair-title">Federal EITC</span><span class="pair-who">Working families and people below poverty</span></label>
+          </div>
+        </fieldset>
+        <fieldset class="chamber-choice">
+          <legend>Districts</legend>
+          <div class="chamber-options">
+            <label class="chamber-option house"><input type="radio" name="chamber" value="house" checked>House</label>
+            <label class="chamber-option senate"><input type="radio" name="chamber" value="senate">Senate</label>
+          </div>
+        </fieldset>
+      </form>
+
+      <p id="status" class="status" role="status">Loading the districts…</p>
+      <p id="live" class="visually-hidden" role="status"></p>
+      <section id="result" class="outreach-result" aria-labelledby="result-title" hidden>
+        <h2 id="result-title"></h2>
+        <div id="summary"></div>
+        <div id="tiers"></div>
+        <div id="sources"></div>
+      </section>
+
+      <section class="outreach-how" aria-labelledby="how-title">
+        <h2 id="how-title">How to read the groups</h2>
+        <ul>
+          <li>Each figure is a survey estimate. The ± shows its 90% margin of error.</li>
+          <li>The top group starts with the highest estimate. It holds every district whose range overlaps that one. The next group starts with the highest district left, and so on.</li>
+          <li>Districts are listed by number inside a group, not by size.</li>
+          <li>A count only shows who meets the income test. Each program has other rules too.</li>
+          <li>Pick a district to see its full profile and ask about it.</li>
+        </ul>
+      </section>
+    </div>
+  </main>
+  <footer>
+    <div class="wrap">
+      <div class="footer-inner">
+        <div class="footer-brand"><img src="/favicon.svg" width="40" height="40" alt=""><p class="footer-name"><strong>KLEAR</strong><span>Hawaiʻi district data</span></p></div>
+        <div class="footer-col">
+          <h2 class="footer-title">Reports</h2>
+          <ul>
+            <li><a href="/glossary.html">Glossary</a></li>
+            <li><a href="/checks.html">How we check KLEAR</a></li>
+            <li><a class="ext" href="https://github.com/HAIC-2026/KLEAR/blob/main/docs/VALIDATION.md">Validation report<span class="visually-hidden"> (external site)</span></a></li>
+            <li><a class="ext" href="https://github.com/HAIC-2026/KLEAR/blob/main/docs/ACCESSIBILITY.md">Accessibility statement<span class="visually-hidden"> (external site)</span></a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h2 class="footer-title">Questions or corrections</h2>
+          <p><a class="ext" href="https://github.com/HAIC-2026/KLEAR/issues">Open a GitHub issue<span class="visually-hidden"> (external site)</span></a></p>
+        </div>
+      </div>
+      <p class="footer-note">Public, aggregated data. Not an official State of Hawaiʻi product.</p>
+    </div>
+  </footer>
+</body>
+</html>

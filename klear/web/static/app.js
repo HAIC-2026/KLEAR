@@ -673,6 +673,32 @@ function profileActions(p) {
   return box;
 }
 
+// The groups where this district is in the top tier across its chamber, each linked to the outreach page that
+// compares every district, or a line saying it is in none. A new tab, so a chat in progress stays where it is.
+function profileOutreach(o) {
+  const box = node('div', '', 'profile-outreach');
+  box.append(node('h4', o.title));
+  if (o.items.length) {
+    const list = node('ul', '');
+    for (const item of o.items) {
+      const li = document.createElement('li');
+      li.append(says('p', item.text));
+      if (item.caution) li.append(node('p', item.caution, 'profile-caution'));
+      const more = node('p', '');
+      more.append(link(item.link, item.url));
+      li.append(more);
+      list.append(li);
+    }
+    box.append(list);
+  } else {
+    box.append(node('p', o.none));
+  }
+  const foot = node('p', [o.more, o.note].filter(Boolean).join(' '), 'profile-outreach-more');
+  if (!o.items.length) { foot.append(' '); foot.append(link(o.link.text, o.link.url)); }
+  box.append(foot);
+  return box;
+}
+
 function renderProfile(p) {
   const out = profileTitle(p.district);
   if (p.where) out.push(node('p', p.where, 'profile-where'));
@@ -683,6 +709,7 @@ function renderProfile(p) {
   // Each term comes before its value, as a description list needs; the CSS shows the value on top.
   for (const h of p.headline) { const s = node('div', ''); s.append(says('dt', h.label), node('dd', h.value)); stats.append(s); }
   out.push(stats);
+  if (p.outreach && Array.isArray(p.outreach.items)) out.push(profileOutreach(p.outreach));
   if (programsOf(p)) out.push(profilePrograms(p.programs));
   for (const sec of p.sections) {
     if (!sec.rows.length) continue;

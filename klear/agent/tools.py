@@ -180,6 +180,7 @@ class Session:
         self._named: list[_Named] | None = None
         self._aliases: dict[str, list[_Named]] = {}
         self._alias_names: dict[str, str] = {}
+        self._display_names: dict[tuple[str, str], str | None] = {}
 
     def run(self, tool: str, args: dict) -> str:
         try:
@@ -198,10 +199,14 @@ class Session:
     # geography helpers
 
     def _name(self, geo_type: str, geo_id: str) -> str | None:
-        row = self.con.execute(
-            "SELECT name FROM geography WHERE geo_type = ? AND geo_id = ?", [geo_type, geo_id]
-        ).fetchone()
-        return geo_display(geo_type, geo_id, row[0]) if row else None
+        """A geography's display name, read once per session: rankings name every district of a chamber."""
+        key = (geo_type, geo_id)
+        if key not in self._display_names:
+            row = self.con.execute(
+                "SELECT name FROM geography WHERE geo_type = ? AND geo_id = ?", [geo_type, geo_id]
+            ).fetchone()
+            self._display_names[key] = geo_display(geo_type, geo_id, row[0]) if row else None
+        return self._display_names[key]
 
     def _geo(self, geo_type: str, geo_id: str, **extra) -> dict:
         self.geos.add((geo_type, geo_id))
@@ -882,6 +887,46 @@ class Session:
             "unreliable": sum(d["reliable"] is False for t in tiers for d in t["districts"]),
             **({"note": note} if note else {}),
         }
+
+    # outreach: the website's outreach page and the outreach note on district profiles, not a model tool
+
+    def outreach(self, pair: str, chamber: str) -> dict:
+        """An outreach pair across a chamber: the group's count ranked into tiers as rank_districts ranks it, the
+        state's count, and each district's program-use figure, which is shown beside it and never ranked."""
+        if pair not in config.OUTREACH_PAIRS:
+            raise ToolError(f"pair must be one of {list(config.OUTREACH_PAIRS)}")
+        ind = config.OUTREACH_PAIRS[pair]["indicator"]
+        ranked = self._rank_districts({"indicator": ind, "chamber": chamber})
+        geos = [_geo_arg(d["geo"]) for t in ranked["tiers"] for d in t["districts"]]
+        geos += [_geo_arg(d["geo"]) for d in ranked["unranked"]]
+        use = config.PROFILE_BESIDE.get(ind, (None, ""))[0]
+        if use:
+            self._prefetch([use], geos)
+        beside = {f"{g[0]}:{g[1]}": b["fact"] for g in geos if (b := self._beside(ind, g)) and "fact" in b}
+        state = self._facts_for([ind], [("state", "15")])["facts"]
+        return {
+            "pair": pair,
+            **ranked,
+            "state": state[0] if state else None,
+            "use": use if beside else None,
+            "beside": beside,
+        }
+
+    def outreach_tops(self, geo: tuple[str, str]) -> dict:
+        """The outreach pairs whose top tier holds a district, the smallest top tier first, and how many pairs
+        the store could rank."""
+        tops, ranked = [], 0
+        for pair, spec in config.OUTREACH_PAIRS.items():
+            try:
+                tiers = self._rank_districts({"indicator": spec["indicator"], "chamber": geo[0]})["tiers"]
+            except ToolError:
+                continue  # a store without this measure
+            ranked += bool(tiers)
+            top = tiers[0]["districts"] if tiers else []
+            if mine := next((d for d in top if d["geo"] == f"{geo[0]}:{geo[1]}"), None):
+                tops.append({"pair": pair, "fact": mine, "shared": len(top)})
+        tops.sort(key=lambda t: t["shared"])  # a stable sort keeps the pairs' order between equal tiers
+        return {"tops": tops, "ranked": ranked}
 
     # list_programs, district_programs
 

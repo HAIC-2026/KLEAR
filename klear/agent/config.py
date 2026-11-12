@@ -143,7 +143,53 @@ PROFILE_BESIDE = {
             "reaches incomes above poverty."
         ),
     ),
+    "uninsured_138_399pct_poverty": (
+        "aca_aptc_consumers",
+        (
+            "Marketplace enrollees got premium tax credits. These count people who signed up for a plan, so they "
+            "have coverage."
+        ),
+    ),
 }
+# Outreach pairs for the outreach page and the profile's outreach note: a group that meets a program's income test,
+# the indicator the page ranks districts by (a direct ACS count, tight enough to rank), the group as a sentence names
+# it, and the catalog programs (data/programs) it may qualify for. A pair's program-use figure is its PROFILE_BESIDE
+# figure, shown beside each district for comparison and never ranked.
+OUTREACH_PAIRS = {
+    "snap": {
+        "title": "SNAP",
+        "indicator": "hh_poverty_no_snap",
+        "who": "households in poverty that did not get SNAP",
+        "programs": ("snap",),
+    },
+    "med_quest": {
+        "title": "Med-QUEST",
+        "indicator": "uninsured_under_138pct_poverty",
+        "who": "uninsured people with income under 138% of poverty",
+        "programs": ("med_quest",),
+    },
+    "marketplace": {
+        "title": "Marketplace tax credits",
+        "indicator": "uninsured_138_399pct_poverty",
+        "who": "uninsured people with income from 138% to 399% of poverty",
+        "programs": ("marketplace",),
+    },
+    "kupuna": {
+        "title": "Kūpuna programs",
+        "indicator": "kupuna_under_200pct_poverty",
+        "who": "kūpuna with income under 200% of poverty",
+        "programs": ("ssi", "kupuna_care", "medicare_savings"),
+    },
+    "eitc": {
+        "title": "Federal EITC",
+        "indicator": "working_below_poverty",
+        "who": "working families and people below poverty",
+        "programs": ("eitc_federal",),
+    },
+}
+OUTREACH_DEFAULT = "snap"
+# A district profile names at most this many pairs whose top tier holds the district.
+OUTREACH_NOTE_LIMIT = 2
 # Profile figures to show first, before the full sections.
 PROFILE_HEADLINE = ("pop_total", "median_household_income", "pct_people_poverty", "pct_65_plus")
 PROFILE_INDICATORS = tuple(
