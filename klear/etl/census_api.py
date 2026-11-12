@@ -17,6 +17,8 @@ GEOS = {
     "house": ("state legislative district (lower chamber):*", "state:15"),
     "tract": ("tract:*", "state:15"),
 }
+# 2020 Census 118th Congressional District Summary File, the 2020 tabulation of the 2022 districts
+SLD_POP_DATASET = "dec/cd118"
 CHUNK = 24
 ATTEMPTS = 3
 BACKOFF_S = 1.0
@@ -139,6 +141,32 @@ def get_variable_labels(dataset: str, year: int = 2024, client: httpx.Client | N
         if own:
             client.close()
     return {k: v.get("label", "") for k, v in data["variables"].items()}
+
+
+def get_district_pop(
+    chamber: str, dataset: str = SLD_POP_DATASET, year: int = 2020, client: httpx.Client | None = None
+) -> pd.DataFrame:
+    # published 2020 total population (P1_001N) of every House or Senate district, with the district name
+    for_, in_ = GEOS[chamber]
+    params = [("get", "NAME,P1_001N"), ("for", for_), ("in", in_)]
+    own = client is None
+    client = client or httpx.Client(timeout=60.0)
+    try:
+        data = _get_json(client, _keyed_url(client, dataset, year, params))
+    finally:
+        if own:
+            client.close()
+    header, rows = data[0], data[1:]
+    recs = [dict(zip(header, r, strict=True)) for r in rows]
+    return pd.DataFrame(
+        {
+            "chamber": chamber,
+            "geo_id": [_geo_id(chamber, r) for r in recs],
+            "name": [r["NAME"] for r in recs],
+            "pop": [int(r["P1_001N"]) for r in recs],
+        },
+        columns=["chamber", "geo_id", "name", "pop"],
+    )
 
 
 def get_pl_blocks(county: str, year: int = 2020, client: httpx.Client | None = None) -> pd.DataFrame:

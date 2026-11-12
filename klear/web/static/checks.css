@@ -1,0 +1,93 @@
+/* How we check KLEAR page. Shares the tokens, header, tables and footer of style.css. */
+.check-intro{padding:clamp(32px,5vw,56px) 0 clamp(40px,5vw,64px);background:var(--surface);border-bottom:1px solid var(--line)}
+.crumb{margin:0 0 12px;font-size:var(--fs-sm);color:var(--muted)}
+.crumb a{color:var(--muted)}
+.check-intro h1{font-size:clamp(30px,3.6vw,44px);line-height:1.15;margin:0 0 16px}
+.checks-page .lede{color:var(--ink);max-width:var(--measure);margin:0 0 var(--block-gap)}
+.check-section{padding:var(--section-y) 0;background:var(--bg)}
+.check-section.alt{background:var(--surface)}
+.check-section h2{scroll-margin-top:16px}
+
+/* Latest build */
+.build-card{max-width:60rem;background:#fff;border:1px solid var(--line);border-radius:var(--r-card);padding:var(--card-pad)}
+.build-status{display:flex;align-items:baseline;gap:10px;margin:0;font-size:var(--fs-lg);font-weight:700;line-height:1.35}
+.status-mark{flex:none;width:12px;height:12px;border-radius:50%;background:var(--muted);transform:translateY(-1px)}
+.build-status.pass .status-mark{background:var(--house)}
+.build-status.fail{color:var(--error-ink)}.build-status.fail .status-mark{background:var(--error-ink)}
+.build-facts{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px 24px;margin:20px 0 0;padding-top:16px;border-top:1px solid var(--line)}
+.build-facts dt{font-size:var(--fs-xs);font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.build-facts dd{margin:4px 0 0;font-size:var(--fs-base);font-variant-numeric:tabular-nums}
+
+/* Result labels */
+.result{display:inline-block;padding:2px 10px;border:1px solid var(--line);border-radius:var(--r-pill);background:var(--surface);color:var(--muted);font-size:var(--fs-sm);font-weight:600;line-height:1.5;white-space:nowrap}
+.result.pass{background:var(--house-soft);border-color:var(--house);color:var(--house-dark)}
+.result.fail{background:var(--error-bg);border-color:var(--error-line);color:var(--error-ink)}
+
+/* Tables */
+.checks-page td:last-child{white-space:normal}
+.checks-page table th[scope=row]{font-weight:600;background:transparent}
+.checks-page .num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+.checks-page tbody tr:last-child th{border-bottom:0}
+.checks-page .bad{color:var(--error-ink);font-weight:700}
+#check-table .type-cell,#check-table .result-cell{white-space:nowrap}
+#check-table th:first-child{width:34%}
+#check-table .found-cell{color:var(--ink)}
+.data-table{font-size:var(--fs-sm)}
+.data-table th,.data-table td{padding:10px 14px}
+.table-block+.table-block{margin-top:var(--block-gap)}
+.table-title{font-size:var(--fs-md);margin:0 0 10px}
+.scroll-hint{display:none;margin:0 0 8px;font-size:var(--fs-sm);color:var(--muted)}
+.table-note{margin:10px 0 0;max-width:var(--measure);font-size:var(--fs-sm);color:var(--muted)}
+.key-list,.limit-list{margin:0;padding-left:20px;max-width:52rem}
+.key-list li,.limit-list li{margin:0 0 8px}
+.key-list:empty{display:none}
+#population-notes{margin-bottom:var(--block-gap)}
+.answer-tables{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:var(--block-gap) 32px;align-items:start}
+.answer-tables .table-block+.table-block{margin-top:0}
+.answer-tables th[scope=row]{min-width:10rem}
+.answer-tables td{min-width:9rem}
+#answer-notes{margin-top:var(--block-gap)}
+.report-link{margin:var(--block-gap) 0 0;max-width:var(--measure)}
+
+/* Disclosures: the district table and the check details */
+.checks-page details{margin:0;padding:0;border:0}
+.checks-page summary{list-style:none;display:flex;align-items:center;gap:12px}
+.checks-page summary::-webkit-details-marker{display:none}
+.checks-page summary::before{content:"";flex:none;width:8px;height:8px;margin:0 4px 0 2px;border-right:2px solid currentColor;border-bottom:2px solid currentColor;transform:rotate(-45deg);transition:transform .15s}
+.checks-page details[open]>summary::before{transform:rotate(45deg)}
+.table-toggle>summary{display:inline-flex;padding:10px 16px;background:#fff;border:1px solid var(--accent);border-radius:var(--r-ctl);color:var(--accent-dark)}
+.table-toggle[open]>summary{margin-bottom:16px}
+.check-details{display:grid;grid-template-columns:minmax(0,1fr);gap:10px}
+.checks-page .check-detail{background:#fff;border:1px solid var(--line);border-radius:var(--r-ctl);scroll-margin-top:16px}
+.check-detail>summary{padding:14px 18px;color:var(--ink)}
+.detail-title{flex:1;min-width:0;font-weight:600}
+.detail-body{padding:4px 18px 20px 44px;border-top:1px solid var(--line)}
+.detail-body>p{max-width:var(--measure);margin:14px 0 0}
+.detail-summary{font-weight:600}
+.detail-label{font-weight:600}
+.detail-body .key-list{margin-top:8px}
+.detail-body .table-block{margin-top:20px}
+.check-detail:target{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+@media(prefers-reduced-motion:reduce){.checks-page summary::before{transition:none}}
+
+@media(max-width:1023px){
+  .build-facts{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .answer-tables{grid-template-columns:minmax(0,1fr)}
+}
+@media(max-width:640px){
+  .answer-tables th[scope=row],.answer-tables td{min-width:0}
+  .scroll-hint{display:block}
+  .detail-body{padding:4px 16px 18px}
+  .check-detail>summary{padding:12px 14px;align-items:flex-start}
+  .check-detail>summary::before{margin-top:7px}
+  /* The check table becomes one card per check: name, then type and result, then the finding. */
+  #check-table thead{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+  #check-table tr{display:grid;grid-template-columns:auto 1fr;align-items:center;gap:6px 10px;padding:14px;border-bottom:1px solid var(--line)}
+  #check-table tbody tr:last-child{border-bottom:0}
+  #check-table th,#check-table td{display:block;padding:0;border:0;width:auto}
+  #check-table th,#check-table th:first-child{grid-column:1/-1;width:auto}
+  #check-table .result-cell{grid-row:2;grid-column:1}
+  #check-table .type-cell{grid-row:2;grid-column:2;color:var(--muted);font-size:var(--fs-sm)}
+  #check-table .found-cell{grid-column:1/-1;font-size:var(--fs-sm)}
+}
+@media(pointer:coarse){.check-detail>summary,.table-toggle>summary{min-height:44px}}

@@ -9,6 +9,7 @@ from klear.etl.crosswalk import build_crosswalk
 from klear.etl.facts import additive_ids, fact_frame, published_totals, unplaced
 from klear.etl.geographies import small_geographies
 from klear.etl.manual import manual_file
+from klear.rules.cuts import CUTS
 
 CHAS_FILE = "2018thru2022-140-csv.zip"
 CHAS_URL = "https://www.huduser.gov/portal/datasets/cp/2018thru2022-140-csv.zip"
@@ -22,11 +23,13 @@ TABLE_ID = "Table8"
 BAND_STARTS = {"owner": (3, 16, 29), "renter": (69, 82, 95)}  # at or below 30%, 30-50%, 50-80% HAMFI
 BURDEN_OFFSETS = (4, 7)  # cost burden over 30% to 50%, and over 50%
 ESTIMATES = 133  # T8_est1 to T8_est133
+# the top CHAS band is HUD's low-income limit
+LOW_INCOME = f"at or below {CUTS['hud_low'].percent}% HAMFI"
 CHAS_INDICATORS = {
-    "chas_renter_lowinc_burdened": "Renter households at or below 80% HAMFI with housing cost burden over 30%",
-    "chas_owner_lowinc_burdened": "Owner households at or below 80% HAMFI with housing cost burden over 30%",
-    "chas_renter_lowinc": "Renter households at or below 80% HAMFI",
-    "chas_owner_lowinc": "Owner households at or below 80% HAMFI",
+    "chas_renter_lowinc_burdened": f"Renter households {LOW_INCOME} with housing cost burden over 30%",
+    "chas_owner_lowinc_burdened": f"Owner households {LOW_INCOME} with housing cost burden over 30%",
+    "chas_renter_lowinc": f"Renter households {LOW_INCOME}",
+    "chas_owner_lowinc": f"Owner households {LOW_INCOME}",
 }
 PARTS = {
     "chas_renter_lowinc_burdened": ("renter", "burdened"),
@@ -98,7 +101,7 @@ def chas_indicator_rows() -> pd.DataFrame:
                 "indicator_id": ind,
                 "label": label,
                 "unit": "count",
-                "universe": "Occupied housing units with household income at or below 80% HAMFI",
+                "universe": f"Occupied housing units with household income {LOW_INCOME}",
                 "acs_var": None,
                 "additive": True,
             }
