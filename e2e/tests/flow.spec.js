@@ -24,7 +24,8 @@ test('search, choose, read the profile, ask, open a source, and come back', asyn
   const profile = page.getByRole('region', {name: DISTRICT});
   await expect(profile.getByRole('heading', {name: DISTRICT})).toBeVisible();
   await profile.getByText('People', {exact: true}).click();
-  await expect(profile.getByText('Kūpuna (65 and over)')).toBeVisible();
+  // The row's label, not its "What this means" summary, which names the label to screen readers.
+  await expect(profile.locator('.profile-label', {hasText: 'Kūpuna (65 and over)'})).toBeVisible();
 
   // Ask: the conversation is not a live region, so long answers are not read aloud as they arrive.
   // A short status line says the answer is ready, and focus moves to the new answer's heading.
@@ -37,15 +38,15 @@ test('search, choose, read the profile, ask, open a source, and come back', asyn
   await expect(page.locator('#log .user')).toHaveText('You asked: How does poverty here compare with the county and state?');
 
   // Each chart says what it shows in a sentence and has its figures in a table.
-  const chart = answer.getByRole('figure', {name: 'Percent of people below the poverty level'});
+  const chart = answer.getByRole('figure', {name: 'People below the poverty level'});
   await expect(chart.locator('.chart-summary')).toHaveText(
     'House District 22, at 12.3% ± 2.1 points, is higher than Honolulu County (8.9% ± 0.5 points) and is within the margin of error of Hawaiʻi (9.8% ± 0.4 points).');
   await expect(chart.locator('.chart-bars')).toHaveAttribute('aria-hidden', 'true');
   await chart.getByText('Show the data table').click();
-  const table = chart.getByRole('table', {name: 'Percent of people below the poverty level'});
+  const table = chart.getByRole('table', {name: 'People below the poverty level'});
   await expect(table.getByRole('columnheader')).toHaveText(['Place', 'Estimate', '90% margin of error']);
   await expect(table.getByRole('row', {name: /Hawaiʻi/})).toHaveText(/Hawaiʻi\s*9\.8%\s*± 0\.4 points/);
-  const kupuna = answer.getByRole('figure', {name: 'Population 65 years and over'});
+  const kupuna = answer.getByRole('figure', {name: 'Kūpuna (65 and over)'});
   await expect(kupuna.locator('.chart-summary')).toContainText('is 11.1% of the total for Hawaiʻi (9,000)');
 
   // Open a source: it opens in a new tab, says so, and the conversation is still here afterwards.

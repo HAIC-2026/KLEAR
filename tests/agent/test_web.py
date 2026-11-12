@@ -254,7 +254,7 @@ def test_free_answer_adds_the_main_county_when_asked(endpoint, monkeypatch):
     monkeypatch.setattr(web, "_RECENT", defaultdict(deque))
     status, data = chat(endpoint, "Compare kūpuna in House District 22 with Honolulu County and the state.")
     assert status == 200 and data["mode"] == "basic" and data["refusal"] == "none"
-    kupuna = [f["geography"] for f in data["facts"] if f["label"] == "Population 65 years and over"]
+    kupuna = [f["geography"] for f in data["facts"] if f["label"] == "Kūpuna (65 and over)"]
     assert kupuna == ["House District 22", "Honolulu County", "Hawaiʻi"]
     assert [b["geography"] for b in data["charts"][0]["bars"]] == kupuna
     assert "District, county and state figures" in data["text"]

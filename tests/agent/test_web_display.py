@@ -6,8 +6,9 @@ from klear.agent.config import PROFILE_BESIDE
 from klear.agent.tools import Session
 from klear.config import CURRENT_LAYER
 from klear.eval.contract import Answer, FactRef
+from klear.labels import plain_labels
 from klear.store.db import add_source
-from klear.web.display import PROFILE_LABELS, build, profile, profile_csv
+from klear.web.display import build, profile, profile_csv
 
 
 def fact(ref, geo_id, value, moe, low=None, high=None):
@@ -24,7 +25,17 @@ def test_single_place_gets_plain_lead_and_tiles(small_con):
     )
     assert out["lead"] == ["House District 22 has 1,000 kūpuna."]
     assert out["tiles"] == [
-        {"value": "1,000", "label": "Population 65 years and over", "spread": "± 100", "geography": ""}
+        {
+            "value": "1,000",
+            "label": "Kūpuna (65 and over)",
+            "spread": "± 100",
+            "geography": "",
+            "meaning": {
+                "plain": "People age 65 or older.",
+                "official": "Population 65 years and over",
+                "universe": "persons",
+            },
+        }
     ]
     assert out["charts"] == []
     assert out["sources"] == [
@@ -53,7 +64,7 @@ def test_range_facts_read_as_about_and_caveats_fill_markers(small_con):
     out = build(small_con, answer([f], ["{fact:f1} people."], ["{label:f1} is apportioned."]))
     assert out["lead"] == ["about 1,000 people."]
     assert out["tiles"][0]["spread"] == "range 900 to 1,100"
-    assert out["caveats"] == ["Population 65 years and over is apportioned."]
+    assert out["caveats"] == ["Kūpuna (65 and over) is apportioned."]
 
 
 def test_tiles_name_other_places(small_con):
@@ -64,7 +75,7 @@ def test_tiles_name_other_places(small_con):
 def test_lead_drops_inline_vintages(small_con):
     f = fact("f1", "022", 1000.0, 100.0)
     out = build(small_con, answer([f], ["* {label:f1}: {fact:f1} ({vintage:f1})"]))
-    assert out["lead"] == ["* Population 65 years and over: 1,000"]
+    assert out["lead"] == ["* Kūpuna (65 and over): 1,000"]
 
 
 def test_district_total_against_the_state_reads_as_a_share(small_con):
@@ -175,7 +186,9 @@ def test_who_may_qualify_section_states_its_caveat_once_and_shows_figures_beside
         r["caveat"] == "" for r in sec["rows"]
     )
     rows = {r["id"]: r for r in sec["rows"]}
-    assert set(rows) >= set(PROFILE_BESIDE) and all(r["label"] == PROFILE_LABELS[i] for i, r in rows.items())
+    assert set(rows) >= set(PROFILE_BESIDE) and all(
+        r["label"] == plain_labels()[i].short for i, r in rows.items()
+    )
     eitc = rows["working_below_poverty"]["beside"]
     assert (
         eitc["value"].startswith("about ")

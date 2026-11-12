@@ -33,9 +33,18 @@ test('skip link, search, ask, and read the answer with the keyboard', async ({pa
   const answer = page.locator('#log article').last();
   await expect(answer.getByRole('heading', {level: 3})).toBeFocused();
 
-  // From the answer, Tab reaches the first chart's data table, and Enter opens it.
+  // From the answer, Tab reaches what the first figure's label means, and Enter opens it.
   await page.keyboard.press('Tab');
+  const about = answer.locator('details.meaning').first();
+  await expect(about.locator('summary')).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(about).toHaveAttribute('open', '');
+  await expect(about.getByRole('link', {name: 'Glossary of terms (opens in a new tab)'})).toBeVisible();
+
+  // Tab goes on, past the glossary link and the next labels' meanings, to the first chart's data table.
   const table = answer.locator('.chart-data').first();
+  const onTable = () => table.locator('summary').evaluate(s => s === document.activeElement);
+  for (let i = 0; i < 6 && !(await onTable()); i++) await page.keyboard.press('Tab');
   await expect(table.locator('summary')).toBeFocused();
   await page.keyboard.press('Enter');
   await expect(table).toHaveAttribute('open', '');

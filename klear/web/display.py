@@ -9,6 +9,7 @@ from klear.agent.answer import actual_direction
 from klear.agent.config import PROFILE_HEADLINE
 from klear.config import CURRENT_LAYER
 from klear.eval.contract import MARKER, _has, _number, geo_display, geo_key, short_name
+from klear.labels import in_sentence, meaning, short_label
 from klear.programs import ELIGIBILITY_NOTE, NEEDS, Program, by_rule, catalog
 from klear.store.methods import place_note
 
@@ -48,6 +49,7 @@ class _Store:
             r[0] for r in con.execute("SELECT indicator_id FROM indicator WHERE additive").fetchall()
         }
         self.month = build_month(con)
+        self.universes = dict(con.execute("SELECT indicator_id, universe FROM indicator").fetchall())
 
     def place(self, geo_type: str, geo_id: str) -> str:
         row = self.con.execute(
@@ -76,6 +78,16 @@ class _Store:
         short = short_name(name)
         year = year_text(f.vintage, self.month)
         return year if short.casefold() in year.casefold() else f"{year} {short}"
+
+    def short(self, indicator_id: str) -> str:
+        """The label readers see in place of the official one."""
+        return short_label(indicator_id, self.labels.get(indicator_id, indicator_id))
+
+    def meaning(self, indicator_id: str) -> dict:
+        """What the short label stands for, shown one tap away: definition, official label and universe."""
+        return meaning(
+            indicator_id, self.labels.get(indicator_id, indicator_id), self.universes.get(indicator_id)
+        )
 
 
 def _built_day(con) -> datetime | None:
@@ -161,8 +173,18 @@ def _spread(f, unit: str) -> str:
     return ""
 
 
+LIST_ITEM = re.compile(r"^\s*[*-]\s+")
+
+
+def _opens(text: str, at: int) -> bool:
+    """Whether a marker at this position starts a sentence or a list item, so its label keeps its capital."""
+    line = LIST_ITEM.sub("", text[:at].rsplit("\n", 1)[-1]).rstrip()
+    return not line or line[-1] in ".!?:"
+
+
 def plain_text(texts: list[str], answer, store: _Store) -> list[str]:
-    """Texts with bare numbers and no inline vintages, since tiles and the source line carry them."""
+    """Texts with bare numbers and no inline vintages, since tiles and the source line carry them. Labels are
+    the short ones readers see, in lower case mid-sentence."""
     by_ref = {f.ref: f for f in answer.facts}
 
     def sub(m):
@@ -172,7 +194,8 @@ def plain_text(texts: list[str], answer, store: _Store) -> list[str]:
             return store.place(*key) if key else ref
         f = by_ref[ref]
         if kind == "label":
-            return store.labels.get(f.indicator_id, f.indicator_id)
+            label = store.short(f.indicator_id)
+            return label if _opens(m.string, m.start()) else in_sentence(label)
         if kind == "vintage":
             return store.vintage(f)
         return _plain(f, store.unit(f))
@@ -243,7 +266,8 @@ def charts(answer, store: _Store) -> tuple[list[dict], set[str]]:
             continue
         facts.sort(key=lambda f: (f.geo_type, f.geo_id) != home)
         chart = {
-            "label": store.labels.get(indicator, indicator),
+            "label": store.short(indicator),
+            "meaning": store.meaning(indicator),
             "unit": store.unit(facts[0]),
             "bars": [_bar(f, store) for f in facts],
             "tag": "",
@@ -272,9 +296,10 @@ def tiles(answer, store: _Store, skip: set[str]) -> list[dict]:
         out.append(
             {
                 "value": _plain(f, unit),
-                "label": store.labels.get(f.indicator_id, f.indicator_id),
+                "label": store.short(f.indicator_id),
                 "spread": _spread(f, unit),
                 "geography": "" if here == home else store.place(*here),
+                "meaning": store.meaning(f.indicator_id),
             }
         )
     return out
@@ -296,58 +321,6 @@ def build(con, answer) -> dict:
     }
 
 
-# Short names for profile rows and free answers; the full indicator label stays available as each row's title.
-PROFILE_LABELS = {
-    "pop_total": "Total population",
-    "pop_65_plus": "Kūpuna (65 and over)",
-    "pct_65_plus": "Share who are kūpuna",
-    "pop_under_18": "Keiki (under 18)",
-    "median_age": "Median age",
-    "pop_native_hawaiian_alone_or_combo": "Native Hawaiian, alone or in combination",
-    "pct_limited_english": "Speak English less than very well",
-    "civilian_veterans": "Veterans",
-    "pct_disability": "With a disability",
-    "median_household_income": "Median household income",
-    "per_capita_income": "Per capita income",
-    "pct_people_poverty": "Below the poverty level",
-    "pct_children_poverty": "Keiki below the poverty level",
-    "pct_65_plus_poverty": "Kūpuna below the poverty level",
-    "pct_renter_occupied": "Homes that are rented",
-    "median_gross_rent": "Median gross rent",
-    "pct_rent_burden_35_plus": "Renters paying 35% or more of income",
-    "pct_severe_overcrowding": "Severely overcrowded homes",
-    "median_home_value": "Median home value",
-    "pct_uninsured": "Without health insurance",
-    "pct_public_coverage": "With public health coverage",
-    "pct_broadband": "Households with broadband",
-    "pct_hh_snap": "Households receiving SNAP",
-    "pct_hh_ssi": "Households receiving SSI",
-    "pct_hh_public_assistance": "Households receiving cash assistance",
-    "irs_eitc_returns": "Tax returns claiming the EITC",
-    "irs_eitc_dollars": "EITC dollars claimed",
-    "aca_consumers": "Marketplace plan enrollees",
-    "aca_aptc_consumers": "Enrollees with premium tax credits",
-    "hud_vouchers": "Housing voucher holders",
-    "places_food_insecurity": "Adults facing food insecurity",
-    "places_housing_insecurity": "Adults facing housing insecurity",
-    "places_lack_transport": "Adults without reliable transportation",
-    "places_utility_shutoff_threat": "Adults facing a utility shut-off",
-    "sites_health_center": "Health center sites",
-    "sites_public_housing": "Public housing developments",
-    "sites_lihtc": "Low-income housing tax credit projects",
-    "hh_poverty_no_snap": "Households below poverty without SNAP",
-    "pop_under_125pct_poverty": "People under 125% of poverty",
-    "pop_under_150pct_poverty": "People under 150% of poverty",
-    "uninsured_under_138pct_poverty": "Uninsured, income under 138% of poverty",
-    "uninsured_138_399pct_poverty": "Uninsured, income 138% to 399% of poverty",
-    "kupuna_under_200pct_poverty": "Kūpuna under 200% of poverty",
-    "working_below_poverty": "Working families and individuals below poverty",
-    "median_household_income_65_plus": "Median household income, householder 65 and over",
-    "kupuna_under_100pct_poverty": "Kūpuna under 100% of poverty",
-    "householders_65_plus_alone": "Kūpuna living alone (householders 65 and over)",
-    "pct_hh_social_security": "Households with Social Security income",
-    "pct_hh_retirement_income": "Households with retirement income",
-}
 NOUNS = {"percent": "rate", "dollars": "amount"}
 
 
@@ -422,8 +395,8 @@ def _profile_row(row: dict, session, store: _Store) -> dict:
             against.append({"lead": lead, "rest": rest} | figure)
     return {
         "id": f.indicator_id,
-        "label": PROFILE_LABELS.get(f.indicator_id, fact["label"]),
-        "title": fact["label"],
+        "label": store.short(f.indicator_id),
+        "meaning": store.meaning(f.indicator_id),
         "value": _plain(f, unit),
         "spread": _spread(f, unit),
         "caution": _caution(fact),

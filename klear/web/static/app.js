@@ -482,9 +482,31 @@ function profileTitle(name) {
   return [node('p', 'District profile', 'small-label'), title];
 }
 
+// What a short label stands for, one tap away: a plain definition, then the official label and who the figure
+// counts, and a link to the glossary. Nothing when there is no more to say than the label itself.
+function meaning(label, m) {
+  const official = m && m.official && m.official !== label ? m.official : '';
+  if (!m || !(m.plain || m.universe || official)) return null;
+  const box = node('details', '', 'meaning'), summary = node('summary', 'What this means');
+  summary.append(hidden(`: ${label}`));
+  box.append(summary);
+  if (m.plain) box.append(says('p', m.plain));
+  const terms = node('dl', '');
+  const term = (name, text) => { const t = node('div', ''); t.append(node('dt', name), says('dd', text)); terms.append(t); };
+  if (official) term('Official label', official);
+  if (m.universe) term('Who is counted', m.universe);
+  if (terms.children.length) box.append(terms);
+  // A new tab, so a chat in progress stays where it is.
+  const more = node('p', '', 'meaning-more'), a = node('a', 'Glossary of terms');
+  a.href = '/glossary.html'; a.target = '_blank';
+  a.append(hidden(' (opens in a new tab)'));
+  more.append(a);
+  box.append(more);
+  return box;
+}
+
 function profileRow(r) {
   const row = node('div', '', 'profile-row');
-  row.title = r.title;
   const figure = node('p', '', 'profile-figure');
   figure.append(node('span', r.value, 'num'));
   if (r.spread) figure.append(' ', node('span', r.spread, 'moe'));
@@ -499,6 +521,8 @@ function profileRow(r) {
   }
   if (r.beside) row.append(besideLine(r.beside));
   if (r.caveat) row.append(node('p', r.caveat, 'profile-caveat'));
+  const about = meaning(r.label, r.meaning);
+  if (about) row.append(about);
   return row;
 }
 
@@ -1166,6 +1190,13 @@ function factCard(f) {
   return card;
 }
 
+// A figure card with what its label means at the end.
+function explainedCard(f) {
+  const card = factCard(f), about = meaning(f.label, f.meaning);
+  if (about) card.append(about);
+  return card;
+}
+
 function basicAnswer(answer, name) {
   const article = document.createElement('article');
   article.append(heading(answer, name));
@@ -1173,7 +1204,7 @@ function basicAnswer(answer, name) {
   if (answer.facts.length) {
     const details = document.createElement('details');
     details.open = true;
-    details.append(node('summary', 'Figures & sources'), ...answer.facts.map(factCard));
+    details.append(node('summary', 'Figures & sources'), ...answer.facts.map(explainedCard));
     article.append(details);
   }
   if (answer.programs && answer.programs.length) article.append(answerPrograms(answer.programs, answer.program_sources));
@@ -1221,6 +1252,8 @@ function chartFigure(c) {
   head.append(says('span', c.label));
   if (c.tag) head.append(node('span', c.tag, c.lower ? 'chip strong' : 'chip'));
   fig.append(head);
+  const about = meaning(c.label, c.meaning);
+  if (about) fig.append(about);
   if (c.summary) fig.append(says('p', c.summary, 'chart-summary'));
   const bars = node('div', '', 'chart-bars');
   bars.setAttribute('aria-hidden', 'true');
@@ -1309,6 +1342,8 @@ function renderAnswer(answer, name) {
       tile.append(tileValue(t.value), says('div', t.label, 'tile-label'));
       const meta = [t.geography, t.spread].filter(Boolean).join(', ');
       if (meta) tile.append(node('div', meta, 'tile-meta'));
+      const about = meaning(t.label, t.meaning);
+      if (about) tile.append(about);
       grid.append(tile);
     }
     article.append(grid);

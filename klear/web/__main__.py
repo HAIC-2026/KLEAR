@@ -35,6 +35,7 @@ PUBLIC = (
     "/",
     "/index.html",
     "/checks.html",
+    "/glossary.html",
     "/checks.js",
     "/checks.css",
     "/app.js",

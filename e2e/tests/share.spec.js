@@ -58,7 +58,7 @@ test('a refresh keeps the district and its answers', async ({page}) => {
   await expect(page.locator('#log .user')).toHaveText('You asked: How does poverty here compare with the county and state?');
   const answer = page.locator('#log article');
   await expect(answer).toHaveCount(1);
-  await expect(answer.getByRole('figure', {name: 'Percent of people below the poverty level'})).toBeVisible();
+  await expect(answer.getByRole('figure', {name: 'People below the poverty level'})).toBeVisible();
   // The restored conversation carries on.
   await ask(page, 'How many kūpuna live here?');
   await expect(page.locator('#log article')).toHaveCount(2);
@@ -117,8 +117,8 @@ test('printing gives a one-page summary with every source, year and address writ
   const table = sheet.getByRole('table');
   await expect(table.locator('thead th')).toHaveText(['Measure', DISTRICT, 'Honolulu County', 'Hawaiʻi', 'Source']);
   await expect(table.getByRole('columnheader', {name: 'Income and poverty'})).toBeVisible();
-  await expect(table.getByRole('row', {name: /Below the poverty level/})).toHaveText(
-    /^Below the poverty level\s*12\.3%\s*± 2\.1 points\s*8\.9%\s*± 0\.5 points\s*9\.8%\s*± 0\.4 points\s*1$/);
+  await expect(table.getByRole('row', {name: /People below the poverty level/})).toHaveText(
+    /^People below the poverty level\s*12\.3%\s*± 2\.1 points\s*8\.9%\s*± 0\.5 points\s*9\.8%\s*± 0\.4 points\s*1$/);
   await expect(sheet.locator('.sheet-note').first()).toContainText('± is the 90% margin of error.');
   await expect(sheet.locator('.sheet-about')).toContainText('Shares of 2020 Census residents (source 2).');
 
@@ -181,7 +181,7 @@ test('the profile and its printout cope with missing or unexpected fields', asyn
   await expect(page.locator('#profile-live')).toHaveText(`Profile for ${DISTRICT} loaded.`);
   await page.emulateMedia({media: 'print'});
   const sheet = page.locator('#print-sheet');
-  await expect(sheet.getByRole('row', {name: /Below the poverty level/})).toContainText('12.3%');
+  await expect(sheet.getByRole('row', {name: /People below the poverty level/})).toContainText('12.3%');
   await expect(sheet.locator('.sheet-programs')).toHaveCount(0);
   await expect(sheet.locator('.sheet-sources li')).toHaveCount(1);
   await expect(sheet.locator('.sheet-about')).toContainText('Shares of 2020 Census residents.');
