@@ -40,6 +40,9 @@
   --gutter:clamp(16px,3vw,32px);--card-pad:clamp(16px,2.4vw,28px);--section-y:clamp(48px,7vw,80px);
   --head-gap:28px;--block-gap:24px;--measure:46rem;
 
+  /* Printed district summary: one US Letter page */
+  --pt-xs:7.5pt;--pt-sm:8.5pt;--pt-base:9.5pt;--pt-md:11pt;--pt-title:20pt;--pt-gap:8pt;
+
   font-family:var(--sans);color:var(--ink);background:var(--bg);font-synthesis:none;line-height:1.55
 }
 *{box-sizing:border-box}
@@ -240,6 +243,19 @@ summary{font-weight:600;color:var(--accent);cursor:pointer}
 .profile-sources-title{margin:0 0 2px;font-weight:600;color:var(--ink)}
 .profile-sources ul,.profile-sources ol{margin:0;padding-left:18px}.profile-sources ul{list-style:none;padding-left:0}
 @media(min-width:641px) and (max-width:1199px){.profile-stats{grid-template-columns:repeat(4,minmax(0,1fr))}}
+/* Print, link and download controls under the profile's heading */
+/* Print, link and download controls: a tinted panel near the top of the profile. */
+.profile-share{margin:16px 0 4px;padding:14px 16px 16px;background:var(--accent-soft);border-radius:var(--r-ctl)}
+.profile-share-title{margin:0;font-size:var(--fs-base);font-weight:700;color:var(--accent-dark)}
+.profile-share-note{margin:2px 0 12px;font-size:var(--fs-sm);line-height:1.45;color:var(--ink)}
+/* Print is the main action and takes the first row; Copy link and the download share the second. */
+.profile-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.profile-actions .action{display:flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:8px 14px;background:#fff;border:1px solid var(--accent);border-radius:var(--r-ctl);color:var(--accent-dark);font-size:var(--fs-sm);font-weight:700;line-height:1.3;text-align:center;text-decoration:none}
+.profile-actions .action.primary{grid-column:1/-1;background:var(--accent);color:#fff;font-size:var(--fs-base)}
+.icon{flex:none;width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.profile-share-status{display:flex;align-items:center;gap:6px;margin:10px 0 0;font-size:var(--fs-sm);font-weight:600;color:var(--accent-dark);overflow-wrap:anywhere}.profile-share-status:empty{display:none}
+/* Fixed and see-through: the selection Copy link falls back on when it cannot write to the clipboard directly. */
+.copy-buffer{position:fixed;top:0;left:0;width:1px;height:1px;padding:0;border:0;opacity:0;pointer-events:none}
 /* Suggested questions: short buttons between the conversation and the question box. */
 .suggest{padding:12px var(--card-pad) 0;border-top:1px solid var(--line)}
 .suggest:not([hidden])+#question-form{border-top:0;padding-top:12px}
@@ -385,6 +401,7 @@ footer a{color:#fff}
   .inputrow{position:relative}.combo{position:static}
   .examples{grid-template-columns:1fr}
   .send-hint{display:none}
+  .profile-actions{grid-template-columns:1fr}
   .district-now{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;column-gap:12px}.district-now>div{display:contents}.district-now .small-label{grid-area:1/1;white-space:nowrap}.district-now strong{grid-area:2/1/3/3}.district-now .textbutton{grid-area:1/2;padding:10px 0;margin:-10px 0}
   #messages{padding:20px 16px 8px}#messages article{padding:14px 14px}
   .user{max-width:88%}
@@ -412,6 +429,7 @@ footer a{color:#fff}
 .island-tabs button[aria-pressed=false]:hover,.examples button:not(:disabled,[aria-disabled=true]):hover,.zoom-buttons button:hover{background:var(--accent-soft)}
 .suggest .examples button.local:not([aria-disabled=true]):hover{background:var(--accent-soft-hover)}
 .followup:not([aria-disabled=true]):hover,.pending .cancel:hover{background:var(--accent-soft)}.retry:not([aria-disabled=true]):hover{background:var(--error-bg)}
+.profile-actions .action:hover{background:var(--accent-soft-hover)}.profile-actions .action.primary:hover{background:var(--accent-dark);border-color:var(--accent-dark)}
 .segmented [data-chamber=house][aria-pressed=false]:hover{background:var(--house-soft)}.segmented [data-chamber=senate][aria-pressed=false]:hover{background:var(--senate-soft)}
 }
 /* Touch screens: larger targets for controls and for links that stand alone in lists. */
@@ -423,4 +441,56 @@ footer a{color:#fff}
 .zoom-buttons button{width:40px;height:40px}
 .footer-col ul{gap:0}.footer-col a{display:inline-block;padding:10px 0}
 #source-table a{display:inline-block;padding:6px 0}
+}
+
+/* Printed district summary. The page prints as it is until a district profile loads; from then on the summary prints in
+   its place, on one US Letter page, with every address written out since paper cannot follow links. The district's
+   chamber color marks its column, the group names and the rule under the heading. */
+.print-sheet{display:none;--tint:var(--house-soft);--rule:var(--house)}
+.print-sheet[data-chamber=senate]{--tint:var(--senate-soft);--rule:var(--senate)}
+@media print{
+  /* Custom properties do not reach @page, so its margin is written here. */
+  @page{size:letter;margin:.5in}
+  body.has-sheet{background:#fff}
+  body.has-sheet>:not(.print-sheet){display:none!important}
+  body.has-sheet .print-sheet{display:block}
+  .print-sheet{font-family:var(--sans);font-size:var(--pt-base);line-height:1.35;color:var(--ink);-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .print-sheet p{margin:0}
+  .print-sheet h1{margin:1pt 0 0;font-size:var(--pt-title);line-height:1.1}
+  .print-sheet h2{margin:0 0 3pt;padding-bottom:2pt;border-bottom:1pt solid var(--ink);font-size:var(--pt-sm);letter-spacing:.06em;text-transform:uppercase}
+
+  /* Heading: the district on the left; where to find it online, and how current it is, on the right */
+  .sheet-head{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6pt 18pt;align-items:end;padding-bottom:6pt;border-bottom:2.5pt solid var(--rule)}
+  .sheet-kicker{font-size:var(--pt-xs);font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+  .sheet-where{margin-top:2pt;font-size:var(--pt-md)}
+  .sheet-live{max-width:3.2in;padding:4pt 8pt;border:1pt solid var(--rule);border-radius:4pt;font-size:var(--pt-xs);color:var(--muted)}
+  .print-sheet .sheet-live .sheet-url{font-size:var(--pt-sm);font-weight:700;color:var(--ink)}
+  .sheet-dates{margin-top:2pt}
+  .sheet-about{margin-top:5pt;font-size:var(--pt-sm);color:var(--muted)}
+  .sheet-about b{font-weight:600;color:var(--ink)}
+  .sheet-section{margin-top:var(--pt-gap);break-inside:avoid}
+
+  /* Key figures: an estimate column and a margin column for each place, the district's tinted, sources last */
+  .sheet-figures{width:100%;border-collapse:collapse;font-size:var(--pt-base);font-variant-numeric:tabular-nums}
+  /* Two classes, to win over the page's own table rules. */
+  .print-sheet .sheet-figures th,.print-sheet .sheet-figures td{padding:2pt 0;border-bottom:1px solid var(--line);vertical-align:baseline;background:none;font-weight:400;text-align:left;white-space:nowrap}
+  .print-sheet .sheet-figures thead th{padding-top:0;border-bottom:1pt solid var(--ink);font-size:var(--pt-xs);font-weight:700;color:var(--muted)}
+  .print-sheet .sheet-figures thead .place{padding:2pt 8pt;text-align:center}
+  .print-sheet .sheet-figures thead .place.home{color:var(--ink)}
+  .print-sheet .sheet-figures tbody th{padding-right:8pt;white-space:normal}
+  .print-sheet .sheet-figures .home{background:var(--tint)}
+  .print-sheet .sheet-figures .num{width:1%;padding:2pt 3pt 2pt 7pt;text-align:right}
+  .print-sheet .sheet-figures .num.home{font-weight:700}
+  .print-sheet .sheet-figures .moe{width:1%;padding-right:7pt;font-size:var(--pt-xs);color:var(--muted)}
+  .print-sheet .sheet-figures .src{width:1%;padding-left:4pt;font-size:var(--pt-xs);color:var(--muted);text-align:center}
+  .print-sheet .sheet-figures .sheet-none{padding:2pt 10pt;font-size:var(--pt-xs);color:var(--muted);text-align:center}
+  .print-sheet .sheet-figures .sheet-group{padding:5pt 0 1pt;font-size:var(--pt-xs);line-height:1.2;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--rule)}
+  .sheet-note{margin-top:3pt;font-size:var(--pt-xs);color:var(--muted)}
+
+  /* Programs and sources: one entry each, its address on a line of its own */
+  .sheet-list{margin:0;padding:0;list-style:none;font-size:var(--pt-sm)}
+  ol.sheet-list{padding-left:12pt;list-style:decimal}
+  .sheet-list li{margin:0 0 3pt;break-inside:avoid}
+  .sheet-url{display:block;font-size:var(--pt-xs);color:var(--muted);overflow-wrap:anywhere}
+  .sheet-foot{margin-top:var(--pt-gap);padding-top:4pt;border-top:1px solid var(--line);font-size:var(--pt-xs);color:var(--muted)}
 }

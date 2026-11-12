@@ -37,7 +37,8 @@ test('three related questions, each asked with a next-question button', async ({
   }
   // Each question stands on its own: the full question and the district, with no earlier answers sent along.
   expect(sent.slice(1)).toEqual(expected.map(question => ({question, district: 'house:022'})));
-  // Only the newest answer offers next questions.
+  // Next questions keep to the district's address, and only the newest answer offers them.
+  await expect(page).toHaveURL(/\/district\/house-22$/);
   await expect(page.locator('#log .followups')).toHaveCount(1);
   await expect(page.locator('#log article').last().locator('.followups')).toBeVisible();
 });
@@ -66,10 +67,18 @@ test('the examples include ones picked from the district profile, and they go wh
   await page.locator('#place').fill('House 23');
   await page.locator('#lookup').getByRole('button', {name: 'Find district'}).click();
   await expect(page.locator('#district-title')).toHaveText('House District 23');
+  await expect(page).toHaveURL(/\/district\/house-23$/);
   await expect(page.locator('#log .followups')).toHaveCount(0);
   await expect(page.locator('#profile-live')).toHaveText('Profile for House District 23 loaded.');
   await expect(local).toHaveCount(1);
   await expect(local).toHaveAccessibleName(/^Survey years and the 2023 wildfires\s*: .* for House District 23 cover/);
+
+  // Back to House 22: its address, its examples, and no next questions that name House 23.
+  await page.goBack();
+  await expect(page.locator('#district-title')).toHaveText(DISTRICT);
+  await expect(page).toHaveURL(/\/district\/house-22$/);
+  await expect(local).toHaveCount(2);
+  await expect(page.locator('#log .followups')).toHaveCount(0);
 });
 
 test('a slow question shows the seconds, can be cancelled, and Retry asks it again', async ({page}) => {

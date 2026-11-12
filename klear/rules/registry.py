@@ -1,11 +1,13 @@
 # Loads the YAML rule files and fetches visible page text for quote checks.
 import html
+import io
 import re
 from dataclasses import dataclass, field
 from html.parser import HTMLParser
 from pathlib import Path
 
 import yaml
+from pypdf import PdfReader
 
 from klear.config import ROOT
 from klear.etl.fetch import fetch
@@ -32,7 +34,7 @@ REQUIRED_RULE_IDS = (
     "hpha_limits",
 )
 REQUIRED = ("rule_id", "program", "status", "effective", "url", "values", "verified_by", "retrieved")
-OPTIONAL = ("quote", "note", "fetch_url", "effective_source")
+OPTIONAL = ("quote", "note", "fetch_url", "effective_source", "saved")
 
 
 @dataclass
@@ -49,6 +51,8 @@ class Rule:
     note: str = field(default="")
     fetch_url: str | None = None
     effective_source: dict | None = None
+    # A copy of the page saved by hand in data/manual/, read when the live page blocks scripts.
+    saved: str | None = None
 
 
 def _check_values(name: str, rule_id: str, values: dict) -> None:
@@ -97,6 +101,7 @@ def load_rules(path: Path = ROOT / "data" / "rules", *, required=REQUIRED_RULE_I
                 note=d.get("note") or "",
                 fetch_url=d.get("fetch_url"),
                 effective_source=es,
+                saved=d.get("saved"),
             )
         )
     missing = sorted(set(required) - {r.rule_id for r in rules})
@@ -130,10 +135,22 @@ def visible_text(raw: str) -> str:
     return re.sub(r"\s+", " ", html.unescape(" ".join(p.parts))).strip()
 
 
-def page_text(url: str) -> str:
-    # fetch through the cached downloader and return visible text; PDFs are not supported
-    name = "rules/" + re.sub(r"[^A-Za-z0-9]+", "_", url.split("://", 1)[-1]).strip("_")[:120]
-    raw = fetch(url, name).read_bytes()
+def document_text(raw: bytes) -> str:
+    """Visible text of an HTML page or a PDF, with whitespace collapsed."""
     if raw.startswith(b"%PDF"):
-        raise ValueError(f"{url} is a PDF and no PDF reader is installed")
+        text = " ".join(page.extract_text() or "" for page in PdfReader(io.BytesIO(raw)).pages)
+        # Undo ligatures and drop the dot leaders of form tables, so quotes read as the printed words.
+        text = (
+            text.replace("\ufb01 ", "fi")
+            .replace("\ufb01", "fi")
+            .replace("\ufb02 ", "fl")
+            .replace("\ufb02", "fl")
+        )
+        return re.sub(r"\s+", " ", re.sub(r"\.{4,}", " ", text)).strip()
     return visible_text(raw.decode("utf-8", errors="replace"))
+
+
+def page_text(url: str) -> str:
+    # fetch through the cached downloader and return visible text
+    name = "rules/" + re.sub(r"[^A-Za-z0-9]+", "_", url.split("://", 1)[-1]).strip("_")[:120]
+    return document_text(fetch(url, name).read_bytes())

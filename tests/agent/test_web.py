@@ -1,5 +1,7 @@
 """The public web path reads only local facts and makes no model calls."""
 
+import csv
+import io
 import json
 import os
 import queue
@@ -18,6 +20,7 @@ import pytest
 
 from klear import config
 from klear.web import __main__ as web
+from klear.web import display
 from tests.eval.conftest import _home  # noqa: F401
 
 
@@ -148,6 +151,54 @@ def test_profile_endpoint_lays_out_the_district_profile(endpoint):
     ]
     for bad in ["house:999", "county:15003", ""]:
         assert get(endpoint, "/api/profile?district=" + bad)[0] == 400
+
+
+def test_profile_gives_the_printed_summary_its_columns_programs_and_sources(endpoint):
+    profile = json.loads(get(endpoint, "/api/profile?district=house:022")[1])
+    row = next(r for s in profile["sections"] for r in s["rows"] if r["id"] == "pop_65_plus")
+    assert [(a["geo"], a["place"], a["value"], a["spread"]) for a in row["against"]] == [
+        ("county:15003", "Honolulu County", "5,000", "± 50"),
+        ("state:15", "Hawaiʻi", "9,000", ""),
+    ]
+    assert row["against"][1]["source"] == row["source"]
+    # One entry per program across its tax years, each with an address to print, and no income limit tables.
+    names = [p["name"] for p in profile["programs"]]
+    assert names.count("Federal EITC") == 1 and "SNAP" in names and len(names) == len(set(names))
+    assert not any("poverty guidelines" in n or "income limits" in n for n in names)
+    assert all(p["url"].startswith("https://") and p["covers"] and p["agency"] for p in profile["programs"])
+    assert profile["shares_source"]["year"] == "2020 Census"
+    assert profile["built"] == ""  # the small store records no build
+
+
+def test_profile_downloads_as_csv_with_raw_numbers_and_sources(endpoint):
+    status, body, headers = get(endpoint, "/api/profile.csv?district=house:022")
+    assert status == 200 and headers["Content-Type"] == "text/csv; charset=utf-8"
+    assert headers["Content-Disposition"] == 'attachment; filename="klear-house-district-22.csv"'
+    assert headers["Cache-Control"] == "no-store"
+    text = body.decode("utf-8")
+    assert text.startswith("﻿")
+    rows = list(csv.reader(io.StringIO(text[1:])))
+    acs = ["American Community Survey 5-year", "2020-2024", "https://example.org"]
+    assert rows[0] == list(display.CSV_COLUMNS)
+    kupuna = [r for r in rows if r[1] == "Population 65 years and over"]
+    assert [r[2:5] for r in kupuna] == [
+        ["House District 22", "1000", "100"],
+        ["Honolulu County", "5000", "50"],
+        ["Hawaiʻi", "9000", ""],
+    ]
+    assert kupuna[0][7] == "count" and kupuna[0][8:11] == acs
+    for bad in ["house:999", ""]:
+        assert get(endpoint, "/api/profile.csv?district=" + bad)[0] == 400
+
+
+def test_district_addresses_serve_the_page(endpoint):
+    # Any district address serves the page, which checks the number itself; nothing else under /district/ does.
+    for path in ["/district/house-22", "/district/senate-1", "/district/house-07", "/district/house-99"]:
+        status, body, headers = get(endpoint, path)
+        assert status == 200 and b'id="print-sheet"' in body, path
+        assert headers["Cache-Control"] == "no-cache" and headers["Content-Type"] == "text/html", path
+    for path in ["/district/county-3", "/district/house-022", "/district/house-22/", "/district/house-22/x"]:
+        assert get(endpoint, path)[0] == 404, path
 
 
 def test_about_serves_store_facts_and_sources(endpoint):
