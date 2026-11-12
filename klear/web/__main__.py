@@ -3,6 +3,7 @@
 import argparse
 import functools
 import json
+import re
 import socket
 import socketserver
 import threading
@@ -46,6 +47,8 @@ PUBLIC = (
     "/shots/step-2.png",
     "/shots/step-3.png",
 )
+# A district's own address, like /district/house-22. It serves the page, which then opens that district.
+DISTRICT_PAGE = re.compile(r"/district/(?:house|senate)-[0-9]{1,2}")
 ADDRESS_NOTES = {
     "off": "Street address search is turned off on this server. Try a ZIP code or town instead.",
     "failed": "The address lookup is unavailable right now. Try a ZIP code or town instead.",
@@ -147,6 +150,16 @@ class Handler(SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def attachment(self, text: str, kind: str, filename: str):
+        """A file the browser saves rather than shows."""
+        body = text.encode()
+        self.send_response(200)
+        self.send_header("Content-Type", f"{kind}; charset=utf-8")
+        self.send_header("Content-Disposition", f'attachment; filename="{filename}"')
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
     def resolve(self, session, text):
         """District search: a street address through the geocoder, else districts, ZIP codes and place names."""
         address = looks_like_address(text)
@@ -194,8 +207,9 @@ class Handler(SimpleHTTPRequestHandler):
                     return self.reply(200, {"suggestions": Session(con).suggest(text)})
             except Exception:  # noqa: BLE001 - redact internal errors at the HTTP boundary
                 return self.reply(503, {"error": "Suggestions are unavailable."})
-        if path.path == "/api/profile":
-            return self.profile(parse_qs(path.query).get("district", [""])[0])
+        if path.path in ("/api/profile", "/api/profile.csv"):
+            district = parse_qs(path.query).get("district", [""])[0]
+            return self.profile(district, as_csv=path.path.endswith(".csv"))
         if path.path == "/api/about":
             if not self.store.is_file():
                 return self.reply(
@@ -213,13 +227,16 @@ class Handler(SimpleHTTPRequestHandler):
                     503,
                     {"error": "The source list is unavailable right now. Please try again later."},
                 )
+        if DISTRICT_PAGE.fullmatch(path.path):
+            self.path = "/index.html"
+            return super().do_GET()
         # Explicit allowlist: never serve the repository or keys.
         if path.path not in PUBLIC:
             return self.reply(404, {"error": "Not found"})
         super().do_GET()
 
-    def profile(self, text: str):
-        """The standard district profile, read from the store with no model call."""
+    def profile(self, text: str, as_csv: bool = False):
+        """The standard district profile, read from the store with no model call, as JSON or as a CSV file."""
         try:
             with self.connect() as con:
                 try:
@@ -230,6 +247,9 @@ class Handler(SimpleHTTPRequestHandler):
                 raw = json.loads(session.run("district_profile", {"district": ":".join(geo)}))
                 if "error" in raw:
                     raise ValueError(raw["error"])
+                if as_csv:
+                    name = f"klear-{geo[0]}-district-{int(geo[1])}.csv"
+                    return self.attachment(display.profile_csv(con, raw, session), "text/csv", name)
                 return self.reply(200, display.profile(con, raw, session, _islands().get(":".join(geo), "")))
         except Exception:  # noqa: BLE001 - redact internal errors at the HTTP boundary
             return self.reply(503, {"error": "The district profile is unavailable right now."})
