@@ -1,0 +1,101 @@
+id: rank-001
+category: rank
+question: Which House districts have the most uninsured residents under 138% of poverty?
+ideal: Ranks Hawaiʻi House districts by uninsured residents under the income limit and names the districts whose
+  ranges overlap the top one together, without claiming an order among them. Says many House estimates are unreliable
+  and that these residents meet the income test only.
+tags:
+- demo
+facts:
+- - uninsured_under_138pct_poverty
+  - house
+  - '005'
+- - uninsured_under_138pct_poverty
+  - house
+  - '024'
+- - uninsured_under_138pct_poverty
+  - house
+  - '004'
+- - uninsured_under_138pct_poverty
+  - house
+  - '045'
+- - uninsured_under_138pct_poverty
+  - house
+  - '015'
+- - uninsured_under_138pct_poverty
+  - house
+  - '046'
+- - uninsured_under_138pct_poverty
+  - house
+  - '026'
+- - uninsured_under_138pct_poverty
+  - house
+  - '009'
+- - uninsured_under_138pct_poverty
+  - house
+  - '007'
+- - uninsured_under_138pct_poverty
+  - house
+  - '036'
+- - uninsured_under_138pct_poverty
+  - house
+  - '044'
+- - uninsured_under_138pct_poverty
+  - house
+  - '030'
+- - uninsured_under_138pct_poverty
+  - house
+  - '023'
+- - uninsured_under_138pct_poverty
+  - house
+  - '006'
+- - uninsured_under_138pct_poverty
+  - house
+  - '028'
+- - uninsured_under_138pct_poverty
+  - house
+  - '032'
+- - uninsured_under_138pct_poverty
+  - house
+  - '008'
+- - uninsured_under_138pct_poverty
+  - house
+  - '013'
+- - uninsured_under_138pct_poverty
+  - house
+  - '047'
+- - uninsured_under_138pct_poverty
+  - house
+  - '021'
+- - uninsured_under_138pct_poverty
+  - house
+  - '014'
+- - uninsured_under_138pct_poverty
+  - house
+  - '025'
+- - uninsured_under_138pct_poverty
+  - house
+  - '049'
+- - uninsured_under_138pct_poverty
+  - house
+  - '020'
+- - uninsured_under_138pct_poverty
+  - house
+  - '035'
+- - uninsured_under_138pct_poverty
+  - house
+  - '012'
+- - uninsured_under_138pct_poverty
+  - house
+  - '031'
+- - uninsured_under_138pct_poverty
+  - house
+  - '029'
+- - uninsured_under_138pct_poverty
+  - house
+  - '001'
+must_say:
+- overlap
+- unreliable
+- income test
+refusal: none

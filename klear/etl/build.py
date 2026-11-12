@@ -55,6 +55,7 @@ from klear.validation.blocks import check_blocks
 from klear.validation.boundaries import check_boundaries
 from klear.validation.chas import check_chas
 from klear.validation.cms import check_cms, check_cms_districts
+from klear.validation.eligible import check_admin_counts, check_district_sums
 from klear.validation.gazetteer import check_gazetteer
 from klear.validation.hud import check_hcv
 from klear.validation.irs import check_irs
@@ -537,6 +538,8 @@ def build(
                 ]
             rules = step("rules", lambda: _rules_step(checks, skipped))
             if loaded is not None:
+                checks.append(check_district_sums(con))
+                checks.append(check_admin_counts(con))
                 checks.append(check_store(con, aligned, expected))
                 if aligned is None:
                     skipped.append(

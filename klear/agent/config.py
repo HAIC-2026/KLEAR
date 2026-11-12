@@ -25,6 +25,15 @@ REQUEST_SETTINGS = {
 }
 SEARCH_LIMIT = 12
 SITE_LIMIT = 20
+CHAMBER_TYPES = ("house", "senate")
+# How rank_districts groups districts, as the tool reports it.
+RANK_NOTE = (
+    "Districts are listed highest first. A tier starts at the highest district not yet placed and holds every "
+    "district whose range (value plus or minus its margin of error, or its stated range) overlaps that "
+    "district's range, so the data cannot say which district in a tier is higher. Every district in a later "
+    "tier is lower than the first district of each earlier tier. Name the districts of a tier together and say "
+    "their ranges overlap. Call one district the highest only when it is alone in the first tier."
+)
 MAX_EDIT_DISTANCE = 2
 # Query words expanded to the words used in indicator labels.
 ALIASES = {
@@ -108,6 +117,18 @@ PROFILE_SECTIONS = (
         ),
     ),
     (
+        "Who may qualify",
+        (
+            "hh_poverty_no_snap",
+            "pop_under_125pct_poverty",
+            "pop_under_150pct_poverty",
+            "uninsured_under_138pct_poverty",
+            "uninsured_138_399pct_poverty",
+            "kupuna_under_200pct_poverty",
+            "working_below_poverty",
+        ),
+    ),
+    (
         "Modeled needs",
         (
             "places_food_insecurity",
@@ -118,6 +139,28 @@ PROFILE_SECTIONS = (
     ),
     ("Help sites", ("sites_health_center", "sites_public_housing", "sites_lihtc")),
 )
+# Profile rows shown with a second figure for comparison (or None) and a sentence on how the two differ.
+PROFILE_BESIDE = {
+    "hh_poverty_no_snap": ("hh_snap", "households of any income received SNAP."),
+    "pop_under_150pct_poverty": (
+        None,
+        (
+            "SNAP's gross income limit, 130 percent of poverty, falls between the published cuts at 125 and 150 "
+            "percent, so the number under it lies between these two figures."
+        ),
+    ),
+    "kupuna_under_200pct_poverty": (
+        "hh_ssi",
+        "households of any age receive SSI. These count households, not people.",
+    ),
+    "working_below_poverty": (
+        "irs_eitc_returns",
+        (
+            "tax returns claimed the EITC. These count tax returns, not families or people, and the credit also "
+            "reaches incomes above poverty."
+        ),
+    ),
+}
 # Profile figures to show first, before the full sections.
 PROFILE_HEADLINE = ("pop_total", "median_household_income", "pct_people_poverty", "pct_65_plus")
 PROFILE_INDICATORS = tuple(
@@ -134,9 +177,9 @@ MEASURES = {
     "eitc_federal_ty2025": ("irs_eitc_returns", "irs_eitc_dollars"),
     "eitc_federal_ty2026": ("irs_eitc_returns", "irs_eitc_dollars"),
     "hud_il_fy2026_hi": ("hud_vouchers",),
-    "snap_fy2027": ("pct_hh_snap", "places_received_snap"),
-    "ssi_federal_2026": ("pct_hh_ssi",),
-    "ssi_hi_supplement": ("pct_hh_ssi",),
+    "snap_fy2027": ("pct_hh_snap", "hh_snap", "places_received_snap"),
+    "ssi_federal_2026": ("pct_hh_ssi", "hh_ssi"),
+    "ssi_hi_supplement": ("pct_hh_ssi", "hh_ssi"),
 }
 # What each program rule covers, as list_programs reports and matches it.
 COVERS = {

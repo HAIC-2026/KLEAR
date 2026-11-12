@@ -1,0 +1,39 @@
+# Official Hawaiʻi program counts that docs/VALIDATION.md compares with KLEAR's state estimates.
+# Each value was read from the cited file or page on the retrieved date (HST). Rebuild after changing it.
+counts:
+  - id: snap_households
+    label: SNAP households, average per month, federal fiscal years 2020 to 2024
+    value: 92633
+    unit: count
+    publisher: U.S. Department of Agriculture, Food and Nutrition Service
+    source: >-
+      SNAP Data Tables, state level participation and benefits by fiscal year. Files FY20.xlsx to FY24.xlsx in
+      the zip, sheet WRO, Hawaii block, Total row, Household column. Fiscal years 2020 to 2024: 87,792,
+      106,664, 95,820, 86,271 and 86,616 households, averaged here.
+    url: https://fns-prod.azureedge.us/sites/default/files/resource-files/snap-zip-fy69tocurrent-10.zip
+    retrieved: "2026-11-09"
+  - id: medicaid_chip_enrollment
+    label: Medicaid and CHIP enrollment (Med-QUEST), average per month, calendar years 2020 to 2024
+    value: 422533
+    unit: count
+    publisher: Centers for Medicare & Medicaid Services, from monthly reports by the Hawaiʻi Med-QUEST Division
+    source: >-
+      State Medicaid and CHIP Applications, Eligibility Determinations, and Enrollment Data on data.medicaid.gov,
+      Hawaii rows, updated reports, column total_medicaid_and_chip_enrollment. Yearly averages of the monthly
+      counts for 2020 to 2024: 359,003, 421,455, 450,363, 457,258 and 424,584, averaged here.
+    url: https://data.medicaid.gov/api/1/datastore/query/6165f45b-ca93-5bb5-9d06-db29c692a360/0
+    retrieved: "2026-11-09"
+  - id: eitc_participation_rate
+    label: EITC participation rate, tax year 2022
+    value: 83.3
+    unit: percent
+    publisher: Internal Revenue Service, with the Census Bureau Center for Economic Studies
+    source: >-
+      EITC participation rate by state, Hawaii row, tax year 2022 column. The share of eligible taxpayers who
+      received the credit, estimated by linking ACS records to IRS tax records.
+    url: https://www.eitc.irs.gov/eitc-central/participation-rate-by-state/eitc-participation-rate-by-states
+    retrieved: "2026-11-09"
+not_compared:
+  - label: USDA estimate of the SNAP participation rate among eligible people in Hawaiʻi
+    url: https://www.fns.usda.gov/research/snap/state-participation-rates
+    reason: www.fns.usda.gov refused the request (HTTP 403), so the rate was not read

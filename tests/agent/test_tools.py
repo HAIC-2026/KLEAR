@@ -125,8 +125,8 @@ def test_bad_args_return_error_json(session):
 
 def test_specs_cover_every_tool(session):
     assert [t["name"] for t in TOOL_SPECS] == [
-        "resolve_place", "search_indicators", "get_facts", "compare", "district_profile", "list_programs", "find_sites",
-        "explain_source",
+        "resolve_place", "search_indicators", "get_facts", "compare", "district_profile", "rank_districts",
+        "list_programs", "find_sites", "explain_source",
     ]  # fmt: skip
     assert all(t["input_schema"]["type"] == "object" and t["description"] for t in TOOL_SPECS)
 

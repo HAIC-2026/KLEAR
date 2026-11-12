@@ -1,11 +1,14 @@
 """Website answers show a plain lead, number tiles, comparison charts and one source list."""
 
+import json
 import shutil
 
+from klear.agent.config import PROFILE_BESIDE
+from klear.agent.tools import Session
 from klear.config import CURRENT_LAYER
 from klear.eval.contract import Answer, FactRef
 from klear.store.db import add_source
-from klear.web.display import RULES, build, programs
+from klear.web.display import PROFILE_LABELS, RULES, build, profile, programs
 
 
 def fact(ref, geo_id, value, moe, low=None, high=None):
@@ -111,6 +114,38 @@ def test_chart_sentences_name_shares_ranges_and_overlapping_margins(small_con):
     close = [fact("f1", "022", 1000.0, 100.0), fact("f2", "023", 950.0, 80.0)]
     (chart,) = build(small_con, answer(close, ["x"]))["charts"]
     assert chart["summary"].endswith("is within the margin of error of House District 23 (950 ± 80).")
+
+
+def test_who_may_qualify_section_states_its_caveat_once_and_shows_figures_beside(real_con):
+    session = Session(real_con)
+    raw = json.loads(session.run("district_profile", {"district": "house:022"}))
+    tool_rows = {r["fact"]["indicator_id"]: r for s in raw["sections"] for r in s["rows"]}
+    assert tool_rows["hh_poverty_no_snap"]["beside"]["fact"]["indicator_id"] == "hh_snap"
+    assert tool_rows["hh_poverty_no_snap"]["fact"]["note"].startswith("Meets the income test only.")
+    out = profile(real_con, raw, session)
+    sec = next(s for s in out["sections"] if s["title"] == "Who may qualify")
+    assert sec["caveat"].startswith("Meets the income test only.") and all(
+        r["caveat"] == "" for r in sec["rows"]
+    )
+    rows = {r["id"]: r for r in sec["rows"]}
+    assert set(rows) >= set(PROFILE_BESIDE) and all(r["label"] == PROFILE_LABELS[i] for i, r in rows.items())
+    eitc = rows["working_below_poverty"]["beside"]
+    assert (
+        eitc["value"].startswith("about ")
+        and eitc["spread"].startswith("range ")
+        and "tax returns" in eitc["text"]
+    )
+    assert eitc["source"]["year"] != rows["working_below_poverty"]["source"]["year"] and eitc["note"] > 0
+    assert (
+        rows["pop_under_150pct_poverty"]["beside"]["value"] == ""
+        and "130" in rows["pop_under_150pct_poverty"]["beside"]["text"]
+    )
+    names = [x["name"] for x in sec["sources"]]
+    assert any("Statistics of Income" in n for n in names) and len(names) == len(set(names))
+    text = json.dumps(out, ensure_ascii=False)
+    assert "·" not in text and "—" not in text
+    other = next(s for s in out["sections"] if s["title"] == "People")
+    assert other["caveat"] == ""
 
 
 def test_programs_follow_rule_file_changes_and_survive_broken_rules(tmp_path):
