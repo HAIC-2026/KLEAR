@@ -5,7 +5,7 @@ import time
 
 import pytest
 
-from klear.agent.config import PROFILE_SECTIONS
+from klear.agent.config import FIXED_INCOME, PROFILE_SECTIONS
 from klear.agent.tools import TOOL_SPECS, Session, _dedupe, _Named
 from klear.eval.golden import load_golden
 from klear.programs import catalog
@@ -127,8 +127,8 @@ def test_bad_args_return_error_json(session):
 
 def test_specs_cover_every_tool(session):
     assert [t["name"] for t in TOOL_SPECS] == [
-        "resolve_place", "search_indicators", "get_facts", "compare", "district_profile", "list_programs",
-        "district_programs", "find_sites", "explain_source",
+        "resolve_place", "search_indicators", "get_facts", "compare", "district_profile", "rank_districts",
+        "list_programs", "district_programs", "find_sites", "explain_source",
     ]  # fmt: skip
     assert all(t["input_schema"]["type"] == "object" and t["description"] for t in TOOL_SPECS)
 
@@ -146,6 +146,12 @@ def test_real_store_tools_smoke(session):
         ids = [i["indicator_id"] for i in call(session, "search_indicators", words=words)["indicators"]]
         # two CHAS renter counts tie with it on "renter", so allow six of the twelve results
         assert "pct_renter_occupied" in ids[:6], words
+
+
+@pytest.mark.parametrize("words", [["fixed income"], ["kupuna", "fixed", "incomes"]])
+def test_fixed_income_search_finds_every_fixed_income_figure(session, words):
+    ids = [i["indicator_id"] for i in call(session, "search_indicators", words=words)["indicators"]]
+    assert set(FIXED_INCOME) <= set(ids), words
 
 
 # small store

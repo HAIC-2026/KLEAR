@@ -255,7 +255,7 @@ def build(con, answer) -> dict:
     }
 
 
-# Short names for profile rows; the full indicator label stays available as each row's title.
+# Short names for profile rows and free answers; the full indicator label stays available as each row's title.
 PROFILE_LABELS = {
     "pop_total": "Total population",
     "pop_65_plus": "Kūpuna (65 and over)",
@@ -294,6 +294,18 @@ PROFILE_LABELS = {
     "sites_health_center": "Health center sites",
     "sites_public_housing": "Public housing developments",
     "sites_lihtc": "Low-income housing tax credit projects",
+    "hh_poverty_no_snap": "Households below poverty without SNAP",
+    "pop_under_125pct_poverty": "People under 125% of poverty",
+    "pop_under_150pct_poverty": "People under 150% of poverty",
+    "uninsured_under_138pct_poverty": "Uninsured, income under 138% of poverty",
+    "uninsured_138_399pct_poverty": "Uninsured, income 138% to 399% of poverty",
+    "kupuna_under_200pct_poverty": "Kūpuna under 200% of poverty",
+    "working_below_poverty": "Working families and individuals below poverty",
+    "median_household_income_65_plus": "Median household income, householder 65 and over",
+    "kupuna_under_100pct_poverty": "Kūpuna under 100% of poverty",
+    "householders_65_plus_alone": "Kūpuna living alone (householders 65 and over)",
+    "pct_hh_social_security": "Households with Social Security income",
+    "pct_hh_retirement_income": "Households with retirement income",
 }
 NOUNS = {"percent": "rate", "dollars": "amount"}
 
@@ -321,6 +333,22 @@ def _source(f, store: _Store, name: str = "") -> dict:
 
 def _caution(fact: dict) -> str:
     return "Unreliable estimate: the margin of error is large" if fact["reliable"] is False else ""
+
+
+def _beside(item: dict | None, session, store: _Store) -> dict | None:
+    """The figure shown next to a profile row, or only a sentence when the row has no second figure."""
+    if not item:
+        return None
+    if "fact" not in item:
+        return {"value": "", "spread": "", "text": item["text"], "source": None}
+    f = session.facts[item["fact"]["ref"]]
+    unit = store.unit(f)
+    return {
+        "value": _plain(f, unit),
+        "spread": _spread(f, unit),
+        "text": item["text"],
+        "source": _source(f, store, item["fact"]["source"]),
+    }
 
 
 def _profile_row(row: dict, session, store: _Store) -> dict:
@@ -352,20 +380,36 @@ def _profile_row(row: dict, session, store: _Store) -> dict:
         "value": _plain(f, unit),
         "spread": _spread(f, unit),
         "caution": _caution(fact),
+        "caveat": fact.get("note", ""),
         "source": _source(f, store, fact["source"]),
         "against": against,
+        "beside": _beside(row.get("beside"), session, store),
     }
 
 
 def _section(title: str, rows: list[dict]) -> dict:
-    """A profile section with its sources listed once; when there are several, each row notes which it uses."""
-    sources = list({(r["source"]["name"], r["source"]["year"]): r["source"] for r in rows}.values())
+    """A profile section with its sources listed once; when there are several, each row notes which it uses.
+    A caveat every row shares is stated once for the section."""
+    cited = [r["source"] for r in rows] + [
+        r["beside"]["source"] for r in rows if (r["beside"] or {}).get("source")
+    ]
+    sources = list({(x["name"], x["year"]): x for x in cited}.values())
     keys = [(x["name"], x["year"]) for x in sources]
+
+    def number(src: dict | None) -> int:
+        return keys.index((src["name"], src["year"])) + 1 if src and len(sources) > 1 else 0
+
     rows = [
-        r | {"note": keys.index((r["source"]["name"], r["source"]["year"])) + 1 if len(sources) > 1 else 0}
+        r
+        | {"note": number(r["source"])}
+        | ({"beside": r["beside"] | {"note": number(r["beside"]["source"])}} if r["beside"] else {})
         for r in rows
     ]
-    return {"title": title, "rows": rows, "sources": sources}
+    caveats = {r["caveat"] for r in rows}
+    shared = caveats.pop() if len(caveats) == 1 else ""
+    if shared:
+        rows = [r | {"caveat": ""} for r in rows]
+    return {"title": title, "rows": rows, "sources": sources, "caveat": shared}
 
 
 def profile(con, raw: dict, session, islands: str = "", matched: dict | None = None) -> dict:

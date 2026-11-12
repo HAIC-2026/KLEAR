@@ -399,3 +399,11 @@ def test_profile_survives_a_program_catalog_that_cannot_be_read(endpoint, monkey
     status, body = get(endpoint, "/api/profile?district=house:022")[:2]
     profile = json.loads(body)
     assert status == 200 and profile["programs"] is None and profile["sections"]
+
+
+def test_web_server_starts_without_loading_the_model_sdk():
+    code = "import sys, klear.web.__main__; print('anthropic' in sys.modules)"
+    result = subprocess.run(
+        [sys.executable, "-c", code], cwd=config.ROOT, capture_output=True, text=True, check=True
+    )
+    assert result.stdout.strip() == "False"

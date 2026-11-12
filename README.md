@@ -87,7 +87,7 @@ No `source`, environment export, or `--env-file` option is needed. Restart the w
 - klear/agent: the agent, its data tools and the code that builds and checks each answer (python -m klear.agent).
 - klear/web: the local web server, landing page, district profile and chat interface (python -m klear.web).
 - klear/eval: the answer format, eval runner, answer checks, reports and spending cap (python -m klear.eval run).
-- data: the checked-in indicator catalog (data/catalog), Hawaiian place names and district search names (data/places) and program rules (data/rules). The build also writes data/raw (download cache), data/manual (hand downloads) and data/build (the store), none of them tracked.
+- data: the checked-in indicator catalog and the official program counts the validation report compares with (data/catalog), Hawaiian place names and district search names (data/places) and program rules (data/rules). The build also writes data/raw (download cache), data/manual (hand downloads) and data/build (the store), none of them tracked.
 - eval: test questions (eval/golden), saved model replies (eval/scripts), recorded live answers (eval/recordings) and model prices. Run reports go to eval/reports, which is not tracked.
 - tests: the pytest suite, laid out like the klear packages, with small fixtures in tests/fixtures.
 - e2e: browser and accessibility tests with Playwright and axe (see [Browser and accessibility tests](#browser-and-accessibility-tests)).
@@ -200,7 +200,7 @@ The DuckDB store in data/build/klear.duckdb has these tables (schema in klear/st
 
 - source: every publisher and dataset a fact can come from. A fact without a registered source cannot be stored.
 - geography: the state, the counties, the House and Senate districts, and the 2020 tracts and ZCTAs of the block table (geo_type, geo_id, name, parent_county).
-- indicator: the curated catalog from data/catalog/indicators.yaml, with label, unit, universe, ACS variable and additive (counts and dollar totals that may be summed across units).
+- indicator: the curated catalog from data/catalog/indicators.yaml, with label, unit, universe, ACS variable, additive (counts and dollar totals that may be summed across units) and note, a caveat to state with every figure. A catalog entry may list bins instead of one ACS variable: published detailed-table cells summed, with the margin of error as the root sum of squares of theirs. The income-eligible estimates (people under 125, 138, 150 and 200 percent of poverty, uninsured people under 138 and from 138 to 399 percent, kūpuna under 200 percent, households below poverty without SNAP, and working families and individuals below poverty) are built this way from tables B22003, C17002, C27016, B17024, B17014 and B17009, which the Census Bureau publishes for every House and Senate district. They use only published cut points: SNAP's 130 percent limit lies between the stored 125 and 150 percent counts and is never interpolated. Their note says they meet the income test only.
 - indicator_coverage: the geography types each indicator is declared for, each marked complete or partial. Every geography of a complete type must have a fact. Partial coverage is for sources that publish only some tracts or ZIP codes.
 - coverage_exclusion: named geographies a source does not publish inside a complete coverage, with the reason (IRS and CMS publish no Kalawao County rows).
 - build_info: one row describing the build that wrote the store.
@@ -339,6 +339,15 @@ The agent's `district_profile` tool returns the same set, so a profile question 
 the free lookup and the page cite the same figures. A question that contains the word
 "profile" must cite every profile figure the store holds for its district, and the free
 lookup returns them all for a profile, socioeconomic or overview question.
+
+A question about kūpuna on fixed incomes, such as the challenge deck's "How many kūpuna in my district live on
+fixed incomes?", gets the same figures from the assistant and the free lookup: the kūpuna count and share, the
+median household income of householders 65 and over (B19049), kūpuna under 100 and 200 percent of poverty (B17024),
+householders 65 and over living alone (B11007, equal to DP02_0009 plus DP02_0013), and the shares of households
+with Social Security, retirement income and SSI. Those shares cover households of every age, and their note says so.
+The rates and the median are compared with the county holding most of the district's people and with the state,
+and the answer lists SSI, Kūpuna Care, SNAP and Med-QUEST with official links. The assistant's answer is rejected
+until it cites each figure, comparison and program, as listed in FIXED_INCOME in klear/agent/config.py.
 
 On screens at least 1200 px wide the profile and the chat are equal-width columns; below that
 the profile sits under the chat at full width. The chat card stays compact until the first

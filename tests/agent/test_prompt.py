@@ -47,10 +47,16 @@ WRITING = (
     "in a decline, which has no label markers, write it in plain text",
 )
 WORKFLOW = (
+    "kūpuna on fixed incomes",
+    "SSI, Kūpuna Care, SNAP and Med-QUEST",
     "resolve_place",
     "search_indicators",
     "get_facts",
     "compare",
+    "rank_districts",
+    "ranges overlap",
+    "alone in its tier",
+    "When a fact has a note",
     "list_programs",
     "find_sites",
     "submit_answer exactly once",
@@ -129,7 +135,7 @@ def test_example_answers_pass_text_checks():
 
 
 def test_prompt_is_short_and_clean():
-    assert len(SYSTEM) / 4 < 2500
+    assert len(SYSTEM) / 4 < 2600
     assert chr(0x2014) not in SYSTEM and chr(0x60) not in SYSTEM
 
 
