@@ -125,14 +125,17 @@ DISTINCT = [
 # clearly visible (delta E 15), with every deficiency.
 NOTICEABLE = [("house-hover", "house-land"), ("senate-hover", "senate-land")]
 
-# A map shaded by a measure: five shades per chamber, lightest first.
+# A map shaded by a measure: five shades per chamber, lightest first. Shades 4 and 5 are dark (DARK_SHADE in map.js).
 RAMPS = {chamber: [f"{chamber}-q{i}" for i in range(1, 6)] for chamber in ("house", "senate")}
-# District borders, the stripes on an unreliable estimate, the hover and ZIP code outlines and the edge of the picked
-# district's line are all ink, so each must stand 3:1 against every shade. The dots on a district with no figure are
-# the control color on the dimmed fill, already checked above.
-SHADE_SHAPES = [("ink", shade) for ramp in RAMPS.values() for shade in ramp]
-# Neighboring shades must be clearly visible apart (delta E 10), with every deficiency.
+DARK = {f"{chamber}-q{i}" for chamber in RAMPS for i in (4, 5)}
+# District borders and the stripes on an unreliable estimate are ink on a light shade and white on a dark one, 3:1 or
+# more. The hover and ZIP code outlines and the picked district's line pair ink with white, so the same pairs keep them
+# visible on every shade. The dots on a district with no figure are the control color on the dimmed fill, checked above.
+SHADE_SHAPES = [("white" if s in DARK else "ink", s) for ramp in RAMPS.values() for s in ramp]
+# Neighboring shades must be easy to tell apart (delta E 15), with every deficiency, and each must be clearly darker
+# than the one before (15 in lightness), which is all that someone who sees no color at all can go by.
 NEIGHBORS = [pair for ramp in RAMPS.values() for pair in pairwise(ramp)]
+STEP = 15
 
 
 def test_every_checked_color_is_a_token():
@@ -141,22 +144,30 @@ def test_every_checked_color_is_a_token():
 
 
 @pytest.mark.parametrize(("fg", "bg"), SHADE_SHAPES)
-def test_ink_stands_out_on_every_shade(fg, bg):
+def test_borders_and_stripes_stand_out_on_every_shade(fg, bg):
     assert contrast(fg, bg) >= 3, f"{fg} against {bg}: {contrast(fg, bg):.2f}:1"
+
+
+def test_dark_shades_match_the_style_sheet():
+    css = (web.STATIC / "style.css").read_text(encoding="utf-8")
+    assert "#map.shaded .district:is(.q4,.q5){stroke:#fff}" in css
+    assert "const DARK_SHADE = 4;" in (web.STATIC / "map.js").read_text(encoding="utf-8")
 
 
 @pytest.mark.parametrize("vision", [None, *DEFICIENCIES])
 @pytest.mark.parametrize(("a", "b"), NEIGHBORS)
 def test_neighboring_shades_stay_apart_with_color_blindness(a, b, vision):
-    assert difference(a, b, vision) >= 10, f"{a} and {b} with {vision or 'normal vision'}"
+    assert difference(a, b, vision) >= STEP, f"{a} and {b} with {vision or 'normal vision'}"
 
 
 @pytest.mark.parametrize("ramp", RAMPS.values())
-def test_shades_get_darker_in_order(ramp):
-    # Darker means higher, for every reader: lightness falls from each shade to the next, with every deficiency.
+def test_shades_get_clearly_darker_in_order(ramp):
+    # Darker means higher, for every reader: lightness falls by STEP or more from each shade to the next, with normal
+    # vision and each deficiency.
     for vision in [None, *DEFICIENCIES]:
         light = [lightness(s, vision) for s in ramp]
-        assert light == sorted(light, reverse=True), (ramp, vision)
+        steps = [round(a - b, 1) for a, b in pairwise(light)]
+        assert min(steps) >= STEP, (ramp, vision or "normal vision", steps)
 
 
 def lightness(name: str, vision: str | None) -> float:

@@ -23,14 +23,19 @@
 
   function el(tag, attrs) { const n = document.createElementNS(svgNS, tag); for (const [k, v] of Object.entries(attrs || {})) n.setAttribute(k, v); return n; }
 
-  // Stripes mark an unreliable estimate and dots a district with no figure. Both are drawn over the district's fill and
-  // keep the same size on screen at any zoom (see sizeLabels).
+  // Stripes mark an unreliable estimate, ink on a light shade and white on a dark one, and dots a district with no
+  // figure. They are drawn over the district's fill and keep the same size on screen at any zoom (see sizeLabels).
   const defs = el('defs');
-  const stripes = el('pattern', {id: 'map-stripes', patternUnits: 'userSpaceOnUse', width: 5, height: 5});
-  stripes.append(el('line', {class: 'stripe', x1: 2.5, y1: 0, x2: 2.5, y2: 5}));
+  const stripeSets = [['map-stripes', 'stripe'], ['map-stripes-light', 'stripe light']].map(([id, cls]) => {
+    const p = el('pattern', {id, patternUnits: 'userSpaceOnUse', width: 5, height: 5});
+    p.append(el('line', {class: cls, x1: 2.5, y1: 0, x2: 2.5, y2: 5}));
+    return p;
+  });
   const dots = el('pattern', {id: 'map-dots', patternUnits: 'userSpaceOnUse', width: 5, height: 5});
   dots.append(el('circle', {class: 'dot', cx: 2.5, cy: 2.5, r: 1}));
-  defs.append(stripes, dots);
+  defs.append(...stripeSets, dots);
+  // Shades 4 and 5 are dark, so their borders and stripes are white (style.css).
+  const DARK_SHADE = 4;
 
   // Grow a box to the frame's aspect ratio so the viewBox is exactly what is visible.
   // With clear set on a narrow frame, fit the box left of the zoom buttons.
@@ -89,7 +94,7 @@
     if (!view || !r.width) return;
     const k = view[2] / r.width;
     svg.style.setProperty('--label', `${(12 * k).toFixed(3)}px`);
-    stripes.setAttribute('patternTransform', `scale(${k.toFixed(5)}) rotate(45)`);
+    for (const p of stripeSets) p.setAttribute('patternTransform', `scale(${k.toFixed(5)}) rotate(45)`);
     dots.setAttribute('patternTransform', `scale(${k.toFixed(5)})`);
   }
 
@@ -306,8 +311,10 @@
   // the picked district gets a white line edged in ink and a ZIP code's districts a dashed outline instead of new fills.
   const hoverLine = el('path', {class: 'hover-line'}), focusRing = [el('path', {class: 'ring-halo'}), el('path', {class: 'ring-line'})];
   const pickMarks = [el('path', {class: 'pick-casing'}), el('path', {class: 'pick-line'})], zipLines = el('g');
+  // On a shaded map the hover line gets a white edge under it, so it shows on dark shades too.
+  const hoverHalo = el('path', {class: 'hover-halo'});
   const ring = el('g', {class: 'focus-ring', 'aria-hidden': 'true'});
-  ring.append(zipLines, ...pickMarks, hoverLine, ...focusRing);
+  ring.append(zipLines, ...pickMarks, hoverHalo, hoverLine, ...focusRing);
   function showRing(path) {
     const on = Boolean(path) && path.matches(':focus-visible');
     for (const p of focusRing) p.setAttribute('d', on ? path.getAttribute('d') : '');
@@ -315,7 +322,7 @@
   // Only a mouse or pen hovers; a finger would leave the outline behind after a tap.
   function showHover(path, e) {
     if (e && e.pointerType === 'touch') return;
-    hoverLine.setAttribute('d', path ? path.getAttribute('d') : '');
+    for (const p of [hoverHalo, hoverLine]) p.setAttribute('d', path ? path.getAttribute('d') : '');
   }
 
   function draw() {
@@ -379,7 +386,7 @@
     const main = hits.some(h => h.share >= 0.05) ? hits.filter(h => h.share >= 0.05) : hits;
     for (const {row, share} of hits) {
       for (const n of svg.querySelectorAll(`[data-geo="${row.geo}"]`)) n.classList.add('zip-hit');
-      zipLines.append(el('path', {class: 'zip-line', d: row.d}));
+      zipLines.append(el('path', {class: 'zip-halo', d: row.d}), el('path', {class: 'zip-line', d: row.d}));
       const path = svg.querySelector(`.district[data-geo="${row.geo}"]`);
       const b = path.getBBox();
       if (main.some(h => h.row === row)) { x0 = Math.min(x0, b.x); y0 = Math.min(y0, b.y); x1 = Math.max(x1, b.x + b.width); y1 = Math.max(y1, b.y + b.height); }
@@ -477,7 +484,7 @@
       d.path.classList.remove(...SHADE_CLASSES);
       if (fig) {
         d.path.classList.add(fig.shade ? `q${fig.shade}` : 'none');
-        if (fig.status !== 'ok') marks.append(el('path', {d: d.row.d, class: fig.status === 'unreliable' ? 'unreliable' : 'none'}));
+        if (fig.status !== 'ok') marks.append(el('path', {d: d.row.d, class: fig.status !== 'unreliable' ? 'none' : fig.shade >= DARK_SHADE ? 'unreliable on-dark' : 'unreliable'}));
         name += fig.status === MISSING ? ': no figure' : `: ${fig.value} ${fig.spread}`.trimEnd() + (fig.status === 'unreliable' ? ', unreliable estimate' : '');
       }
       d.path.setAttribute('aria-label', name);
