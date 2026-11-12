@@ -1,14 +1,30 @@
 """Turns an agent answer into a short lead, number tiles, comparison charts and a source list for the website."""
 
+import csv
+import io
 import re
 from datetime import datetime
+from pathlib import Path
+
+from yaml import YAMLError
 
 from klear.agent.answer import actual_direction
-from klear.agent.config import PROFILE_HEADLINE
-from klear.config import CURRENT_LAYER
+from klear.agent.config import AGENCIES, COVERS, PROFILE_HEADLINE
+from klear.agent.tools import display_name
+from klear.config import CURRENT_LAYER, ROOT
 from klear.eval.contract import MARKER, _has, _number, geo_display, geo_key, short_name
+from klear.rules.registry import load_rules
 
 MAX_TILES = 6
+RULES = ROOT / "data" / "rules"
+# Rules that hold income limits many programs use, rather than a program residents can use.
+LIMIT_RULES = {"fpg_2026_hi", "hud_il_fy2026_hi", "hpha_limits"}
+# Where a profile's shares of residents in each place and overlapping district come from (klear/etl/blocks.py).
+SHARES_SOURCE = {
+    "name": "2020 Census Redistricting Data (P.L. 94-171), population by block",
+    "url": "https://api.census.gov/data/2020/dec/pl",
+    "year": "2020 Census",
+}
 VINTAGE_NOTE = re.compile(r"\s*\(\{vintage:\w+\}\)")
 TAGS = {
     "higher": "Higher than {other}",
@@ -48,10 +64,58 @@ class _Store:
         return year if short.casefold() in year.casefold() else f"{year} {short}"
 
 
+def _built_day(con) -> datetime | None:
+    row = con.execute("SELECT built_at FROM build_info").fetchone()
+    try:
+        return datetime.strptime(row[0][:10], "%Y-%m-%d") if row and row[0] else None
+    except ValueError:
+        return None
+
+
 def build_month(con) -> str:
     """Month the store was built, like 'October 2026', or '' when the store does not record it."""
-    row = con.execute("SELECT built_at FROM build_info").fetchone()
-    return f"{datetime.strptime(row[0][:10], '%Y-%m-%d'):%B %Y}" if row else ""
+    day = _built_day(con)
+    return f"{day:%B %Y}" if day else ""
+
+
+def build_date(con) -> str:
+    """Day the store was built, like 'October 9, 2026', or '' when the store does not record it."""
+    day = _built_day(con)
+    return f"{day:%B} {day.day}, {day.year}" if day else ""
+
+
+def program_rules(path: Path = RULES) -> list:
+    """Confirmed program rules in file order, leaving out income limit tables."""
+    return [r for r in load_rules(path) if r.status == "confirmed" and r.rule_id not in LIMIT_RULES]
+
+
+# The last program list read, with the rule files it was read from. Replaced whole, so threads never see half of it.
+_programs: tuple = (None, [])
+
+
+def programs(path: Path = RULES) -> list[dict]:
+    """Programs to explore, one entry per program across its rule years. Every district gets the same list
+    until programs are matched to district figures. Read again only when a rule file changes, and empty when
+    the rules cannot be read, so a broken rule file never takes the profile down with it."""
+    global _programs
+    try:
+        key = (path, tuple((f.name, f.stat().st_mtime_ns) for f in sorted(path.glob("*.yaml"))))
+        read, out = _programs
+        if read != key:
+            found = {}
+            for r in program_rules(path):
+                name = display_name(r.program)
+                entry = {
+                    "name": name,
+                    "covers": COVERS.get(r.rule_id, ""),
+                    "agency": AGENCIES.get(r.rule_id, ""),
+                }
+                found.setdefault(name, entry | {"url": r.url})
+            out = list(found.values())
+            _programs = (key, out)
+        return [dict(p) for p in out]
+    except (OSError, ValueError, YAMLError):
+        return []
 
 
 def year_text(vintage: str, month: str) -> str:
@@ -297,9 +361,14 @@ def _compared(mine, theirs, unit: str, direction: str | None) -> str:
     return f"about {round(ratio * 10) * 10} percent of"
 
 
-def _source(f, store: _Store, fallback: str = "") -> dict:
-    name, url = store.sources.get(f.source_id, (fallback, ""))
-    return {"name": name, "url": url, "year": year_text(f.vintage, store.month)}
+def _source(f, store: _Store, name: str = "") -> dict:
+    """A fact's source name, address and vintage as readers see it."""
+    found, url = store.sources.get(f.source_id, (name or f.source_id, ""))
+    return {"name": found, "url": url, "year": year_text(f.vintage, store.month)}
+
+
+def _caution(fact: dict) -> str:
+    return "Unreliable estimate: the margin of error is large" if fact["reliable"] is False else ""
 
 
 def _beside(item: dict | None, session, store: _Store) -> dict | None:
@@ -326,20 +395,27 @@ def _profile_row(row: dict, session, store: _Store) -> dict:
     for a in row["against"]:
         theirs = session.facts[a["ref"]]
         value = _plain(theirs, unit)
+        # The other place's figure on its own too, for the printed summary's county and state columns.
+        figure = {
+            "geo": a["geo"],
+            "place": a["geo_name"],
+            "value": value,
+            "spread": _spread(theirs, unit),
+            "source": _source(theirs, store, fact["source"]),
+        }
         if "share" in a:
-            against.append({"lead": a["share"], "rest": f"of the total in {a['geo_name']}: {value}"})
+            against.append({"lead": a["share"], "rest": f"of the total in {a['geo_name']}: {value}"} | figure)
         else:
             lead = _compared(f, theirs, unit, a.get("direction"))
-            against.append(
-                {"lead": lead, "rest": f"the {NOUNS.get(unit, 'figure')} in {a['geo_name']}: {value}"}
-            )
+            rest = f"the {NOUNS.get(unit, 'figure')} in {a['geo_name']}: {value}"
+            against.append({"lead": lead, "rest": rest} | figure)
     return {
         "id": f.indicator_id,
         "label": PROFILE_LABELS.get(f.indicator_id, fact["label"]),
         "title": fact["label"],
         "value": _plain(f, unit),
         "spread": _spread(f, unit),
-        "caution": "Unreliable estimate: the margin of error is large" if fact["reliable"] is False else "",
+        "caution": _caution(fact),
         "caveat": fact.get("note", ""),
         "source": _source(f, store, fact["source"]),
         "against": against,
@@ -391,8 +467,68 @@ def profile(con, raw: dict, session, islands: str = "") -> dict:
         "overlaps": [{"name": o["name"], "share": _percent(o["share"])} for o in raw["overlaps"]],
         "headline": headline,
         "sections": sections,
+        "shares_source": SHARES_SOURCE,
+        "programs": programs(),
+        "built": build_date(con),
     }
 
 
 def _percent(share: float) -> str:
     return "<1%" if 0 < share < 0.005 else f"{share:.0%}"
+
+
+CSV_COLUMNS = (
+    "Section",
+    "Measure",
+    "Geography",
+    "Estimate",
+    "Margin of error (90%)",
+    "Range low",
+    "Range high",
+    "Unit",
+    "Source",
+    "Vintage",
+    "Source URL",
+    "Note",
+)
+
+
+def _csv_number(value) -> str:
+    """A raw number for spreadsheets: no separators or symbols, whole numbers without a decimal point."""
+    if not _has(value):
+        return ""
+    return str(int(value)) if float(value).is_integer() else str(round(value, 4))
+
+
+def profile_csv(con, raw: dict, session) -> str:
+    """Every profile figure and its county and state comparisons, one row per place, as CSV with a byte
+    order mark so spreadsheets read the ʻokina and kahakō."""
+    store = _Store(con)
+    out = io.StringIO()
+    writer = csv.writer(out)
+    writer.writerow(CSV_COLUMNS)
+    district = raw["district"]["name"]
+    for section in raw["sections"]:
+        for row in section["rows"]:
+            fact = row["fact"]
+            places = [(session.facts[fact["ref"]], district, _caution(fact))]
+            places += [(session.facts[a["ref"]], a["geo_name"], "") for a in row["against"]]
+            for f, place, note in places:
+                source = _source(f, store, fact["source"])
+                writer.writerow(
+                    [
+                        section["title"],
+                        fact["label"],
+                        place,
+                        _csv_number(f.value),
+                        _csv_number(f.moe),
+                        _csv_number(f.value_low),
+                        _csv_number(f.value_high),
+                        store.unit(f),
+                        source["name"],
+                        source["year"],
+                        source["url"],
+                        note or ("" if _has(f.value) else "Not available"),
+                    ]
+                )
+    return "﻿" + out.getvalue()

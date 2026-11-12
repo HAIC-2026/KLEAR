@@ -7,12 +7,12 @@ from datetime import date
 import openpyxl
 
 from klear.etl.manual import ManualInputMissing, manual_file
-from klear.rules.registry import FPG_API, Rule
+from klear.rules.registry import FPG_API, Rule, document_text
 from klear.validation import CheckResult
 
 HUD_FILE = "Section8-FY26.xlsx"
 HUD_URL = "https://www.huduser.gov/portal/datasets/il/il26/Section8-FY26.xlsx"
-HUD_COUNTIES = ("Honolulu", "Hawaii", "Maui", "Kauai")
+HUD_COUNTIES = ("Honolulu", "Hawaii", "Maui", "Kauai", "Kalawao")
 HUD_COLUMNS = (
     ("median2026",)
     + tuple(f"eli_{i}" for i in range(1, 9))
@@ -90,7 +90,9 @@ def _check_hud(rule: Rule, details: list[dict]) -> int:
         rows = wb.active.iter_rows(values_only=True)
         header = [str(h).strip().lower() if h is not None else "" for h in next(rows)]
         ci = {h: i for i, h in enumerate(header)}
-        table = [r for r in rows if str(r[ci["state_alpha"]]).strip() == "HI"]
+        # The FY26 file names the state column stusps; older files used state_alpha.
+        state = ci["stusps"] if "stusps" in ci else ci["state_alpha"]
+        table = [r for r in rows if str(r[state]).strip() == "HI"]
     finally:
         wb.close()
     n = 0
@@ -121,6 +123,19 @@ def _check_anchor(
     return 1
 
 
+def _rule_text(rule: Rule, url: str, fetch_text: Callable[[str], str], notes: list[str]) -> str:
+    """The live page's text, or the hand-saved copy's when the page blocks scripts and the rule names one."""
+    try:
+        return fetch_text(url)
+    except Exception as e:  # a blocked or failed fetch falls back to the saved copy
+        if not rule.saved or url not in (rule.url, rule.fetch_url):
+            raise
+        notes.append(
+            f"{rule.rule_id}: live page unavailable ({type(e).__name__}), checked the saved copy {rule.saved}"
+        )
+        return document_text(manual_file(rule.saved, url).read_bytes())
+
+
 def check_rules(rules: list[Rule], *, fetch_text: Callable[[str], str]) -> CheckResult:
     details: list[dict] = []
     notes: list[str] = []
@@ -141,15 +156,20 @@ def check_rules(rules: list[Rule], *, fetch_text: Callable[[str], str]) -> Check
                     )  # fmt: skip
                 else:
                     eurl = es["url"]
-                    n += _check_anchor(r, "effective", es["quote"], fetch_text(eurl), shown_es, pages, eurl, details)  # fmt: skip
+                    etext = _rule_text(r, eurl, fetch_text, notes)
+                    n += _check_anchor(r, "effective", es["quote"], etext, shown_es, pages, eurl, details)
             if r.rule_id == "fpg_2026_hi":
                 n += _check_fpg(r, fetch_text, details)
             elif r.rule_id == "hud_il_fy2026_hi":
                 n += _check_hud(r, details)
             else:
                 url = r.fetch_url or r.url
-                text = fetch_text(url)
+                texts = {url: _rule_text(r, url, fetch_text, notes)}
                 for key, e in r.values.items():
+                    # A value may cite its own document when a program's figures span several.
+                    vurl = e.get("url") or url
+                    if vurl not in texts:
+                        texts[vurl] = _rule_text(r, vurl, fetch_text, notes)
                     if e.get("shown") is not None and not shown_is_value(e["value"], str(e["shown"])):
                         details.append(
                             {"rule_id": r.rule_id, "check": "shown_value", "key": key, "value": e["value"], "shown": e["shown"]}
@@ -157,7 +177,7 @@ def check_rules(rules: list[Rule], *, fetch_text: Callable[[str], str]) -> Check
                         n += 1
                         continue
                     want = shown(e["value"], e.get("shown"))
-                    n += _check_anchor(r, key, e["quote"], text, want, pages, url, details)
+                    n += _check_anchor(r, key, e["quote"], texts[vurl], want, pages, vurl, details)
         except ManualInputMissing as e:
             missing = e
             notes.append(f"{r.rule_id}: skipped, {e}")

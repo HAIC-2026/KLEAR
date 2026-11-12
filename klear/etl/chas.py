@@ -1,6 +1,4 @@
 # Loads HUD CHAS 2018-2022 Table 8 cost burden by tract from a manual download and apportions it to districts.
-import io
-import re
 import zipfile
 from pathlib import Path
 
@@ -16,16 +14,14 @@ CHAS_FILE = "2018thru2022-140-csv.zip"
 CHAS_URL = "https://www.huduser.gov/portal/datasets/cp/2018thru2022-140-csv.zip"
 SOURCE_ID = "hud_chas_2018_2022"
 VINTAGE = "HUD CHAS 2018-2022 (ACS 5-year), tract level"
-TABLE = "Table 8"
 TABLE_ID = "Table8"
-# provisional: confirm against the real 2018-2022 dictionary
-TENURES = {"renter": "Renter occupied", "owner": "Owner occupied"}
-BANDS = [
-    "household income is less than or equal to 30% of HAMFI",
-    "household income is greater than 30% but less than or equal to 50% of HAMFI",
-    "household income is greater than 50% but less than or equal to 80% of HAMFI",
-]
-MEASURES = {"burdened": "cost burden greater than 30%", "total": "all households"}
+# Table 8 layout in the 2018-2022 release, which ships no data dictionary.
+# Each income band is a block of 13 columns: the band total, then cost burden at or below 30%,
+# over 30% to 50%, over 50%, and not computed, each with two detail lines.
+# Checked against HUD's published Hawaiʻi state summary in klear/validation/chas.py.
+BAND_STARTS = {"owner": (3, 16, 29), "renter": (69, 82, 95)}  # at or below 30%, 30-50%, 50-80% HAMFI
+BURDEN_OFFSETS = (4, 7)  # cost burden over 30% to 50%, and over 50%
+ESTIMATES = 133  # T8_est1 to T8_est133
 CHAS_INDICATORS = {
     "chas_renter_lowinc_burdened": "Renter households at or below 80% HAMFI with housing cost burden over 30%",
     "chas_owner_lowinc_burdened": "Owner households at or below 80% HAMFI with housing cost burden over 30%",
@@ -40,26 +36,12 @@ PARTS = {
 }
 
 
-def _norm(s: str) -> str:
-    return re.sub(r"\s+", " ", str(s)).strip().lower()
-
-
-def chas_columns(dictionary: pd.DataFrame) -> dict[str, list[str]]:
-    # select Table 8 estimate columns by dictionary text, failing on no match or on several
-    d = dictionary[dictionary["Table"].map(_norm) == _norm(TABLE)]
-    text = d["Description"].map(_norm)
+def chas_columns() -> dict[str, list[str]]:
+    # Table 8 estimate columns for each indicator, summed over the three bands at or below 80% HAMFI
     out: dict[str, list[str]] = {}
     for ind, (tenure, measure) in PARTS.items():
-        cols = []
-        for band in BANDS:
-            want = _norm(f"{TENURES[tenure]}, {band}, {MEASURES[measure]}")
-            hit = d["Column Name"][text == want]
-            if hit.empty:
-                raise ValueError(f"no {TABLE} dictionary row with text: {want}")
-            if len(hit) > 1:
-                raise ValueError(f"more than one {TABLE} dictionary row with text: {want}")
-            cols.append(str(hit.iloc[0]))
-        out[ind] = cols
+        offsets = BURDEN_OFFSETS if measure == "burdened" else (0,)
+        out[ind] = [f"T8_est{b + o}" for b in BAND_STARTS[tenure] for o in offsets]
     return out
 
 
@@ -70,20 +52,12 @@ def _member(z: zipfile.ZipFile, pred, what: str) -> str:
     return hits[0]
 
 
-def _read_dictionary(z: zipfile.ZipFile) -> pd.DataFrame:
-    name = _member(z, lambda n: "dictionary" in n and n.endswith((".csv", ".xlsx")), "data dictionary")
-    with z.open(name) as f:
-        if name.lower().endswith(".csv"):
-            return pd.read_csv(f, dtype=str, keep_default_na=False)
-        sheets = pd.read_excel(io.BytesIO(f.read()), sheet_name=None, dtype=str)
-        return pd.concat(sheets.values(), ignore_index=True)
-
-
 def read_chas(zip_path: Path) -> pd.DataFrame:
     with zipfile.ZipFile(zip_path) as z:
-        cols = chas_columns(_read_dictionary(z))
+        cols = chas_columns()
         with z.open(_member(z, lambda n: n.endswith("table8.csv"), "Table8.csv")) as f:
-            raw = pd.read_csv(f, dtype={"geoid": str})
+            # place names such as Doña Ana are Latin-1
+            raw = pd.read_csv(f, dtype={"geoid": str}, encoding="latin-1")
     # "14000US15003008001" -> "15003008001"
     src = raw["geoid"].str[-11:].to_numpy()
     if not all(len(s) == 11 and s.isdigit() for s in src):
@@ -168,5 +142,7 @@ def chas_facts(
         unplaced=lost_by_chamber,
         uncovered=uncovered,
         published=published_totals(df),
+        # Hawaiʻi tracts only, for the comparison with HUD's state summary
+        hawaii=df[df.src_id.str.startswith("15")].groupby("indicator_id").value.sum().to_dict(),
     )
     return facts
