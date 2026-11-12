@@ -33,7 +33,11 @@ REQUIRED_RULE_IDS = (
     "kupuna_care",
     "hpha_limits",
 )
-REQUIRED = ("rule_id", "program", "status", "effective", "url", "values", "verified_by", "retrieved")
+# source_url is the page the rule's values were checked against, fetched from fetch_url when that is set.
+# info_url is where residents learn about the program or apply, the link the website shows.
+REQUIRED = (
+    "rule_id", "program", "status", "effective", "source_url", "info_url", "values", "verified_by", "retrieved",
+)  # fmt: skip
 OPTIONAL = ("quote", "note", "fetch_url", "effective_source", "saved")
 
 
@@ -43,16 +47,23 @@ class Rule:
     program: str
     status: str
     effective: str
-    url: str
+    source_url: str
     values: dict
     quote: str | None
     verified_by: str
     retrieved: str
+    info_url: str = ""
     note: str = field(default="")
     fetch_url: str | None = None
     effective_source: dict | None = None
     # A copy of the page saved by hand in data/manual/, read when the live page blocks scripts.
     saved: str | None = None
+
+    @property
+    def url(self) -> str:
+        """The program's page for people, info_url. Callers that link a rule's url, written before source_url
+        and info_url were split, link the page to learn or apply, never the one the values were checked on."""
+        return self.info_url
 
 
 def _check_values(name: str, rule_id: str, values: dict) -> None:
@@ -89,6 +100,8 @@ def load_rules(path: Path = ROOT / "data" / "rules", *, required=REQUIRED_RULE_I
                     raise ValueError(f"{f.name}: confirmed rule {d['rule_id']} has no values")
             else:
                 _check_values(f.name, d["rule_id"], d["values"])
+        if not str(d["info_url"]).startswith("https://"):
+            raise ValueError(f"{f.name}: info_url must be an https:// page")
         es = d.get("effective_source")
         if es is not None and not all(str(es.get(k, "")).strip() for k in ("url", "quote", "shown")):
             raise ValueError(f"{f.name}: effective_source needs url, quote and shown")

@@ -9,6 +9,10 @@ from klear.etl.facts import additive_ids, fact_frame, unplaced
 
 ZIP_URL = "https://www.irs.gov/pub/irs-soi/23zpallnoagi.csv"
 COUNTY_URL = "https://www.irs.gov/pub/irs-soi/23incyallnoagi.csv"
+# the IRS page that describes these files and links them
+PAGE_URL = (
+    "https://www.irs.gov/statistics/soi-tax-stats-individual-income-tax-statistics-2023-zip-code-data-soi"
+)
 SOURCE_ID = "irs_soi_zip_2023"
 VINTAGE = "Tax year 2023"
 STATE_ZIP = "00000"

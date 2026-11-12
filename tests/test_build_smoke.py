@@ -361,12 +361,17 @@ def _write_rules(d, hud_status):
     d.mkdir(exist_ok=True)
     for f in d.glob("*.yaml"):
         f.unlink()
-    base = {"effective": "2026-10-01", "verified_by": "read from page", "retrieved": "2026-10-30"}
+    base = {
+        "effective": "2026-10-01",
+        "verified_by": "read from page",
+        "retrieved": "2026-10-30",
+        "info_url": "https://example.org/apply",
+    }
     page_rule = base | {
         "rule_id": "smoke_rule",
         "program": "Smoke program",
         "status": "confirmed",
-        "url": "https://example.org/rules/smoke_page",
+        "source_url": "https://example.org/rules/smoke_page",
         "values": {"max_hh4": {"value": 1655, "quote": "4 $1,023 $1,655"}},
     }
     hud = {c: {col: (150000 if col == "median2026" else 1) for col in HUD_COLUMNS} for c in HUD_COUNTIES}
@@ -374,7 +379,7 @@ def _write_rules(d, hud_status):
         "rule_id": "hud_il_fy2026_hi",
         "program": "HUD income limits",
         "status": hud_status,
-        "url": HUD_URL,
+        "source_url": HUD_URL,
         "values": hud if hud_status == "confirmed" else {},
     }
     for r in (page_rule, hud_rule):

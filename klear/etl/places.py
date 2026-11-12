@@ -11,7 +11,13 @@ from klear.etl.geographies import small_geographies
 from klear.store.db import FACT_COLS
 
 PLACES_URL = "https://data.cdc.gov/resource/cwsq-ngmh.csv?stateabbr=HI&$limit=50000"
+PAGE_URL = (
+    "https://data.cdc.gov/500-Cities-Places/PLACES-Local-Data-for-Better-Health-Census-Tract-D/cwsq-ngmh"
+)
 COUNTY_URL = "https://data.cdc.gov/resource/swc5-untb.csv?stateabbr=HI&$limit=50000"
+COUNTY_PAGE_URL = (
+    "https://data.cdc.gov/500-Cities-Places/PLACES-Local-Data-for-Better-Health-County-Data-20/swc5-untb"
+)
 SOURCE_ID = "cdc_places_2025"
 COUNTY_SOURCE_ID = "cdc_places_2025_county"
 STATE = "15"

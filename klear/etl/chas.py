@@ -13,6 +13,7 @@ from klear.rules.cuts import CUTS
 
 CHAS_FILE = "2018thru2022-140-csv.zip"
 CHAS_URL = "https://www.huduser.gov/portal/datasets/cp/2018thru2022-140-csv.zip"
+PAGE_URL = "https://www.huduser.gov/portal/datasets/cp.html"
 SOURCE_ID = "hud_chas_2018_2022"
 VINTAGE = "HUD CHAS 2018-2022 (ACS 5-year), tract level"
 TABLE_ID = "Table8"

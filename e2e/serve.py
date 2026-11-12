@@ -20,7 +20,7 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from klear.store.db import add_coverage, add_facts, add_indicators
+from klear.store.db import add_coverage, add_facts, add_indicators, add_source
 from klear.web import __main__ as web
 from klear.web.assistant import Assistant, DailyBudget
 from tests.agent.fake_client import tool, turn
@@ -31,8 +31,18 @@ PARTISAN = ("vote", "candidate", "campaign", "party")
 
 
 def build_store(path: Path) -> None:
-    """The pytest small store plus a poverty rate, so answers can compare a percent with the county and state."""
+    """The pytest small store plus a poverty rate, so answers can compare a percent with the county and state.
+    The profile also gets a median age from an ACS data profile table, which links to that table for each place on
+    data.census.gov, and an EITC count moved to the district from ZIP codes, which links to the methods page."""
     con = build_small_store(path)
+    add_source(
+        con, "acs2024_5yr_profile", "ACS 5-year Data Profiles", "Census", "https://example.org/api",
+        "2020-2024 ACS 5-year", "pd", page_url="https://example.org/profiles",
+    )  # fmt: skip
+    add_source(
+        con, "irs_soi_zip_2023", "IRS ZIP code data", "IRS", "https://example.org/irs.csv", "Tax year 2023", "pd",
+        page_url="https://example.org/irs",
+    )  # fmt: skip
     add_indicators(
         con,
         pd.DataFrame(
@@ -44,18 +54,34 @@ def build_store(path: Path) -> None:
                     "people",
                     None,
                     False,
-                )
+                ),
+                ("median_age", "Median age", "years", "people", None, False),
+                ("irs_eitc_returns", "Returns with earned income tax credit", "count", "returns", None, True),
             ],
             columns=["indicator_id", "label", "unit", "universe", "acs_var", "additive"],
         ),
     )
-    add_coverage(con, pd.DataFrame([("pct_people_poverty", "house")], columns=["indicator_id", "geo_type"]))
+    add_coverage(
+        con,
+        pd.DataFrame(
+            [("pct_people_poverty", "house"), ("median_age", "house"), ("irs_eitc_returns", "house")],
+            columns=["indicator_id", "geo_type"],
+        ),
+    )
+    acs = {"source_id": "acs2024_5yr_profile", "table_id": "DP05"}
     rows = [
         _fact("house", "022", "pct_people_poverty", 12.3, 2.1),
         _fact("house", "023", "pct_people_poverty", 7.9, 1.8),
         _fact("county", "15003", "pct_people_poverty", 8.9, 0.5),
         _fact("state", "15", "pct_people_poverty", 9.8, 0.4),
-    ]
+        _fact("house", "022", "median_age", 44.1, 1.2, **acs),
+        _fact("county", "15003", "median_age", 40.2, 0.2, **acs),
+        _fact("state", "15", "median_age", 40.6, 0.1, **acs),
+        _fact(
+            "house", "022", "irs_eitc_returns", 1500.0, None, source_id="irs_soi_zip_2023", tier="A",
+            moe_status="range", value_low=1200.0, value_high=1800.0,
+        ),
+    ]  # fmt: skip
     add_facts(con, pd.DataFrame(rows))
     con.close()
 

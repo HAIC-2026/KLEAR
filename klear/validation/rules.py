@@ -128,7 +128,7 @@ def _rule_text(rule: Rule, url: str, fetch_text: Callable[[str], str], notes: li
     try:
         return fetch_text(url)
     except Exception as e:  # a blocked or failed fetch falls back to the saved copy
-        if not rule.saved or url not in (rule.url, rule.fetch_url):
+        if not rule.saved or url not in (rule.source_url, rule.fetch_url):
             raise
         notes.append(
             f"{rule.rule_id}: live page unavailable ({type(e).__name__}), checked the saved copy {rule.saved}"
@@ -163,7 +163,7 @@ def check_rules(rules: list[Rule], *, fetch_text: Callable[[str], str]) -> Check
             elif r.rule_id == "hud_il_fy2026_hi":
                 n += _check_hud(r, details)
             else:
-                url = r.fetch_url or r.url
+                url = r.fetch_url or r.source_url
                 texts = {url: _rule_text(r, url, fetch_text, notes)}
                 for key, e in r.values.items():
                     # A value may cite its own document when a program's figures span several.

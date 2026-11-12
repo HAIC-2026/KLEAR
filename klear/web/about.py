@@ -81,7 +81,7 @@ def about(con, validation: Path) -> dict:
     sources = [
         {"name": name, "publisher": publisher, "url": url, "years": year_text(vintage, month)}
         for name, publisher, url, vintage in con.execute(
-            "SELECT name, publisher, url, vintage FROM source ORDER BY publisher, name"
+            "SELECT name, publisher, page_url, vintage FROM source ORDER BY publisher, name"
         ).fetchall()
     ]
     measures = con.execute("SELECT count(*) FROM indicator").fetchone()[0]

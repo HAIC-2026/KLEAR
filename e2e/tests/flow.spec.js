@@ -1,6 +1,6 @@
 // The main flow at desktop and phone sizes: search, choose, profile, ask, open a source, and come back.
 import {test, expect} from '@playwright/test';
-import {DISTRICT, ask, offline} from './helpers.js';
+import {DISTRICT, ask, chooseDistrict, offline, openAll} from './helpers.js';
 
 test.beforeEach(async ({context}) => offline(context));
 
@@ -60,6 +60,25 @@ test('search, choose, read the profile, ask, open a source, and come back', asyn
   await expect(source).toBeFocused();
   await expect(page.locator('#log article')).toHaveCount(1);
   await expect(page.locator('#district-title')).toHaveText(DISTRICT);
+});
+
+// Every figure can be checked: an ACS figure links to its own table for the district on data.census.gov, and one
+// KLEAR moved to districts from ZIP codes links to the methods page, which opens in a new tab like any source.
+test('figures link to their table on data.census.gov or to the methods page', async ({page}) => {
+  await page.goto('/');
+  await chooseDistrict(page);
+  await openAll(page);
+  const profile = page.getByRole('region', {name: DISTRICT});
+  const table = profile.getByRole('link', {name: 'Table DP05 for House District 22 (opens in a new tab)'});
+  await expect(table).toHaveAttribute('href', 'https://data.census.gov/table/ACSDP5Y2024.DP05?g=620L900US15022');
+  await expect(profile.getByRole('link', {name: 'ACS 5-year Data Profiles (opens in a new tab)'})).toHaveAttribute('href', 'https://example.org/profiles');
+  const methods = profile.getByRole('link', {name: 'How KLEAR estimates district ranges (opens in a new tab)'});
+  const [tab] = await Promise.all([page.waitForEvent('popup'), methods.click()]);
+  await tab.waitForLoadState();
+  const opened = new URL(tab.url());
+  expect(opened.origin + opened.pathname + opened.hash).toBe(new URL('/methods.html#irs_soi_zip_2023', page.url()).href);
+  await expect(tab.getByRole('heading', {name: 'Tax returns and the earned income tax credit'})).toBeVisible();
+  await tab.close();
 });
 
 test('a failed question is announced and waits in the box to retry', async ({page}) => {

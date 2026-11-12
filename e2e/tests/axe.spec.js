@@ -14,6 +14,12 @@ test('landing page', async ({page}, testInfo) => {
   await expectAccessible(page, testInfo, 'landing page');
 });
 
+test('methods page', async ({page}, testInfo) => {
+  await page.goto('/methods.html');
+  await expect(page.getByRole('heading', {level: 1})).toHaveText('How KLEAR estimates district figures');
+  await expectAccessible(page, testInfo, 'methods page');
+});
+
 test('district search results', async ({page}, testInfo) => {
   await page.getByLabel('District, place, ZIP code, or street address').first().fill('Kāneʻohe');
   await page.getByRole('button', {name: 'Find district'}).first().click();

@@ -126,6 +126,7 @@ test('printing gives a one-page summary with every source, year and address writ
   const sources = sheet.locator('.sheet-sources li');
   await expect(sources.first()).toHaveText('American Community Survey 5-year, 2020-2024 https://example.org');
   await expect(sources.last()).toContainText('2020 Census Redistricting Data (P.L. 94-171), population by block, 2020 Census');
+  await expect(sources.last()).toContainText('https://www.census.gov/programs-surveys/decennial-census/about/rdo/summary-files.html');
   // No need figure in the fixture district sits above the state's, so the statewide programs print, six at most.
   const programs = sheet.locator('.sheet-programs');
   await expect(programs.locator('li')).toHaveCount(6);

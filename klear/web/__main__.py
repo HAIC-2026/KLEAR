@@ -21,6 +21,7 @@ from klear.agent.config import DEFAULT_MODEL
 from klear.agent.tools import Session
 from klear.config import ROOT, MissingSecretError, load_secret
 from klear.eval.contract import geo_key
+from klear.store.db import missing_columns
 from klear.web import display
 from klear.web.about import about
 from klear.web.assistant import DAILY_CAP, Assistant, DailyBudget, basic
@@ -45,6 +46,7 @@ PUBLIC = (
     "/apple-touch-icon.png",
     "/map.js",
     "/districts.json",
+    "/methods.html",
     "/fonts/public-sans.woff2",
     "/fonts/public-sans-ext.woff2",
     "/shots/step-1.png",
@@ -89,6 +91,22 @@ def _allowed(ip: str) -> bool:
             return False
         seen.append(now)
         return True
+
+
+REBUILD = "uv run python -m klear.etl build"
+# The columns the store lacks, with the file version they were read from. Replaced whole, so threads never see half.
+_schema: tuple = (None, [])
+
+
+def outdated(store: Path) -> list[str]:
+    """Columns a store built by an older KLEAR lacks, read again only when the store file changes. Such a store is
+    not used: district search, profiles and chat wait for a rebuild."""
+    global _schema
+    key = (store, store.stat().st_mtime_ns)
+    if _schema[0] != key:
+        with duckdb.connect(str(store), read_only=True) as con:
+            _schema = (key, missing_columns(con))
+    return _schema[1]
 
 
 @functools.cache
@@ -184,6 +202,8 @@ class Handler(SimpleHTTPRequestHandler):
     def connect(self):
         if not self.store.is_file():
             raise RuntimeError("Missing store")
+        if outdated(self.store):
+            raise RuntimeError("Store built by an older KLEAR")
         return duckdb.connect(str(self.store), read_only=True)
 
     def do_GET(self):
@@ -224,6 +244,14 @@ class Handler(SimpleHTTPRequestHandler):
                     },
                 )
             try:
+                if outdated(self.store):
+                    return self.reply(
+                        503,
+                        {
+                            "error": "The data store was built by an older version of KLEAR. "
+                            "The source list and data checks appear here once it is rebuilt."
+                        },
+                    )
                 with self.connect() as con:
                     return self.reply(200, about(con, self.store.parent / "validation.json"))
             except Exception:  # noqa: BLE001 - redact internal errors at the HTTP boundary
@@ -331,6 +359,17 @@ class Handler(SimpleHTTPRequestHandler):
             BUSY.release()
 
 
+def _startup_gaps(store: Path) -> list[str]:
+    """What the startup message says the store lacks. A missing store has its own message, and a file that is not
+    a readable store is left to the requests to report."""
+    if not store.is_file():
+        return []
+    try:
+        return outdated(store)
+    except duckdb.Error:
+        return []
+
+
 def main(argv: list[str] | None = None):
     parser = argparse.ArgumentParser(description="Run the KLEAR website locally.")
     parser.add_argument("--host", default="127.0.0.1")
@@ -373,6 +412,9 @@ def main(argv: list[str] | None = None):
             mode = f"assistant, ${args.daily_cap:.2f} daily cap"
         print(f"KLEAR: {url} ({mode})", flush=True)
         print(f"Data store: {store}", flush=True)
+        if gaps := _startup_gaps(store):
+            print(f"The data store was built by an older KLEAR and lacks {', '.join(gaps)}.", flush=True)
+            print(f"District search and chat are off until it is rebuilt with: {REBUILD}", flush=True)
         if geocoder is not None:
             print(
                 "Address search sends typed street addresses to the U.S. Census Bureau geocoder.", flush=True

@@ -2,7 +2,8 @@ rule_id: wic_2026_27
 program: WIC
 status: confirmed
 effective: '2026-07-01'
-url: https://www.fna.usda.gov/wic/fr-042926
+info_url: https://health.hawaii.gov/wic/
+source_url: https://www.fna.usda.gov/wic/fr-042926
 effective_source:
   url: https://www.fna.usda.gov/wic/fr-042926
   quote: Effective from July 1, 2026 to June 30, 2027

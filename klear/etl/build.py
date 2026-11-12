@@ -92,33 +92,41 @@ CURRENT = config.CURRENT_LAYER
 EVAL_RECORDINGS = eval_runner.RECORDINGS
 EVAL_HELDOUT = HELDOUT
 # source_id: name, publisher, url, vintage
+# then page_url. url is what the build downloads, page_url the publisher's page about it that people read.
 SOURCES = {
     irs.SOURCE_ID: (
         "IRS Statistics of Income individual income tax statistics by ZIP code and county (no AGI classes)",
-        "Internal Revenue Service, Statistics of Income", irs.ZIP_URL, irs.VINTAGE,
+        "Internal Revenue Service, Statistics of Income", irs.ZIP_URL, irs.VINTAGE, irs.PAGE_URL,
     ),
     cms.SOURCE_ID: (
         "Marketplace open enrollment period public use files by ZIP code and county",
-        "Centers for Medicare & Medicaid Services", cms.ZIP_URL, cms.VINTAGE,
+        "Centers for Medicare & Medicaid Services", cms.ZIP_URL, cms.VINTAGE, cms.PAGE_URL,
     ),
-    hud.SOURCE_ID: ("Housing Choice Vouchers by Tract", HUD_PUBLISHER, hud.HCV_URL, hud.VINTAGE),
-    "hud_public_housing": ("Public Housing Developments", HUD_PUBLISHER, sites.PUBLIC_HOUSING_URL, CURRENT),
-    "hud_lihtc": ("Low-Income Housing Tax Credit projects", HUD_PUBLISHER, sites.LIHTC_URL, CURRENT),
+    hud.SOURCE_ID: (
+        "Housing Choice Vouchers by Tract", HUD_PUBLISHER, hud.HCV_URL, hud.VINTAGE, hud.HCV_PAGE_URL,
+    ),
+    "hud_public_housing": (
+        "Public Housing Developments", HUD_PUBLISHER, sites.PUBLIC_HOUSING_URL, CURRENT,
+        sites.PUBLIC_HOUSING_PAGE_URL,
+    ),
+    "hud_lihtc": (
+        "Low-Income Housing Tax Credit projects", HUD_PUBLISHER, sites.LIHTC_URL, CURRENT, sites.LIHTC_PAGE_URL,
+    ),
     "hrsa_health_centers": (
         "Health Center Service Delivery and Look-Alike Sites", "Health Resources and Services Administration",
-        sites.HRSA_URL, CURRENT,
+        sites.HRSA_URL, CURRENT, sites.HRSA_PAGE_URL,
     ),
     places.SOURCE_ID: (
         "PLACES: Local Data for Better Health, census tract data", "Centers for Disease Control and Prevention",
-        places.PLACES_URL, places.VINTAGE,
+        places.PLACES_URL, places.VINTAGE, places.PAGE_URL,
     ),
     places.COUNTY_SOURCE_ID: (
         "PLACES: Local Data for Better Health, county data", "Centers for Disease Control and Prevention",
-        places.COUNTY_URL, places.VINTAGE,
+        places.COUNTY_URL, places.VINTAGE, places.COUNTY_PAGE_URL,
     ),
     chas.SOURCE_ID: (
         "Comprehensive Housing Affordability Strategy (CHAS) data, Table 8", HUD_PUBLISHER, chas.CHAS_URL,
-        chas.VINTAGE,
+        chas.VINTAGE, chas.PAGE_URL,
     ),
 }  # fmt: skip
 
@@ -275,7 +283,8 @@ def _fidelity(api: CensusCache) -> tuple[pd.DataFrame, CheckResult]:
 def _register(con, source_ids, indicators: pd.DataFrame, coverage, exclusions=None) -> None:
     # coverage maps geo_type to complete, or is a function of indicator_id returning that map
     for sid in source_ids:
-        add_source(con, sid, *SOURCES[sid], LICENSE)
+        name, publisher, url, vintage, page_url = SOURCES[sid]
+        add_source(con, sid, name, publisher, url, vintage, LICENSE, page_url=page_url)
     add_indicators(con, indicators)
     rows = [
         {"indicator_id": i, "geo_type": g, "complete": complete}
@@ -493,7 +502,16 @@ def _write_build_info(path: Path, built_at: str, commit: str, checks, skipped) -
         con.close()
 
 
-def _finish_store(tmp: Path, final: Path, reason: str | None, info: tuple, rules) -> tuple[dict, dict]:
+def _store_sources(con) -> list[dict]:
+    # each source with the address the build read (url) and the page people are sent to (page_url)
+    cols = ("source_id", "name", "publisher", "vintage", "url", "page_url")
+    rows = con.execute(f"SELECT {', '.join(cols)} FROM source ORDER BY source_id").fetchall()
+    return [dict(zip(cols, r, strict=True)) for r in rows]
+
+
+def _finish_store(
+    tmp: Path, final: Path, reason: str | None, info: tuple, rules
+) -> tuple[dict, list[dict], dict]:
     # replace the store only after a complete run, otherwise discard the temp file and keep the old one
     if reason is None:
         _write_build_info(tmp, *info)
@@ -503,10 +521,10 @@ def _finish_store(tmp: Path, final: Path, reason: str | None, info: tuple, rules
         tmp.unlink(missing_ok=True)
         status = {"replaced": False, "reason": reason, "kept_previous": final.is_file()}
     if not final.is_file():
-        return {}, status
+        return {}, [], status
     con = duckdb.connect(str(final), read_only=True)
     try:
-        return store_counts(con, rules), status
+        return store_counts(con, rules), _store_sources(con), status
     finally:
         con.close()
 
@@ -612,7 +630,7 @@ def build(
     finished = datetime.now(UTC)
     commit = _git_commit()
     reason = _keep_reason(loaded, checks, skipped)
-    counts, store_status = _finish_store(
+    counts, sources, store_status = _finish_store(
         tmp_store, final, reason, (_stamp(finished), commit, checks, skipped), rules
     )
     manifest = {
@@ -626,6 +644,7 @@ def build(
         "skipped_checks": skipped,
         "checks": {r.name: "pass" if r.passed else "fail" for r in checks},
         "store_counts": counts,
+        "sources": sources,
         "raw_files": raw_files,
     }
     (build_dir / "manifest.json").write_text(

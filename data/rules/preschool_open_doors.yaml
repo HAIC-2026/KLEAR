@@ -2,7 +2,8 @@ rule_id: preschool_open_doors
 program: Preschool Open Doors
 status: confirmed
 effective: '2026-05-29'
-url: https://humanservices.hawaii.gov/?p=15260
+info_url: https://www.patchhawaii.org/programs/families/preschool-open-doors-pod/
+source_url: https://humanservices.hawaii.gov/?p=15260
 effective_source:
   url: https://humanservices.hawaii.gov/?p=15260
   quote: application period for the 2026–2027 school year on May 29, 2026

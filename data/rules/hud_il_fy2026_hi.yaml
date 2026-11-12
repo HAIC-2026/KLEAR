@@ -2,7 +2,8 @@ rule_id: hud_il_fy2026_hi
 program: HUD income limits
 status: confirmed
 effective: '2026-04-01'
-url: https://www.huduser.gov/portal/datasets/il/il26/Section8-FY26.xlsx
+info_url: https://www.huduser.gov/portal/datasets/il.html
+source_url: https://www.huduser.gov/portal/datasets/il/il26/Section8-FY26.xlsx
 values:
   Honolulu:
     median2026: 133400

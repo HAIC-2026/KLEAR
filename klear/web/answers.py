@@ -179,7 +179,7 @@ def _cards(con, facts: list[dict]) -> list[dict]:
     month, out = build_month(con), []
     for fact in facts:
         row = con.execute(
-            "SELECT s.name,s.url,f.moe_status FROM fact f JOIN source s USING(source_id) WHERE f.indicator_id=? AND f.geo_type=? AND f.geo_id=? AND f.source_id=?",
+            "SELECT s.name,s.page_url,f.moe_status FROM fact f JOIN source s USING(source_id) WHERE f.indicator_id=? AND f.geo_type=? AND f.geo_id=? AND f.source_id=?",
             [fact["indicator_id"], *fact["geo"].split(":"), fact["source_id"]],
         ).fetchone()
         out.append(

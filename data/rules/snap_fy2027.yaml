@@ -2,7 +2,8 @@ rule_id: snap_fy2027
 program: SNAP
 status: confirmed
 effective: '2026-10-01'
-url: https://www.fna.usda.gov/snap/allotment/cola
+info_url: https://humanservices.hawaii.gov/bessd/snap/
+source_url: https://www.fna.usda.gov/snap/allotment/cola
 fetch_url: https://fns-prod.azureedge.us/snap/allotment/cola
 effective_source:
   url: https://fns-prod.azureedge.us/snap/allotment/cola

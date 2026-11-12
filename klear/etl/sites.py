@@ -8,15 +8,19 @@ import pyogrio
 from klear.etl.arcgis import query_features
 from klear.etl.blocks import AREA_CRS, TIGER_URL
 from klear.etl.fetch import fetch
-from klear.etl.hud import HUD_BASE
+from klear.etl.hud import HUD_BASE, HUD_PAGES
 from klear.store.db import FACT_COLS, SITE_COLS
 from klear.text import hawaiian
 
 PUBLIC_HOUSING_URL = f"{HUD_BASE}/Public_Housing_Developments/FeatureServer/0"
+PUBLIC_HOUSING_PAGE_URL = f"{HUD_PAGES}/HUD::public-housing-developments"
 LIHTC_URL = f"{HUD_BASE}/LIHTC/FeatureServer/0"
+LIHTC_PAGE_URL = f"{HUD_PAGES}/HUD::low-income-housing-tax-credit-properties-1"
 HRSA_URL = (
     "https://data.hrsa.gov/DataDownload/DD_Files/Health_Center_Service_Delivery_and_LookAlike_Sites.csv"
 )
+# the HRSA download page, opened at its health center files
+HRSA_PAGE_URL = "https://data.hrsa.gov/data/download?data=HCC"
 SITE_SOURCES = {
     "public_housing": "hud_public_housing",
     "lihtc": "hud_lihtc",

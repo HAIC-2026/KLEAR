@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#ffffff">
+  <meta name="description" content="How KLEAR moves ZIP code and census tract figures to Hawaiʻi House and Senate districts, and what each range means.">
+  <title>How KLEAR estimates district figures</title>
+  <link rel="icon" href="/favicon.ico?v=2" sizes="32x32">
+  <link rel="icon" href="/favicon.svg?v=2" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=2">
+  <link rel="preload" href="/fonts/public-sans.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+  <header class="site-header">
+    <a class="brand" href="/"><img class="brand-logo" src="/logo.svg" width="36" height="36" alt=""><span class="brand-text"><strong>KLEAR</strong><span class="brand-sub">Hawaiʻi district data</span></span></a>
+    <nav aria-label="Main navigation"><a href="/#district-map">Map</a><a href="/#how">How it works</a><a href="/#sources">Sources</a><a href="/#about">About</a></nav>
+  </header>
+  <main id="main" class="methods">
+    <div class="wrap">
+      <div class="section-head">
+        <p class="small-label">Methods</p>
+        <h1>How KLEAR estimates district figures</h1>
+        <p>Most KLEAR figures come straight from the Census Bureau’s American Community Survey, which publishes them for every House and Senate district. Their source links open the same table on data.census.gov.</p>
+      </div>
+      <p>Other sources publish figures for ZIP codes or census tracts, and their lines do not follow district lines. KLEAR moves those figures to districts and shows each one as an estimate with a range, such as “about 4,200 (range 3,100 to 5,600)”. This page explains how each range is built and when the true figure can fall outside it.</p>
+
+      <section id="residents" aria-labelledby="residents-title">
+        <h2 id="residents-title">Where residents live</h2>
+        <p>Every method below starts from the 2020 Census count of residents on each census block, and the 2022 House and Senate district each block lies in. Together they show how a ZIP code’s or tract’s residents are split among districts. The block counts come from the <a class="ext" href="https://www.census.gov/programs-surveys/decennial-census/about/rdo/summary-files.html">2020 Census Redistricting Data<span class="visually-hidden"> (external site)</span></a>.</p>
+      </section>
+
+      <section id="apportioned" aria-labelledby="apportioned-title">
+        <h2 id="apportioned-title">Counts from ZIP codes and census tracts</h2>
+        <ul class="method-terms">
+          <li><strong>Estimate.</strong> Each ZIP code’s or tract’s count is split among the districts it overlaps, by where its 2020 residents live. A tract with 30 percent of its residents in a district gives that district 30 percent of its count.</li>
+          <li><strong>Low end.</strong> Counts only the ZIP codes or tracts that lie wholly inside the district.</li>
+          <li><strong>High end.</strong> Counts every ZIP code or tract that touches the district in full, plus the most that any withheld area touching it could hide.</li>
+        </ul>
+        <p>Unless a note below says otherwise, the true district count lies inside the range.</p>
+
+        <section id="irs_soi_zip_2023" aria-labelledby="irs-title">
+          <h3 id="irs-title">Tax returns and the earned income tax credit</h3>
+          <p>The IRS publishes returns and EITC claims for tax year 2023 by ZIP code. Returns it lists under ZIP code 99999 have no known location. KLEAR shares them among districts by 2020 population, and the high end includes only the district’s population share of them. The district’s true share of those returns can fall outside the range.</p>
+          <p>Source: <a class="ext" href="https://www.irs.gov/statistics/soi-tax-stats-individual-income-tax-statistics-2023-zip-code-data-soi">IRS Statistics of Income ZIP code data, tax year 2023<span class="visually-hidden"> (external site)</span></a></p>
+        </section>
+
+        <section id="cms_oep_2026" aria-labelledby="cms-title">
+          <h3 id="cms-title">Health insurance marketplace enrollment</h3>
+          <p>CMS publishes 2026 open enrollment plan selections by ZIP code and by county, and withholds small ZIP code counts. The difference between a county’s total and its published ZIP codes is placed in that county’s withheld ZIP codes, and counted in full in the high end of every district they touch. Where that remainder lives is assumed, not published.</p>
+          <p>Source: <a class="ext" href="https://www.cms.gov/data-research/statistics-trends-reports/marketplace-products/2026-marketplace-open-enrollment-period-public-use-files">CMS 2026 marketplace open enrollment public use files<span class="visually-hidden"> (external site)</span></a></p>
+        </section>
+
+        <section id="hud_hcv_tract" aria-labelledby="hcv-title">
+          <h3 id="hcv-title">Housing choice vouchers</h3>
+          <p>HUD publishes voucher holders by census tract and leaves out tracts with 10 or fewer. Each tract left out that touches a district adds 10 to the high end and nothing to the estimate or the low end.</p>
+          <p>Source: <a class="ext" href="https://hudgis-hud.opendata.arcgis.com/datasets/HUD::housing-choice-vouchers-by-tract">HUD Housing Choice Vouchers by Tract<span class="visually-hidden"> (external site)</span></a></p>
+        </section>
+
+        <section id="hud_chas_2018_2022" aria-labelledby="chas-title">
+          <h3 id="chas-title">Housing cost burden</h3>
+          <p>HUD’s Comprehensive Housing Affordability Strategy (CHAS) tables count households by census tract, from 2018-2022 American Community Survey responses. KLEAR moves them to districts as described above.</p>
+          <p>Source: <a class="ext" href="https://www.huduser.gov/portal/datasets/cp.html">HUD CHAS data<span class="visually-hidden"> (external site)</span></a></p>
+        </section>
+      </section>
+
+      <section id="modeled" aria-labelledby="modeled-title">
+        <h2 id="modeled-title">Modeled health and social needs</h2>
+        <section id="cdc_places_2025" aria-labelledby="places-title">
+          <h3 id="places-title">CDC PLACES</h3>
+          <p>CDC PLACES models the share of adults with each need, such as food insecurity, for every census tract, with a 95 percent confidence interval. These are model results, not survey counts for the tract.</p>
+          <ul class="method-terms">
+            <li><strong>Estimate.</strong> The average of the tract estimates, weighting each tract by the number of its adults who live in the district.</li>
+            <li><strong>Range.</strong> The tracts’ lower and upper confidence limits, averaged with the same weights. This treats the tracts’ errors as if they all move together, so the range is wider than a formal confidence interval.</li>
+            <li><strong>Tracts CDC does not publish</strong> count as 0 percent at the low end and 100 percent at the high end, and are left out of the estimate.</li>
+          </ul>
+          <p>Source: <a class="ext" href="https://data.cdc.gov/500-Cities-Places/PLACES-Local-Data-for-Better-Health-Census-Tract-D/cwsq-ngmh">CDC PLACES: Local Data for Better Health, census tract data<span class="visually-hidden"> (external site)</span></a></p>
+        </section>
+
+        <section id="cdc_places_2025_county" aria-labelledby="places-county-title">
+          <h3 id="places-county-title">CDC PLACES for counties and the state</h3>
+          <p>A district’s PLACES figures are shown next to its county’s and the state’s. County figures are CDC’s own county estimates from the same release, with their 95 percent confidence intervals. CDC publishes no state figure for these needs, so KLEAR derives one: the average of the five county estimates, weighting each county by its adults. Its range averages the county confidence limits the same way, so it is wider than a formal confidence interval.</p>
+          <p>Source: <a class="ext" href="https://data.cdc.gov/500-Cities-Places/PLACES-Local-Data-for-Better-Health-County-Data-20/swc5-untb">CDC PLACES: Local Data for Better Health, county data<span class="visually-hidden"> (external site)</span></a></p>
+        </section>
+      </section>
+
+      <p class="validation-link">Each source’s checks, including that every district estimate lies inside its range, are in the <a class="ext" href="https://github.com/HAIC-2026/KLEAR/blob/main/docs/VALIDATION.md">validation report<span class="visually-hidden"> (external site)</span></a>.</p>
+      <p><a href="/">Back to KLEAR</a></p>
+    </div>
+  </main>
+  <footer>
+    <div class="wrap">
+      <p class="footer-note">Public, aggregated data. Not an official State of Hawaiʻi product.</p>
+    </div>
+  </footer>
+</body>
+</html>

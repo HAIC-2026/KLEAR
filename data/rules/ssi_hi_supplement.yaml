@@ -2,7 +2,8 @@ rule_id: ssi_hi_supplement
 program: Hawaiʻi SSI state supplement
 status: confirmed
 effective: '2026-01-01'
-url: https://www.ssa.gov/pubs/EN-05-11108.pdf
+info_url: https://www.ssa.gov/ssi
+source_url: https://www.ssa.gov/pubs/EN-05-11108.pdf
 saved: ssa-ssi-in-hawaii-2026.pdf
 effective_source:
   url: https://www.ssa.gov/pubs/EN-05-11108.pdf

@@ -520,7 +520,12 @@ function profileSources(sources, compared = []) {
   const cite = (items, tag) => {
     const list = node(tag, '');
     // the year goes on its own line, so a wrapped link never leaves its comma at the start of a line
-    for (const s of items) { const li = document.createElement('li'); li.append(link(s.name, s.url), node('span', s.year, 'profile-source-year')); list.append(li); }
+    for (const s of items) {
+      const li = document.createElement('li');
+      li.append(link(s.name, s.url), node('span', s.year, 'profile-source-year'));
+      if (s.links && s.links.length) li.append(sourceLinks(s.links));
+      list.append(li);
+    }
     return list;
   };
   box.append(node('p', sources.length > 1 ? 'Sources' : 'Source', 'profile-sources-title'), cite(sources, sources.length > 1 ? 'ol' : 'ul'));
@@ -1157,6 +1162,7 @@ function factCard(f) {
   const card = node('div', '', 'fact');
   const uncertainty = uncertaintyLabels[f.uncertainty] || uncertaintyLabels.unavailable;
   card.append(says('b', f.label), node('p', f.value), node('small', `${f.year}, ${f.geography}. Uncertainty: ${uncertainty}`), link(f.source, f.url));
+  if (f.links && f.links.length) card.append(sourceLinks(f.links));
   return card;
 }
 
@@ -1175,17 +1181,35 @@ function basicAnswer(answer, name) {
 }
 
 // A link that opens in a new tab and says so, or plain text when the address is not a web page.
+// A path such as /methods.html is a page on this site, so it has no arrow for leaving the site.
 function link(text, href) {
+  if (!href) return node('span', text);
   try {
-    const url = new URL(href);
+    const url = new URL(href, location.href);
     if (['http:', 'https:'].includes(url.protocol)) {
-      const a = node('a', text, 'ext');
+      const a = node('a', text, url.origin === location.origin ? '' : 'ext');
       a.href = url.href; a.target = '_blank'; a.rel = 'noopener noreferrer';
       a.append(hidden(' (opens in a new tab)'));
       return a;
     }
   } catch {}
   return node('span', text);
+}
+
+// Where a source's figures can be checked: each ACS table for the place on data.census.gov, or the methods page
+// for figures KLEAR moved to districts or CDC modeled. On a line of its own under the source.
+function sourceLinks(links) {
+  const box = node('span', '', 'source-links');
+  links.forEach((l, i) => box.append(i ? ', ' : '', link(l.text, l.url)));
+  return box;
+}
+
+// A source named and linked to its publisher's page, with its years and where its figures can be checked.
+function citation(s) {
+  const li = document.createElement('li');
+  li.append(link(s.name, s.url), `, ${s.year}`);
+  if (s.links && s.links.length) li.append(sourceLinks(s.links));
+  return li;
 }
 
 // Bars for sighted readers, with a sentence that says what they show and the same figures as a table.
@@ -1301,7 +1325,7 @@ function renderAnswer(answer, name) {
     const details = document.createElement('details');
     details.append(node('summary', 'Sources'));
     const list = document.createElement('ul');
-    for (const s of answer.sources) { const li = document.createElement('li'); li.append(link(s.name, s.url), node('span', `, ${s.year}`)); list.append(li); }
+    list.append(...answer.sources.map(citation));
     details.append(list);
     article.append(details);
   }
