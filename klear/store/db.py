@@ -34,7 +34,7 @@ LAT_RANGE = (18.0, 23.0)
 LON_RANGE = (-161.0, -154.0)
 
 GEO_COLS = ["geo_type", "geo_id", "name", "parent_county"]
-INDICATOR_COLS = ["indicator_id", "label", "unit", "universe", "acs_var", "additive"]
+INDICATOR_COLS = ["indicator_id", "label", "unit", "universe", "acs_var", "additive", "note"]
 FACT_COLS = [
     "geo_type", "geo_id", "indicator_id", "value", "moe", "value_status", "moe_status", "tier", "source_id",
     "table_id", "value_low", "value_high",
@@ -139,6 +139,9 @@ def add_areas(con, area: pd.DataFrame, overlap: pd.DataFrame, alias: pd.DataFram
 
 
 def add_indicators(con, df: pd.DataFrame) -> None:
+    # note is optional: most indicators carry no caveat
+    if "note" not in df.columns:
+        df = df.assign(note=None)
     df = _require_columns(df, INDICATOR_COLS, "indicators")
     _fail("indicators", f"unit not in {sorted(UNITS)}", df, _not_in(df, "unit", UNITS))
     _insert(con, "indicator", df)

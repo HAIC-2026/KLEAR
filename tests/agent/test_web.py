@@ -10,6 +10,7 @@ import socket
 import subprocess
 import sys
 import threading
+from collections import defaultdict, deque
 from functools import partial
 from http.client import HTTPConnection
 from http.server import ThreadingHTTPServer
@@ -135,6 +136,7 @@ def test_profile_endpoint_lays_out_the_district_profile(endpoint):
     profile = json.loads(data)
     assert status == 200 and headers["Cache-Control"] == "no-store"
     assert profile["district"] == "House District 22" and profile["where"].startswith("Honolulu County")
+    assert profile["county"] == "Honolulu County"
     assert profile["overlaps"] == [{"name": "Senate District 12", "share": "100%"}]
     row = next(r for s in profile["sections"] for r in s["rows"] if r["id"] == "pop_65_plus")
     assert row["label"] == "Kūpuna (65 and over)" and row["value"] == "1,000" and row["spread"] == "± 100"
@@ -147,6 +149,11 @@ def test_profile_endpoint_lays_out_the_district_profile(endpoint):
         "20.0% of the total in Honolulu County: 5,000",
         "11.1% of the total in Hawaiʻi: 9,000",
     ]
+    programs = profile["programs"]
+    assert programs["title"] == "Programs to explore here" and "eligibility" in programs["note"]
+    shown = programs["programs"] + programs["others"]
+    assert len({p["name"] for p in shown}) == len(shown) >= 12
+    assert all(p["agency"] and p["verified"] and p["phone"] and ".gov" in p["url"] for p in shown)
     for bad in ["house:999", "county:15003", ""]:
         assert get(endpoint, "/api/profile?district=" + bad)[0] == 400
 
@@ -159,11 +166,13 @@ def test_profile_gives_the_printed_summary_its_columns_programs_and_sources(endp
         ("state:15", "Hawaiʻi", "9,000", ""),
     ]
     assert row["against"][1]["source"] == row["source"]
-    # One entry per program across its tax years, each with an address to print, and no income limit tables.
-    names = [p["name"] for p in profile["programs"]]
+    # The district's matched programs, then the rest: one entry per program across its tax years, each with an
+    # address to print, and no income limit tables.
+    listed = profile["programs"]["programs"] + profile["programs"]["others"]
+    names = [p["name"] for p in listed]
     assert names.count("Federal EITC") == 1 and "SNAP" in names and len(names) == len(set(names))
     assert not any("poverty guidelines" in n or "income limits" in n for n in names)
-    assert all(p["url"].startswith("https://") and p["covers"] and p["agency"] for p in profile["programs"])
+    assert all(p["url"].startswith("https://") and p["description"] and p["agency"] for p in listed)
     assert profile["shares_source"]["year"] == "2020 Census"
     assert profile["built"] == ""  # the small store records no build
 
@@ -222,7 +231,8 @@ def test_about_without_a_store_is_unavailable(tmp_path):
 
 def test_validation_and_cross_origin(endpoint):
     assert request(endpoint, "POST", "/api/chat", "[]")[0] == 400
-    assert request(endpoint, "POST", "/api/chat", "{}", {"Origin": "https://other.example"})[0] == 403
+    status, data = request(endpoint, "POST", "/api/chat", "{}", {"Origin": "https://other.example"})
+    assert status == 403 and json.loads(data)["error"].endswith("Ask it on the KLEAR site instead.")
     assert chat(endpoint, "Hello", "house:999")[0] == 400
 
 
@@ -237,6 +247,31 @@ def test_free_answer_has_figure_year_source_and_margin(endpoint, monkeypatch):
     assert fact["source"] == "American Community Survey 5-year"
     assert fact["geography"] == "House District 22"
     assert fact["uncertainty"] == "ok"
+
+
+def test_free_answer_adds_the_main_county_when_asked(endpoint, monkeypatch):
+    # Keep these questions out of the rate limit the other tests share.
+    monkeypatch.setattr(web, "_RECENT", defaultdict(deque))
+    status, data = chat(endpoint, "Compare kūpuna in House District 22 with Honolulu County and the state.")
+    assert status == 200 and data["mode"] == "basic" and data["refusal"] == "none"
+    kupuna = [f["geography"] for f in data["facts"] if f["label"] == "Population 65 years and over"]
+    assert kupuna == ["House District 22", "Honolulu County", "Hawaiʻi"]
+    assert [b["geography"] for b in data["charts"][0]["bars"]] == kupuna
+    assert "District, county and state figures" in data["text"]
+    county_only = chat(endpoint, "How many kūpuna live in House District 22 and in its county?")[1]
+    assert [f["geography"] for f in county_only["facts"]] == ["House District 22", "Honolulu County"]
+    assert "District and county figures" in county_only["text"]
+    alone = chat(endpoint, "How many kūpuna live here?")[1]
+    assert {f["geography"] for f in alone["facts"]} == {"House District 22"}
+
+
+def test_free_program_answer_lists_each_program_once_with_its_page(endpoint):
+    status, data = chat(endpoint, "What support programs could residents of this district explore?")
+    assert status == 200 and data["refusal"] == "none" and "eligibility" in data["text"]
+    names = [p["name"] for p in data["programs"]]
+    assert len(names) == len(set(names)) >= 12 and names.count("Federal EITC") == 1
+    assert all(p["url"].startswith("https://") and "match" in p for p in data["programs"])
+    assert not any("federalregister" in p["url"] or p["url"].endswith(".txt") for p in data["programs"])
 
 
 def test_refusals_and_unknown_question(endpoint):
@@ -373,3 +408,21 @@ def test_web_command_serves_real_store_and_assets(small_con, tmp_path):
             process.wait(timeout=10)
         process.stdout.close()
         reader.join(timeout=5)
+
+
+def test_profile_survives_a_program_catalog_that_cannot_be_read(endpoint, monkeypatch):
+    def broken():
+        raise ValueError("program catalog cannot be read")
+
+    monkeypatch.setattr("klear.agent.tools.catalog", broken)
+    status, body = get(endpoint, "/api/profile?district=house:022")[:2]
+    profile = json.loads(body)
+    assert status == 200 and profile["programs"] is None and profile["sections"]
+
+
+def test_web_server_starts_without_loading_the_model_sdk():
+    code = "import sys, klear.web.__main__; print('anthropic' in sys.modules)"
+    result = subprocess.run(
+        [sys.executable, "-c", code], cwd=config.ROOT, capture_output=True, text=True, check=True
+    )
+    assert result.stdout.strip() == "False"

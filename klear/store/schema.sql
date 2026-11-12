@@ -21,7 +21,9 @@ CREATE TABLE IF NOT EXISTS indicator (
     unit VARCHAR NOT NULL CHECK (unit IN ('count', 'dollars', 'percent', 'ratio', 'years')),
     universe VARCHAR,
     acs_var VARCHAR,
-    additive BOOLEAN NOT NULL
+    additive BOOLEAN NOT NULL,
+    -- plain caveat to state with every figure of the indicator, such as what an income-eligible estimate leaves out
+    note VARCHAR
 );
 
 -- Geography types each indicator is published for. Completeness is checked only where complete is true,

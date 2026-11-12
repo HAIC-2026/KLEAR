@@ -144,6 +144,35 @@ def test_question_asking_for_a_fact_requires_it(s1, monkeypatch, question, requi
     assert (a is None, problems) == ((True, expected) if bad else (False, []))
 
 
+def test_question_asking_to_compare_requires_main_county_and_state(s1, monkeypatch):
+    monkeypatch.setattr(config, "REQUIRED_COMPARISONS", ((("fixed",), ("pop_65_plus",)),))
+    monkeypatch.setattr(config, "REQUIRED_PROGRAMS", ())
+    s1.question = "Who lives on a fixed income in House 22?"
+    a, problems = build_answer(s1, args())
+    assert a is None and problems == [
+        f"this question compares pop_65_plus at house:022 with {g}; call get_facts for it there and cite it"
+        for g in ("county:15003", "state:15")
+    ]
+    s1.run("get_facts", {"indicator_ids": ["pop_65_plus"], "geos": ["county:15003", "state:15"]})
+    text = GOOD + " Compare {geo:county:15003} at {fact:f2} and {geo:state:15} at {fact:f3}."
+    a, problems = build_answer(s1, args(blocks=[text], facts=["f1", "f2", "f3"]))
+    assert problems == [] and a is not None
+
+
+def test_question_asking_about_programs_requires_them(s1, monkeypatch):
+    monkeypatch.setattr(config, "REQUIRED_COMPARISONS", ())
+    monkeypatch.setattr(config, "REQUIRED_PROGRAMS", ((("fixed",), ("snap_fy2027",)),))
+    s1.question = "Who lives on a fixed income in House 22?"
+    a, problems = build_answer(s1, args())
+    assert a is None and problems == [
+        "this question asks about snap_fy2027; list it in programs and write it as 'SNAP'"
+    ]
+    a, problems = build_answer(s1, args(blocks=[GOOD + " SNAP can help."], programs=["snap_fy2027"]))
+    assert problems == [] and a.programs == ["snap_fy2027"]
+    _, problems = build_answer(s1, args(refusal="not_available"))
+    assert not any("asks about" in p for p in problems)
+
+
 def test_required_facts_skip_refusals(s1, monkeypatch):
     monkeypatch.setattr(config, "REQUIRED_FACTS", ((("profile",), ("sites_lihtc",)),))
     s1.question = "Profile of House 22"

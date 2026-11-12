@@ -1,0 +1,13 @@
+program_id: ssi
+name: Supplemental Security Income (SSI)
+description: Monthly payments for basic needs, including the Hawaiʻi state supplement for some recipients.
+serves: People 65 and older, blind or disabled, with low income and few resources.
+agency: Social Security Administration
+url: https://www.ssa.gov/apply/ssi
+phone: 1-800-772-1213
+phone_label: Social Security
+phone_source: https://www.usa.gov/agencies/social-security-administration
+rules: [ssi_federal_2026, ssi_hi_supplement]
+needs: [pct_hh_ssi, pct_65_plus_poverty, pct_disability]
+verified: '2026-11-09'
+verification: The SSA site blocks scripts (HTTP 403). USA.gov links this apply page and prints the phone, and the archived page is titled Apply for Supplemental Security Income

@@ -1,0 +1,20 @@
+id: rank-003
+category: rank
+question: Which Senate districts have the most kūpuna living under 200% of poverty?
+ideal: Ranks Hawaiʻi Senate districts by kūpuna with low incomes and names the first tier together, saying their
+  ranges overlap. States that the count meets the income test only.
+facts:
+- - kupuna_under_200pct_poverty
+  - senate
+  - '002'
+- - kupuna_under_200pct_poverty
+  - senate
+  - '013'
+- - kupuna_under_200pct_poverty
+  - senate
+  - '012'
+must_say:
+- overlap
+- income test
+- kūpuna
+refusal: none

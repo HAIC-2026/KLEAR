@@ -1,0 +1,38 @@
+id: profile-009
+category: profile
+question: How many kūpuna in my district live on fixed incomes?
+context: [house, "022"]
+ideal: Gives the kūpuna count and share in the selected House district, the median household income of kūpuna
+  householders, kūpuna under the poverty level and under twice it, and kūpuna householders living alone, each with
+  its margin of error and vintage. Gives the shares of households with Social Security, retirement income and SSI
+  and says plainly that they cover all households, not only kūpuna households. Compares the rates and the median
+  income with Honolulu County and Hawaiʻi, and lists SSI, SNAP, Med-QUEST and the state program of home and
+  community services for kūpuna.
+tags: [demo, fixed_income]
+district: [house, "022"]
+facts:
+  - [pop_65_plus, house, "022"]
+  - [pct_65_plus, house, "022"]
+  - [median_household_income_65_plus, house, "022"]
+  - [pct_65_plus_poverty, house, "022"]
+  - [kupuna_under_100pct_poverty, house, "022"]
+  - [kupuna_under_200pct_poverty, house, "022"]
+  - [householders_65_plus_alone, house, "022"]
+  - [pct_hh_social_security, house, "022"]
+  - [pct_hh_retirement_income, house, "022"]
+  - [pct_hh_ssi, house, "022"]
+  - [pct_65_plus, county, "15003"]
+  - [median_household_income_65_plus, county, "15003"]
+  - [pct_65_plus_poverty, county, "15003"]
+  - [pct_hh_social_security, county, "15003"]
+  - [pct_hh_retirement_income, county, "15003"]
+  - [pct_hh_ssi, county, "15003"]
+  - [pct_65_plus, state, "15"]
+  - [median_household_income_65_plus, state, "15"]
+  - [pct_65_plus_poverty, state, "15"]
+  - [pct_hh_social_security, state, "15"]
+  - [pct_hh_retirement_income, state, "15"]
+  - [pct_hh_ssi, state, "15"]
+must_say: ["2020-2024", "all households"]
+programs: [ssi_federal_2026, kupuna_care, snap_fy2027, medquest_2026]
+refusal: none

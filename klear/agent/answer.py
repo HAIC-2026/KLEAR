@@ -209,30 +209,76 @@ def build_answer(session, args: dict, context=None) -> tuple[Answer | None, list
     return (None if problems else answer), problems
 
 
+def _triggered(session, table) -> list[str]:
+    """Ids of every table entry whose trigger words the question contains."""
+    asked = {w.casefold() for w in _words(session.question)}
+    return list(dict.fromkeys(i for words, ids in table if asked.issuperset(words) for i in ids))
+
+
+def _stored(session, indicator: str, geo: tuple[str, str]) -> bool:
+    return bool(
+        session.con.execute(
+            "SELECT 1 FROM fact WHERE indicator_id = ? AND geo_type = ? AND geo_id = ? AND value IS NOT NULL",
+            [indicator, *geo],
+        ).fetchone()
+    )
+
+
 def required_facts(session, geo: tuple[str, str]) -> list[str]:
     """Indicators the question asks for by name that the store holds for geo."""
-    asked = {w.casefold() for w in _words(session.question)}
-    inds = [i for words, ids in config.REQUIRED_FACTS if asked.issuperset(words) for i in ids]
+    return [i for i in _triggered(session, config.REQUIRED_FACTS) if _stored(session, i, geo)]
+
+
+def main_county(con, geo: tuple[str, str]) -> tuple[str, str] | None:
+    """The county holding most of a House or Senate district's 2020 population."""
+    if geo[0] not in config.CHAMBER_TYPES:
+        return None
+    row = con.execute(
+        f"SELECT county FROM blocks WHERE {geo[0]} = ? GROUP BY 1 ORDER BY sum(pop2020) DESC, 1 LIMIT 1",
+        [geo[1]],
+    ).fetchone()
+    return ("county", row[0]) if row else None
+
+
+def required_comparisons(session, geo: tuple[str, str]) -> list[tuple[str, tuple[str, str]]]:
+    """Indicators and places the question asks to compare the district with: its main county and the state."""
+    places = [p for p in (main_county(session.con, geo), ("state", "15")) if p]
     return [
-        i
-        for i in dict.fromkeys(inds)
-        if session.con.execute(
-            "SELECT 1 FROM fact WHERE indicator_id = ? AND geo_type = ? AND geo_id = ? AND value IS NOT NULL",
-            [i, *geo],
-        ).fetchone()
+        (i, p)
+        for i in _triggered(session, config.REQUIRED_COMPARISONS)
+        for p in places
+        if _stored(session, i, p)
     ]
 
 
+def required_programs(session) -> list[str]:
+    """Rule ids of the programs the question asks about."""
+    return _triggered(session, config.REQUIRED_PROGRAMS)
+
+
 def _missing_required(session, answer: Answer) -> list[str]:
-    """Required facts the answer leaves out for its district."""
-    if answer.refusal != "none" or answer.resolved is None:
+    """Required facts, comparisons and programs the answer leaves out."""
+    if answer.refusal != "none":
         return []
+    names = program_names()
+    out = [
+        f"this question asks about {p}; list it in programs and write it as {display_name(names[p])!r}"
+        for p in required_programs(session)
+        if p not in answer.programs
+    ]
+    if answer.resolved is None:
+        return out
     cited = {(f.indicator_id, f.geo_type, f.geo_id) for f in answer.facts}
     geo = ":".join(answer.resolved)
-    return [
+    out += [
         f"this question asks for {i} at {geo}; call get_facts for it and cite it"
         for i in required_facts(session, answer.resolved)
         if (i, *answer.resolved) not in cited
+    ]
+    return out + [
+        f"this question compares {i} at {geo} with {p[0]}:{p[1]}; call get_facts for it there and cite it"
+        for i, p in required_comparisons(session, answer.resolved)
+        if (i, *p) not in cited
     ]
 
 

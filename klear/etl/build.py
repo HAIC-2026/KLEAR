@@ -20,7 +20,7 @@ from klear.etl import areas, chas, cms, hud, irs, manual, places, places_gazette
 from klear.etl import fetch as fetch_mod
 from klear.etl.blocks import build_block_table, load_block_points
 from klear.etl.boundaries import ArcGISError, download_districts, export_web_geojson
-from klear.etl.census_api import get_acs, get_variable_labels
+from klear.etl.census_api import get_acs, get_district_pop, get_variable_labels
 from klear.etl.census_cache import CacheMissError, CensusCache
 from klear.etl.dbedt import fetch_dbedt, parse_dbedt_profile
 from klear.etl.fetch import fetch
@@ -34,6 +34,9 @@ from klear.etl.profile import (
     load_profile_facts,
     profile_bases,
 )
+from klear.etl.reapportionment import load_commission
+from klear.eval import runner as eval_runner
+from klear.eval.summary import HELDOUT, eval_summary
 from klear.rules.registry import REQUIRED_RULE_IDS, Rule, load_rules, page_text
 from klear.store.db import (
     add_areas,
@@ -56,11 +59,20 @@ from klear.validation.boundaries import check_boundaries
 from klear.validation.chas import check_chas
 from klear.validation.cms import check_cms, check_cms_districts
 from klear.validation.county_state import check_county_state
+from klear.validation.eligible import check_admin_counts, check_district_sums
 from klear.validation.gazetteer import check_gazetteer
 from klear.validation.hud import check_hcv
 from klear.validation.irs import check_irs
 from klear.validation.places import check_places, check_places_county
-from klear.validation.report import render_validation
+from klear.validation.population import check_population
+from klear.validation.report import (
+    CAVEATS,
+    check_view,
+    eval_tables,
+    render_validation,
+    skipped_view,
+    verdict,
+)
 from klear.validation.rules import HUD_FILE, HUD_URL, check_rules
 from klear.validation.sites import check_sites
 from klear.validation.source_fidelity import check_source_fidelity
@@ -76,6 +88,9 @@ HUD_RULE = "hud_il_fy2026_hi"
 LICENSE = "Public domain, U.S. Government work"
 HUD_PUBLISHER = "U.S. Department of Housing and Urban Development"
 CURRENT = config.CURRENT_LAYER
+# the tracked eval recordings rescored after each build, and the published held-out totals
+EVAL_RECORDINGS = eval_runner.RECORDINGS
+EVAL_HELDOUT = HELDOUT
 # source_id: name, publisher, url, vintage
 SOURCES = {
     irs.SOURCE_ID: (
@@ -275,6 +290,16 @@ def _register(con, source_ids, indicators: pd.DataFrame, coverage, exclusions=No
             for (t, g), reason in exclusions.items()
         ]
         add_coverage_exclusions(con, pd.DataFrame(rows))
+
+
+def _population(blocks: pd.DataFrame, api) -> CheckResult:
+    # Census Bureau counts gate the check; the Commission's files are only reported
+    census = pd.concat([get_district_pop(c, client=api) for c in ("house", "senate")], ignore_index=True)
+    try:
+        commission, problem = load_commission(client=api), None
+    except (httpx.HTTPError, OSError, RuntimeError, ValueError, KeyError) as e:
+        commission, problem = None, f"download or read failed ({type(e).__name__})"
+    return check_population(blocks, census, commission, commission_problem=problem)
 
 
 def _site_counts(df: pd.DataFrame) -> str:
@@ -547,10 +572,12 @@ def build(
             loaded = step("store", lambda: load_profile_facts(con, client=api, dbedt_aligned=aligned))
             blocks = step("blocks", blocks_step)
             if blocks is None:
-                skipped.append(
-                    {"name": "apportionment", "reason": "needs the block table, which was skipped"}
-                )
+                skipped += [
+                    {"name": n, "reason": "needs the block table, which was skipped"}
+                    for n in ("population", "apportionment")
+                ]
             else:
+                step("population", lambda: checks.append(_population(blocks, api)))
                 fetch_acs = functools.partial(get_acs, client=api)
                 step(
                     "apportionment",
@@ -566,6 +593,8 @@ def build(
                 ]
             rules = step("rules", lambda: _rules_step(checks, skipped))
             if loaded is not None:
+                checks.append(check_district_sums(con))
+                checks.append(check_admin_counts(con))
                 checks.append(check_store(con, aligned, expected))
                 if aligned is None:
                     skipped.append(
@@ -602,11 +631,23 @@ def build(
     (build_dir / "manifest.json").write_text(
         json.dumps(_clean(manifest), indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
     )
-    validation = {"built_at": manifest["built_at"], "checks": [asdict(r) for r in checks], "skipped": skipped}
+    ev = eval_summary(
+        final if store_status["replaced"] else None, recordings=EVAL_RECORDINGS, heldout_path=EVAL_HELDOUT
+    )
+    validation = {
+        "built_at": manifest["built_at"],
+        "git_commit": commit,
+        "verdict": verdict(checks, skipped),
+        "store": store_status,
+        "checks": [asdict(r) | check_view(r) for r in checks],
+        "skipped": [s | skipped_view(s) for s in skipped],
+        "caveats": CAVEATS,
+        "eval": ev | {"tables": eval_tables(ev)},
+    }
     (build_dir / "validation.json").write_text(
         json.dumps(_clean(validation), indent=1, ensure_ascii=False, default=str) + "\n", encoding="utf-8"
     )
-    meta = manifest | {"raw_files": checks[-1].notes[0]}
+    meta = manifest | {"raw_files": checks[-1].notes[0], "eval": validation["eval"]}
     docs_path.parent.mkdir(parents=True, exist_ok=True)
     docs_path.write_text(render_validation(checks, skipped, meta), encoding="utf-8")
     return BuildResult(checks=checks, skipped=skipped, manifest=manifest)

@@ -113,3 +113,32 @@ def test_example_script_passes_scoring():
         assert failed == []
     finally:
         con.close()
+
+
+@pytest.mark.parametrize("golden_id", ["rank-001", "rank-002", "rank-003"])
+def test_rank_scripts_pass_scoring(golden_id):
+    if not STORE.exists():
+        pytest.skip("Build the store to replay the rank scripts")
+    con = duckdb.connect(str(STORE), read_only=True)
+    try:
+        g = next(g for g in load_golden() if g.id == golden_id)
+        answer, _ = ScriptedAgent(con, SCRIPTS).answer(g.id, g.question, g.context)
+        failed = [o for o in score(g, answer, con) if o.passed is False]
+        assert failed == []
+        assert "overlap" in " ".join(answer.blocks) and len(answer.facts) == len(g.facts)
+    finally:
+        con.close()
+
+
+def test_fixed_income_script_passes_scoring():
+    if not STORE.exists():
+        pytest.skip("Build the store to replay the fixed income script")
+    con = duckdb.connect(str(STORE), read_only=True)
+    try:
+        g = next(g for g in load_golden() if g.id == "profile-009")
+        answer, _ = ScriptedAgent(con, SCRIPTS).answer(g.id, g.question, g.context)
+        failed = [o for o in score(g, answer, con) if o.passed is False]
+        assert failed == []
+        assert len(answer.facts) == len(g.facts) and answer.programs == list(g.programs)
+    finally:
+        con.close()

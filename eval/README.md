@@ -17,6 +17,8 @@ Before choosing a model or running the demo, read the compare and demo answers y
 
 Live runs save every answer and its cost under eval/recordings/<model>-<timestamp>/. After a fix to the checks, rescore a saved run for free with --mode replay --agent recorded --recording <model>-<timestamp>. The JSON report also keeps each structured answer.
 
+Each data build rescores the newest recording in eval/recordings against the store it writes and puts the results in docs/VALIDATION.md and on the website. The held-out questions are not in this repository. Their published totals are in eval/heldout_summary.yaml. Update that file when a new held-out run is published, then rebuild.
+
 A run that stops early (a declined prompt, the spend cap, or a call that cost more than expected) exits 2.
 
 ## What the system prompt must teach

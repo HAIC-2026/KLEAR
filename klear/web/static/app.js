@@ -119,7 +119,7 @@ function needDistrict() {
 // button would drop focus to the page, and keyboard and screen reader users would lose their place.
 function setBusy(on) {
   busy = on;
-  for (const b of [$('send'), ...$('examples').querySelectorAll('button')]) {
+  for (const b of [$('send'), ...document.querySelectorAll('#examples button, #log .followup, #log .retry')]) {
     if (on) b.setAttribute('aria-disabled', 'true'); else b.removeAttribute('aria-disabled');
   }
 }
@@ -138,6 +138,8 @@ function choose(geo, name, quiet, push = true) {
   if (busy) {
     queued = geo === district ? null : {geo, name, push};
     $('chat-status').textContent = queued ? `Switching to ${name} after this answer.` : '';
+    // The profile needs no model, so it shows the chosen district while the answer loads.
+    loadProfile(geo, name);
     if (quiet) return;
     showChat();
     $('question').focus({preventScroll: true});
@@ -173,6 +175,7 @@ function clearDistrict() {
   queued = null;
   district = null;
   profileSeq++;
+  profileGeo = null;
   setLookup(false);
   delete $('chat').dataset.chamber;
   $('district-title').textContent = 'No district chosen yet';
@@ -182,6 +185,7 @@ function clearDistrict() {
   $('profile').replaceChildren();
   $('profile-live').textContent = '';
   setSheet(null);
+  dropDistrictActions();
   if ($('starter').hidden) {
     for (const b of $('examples').children) for (const part of b.children) part.hidden = !part.hidden;
     $('starter').append($('examples'));
@@ -440,8 +444,10 @@ for (const [question, label] of examples) {
 
 // Once a district is chosen, its profile takes the starter questions' place and they move into the chat as short buttons.
 // The profile is long, so it is not a live region: a short status line says when it has loaded.
-let profileSeq = 0;
+let profileSeq = 0, profileGeo = null;
 async function loadProfile(geo, name) {
+  if (geo === profileGeo) return;
+  profileGeo = geo;
   const seq = ++profileSeq, panel = $('profile'), live = $('profile-live');
   live.textContent = '';
   if (!$('starter').hidden) {
@@ -458,9 +464,11 @@ async function loadProfile(geo, name) {
     if (seq !== profileSeq) return;
     panel.replaceChildren(...renderProfile(data));
     setSheet(data);
+    districtExamples(data);
     live.textContent = `Profile for ${data.district} loaded.`;
   } catch (err) {
     if (seq !== profileSeq) return;
+    profileGeo = null;
     const message = `The district profile could not load. ${err.message}`;
     panel.replaceChildren(...profileTitle(name), node('p', message, 'profile-status'));
     live.textContent = message;
@@ -489,7 +497,20 @@ function profileRow(r) {
     for (const a of r.against) { const li = document.createElement('li'); li.append(node('b', a.lead), ` ${a.rest}`); list.append(li); }
     row.append(list);
   }
+  if (r.beside) row.append(besideLine(r.beside));
+  if (r.caveat) row.append(node('p', r.caveat, 'profile-caveat'));
   return row;
+}
+
+// A second figure shown next to a row for comparison, or a sentence on how to read the row.
+function besideLine(b) {
+  const p = node('p', '', 'profile-beside');
+  if (!b.value) { p.append(b.text); return p; }
+  p.append('For comparison, ', node('b', b.value));
+  if (b.spread) p.append(' ', node('span', b.spread.startsWith('range') ? `(${b.spread})` : b.spread, 'moe'));
+  p.append(` ${b.text}`);
+  if (b.note) { const sup = node('sup', String(b.note)); sup.setAttribute('aria-label', `source ${b.note}`); p.append(sup); }
+  return p;
 }
 
 // The section's citations, numbered when its figures come from more than one source, then any source
@@ -505,6 +526,47 @@ function profileSources(sources, compared = []) {
   box.append(node('p', sources.length > 1 ? 'Sources' : 'Source', 'profile-sources-title'), cite(sources, sources.length > 1 ? 'ol' : 'ul'));
   if (compared.length) box.append(node('p', 'County and state figures', 'profile-sources-title'), cite(compared, 'ul'));
   return box;
+}
+
+// One program: its name linked to the page to apply or learn more, the agency, why it is listed here, and how to call.
+function programRow(p, full) {
+  const row = node('div', '', 'program');
+  const name = node('p', '', 'program-name');
+  name.append(link(p.name, p.url));
+  row.append(name, node('p', p.agency, 'program-agency'));
+  if (full && p.description) row.append(node('p', p.description, 'program-about'));
+  if (p.reasons && p.reasons.length) {
+    const list = node('ul', '', 'program-reasons');
+    for (const r of p.reasons) list.append(node('li', r));
+    row.append(list);
+  }
+  const contact = node('p', '', 'program-contact'), tel = node('a', p.phone);
+  tel.href = 'tel:+' + (p.phone.startsWith('1-') ? '' : '1') + p.phone.replace(/\D/g, '');
+  contact.append('Call ', tel, p.phone_label ? `, ${p.phone_label}.` : '.', ` Details last verified ${p.verified}.`);
+  row.append(contact);
+  return row;
+}
+
+// Matched programs first, then the rest of the catalog under its own heading.
+function programList(matched, others, othersTitle) {
+  const out = matched.map(p => programRow(p, true));
+  if (others.length) out.push(node('p', othersTitle, 'program-subhead'), ...others.map(p => programRow(p, false)));
+  return out;
+}
+
+// The district's matched programs, or null when the profile has none in the expected shape.
+function programsOf(p) {
+  const pr = p.programs;
+  return pr && Array.isArray(pr.programs) && Array.isArray(pr.others) ? pr : null;
+}
+// Programs on the one-page summary, so it stays one page.
+const SHEET_PROGRAMS = 6;
+
+function profilePrograms(pr) {
+  const d = node('details', '', 'profile-section profile-programs');
+  d.append(node('summary', pr.title), node('p', pr.intro, 'program-intro'), ...programList(pr.programs, pr.others, pr.others_title), node('p', pr.note, 'program-note'));
+  if ((pr.sources || []).length) d.append(profileSources(pr.sources));
+  return d;
 }
 
 // The largest places in a district and the other chamber's districts it overlaps, with their shares of its residents.
@@ -592,10 +654,13 @@ function renderProfile(p) {
   // Each term comes before its value, as a description list needs; the CSS shows the value on top.
   for (const h of p.headline) { const s = node('div', ''); s.append(says('dt', h.label), node('dd', h.value)); stats.append(s); }
   out.push(stats);
+  if (programsOf(p)) out.push(profilePrograms(p.programs));
   for (const sec of p.sections) {
     if (!sec.rows.length) continue;
     const d = node('details', '', 'profile-section');
-    d.append(node('summary', sec.title), ...sec.rows.map(profileRow), profileSources(sec.sources, sec.compared));
+    d.append(node('summary', sec.title));
+    if (sec.caveat) d.append(node('p', sec.caveat, 'profile-caveat lead'));
+    d.append(...sec.rows.map(profileRow), profileSources(sec.sources, sec.compared));
     out.push(d);
   }
   return out;
@@ -715,18 +780,22 @@ function sheetParts(p) {
   }
   parts.push(section('Key figures', 'sheet-key', table, node('p', margins.join(' '), 'sheet-note')));
 
-  const programs = Array.isArray(p.programs) ? p.programs.filter(g => g && g.name) : [];
+  // The programs whose need figures here sit above the state's, or the statewide list when none does.
+  const matched = programsOf(p), shown = matched ? (matched.programs.length ? matched.programs : matched.others) : [];
+  const programs = shown.filter(g => g && g.name).slice(0, SHEET_PROGRAMS);
   if (programs.length) {
     const list = node('ul', '', 'sheet-list');
     for (const g of programs) {
       const li = document.createElement('li');
       li.append(node('b', g.name));
-      if (g.covers) li.append(': ', says('span', g.covers));
+      if (g.description) li.append(': ', says('span', g.description));
       if (g.agency) li.append(` (${g.agency})`);
       if (g.url) li.append(' ', url(g.url));
       list.append(li);
     }
-    parts.push(section('Programs to explore', 'sheet-programs', list, node('p', 'The same programs are listed for every district. District figures cannot establish any person’s eligibility; check each program’s official guidance.', 'sheet-note')));
+    const why = matched.programs.length ? 'Listed because this district’s need figures sit above the state’s, highest first.' : 'None of this district’s need figures sit clearly above the state’s, so these programs serve residents statewide.';
+    const more = shown.length > programs.length ? ' The live profile lists every program.' : '';
+    parts.push(section('Programs to explore', 'sheet-programs', list, node('p', `${why}${more} ${matched.note || ''}`.trim(), 'sheet-note')));
   }
   const list = node('ol', '', 'sheet-list');
   for (const s of sources) {
@@ -776,6 +845,8 @@ function restoreChat() {
     let reply;
     try { reply = renderAnswer(x.answer, x.name); } catch { continue; }
     reply.dataset.chamber = chamber;
+    showMode(reply, x.answer.mode);
+    askedQuestions.add(sameQuestion(x.question, x.name));
     if (last && x.geo !== last) $('log').append(switchLine(x.name));
     sent = sentLine(x.question, chamber);
     $('log').append(sent, reply);
@@ -818,12 +889,13 @@ $('question-form').onsubmit = async e => {
   if (!card.classList.contains('started')) { card.classList.add('started'); showChat(); }
   setBusy(true);
   asked = district;
-  const name = $('district-title').textContent;
+  const name = $('district-title').textContent, geo = district;
+  askedQuestions.add(sameQuestion(question, name));
   // The conversation is not a live region, since answers are long. A short status line says what is happening,
   // and the new answer's heading takes focus.
   // Each exchange keeps the color of the chamber it was about, even after the chat switches district.
   const chamber = district.split(':')[0];
-  const sent = sentLine(question, chamber), pending = node('p', 'Checking district data and sources…', 'pending');
+  const sent = sentLine(question, chamber), wait = waiting(name), pending = wait.box;
   pending.dataset.chamber = chamber;
   $('log').append(sent, pending);
   const saved = {geo: district, name, question};
@@ -836,12 +908,17 @@ $('question-form').onsubmit = async e => {
   $('chat-live').textContent = `Checking district data and sources for ${name}…`;
   let follow = true, hold = null, reply = null, done, reader = null;
   try {
-    const answer = await api('/api/chat', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({question, district: saved.geo})});
+    const answer = await askKlear(question, saved.geo, wait);
     reader = readerPlace();
     hold = holdPage(pending);
     follow = onScreen(pending);
     reply = renderAnswer(answer, name);
     reply.dataset.chamber = chamber;
+    showMode(reply, answer.mode);
+    // Only the newest answer offers next questions, and an earlier failure's Retry goes once this one is answered.
+    for (const n of $('log').querySelectorAll('.followups, .retry')) n.remove();
+    const next = followUpGroup(followUps(question, answer, name, counties.get(geo)));
+    if (next) reply.append(next);
     pending.replaceWith(reply);
     saved.answer = answer;
     done = `Answer ready for ${name}.`;
@@ -849,10 +926,14 @@ $('question-form').onsubmit = async e => {
     reader = reader || readerPlace();
     hold = holdPage(pending);
     follow = onScreen(pending);
-    pending.replaceWith(node('p', err.message, 'error'));
-    done = err.message;
+    for (const n of $('log').querySelectorAll('.retry')) n.remove();
+    // A reply the page could not lay out reads like any other unreadable reply.
+    const shown = 'retry' in err ? err : problem('KLEAR sent a reply it could not read. Press Retry to ask again.');
+    pending.replaceWith(errorNote(shown, question));
+    done = shown.message;
     if (!$('question').value.trim()) { $('question').value = question; fitQuestion(); $('chat-status').textContent = 'Your question is ready to retry.'; }
   } finally {
+    wait.stop();
     setBusy(false);
     saveChat();
     const {elsewhere, inChat} = reader || readerPlace();
@@ -879,6 +960,190 @@ function readerPlace() {
 // The last announcement is cleared once the reader starts the next question, so it is not read again.
 $('question').addEventListener('input', () => { if (!busy) $('chat-live').textContent = ''; });
 
+// Ctrl+Enter, or Command+Enter on a Mac, sends the question. Enter alone starts a new line.
+$('question').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && !e.isComposing) { e.preventDefault(); $('question-form').requestSubmit(); }
+});
+if (/Mac|iPhone|iPad/.test((navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform)) $('send-hint').textContent = 'Press ⌘+Enter to send.';
+
+// Ask again with a question already written out: a follow-up, a district example, or a retry.
+function askAgain(question) {
+  if (busy) return;
+  $('question').value = question;
+  fitQuestion();
+  $('question-form').requestSubmit();
+}
+
+// The waiting line: elapsed seconds, a Cancel button, and a time limit. The status line notes every 15 seconds that
+// the answer is still coming, since the waiting line itself is not a live region.
+const ASK_LIMIT = 45;
+function waiting(name) {
+  const box = node('div', '', 'pending'), text = node('p', 'Checking district data and sources… '), clock = node('span', '', 'elapsed');
+  const cancel = node('button', 'Cancel', 'cancel'), control = new AbortController(), started = Date.now();
+  const wait = {box, signal: control.signal, why: ''};
+  const stop = why => { if (!wait.why) { wait.why = why; control.abort(why); } };
+  cancel.type = 'button';
+  cancel.onclick = () => stop('cancel');
+  text.append(clock);
+  box.append(text, cancel);
+  let note = 15;
+  const tick = setInterval(() => {
+    const s = Math.floor((Date.now() - started) / 1000);
+    clock.textContent = s === 1 ? '1 second' : `${s} seconds`;
+    if (s >= note) { $('chat-live').textContent = `Still checking for ${name}: ${note} seconds so far. Press Cancel to stop.`; note += 15; }
+  }, 1000);
+  const limit = setTimeout(() => stop('timeout'), ASK_LIMIT * 1000);
+  wait.stop = () => { clearInterval(tick); clearTimeout(limit); };
+  return wait;
+}
+
+// An error that says what to do next, and whether pressing Retry could help.
+const problem = (message, retry = true) => Object.assign(new Error(message), {retry});
+function statusProblem(status) {
+  if (status === 429) return problem('KLEAR is getting too many questions right now. Wait a minute, then press Retry.');
+  if (status === 413) return problem('That question is too long for KLEAR to receive. Shorten it, then ask again.', false);
+  if ([502, 503, 504].includes(status)) return problem(`KLEAR’s server is not responding right now (error ${status}). Wait a moment, then press Retry.`);
+  if (status >= 500) return problem(`KLEAR ran into a server problem (error ${status}). Wait a moment, then press Retry.`);
+  if (status >= 400) return problem(`KLEAR could not take this question (error ${status}). Reload the page, then ask again.`, false);
+  return problem('KLEAR sent a reply it could not read. Press Retry to ask again.');
+}
+
+// Send a question. Replies that are not JSON, such as a proxy's error page, get a plain message instead of a parse error.
+async function askKlear(question, geo, wait) {
+  const stopped = () => problem(wait.why === 'timeout'
+    ? `KLEAR did not answer within ${ASK_LIMIT} seconds, so the question was stopped. Press Retry to ask again.`
+    : 'You cancelled this question. Press Retry to ask it again.');
+  let r, data = null;
+  try {
+    r = await fetch('/api/chat', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({question, district: geo}), signal: wait.signal});
+  } catch {
+    throw wait.why ? stopped() : problem('KLEAR could not be reached. Check your internet connection, then press Retry.');
+  }
+  try { data = await r.json(); } catch { if (wait.why) throw stopped(); }
+  if (r.ok && data && typeof data === 'object') return data;
+  if (data && typeof data.error === 'string') throw problem(data.error, r.status >= 500 || r.status === 429);
+  throw statusProblem(r.ok ? 200 : r.status);
+}
+
+function errorNote(err, question) {
+  const box = node('div', '', 'error');
+  box.append(node('p', err.message));
+  if (err.retry) {
+    const retry = node('button', 'Retry', 'retry');
+    retry.type = 'button';
+    retry.onclick = () => askAgain(question);
+    box.append(retry);
+  }
+  return box;
+}
+
+// A small badge after the answer heading that says whether the assistant or the basic lookup answered.
+const modeNames = {assistant: ['Assistant', 'Written by the KLEAR assistant from the data store'], basic: ['Basic lookup', 'Figures matched by keyword in the data store, without the assistant']};
+function showMode(article, mode) {
+  if (!modeNames[mode]) return;
+  const [label, about] = modeNames[mode], h = article.querySelector('h3'), head = node('div', '', 'answer-head'), badge = node('p', '', 'mode-badge');
+  badge.title = about;
+  badge.append(hidden('Answer type: '), label);
+  h.replaceWith(head);
+  head.append(h, badge);
+}
+
+// Topics for next questions, matched in the order the basic lookup matches them, so every question written here is
+// one the basic lookup answers too. Each question names its district, so it stands on its own.
+const TOPICS = [
+  {key: 'programs', match: /program|benefit|assistance|support|help available/, ask: d => `What support programs could residents of ${d} explore?`, next: ['poverty', 'housing']},
+  {key: 'profile', match: /\b(profile|socioeconomic|overview)/, ask: d => `Give me a socioeconomic profile of ${d}.`, next: ['kupuna', 'housing', 'programs']},
+  {key: 'kupuna', match: /\b(kūpuna|kupuna|senior|older adult|65)/, compare: 'kūpuna', ask: d => `How many kūpuna live in ${d}?`, more: d => `How many kūpuna in ${d} live below the poverty level?`, next: ['health', 'programs']},
+  {key: 'poverty', match: /\b(poverty|low income)/, compare: 'poverty', ask: d => `How many people in ${d} live below the poverty level?`, more: d => `How many keiki in ${d} live below the poverty level?`, next: ['income', 'programs']},
+  {key: 'housing', match: /\b(housing|rent|cost burden)/, compare: 'housing costs', ask: d => `What does the data say about housing needs in ${d}?`, more: d => `How many renters in ${d} pay 35% or more of their income on rent?`, next: ['income', 'programs']},
+  {key: 'income', match: /\b(income|wage|earn)/, compare: 'household income', ask: d => `What is the median household income in ${d}?`, more: d => `What is the per capita income in ${d}?`, next: ['poverty', 'housing']},
+  {key: 'work', match: /\b(unemploy|jobs|work)/, compare: 'unemployment', ask: d => `How many people in ${d} are unemployed?`, more: d => `How many people in ${d} work from home?`, next: ['income', 'poverty']},
+  {key: 'health', match: /\b(health|uninsured|disabil)/, compare: 'health insurance coverage', ask: d => `How many people in ${d} have no health insurance?`, more: d => `How many people in ${d} have a disability?`, next: ['kupuna', 'programs']},
+  {key: 'keiki', match: /\b(child|keiki|young)/, compare: 'keiki', ask: d => `How many keiki live in ${d}?`, more: d => `How many households in ${d} have children?`, next: ['poverty', 'programs']},
+  {key: 'people', match: /\b(population|people|residents)/, ask: d => `How many people live in ${d}?`, next: ['kupuna', 'keiki', 'income']},
+];
+const topic = key => TOPICS.find(t => t.key === key);
+const topicOf = text => TOPICS.find(t => t.match.test(text.toLowerCase()));
+const compareQuestion = (what, name, county) => `Compare ${what} in ${name} with ${county || 'its county'} and the state.`;
+// Questions already asked, written the same way whether they said "this district" or named it.
+const askedQuestions = new Set();
+const sameQuestion = (q, name) => q.trim().toLowerCase().replaceAll('this district', name.toLowerCase()).replace(/\s+/g, ' ');
+// Main county of each district whose profile has loaded.
+const counties = new Map();
+
+// Up to three next questions: the same measure against the county and state, a closer look, then related topics.
+function followUps(question, answer, name, county) {
+  const out = [], add = q => { if (!askedQuestions.has(sameQuestion(q, name)) && !out.includes(q)) out.push(q); };
+  const declined = /^decline/.test(answer.refusal || '');
+  const words = [...(answer.lead || []), ...(answer.tiles || []).map(t => t.label), ...(answer.charts || []).map(c => c.label), ...(answer.facts || []).map(f => f.label)].join(' ');
+  const t = declined ? null : topicOf(question) || topicOf(words);
+  if (t && t.compare && !/county/i.test(question)) add(compareQuestion(t.compare, name, county));
+  if (t && t.more) add(t.more(name));
+  for (const key of [...(t ? t.next : []), 'profile', 'kupuna', 'housing', 'poverty', 'programs']) add(topic(key).ask(name));
+  return out.slice(0, 3);
+}
+
+let followSeq = 0;
+function followUpGroup(questions) {
+  if (!questions.length) return null;
+  const box = node('div', '', 'followups'), title = node('p', 'Ask next', 'followups-title');
+  title.id = `followups-${++followSeq}`;
+  box.setAttribute('role', 'group');
+  box.setAttribute('aria-labelledby', title.id);
+  box.append(title);
+  for (const q of questions) {
+    const b = says('button', q, 'followup');
+    b.type = 'button';
+    b.onclick = () => askAgain(q);
+    box.append(b);
+  }
+  return box;
+}
+
+// Measures that make a district example when the district's rate stands well above the state's or its county's.
+const STANDOUTS = [['pct_65_plus', 'Kūpuna share', 'kūpuna'], ['pct_people_poverty', 'Poverty', 'poverty'], ['pct_children_poverty', 'Keiki poverty', 'keiki poverty'], ['pct_65_plus_poverty', 'Kūpuna poverty', 'poverty among kūpuna'], ['pct_rent_burden_35_plus', 'Rent burden', 'rent burden'], ['pct_uninsured', 'Uninsured rate', 'health insurance coverage'], ['pct_disability', 'Disability rate', 'disability']];
+// Places burned in the August 2023 Maui wildfires, whose survey figures mostly predate the fires.
+const WILDFIRE_PLACES = ['Lahaina', 'Kula'];
+// How many times the other place's rate the district's is, read from the profile's comparison words.
+function timesAbove(a) {
+  const m = a && /^about (?:([\d.]+) times|(\d+) percent higher)/.exec(a.lead);
+  return !m ? 0 : m[1] ? Number(m[1]) : 1 + Number(m[2]) / 100;
+}
+
+// Examples that fit the chosen district, from its profile: a wildfire note where the survey years matter, and the
+// measure that stands out most against the state, or else the county. They lead the suggested questions.
+function districtExamples(p) {
+  counties.set(p.geo, p.county);
+  for (const b of $('examples').querySelectorAll('.local')) b.remove();
+  const rows = new Map(p.sections.flatMap(s => s.rows).map(r => [r.id, r]));
+  let best = null;
+  for (const [id, label, what] of STANDOUTS) {
+    const r = rows.get(id);
+    if (!r || !r.against.length) continue;
+    const state = timesAbove(r.against.at(-1)), county = r.against.length > 1 ? timesAbove(r.against[0]) : 0;
+    const score = state >= 1.2 ? 10 + state : county >= 1.2 ? county : 0;
+    if (score && (!best || score > best.score)) best = {score, label: `${label} higher than ${state >= 1.2 ? 'statewide' : 'countywide'}`, what};
+  }
+  const chips = [];
+  if (p.places.some(x => WILDFIRE_PLACES.includes(x.name))) chips.push(['Survey years and the 2023 wildfires', `Which survey years do the housing figures for ${p.district} cover, given the 2023 Maui wildfires?`]);
+  if (best) chips.push([best.label, compareQuestion(best.what, p.district, p.county)]);
+  $('examples').prepend(...chips.map(([label, question]) => {
+    const b = node('button', '', 'local'), rest = hidden(': ');
+    b.type = 'button';
+    if (busy) b.setAttribute('aria-disabled', 'true');
+    rest.append(says('span', question));
+    b.append(says('span', label, 'example-label'), rest);
+    b.onclick = () => askAgain(question);
+    return b;
+  }));
+}
+
+// Next questions, retries and district examples name a district, so they go when the chat switches to another.
+function dropDistrictActions() {
+  for (const n of document.querySelectorAll('#log .followups, #log .retry, #examples .local')) n.remove();
+}
+document.addEventListener('klear:district', dropDistrictActions);
+
 // Answer heading that names the district the question was asked about. It takes focus when the answer arrives.
 function heading(answer, name) {
   const h = node('h3', refusalLabels[answer.refusal] || 'KLEAR');
@@ -895,16 +1160,6 @@ function factCard(f) {
   return card;
 }
 
-function programList(programs) {
-  const details = document.createElement('details');
-  details.open = true;
-  details.append(node('summary', 'Official program guidance'));
-  const list = document.createElement('ul');
-  for (const p of programs) { const li = document.createElement('li'); li.append(link(p.name, p.url)); list.append(li); }
-  details.append(list);
-  return details;
-}
-
 function basicAnswer(answer, name) {
   const article = document.createElement('article');
   article.append(heading(answer, name));
@@ -915,7 +1170,7 @@ function basicAnswer(answer, name) {
     details.append(node('summary', 'Figures & sources'), ...answer.facts.map(factCard));
     article.append(details);
   }
-  if (answer.programs && answer.programs.length) article.append(programList(answer.programs));
+  if (answer.programs && answer.programs.length) article.append(answerPrograms(answer.programs, answer.program_sources));
   return article;
 }
 
@@ -1050,7 +1305,8 @@ function renderAnswer(answer, name) {
     details.append(list);
     article.append(details);
   }
-  if (answer.programs && answer.programs.length) article.append(programList(answer.programs));
+  if (answer.programs && answer.programs.length) article.append(answerPrograms(answer.programs, answer.program_sources));
+  if (answer.prepared) article.append(node('p', answer.prepared, 'prepared'));
   return article;
 }
 
@@ -1080,3 +1336,13 @@ async function loadAbout() {
   if (data.crosscheck) { $('crosscheck').textContent = data.crosscheck; $('crosscheck').hidden = false; }
 }
 loadAbout();
+// Programs named in an answer; a district lookup marks which ones its figures point to.
+function answerPrograms(programs, sources) {
+  const details = node('details', '', 'answer-programs');
+  details.open = true;
+  const matched = programs.filter(p => p.match !== false), others = programs.filter(p => p.match === false);
+  const ranked = programs.some(p => 'match' in p);
+  details.append(node('summary', ranked ? 'Programs to explore here' : 'Program pages'), ...programList(matched, others, matched.length ? 'Also available statewide' : 'Available statewide'));
+  if (sources && sources.length) details.append(profileSources(sources));
+  return details;
+}
