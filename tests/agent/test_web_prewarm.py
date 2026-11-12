@@ -109,6 +109,8 @@ def rebuild(path, built_at):
 
 
 def serve(path, assistant=None, prepared=None):
+    # Start with a fresh per-address limit, since earlier tests share 127.0.0.1.
+    web._RECENT.clear()
     handler = partial(web.Handler, store=path, assistant=assistant, prepared=prepared)
     server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
     threading.Thread(target=server.serve_forever, daemon=True).start()
