@@ -16,6 +16,7 @@ from klear.eval.scorers import (
     program_named,
     program_names,
 )
+from klear.store.methods import place_note
 from klear.text import strip_ignorable
 
 _STRS = {"type": "array", "items": {"type": "string"}}
@@ -71,7 +72,19 @@ DIRECTION_TEXT = {
     "lower": "lower than",
     "within_margin": "within the margin of error of",
 }
-METHOD_TEXT = {"A": ", an estimate apportioned to the district", "M": ", a modeled estimate"}
+METHOD_TEXT = {
+    "A": ", an estimate apportioned to the district",
+    "M": ", a modeled estimate",
+    "S": ", a sum of published counts",
+}
+
+
+def _method_text(tier: str | None, f) -> str:
+    """How a fact was made, for the fallback answer: its tier, and what KLEAR derived it from."""
+    note = place_note(f.source_id, f.geo_type)
+    if note and tier == "S":
+        return f", the {note}"
+    return METHOD_TEXT.get(tier, "") + (f", the {note}" if note else "")
 
 
 def allowed_geos(session, resolved: tuple[str, str] | None, context=None) -> set[tuple[str, str]]:
@@ -299,7 +312,7 @@ def template_answer(
     shown = {f.ref: f for f in facts}
     lines = [
         f"* {{label:{f.ref}}} in {{geo:{f.geo_type}:{f.geo_id}}}: {{fact:{f.ref}}} ({{vintage:{f.ref}}})"
-        + METHOD_TEXT.get(session.tiers.get(f.ref), "")
+        + _method_text(session.tiers.get(f.ref), f)
         + (", an unreliable estimate" if f.ref in session.unreliable else "")
         for f in facts
     ]

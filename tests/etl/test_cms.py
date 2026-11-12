@@ -83,6 +83,15 @@ def test_suppressed_zcta_fact_is_null(cms_zip_sample, cms_county_sample, cms_blo
     assert c.set_index("geo_id").value["15001"] == 4289 and (c.tier == "D").all()
 
 
+def test_state_row_sums_the_counties(cms_zip_sample, cms_county_sample, cms_blocks):
+    facts = cms_facts(cms_zip_sample, cms_county_sample, cms_blocks)
+    st = facts[facts.geo_type == "state"].set_index("indicator_id")
+    want = cms_county_sample.groupby("indicator_id").value.sum()
+    assert st.geo_id.unique().tolist() == ["15"] and (st.tier == "S").all()
+    assert st.value[IND] == want[IND] == 23380
+    assert (st.moe_status == "not_applicable").all() and st.value_low.isna().all()
+
+
 def test_zip_without_zcta_noted(cms_zip_sample, cms_county_sample, cms_blocks):
     facts = cms_facts(cms_zip_sample, cms_county_sample, cms_blocks)
     assert "96823" not in set(facts.geo_id)
@@ -121,6 +130,8 @@ def test_starred_county_is_suppressed_and_fails(cms_zip_sample, cms_county_sampl
     assert c.value.isna().all() and (c.value_status == "suppressed").all()
     assert any("15001" in n and "suppressed" in n for n in facts.attrs["notes"])
     assert not facts.loc[facts.geo_type == "house", "value"].isna().any()
+    st = facts[(facts.geo_type == "state") & (facts.indicator_id == IND)].iloc[0]
+    assert pd.isna(st.value) and st.value_status == "suppressed"
     res = check_cms(cms_zip_sample, county, zip_county)
     assert not res.passed and any(d["county"] == "15001" for d in res.details)
 
@@ -258,7 +269,8 @@ def test_facts_load_into_store(cms_zip_sample, cms_county_sample, cms_blocks, st
     add_indicators(store, cms_indicator_rows())
     geos = small_geographies(cms_blocks)
     extra = pd.DataFrame(
-        [("county", c, f"County {c}", None) for c in ("15001", "15003", "15007", "15009")],
+        [("county", c, f"County {c}", None) for c in ("15001", "15003", "15007", "15009")]
+        + [("state", "15", "Hawaii", None)],
         columns=geos.columns,
     )
     add_geographies(store, pd.concat([geos, extra], ignore_index=True))

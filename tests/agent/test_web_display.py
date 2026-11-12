@@ -1,9 +1,12 @@
 """Website answers show a plain lead, number tiles, comparison charts and one source list."""
 
+import json
+
+from klear.agent.tools import Session
 from klear.config import CURRENT_LAYER
 from klear.eval.contract import Answer, FactRef
 from klear.store.db import add_source
-from klear.web.display import build
+from klear.web.display import build, profile
 
 
 def fact(ref, geo_id, value, moe, low=None, high=None):
@@ -85,6 +88,53 @@ def test_layers_downloaded_by_the_build_read_as_a_current_list(small_con):
         "INSERT INTO build_info VALUES ('2026-10-30 19:39:09 HST (2026-10-31T05:39:09Z UTC)', 'x', 0, 'ok', '[]', '{}')"
     )
     assert build(small_con, answer([f], ["x"]))["sources"][0]["year"] == "Current list as of October 2026"
+
+
+def _profile(con):
+    session = Session(con)
+    return profile(con, json.loads(session.run("district_profile", {"district": "house:022"})), session)
+
+
+def _profile_rows(con):
+    return {r["id"]: r for s in _profile(con)["sections"] for r in s["rows"]}
+
+
+def test_profile_names_the_reason_a_place_has_no_figure(small_con):
+    row = _profile_rows(small_con)["sites_lihtc"]
+    assert [a["lead"] + " " + a["rest"] for a in row["against"]] == [
+        "No figure for Honolulu County: not published for county geographies",
+        "No figure for Hawaiʻi: not published for state geographies",
+    ]
+
+
+def test_profile_notes_a_state_value_derived_from_counties(small_con):
+    add_source(
+        small_con,
+        "cdc_places_2025_county",
+        "PLACES county data",
+        "CDC",
+        "https://example.org/cdc",
+        "2025",
+        "pd",
+    )
+    small_con.execute(
+        "INSERT INTO indicator VALUES ('places_food_insecurity', 'Food insecurity', 'percent', NULL, NULL, FALSE)"
+    )
+    small_con.execute(
+        "INSERT INTO fact VALUES "
+        "('house', '022', 'places_food_insecurity', 20.0, NULL, 'ok', 'range', 'M', 'acs', NULL, 18.0, 22.0), "
+        "('county', '15003', 'places_food_insecurity', 16.9, NULL, 'ok', 'range', 'M', 'cdc_places_2025_county', NULL, 14.4, 19.4), "
+        "('state', '15', 'places_food_insecurity', 17.4, NULL, 'ok', 'range', 'M', 'cdc_places_2025_county', NULL, 15.0, 20.1)"
+    )  # fmt: skip
+    row = _profile_rows(small_con)["places_food_insecurity"]
+    assert [a["rest"] for a in row["against"]] == [
+        "the rate in Honolulu County: about 16.9%",
+        "the rate in Hawaiʻi: about 17.4% (average of the CDC county estimates)",
+    ]
+    # the county data the comparisons come from is cited after the section's own sources
+    needs = next(s for s in _profile(small_con)["sections"] if s["title"] == "Modeled needs")
+    assert [c["name"] for c in needs["compared"]] == ["PLACES county data"]
+    assert all(set(r) >= {"against", "note"} and "compared" not in r for r in needs["rows"])
 
 
 def test_charts_say_what_they_show_in_a_sentence_and_keep_table_figures(small_con):

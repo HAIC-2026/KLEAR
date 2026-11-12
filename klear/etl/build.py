@@ -55,10 +55,11 @@ from klear.validation.blocks import check_blocks
 from klear.validation.boundaries import check_boundaries
 from klear.validation.chas import check_chas
 from klear.validation.cms import check_cms, check_cms_districts
+from klear.validation.county_state import check_county_state
 from klear.validation.gazetteer import check_gazetteer
 from klear.validation.hud import check_hcv
 from klear.validation.irs import check_irs
-from klear.validation.places import check_places
+from klear.validation.places import check_places, check_places_county
 from klear.validation.report import render_validation
 from klear.validation.rules import HUD_FILE, HUD_URL, check_rules
 from klear.validation.sites import check_sites
@@ -96,6 +97,10 @@ SOURCES = {
         "PLACES: Local Data for Better Health, census tract data", "Centers for Disease Control and Prevention",
         places.PLACES_URL, places.VINTAGE,
     ),
+    places.COUNTY_SOURCE_ID: (
+        "PLACES: Local Data for Better Health, county data", "Centers for Disease Control and Prevention",
+        places.COUNTY_URL, places.VINTAGE,
+    ),
     chas.SOURCE_ID: (
         "Comprehensive Housing Affordability Strategy (CHAS) data, Table 8", HUD_PUBLISHER, chas.CHAS_URL,
         chas.VINTAGE,
@@ -108,11 +113,23 @@ class StepSkipped(RuntimeError):
 
 
 CHAMBERS = {"house": True, "senate": True}
+WHOLE = {"county": True, "state": True}
 # geographies a source does not publish inside a complete coverage
 KALAWAO_IRS = {("county", KALAWAO): "IRS publishes no Kalawao County row"}
 KALAWAO_CMS = {("county", KALAWAO): "CMS publishes no rows for Kalawao County"}
 # steps after the base build that need the fact store and the block table
-STORE_STEPS = ("geographies", "irs", "cms", "hud_vouchers", "sites", "places", "chas", "gazetteer", "areas")
+STORE_STEPS = (
+    "geographies",
+    "irs",
+    "cms",
+    "hud_vouchers",
+    "sites",
+    "places",
+    "chas",
+    "gazetteer",
+    "areas",
+    "county_state",
+)
 EXIT_MEANING = {
     0: "all gated checks ran and passed",
     1: "a gated check failed",
@@ -272,6 +289,10 @@ def _store_steps(con, blocks, house, senate, step, checks: list[CheckResult]) ->
     step("geographies", lambda: add_geographies(con, geos))
     zip_county = cms.zip_county_map(geos)
     expected = geos.geo_type.value_counts().to_dict()
+    counties = [
+        r[0]
+        for r in con.execute("SELECT geo_id FROM geography WHERE geo_type = 'county' ORDER BY 1").fetchall()
+    ]
 
     def irs_step():
         z = irs.parse_irs_zip(fetch(irs.ZIP_URL, "irs/23zpallnoagi.csv"))
@@ -286,7 +307,7 @@ def _store_steps(con, blocks, house, senate, step, checks: list[CheckResult]) ->
         z = cms.parse_cms_zip(fetch(cms.ZIP_URL, "cms/zip.zip"))
         c = cms.parse_cms_county(fetch(cms.COUNTY_URL, "cms/county.zip"))
         facts = cms.cms_facts(z, c, blocks, geos=geos)
-        cover = CHAMBERS | {"county": True, "zcta": False}
+        cover = CHAMBERS | WHOLE | {"zcta": False}
         _register(con, [cms.SOURCE_ID], cms.cms_indicator_rows(), cover, KALAWAO_CMS)
         add_facts(con, facts)
         checks.append(check_cms(z, c, zip_county, notes=facts.attrs["notes"]))
@@ -294,7 +315,9 @@ def _store_steps(con, blocks, house, senate, step, checks: list[CheckResult]) ->
 
     def hud_step():
         facts = hud.hcv_facts(hud.load_hcv_rows(), blocks, geos=geos)
-        _register(con, [hud.SOURCE_ID], hud.hud_indicator_rows(), CHAMBERS | {"tract": False})
+        listed = set(facts[facts.geo_type == "county"].geo_id)
+        none = {("county", c): "HUD lists no tracts in this county" for c in counties if c not in listed}
+        _register(con, [hud.SOURCE_ID], hud.hud_indicator_rows(), CHAMBERS | WHOLE | {"tract": False}, none)
         add_facts(con, facts)
         result = check_hcv(facts)
         result.notes += facts.attrs["notes"]
@@ -302,11 +325,12 @@ def _store_steps(con, blocks, house, senate, step, checks: list[CheckResult]) ->
 
     def sites_step():
         df = sites.load_sites(house, senate)
-        facts = sites.site_facts(df, districts={"house": list(house.geo_id), "senate": list(senate.geo_id)})
+        places_in = {"house": list(house.geo_id), "senate": list(senate.geo_id), "county": counties}
+        facts = sites.site_facts(df, districts=places_in)
 
         def cover(ind):
             # unit totals exist only where a site reports units
-            return {c: not sites.SITE_INDICATORS[ind][2] for c in CHAMBERS}
+            return {c: not sites.SITE_INDICATORS[ind][2] for c in places_in} | {"state": True}
 
         _register(con, list(sites.SITE_SOURCES.values()), sites.site_indicator_rows(), cover)
         add_sites(con, df)
@@ -318,12 +342,16 @@ def _store_steps(con, blocks, house, senate, step, checks: list[CheckResult]) ->
     def places_step():
         df = places.load_places()
         facts = places.places_facts(df, blocks, geos=geos)
-        _register(con, [places.SOURCE_ID], places.places_indicator_rows(df), CHAMBERS | {"tract": False})
-        add_facts(con, facts)
+        by_county = places.load_places_county()
+        whole = places.places_county_facts(by_county, counties)
+        sources = [places.SOURCE_ID, places.COUNTY_SOURCE_ID]
+        _register(con, sources, places.places_indicator_rows(df), CHAMBERS | WHOLE | {"tract": False})
+        add_facts(con, pd.concat([facts, whole], ignore_index=True))
         result = check_places(df, facts)
         n = df.groupby("measureid").src_id.nunique()
         result.notes.insert(0, "tracts per measure: " + ", ".join(f"{m} {v:,}" for m, v in n.items()))
         checks.append(result)
+        checks.append(check_places_county(by_county, whole, counties))
 
     def chas_step():
         facts = chas.chas_facts(None, blocks, geos=geos)
@@ -370,6 +398,7 @@ def _store_steps(con, blocks, house, senate, step, checks: list[CheckResult]) ->
         ("chas", chas_step),
         ("gazetteer", gazetteer_step),
         ("areas", areas_step),
+        ("county_state", lambda: checks.append(check_county_state(con))),
     ):
         step(name, fn)
     return expected

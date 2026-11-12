@@ -1,4 +1,4 @@
-# Loads HUD housing choice vouchers by tract and apportions them to districts with ranges.
+# Loads HUD housing choice vouchers by tract, apportions them to districts and sums them to counties and the state.
 import pandas as pd
 
 from klear.etl.arcgis import query_features
@@ -6,6 +6,7 @@ from klear.etl.bounded import apportion_bounded
 from klear.etl.crosswalk import build_crosswalk
 from klear.etl.facts import additive_ids, fact_frame, published_totals, unplaced
 from klear.etl.geographies import small_geographies
+from klear.store.db import FACT_COLS
 
 HUD_BASE = "https://services.arcgis.com/VTyQ9soqVukalItT/ArcGIS/rest/services"
 HCV_URL = f"{HUD_BASE}/Housing_Choice_Vouchers_by_Tract/FeatureServer/0"
@@ -15,6 +16,7 @@ INDICATOR = "hud_vouchers"
 # HUD omits tracts with 10 or fewer voucher holders
 SUPPRESSED_MAX = {INDICATOR: 10}
 HUD_INDICATORS = {INDICATOR: "Housing choice voucher holders"}
+STATE = "15"
 
 
 def hud_indicator_rows() -> pd.DataFrame:
@@ -74,8 +76,40 @@ def hcv_facts(rows: list[dict], blocks: pd.DataFrame, *, geos: pd.DataFrame | No
                 f"unplaced vouchers {total:,.0f}"
             )
         parts.append(fact_frame(chamber, out, "dst_id", "A", SOURCE_ID))
+    parts += [summed_facts(on, "county"), summed_facts(on, "state")]
     facts = pd.concat(parts, ignore_index=True)
     facts.attrs.update(
-        notes=list(dict.fromkeys(notes)), unplaced=lost_by_chamber, published=published_totals(df)
+        notes=list(dict.fromkeys(notes)),
+        unplaced=lost_by_chamber,
+        published=published_totals(df),
+        off_table=published_totals(df[df.src_id.isin(off)]),
     )
     return facts
+
+
+def summed_facts(tracts: pd.DataFrame, geo_type: str) -> pd.DataFrame:
+    # published tract vouchers summed by county (tract ids start with it) or for the state, each suppressed
+    # tract adding up to its most to the high; a place whose tracts are all suppressed is suppressed
+    df = tracts.assign(geo_id=tracts.src_id.str[:5] if geo_type == "county" else STATE)
+    df = df.assign(hidden=df.value.isna() * df.indicator_id.map(SUPPRESSED_MAX).fillna(0))
+    g = df.groupby(["geo_id", "indicator_id"], as_index=False).agg(
+        value=("value", lambda v: v.sum(min_count=1)), hidden=("hidden", "sum")
+    )
+    ranged = g.value.notna() & (g.hidden > 0)
+    nan = float("nan")
+    return pd.DataFrame(
+        {
+            "geo_type": geo_type,
+            "geo_id": g.geo_id.to_numpy(),
+            "indicator_id": g.indicator_id.to_numpy(),
+            "value": g.value.to_numpy(),
+            "moe": nan,
+            "value_status": g.value.notna().map({True: "ok", False: "suppressed"}).to_numpy(),
+            "moe_status": ranged.map({True: "range", False: "not_applicable"}).to_numpy(),
+            "tier": "S",
+            "source_id": SOURCE_ID,
+            "table_id": None,
+            "value_low": g.value.where(ranged).to_numpy(),
+            "value_high": (g.value + g.hidden).where(ranged).to_numpy(),
+        }
+    )[FACT_COLS]

@@ -161,22 +161,6 @@ NULL_REASONS = {
     "suppressed": "too few cases for the source to publish",
     "not_applicable": "not applicable here",
 }
-# How each fact tier was produced, as get_facts reports it.
-METHODS = {
-    "D": "published for this geography",
-    "A": "apportioned estimate: moved to the district from ZIP code or tract data, the range shows how much "
-    "that move could change it",
-    "M": "modeled estimate: the range is a wide uncertainty band, not a formal confidence interval",
-    "P": "counted from site locations",
-}
-# Method text for apportioned sources whose range does not bound every part of the value.
-SOURCE_METHODS = {
-    "irs_soi_zip_2023": "apportioned estimate: moved to the district from IRS ZIP code data; the range covers "
-    "returns with a mapped ZIP code, but returns from small or unlisted ZIP codes are spread by population and "
-    "are not bounded by it",
-    "cms_oep_2026": "apportioned estimate: moved to the district from ZIP code data; enrollees the source did "
-    "not publish by ZIP code are placed by assumption, so the range is not a guaranteed bound",
-}
 # County and island names (plain form) mapped to county ids.
 COUNTY_NAMES = {
     "honolulu county": "15003", "oahu": "15003",

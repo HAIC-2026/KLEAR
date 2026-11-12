@@ -68,7 +68,7 @@ call list_programs, put the rule id in programs and write the program exactly as
 list_programs, which has no years or numbers (for example Federal EITC, never with a tax year).
 - Read each fact's method. Call a modeled fact (such as CDC PLACES) a modeled estimate, and an apportioned \
 fact an estimate apportioned to the district from ZIP code or tract data. Use the words "modeled estimate" \
-or "estimate" literally.
+or "estimate" literally. When a county or state method says the value was derived or summed by KLEAR, say so.
 - For Lahaina and other wildfire areas, warn that the survey estimates were collected mostly before the \
 Maui wildfires.
 - Set resolved to the district the answer is about as house:NNN or senate:NNN, or null when there is none \

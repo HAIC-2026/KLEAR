@@ -1,4 +1,4 @@
-# Validation 8: every help site has a House and Senate district within snapping distance (gated).
+# Validation 8: every help site has a House and Senate district within snapping distance and a county (gated).
 import pandas as pd
 
 from klear.etl.blocks import MAX_SNAP_M
@@ -11,6 +11,8 @@ def check_sites(sites: pd.DataFrame) -> CheckResult:
     for r in sites.itertuples():
         if pd.isna(r.house) or pd.isna(r.senate):
             details.append({"check": "missing_district", "site_id": r.site_id})
+        if "county" in sites and pd.isna(r.county):
+            details.append({"check": "missing_county", "site_id": r.site_id})
         if r.snapped_m > MAX_SNAP_M:
             details.append({"check": "beyond_snap_distance", "site_id": r.site_id, "snapped_m": r.snapped_m})
         elif r.snapped_m > 0:
@@ -20,4 +22,7 @@ def check_sites(sites: pd.DataFrame) -> CheckResult:
     for sid in sorted(sites.site_id[sites.site_id.duplicated()].unique()):
         details.append({"check": "duplicate_site_id", "site_id": sid})
     notes.append(f"{len(sites)} sites checked, snapping limit {MAX_SNAP_M:,.0f} m")
+    if "county" in sites:
+        n = sites.county.value_counts().sort_index()
+        notes.append("sites by county: " + ", ".join(f"{c} {v:,}" for c, v in n.items()))
     return CheckResult("sites", not details, True, len(sites), len(details), details, notes)

@@ -7,6 +7,7 @@ from klear.agent.answer import actual_direction
 from klear.agent.config import PROFILE_HEADLINE
 from klear.config import CURRENT_LAYER
 from klear.eval.contract import MARKER, _has, _number, geo_display, geo_key, short_name
+from klear.store.methods import place_note
 
 MAX_TILES = 6
 VINTAGE_NOTE = re.compile(r"\s*\(\{vintage:\w+\}\)")
@@ -294,11 +295,16 @@ def _profile_row(row: dict, session, store: _Store) -> dict:
     fact = row["fact"]
     f = session.facts[fact["ref"]]
     unit = store.unit(f)
-    year = year_text(fact["vintage"], store.month)
-    against = []
+    against, compared = [], []
     for a in row["against"]:
+        if "missing" in a:
+            against.append({"lead": "No figure", "rest": f"for {a['geo_name']}: {a['missing']}"})
+            continue
         theirs = session.facts[a["ref"]]
+        compared.append(_source(store, theirs))
         value = _plain(theirs, unit)
+        if note := place_note(theirs.source_id, theirs.geo_type):
+            value = f"{value} ({note})"
         if "share" in a:
             against.append({"lead": a["share"], "rest": f"of the total in {a['geo_name']}: {value}"})
         else:
@@ -313,24 +319,34 @@ def _profile_row(row: dict, session, store: _Store) -> dict:
         "value": _plain(f, unit),
         "spread": _spread(f, unit),
         "caution": "Unreliable estimate: the margin of error is large" if fact["reliable"] is False else "",
-        "source": {
-            "name": store.sources.get(f.source_id, (fact["source"], ""))[0],
-            "url": store.sources.get(f.source_id, ("", ""))[1],
-            "year": year,
-        },
+        "source": _source(store, f, fact["source"]),
         "against": against,
+        "compared": compared,
     }
 
 
+def _source(store: _Store, f, fallback: str = "") -> dict:
+    name, url = store.sources.get(f.source_id, (fallback, ""))
+    return {"name": name, "url": url, "year": year_text(f.vintage, store.month)}
+
+
+def _public(row: dict) -> dict:
+    return {k: v for k, v in row.items() if k != "compared"}
+
+
 def _section(title: str, rows: list[dict]) -> dict:
-    """A profile section with its sources listed once; when there are several, each row notes which it uses."""
+    """A profile section with its sources listed once; when there are several, each row notes which it uses.
+    Sources that only the county and state figures come from are listed after them."""
     sources = list({(r["source"]["name"], r["source"]["year"]): r["source"] for r in rows}.values())
     keys = [(x["name"], x["year"]) for x in sources]
+    compared = {(c["name"], c["year"]): c for r in rows for c in r["compared"]}
     rows = [
-        r | {"note": keys.index((r["source"]["name"], r["source"]["year"])) + 1 if len(sources) > 1 else 0}
+        _public(r)
+        | {"note": keys.index((r["source"]["name"], r["source"]["year"])) + 1 if len(sources) > 1 else 0}
         for r in rows
     ]
-    return {"title": title, "rows": rows, "sources": sources}
+    others = [c for k, c in compared.items() if k not in keys]
+    return {"title": title, "rows": rows, "sources": sources, "compared": others}
 
 
 def profile(con, raw: dict, session, islands: str = "") -> dict:
@@ -339,7 +355,7 @@ def profile(con, raw: dict, session, islands: str = "") -> dict:
     rows = {
         r["fact"]["indicator_id"]: _profile_row(r, session, store) for s in raw["sections"] for r in s["rows"]
     }
-    headline = [dict(rows[i]) for i in PROFILE_HEADLINE if i in rows]
+    headline = [_public(rows[i]) for i in PROFILE_HEADLINE if i in rows]
     sections = [
         _section(s["title"], [rows[r["fact"]["indicator_id"]] for r in s["rows"]]) for s in raw["sections"]
     ]
