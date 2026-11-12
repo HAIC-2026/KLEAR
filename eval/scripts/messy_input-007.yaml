@@ -1,0 +1,30 @@
+# Scripted model turns for messy_input-007: Resolve ʻAiea, fetch kūpuna counts for both House districts, first write the town without its ʻokina, then fix it after the answer check flags it.
+- - type: tool_use
+    name: resolve_place
+    input:
+      text: "aiea"
+- - type: tool_use
+    name: get_facts
+    input:
+      indicator_ids: ["pop_65_plus"]
+      geos: ["house:032", "house:033"]
+- - type: tool_use
+    name: submit_answer
+    input:
+      resolved: null
+      refusal: none
+      blocks:
+        - "Aiea spans {geo:house:032} and {geo:house:033}, so here are kūpuna counts for each.\n* {geo:house:032}: {fact:f1} ({vintage:f1})\n* {geo:house:033}: {fact:f2}"
+      facts: ["f1", "f2"]
+      programs: []
+      caveats: ["These are district totals, not counts for the town alone."]
+- - type: tool_use
+    name: submit_answer
+    input:
+      resolved: null
+      refusal: none
+      blocks:
+        - "ʻAiea spans {geo:house:032} and {geo:house:033}, so here are kūpuna ({label:f1}) for each.\n* {geo:house:032}: {fact:f1} ({vintage:f1})\n* {geo:house:033}: {fact:f2}"
+      facts: ["f1", "f2"]
+      programs: []
+      caveats: ["These are district totals, not counts for the town alone."]

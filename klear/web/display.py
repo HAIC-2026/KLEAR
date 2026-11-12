@@ -6,7 +6,7 @@ from datetime import datetime
 from klear.agent.answer import actual_direction
 from klear.agent.config import PROFILE_HEADLINE
 from klear.config import CURRENT_LAYER
-from klear.eval.contract import MARKER, _has, _number, geo_display, geo_key, short_name
+from klear.eval.contract import MARKER, _has, _number, geo_display, geo_key, render_share, short_name
 
 MAX_TILES = 6
 VINTAGE_NOTE = re.compile(r"\s*\(\{vintage:\w+\}\)")
@@ -97,6 +97,8 @@ def plain_text(texts: list[str], answer, store: _Store) -> list[str]:
 
     def sub(m):
         kind, ref = m.groups()
+        if kind == "share":
+            return render_share(store.con, ref)
         if kind == "geo":
             key = geo_key(ref)
             return store.place(*key) if key else ref

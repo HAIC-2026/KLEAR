@@ -1,0 +1,19 @@
+# Scripted model turns for no_data-007: Find no diabetes indicator and decline as not available, pointing to the Department of Health and CDC PLACES.
+- - type: tool_use
+    name: resolve_place
+    input:
+      text: "Hawaiʻi Senate District 3"
+- - type: tool_use
+    name: search_indicators
+    input:
+      words: ["diabetes"]
+- - type: tool_use
+    name: submit_answer
+    input:
+      resolved: "senate:003"
+      refusal: not_available
+      blocks:
+        - "Diabetes rates for {geo:senate:003} are not in KLEAR's district data yet, although KLEAR covers health. The Hawaiʻi State Department of Health publishes them, and CDC PLACES models them by Census tract."
+      facts: []
+      programs: []
+      caveats: []

@@ -1,0 +1,25 @@
+# Scripted model turns for find_district-005: Resolve the House district, first name only its main Senate district, then name both with their shares after the answer check asks for them.
+- - type: tool_use
+    name: resolve_place
+    input:
+      text: "Hawaiʻi House District 22"
+- - type: tool_use
+    name: submit_answer
+    input:
+      resolved: "house:022"
+      refusal: none
+      blocks:
+        - "{geo:house:022} lies mostly in {geo:senate:011}."
+      facts: []
+      programs: []
+      caveats: []
+- - type: tool_use
+    name: submit_answer
+    input:
+      resolved: "house:022"
+      refusal: none
+      blocks:
+        - "{geo:house:022} does not sit inside a single Senate district. These Senate districts hold its residents:\n* {geo:senate:011}: {share:house:022:senate:011}\n* {geo:senate:010}: {share:house:022:senate:010}"
+      facts: []
+      programs: []
+      caveats: []

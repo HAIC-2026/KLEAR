@@ -1,0 +1,30 @@
+# Scripted model turns for messy_input-008: Resolve Līhuʻe, fetch the rent for its House district, first write the town without ʻokina and kahakō, then fix it.
+- - type: tool_use
+    name: resolve_place
+    input:
+      text: "lihue"
+- - type: tool_use
+    name: get_facts
+    input:
+      indicator_ids: ["median_gross_rent"]
+      geos: ["house:016"]
+- - type: tool_use
+    name: submit_answer
+    input:
+      resolved: "house:016"
+      refusal: none
+      blocks:
+        - "Lihue lies entirely in {geo:house:016}. {label:f1}: {fact:f1} ({vintage:f1})."
+      facts: ["f1"]
+      programs: []
+      caveats: []
+- - type: tool_use
+    name: submit_answer
+    input:
+      resolved: "house:016"
+      refusal: none
+      blocks:
+        - "Līhuʻe lies entirely in {geo:house:016}. {label:f1}: {fact:f1} ({vintage:f1})."
+      facts: ["f1"]
+      programs: []
+      caveats: []

@@ -194,7 +194,9 @@ def test_example_outcomes_match_the_built_store(real_con):
             assert "error" not in got
             if name == "resolve_place":
                 (match,) = got["matches"]
-                geos = {o["geo"] for o in match.get("overlaps", [])} or {match["geo"]}
+                # A district stands for itself; a place or ZIP code for the districts it overlaps.
+                overlaps = [] if match["kind"] == "district" else match.get("overlaps", [])
+                geos = {o["geo"] for o in overlaps} or {match["geo"]}
                 assert set(re.findall(r"\b(?:county|state|house|senate):\d+", said)) == geos
                 continue
             if name == "search_indicators":

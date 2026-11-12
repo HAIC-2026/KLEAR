@@ -1,0 +1,9 @@
+id: no_data-008
+category: no_data
+question: How many car crashes happen in Hawaiʻi House District 40?
+ideal: Say that traffic crashes are outside what KLEAR covers, which is people, income, housing, health and
+  benefit programs. Point to the Hawaiʻi Department of Transportation.
+district: [house, "040"]
+tags: [traffic]
+must_say: ["Department of Transportation"]
+refusal: out_of_scope

@@ -1,0 +1,15 @@
+# Scripted model turns for messy_input-005: Read the shorthand as House District 26 and name both Senate districts with their shares.
+- - type: tool_use
+    name: resolve_place
+    input:
+      text: "hse 26"
+- - type: tool_use
+    name: submit_answer
+    input:
+      resolved: "house:026"
+      refusal: none
+      blocks:
+        - "These Senate districts hold residents of {geo:house:026}:\n* {geo:senate:011}: {share:house:026:senate:011}\n* {geo:senate:013}: {share:house:026:senate:013}"
+      facts: []
+      programs: []
+      caveats: []

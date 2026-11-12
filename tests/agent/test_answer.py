@@ -280,7 +280,7 @@ def test_typed_place_names(s1):
     s2.run("get_facts", {"indicator_ids": ["pop_65_plus"], "geos": ["house:022"]})
     s2.resolved = set()
     _, problems = build_answer(s2, args(blocks=["Hawaiʻi has " + ok, "Kāneʻohe has " + ok]))
-    assert any("kaneohe" in p for p in problems) and not any("hawaii" in p for p in problems)
+    assert any("Kāneʻohe" in p for p in problems) and not any("hawaii" in p for p in problems)
     s2.run("resolve_place", {"text": "kaneohe"})
     _, problems = build_answer(s2, args(blocks=["Kāneʻohe has " + ok]))
     assert problems == []
@@ -312,7 +312,7 @@ def test_lowercase_common_words_do_not_trigger(session):
     ok = " {fact:f1} {vintage:f1}"
     assert build_answer(session, args(blocks=["The volcano is active." + ok]))[1] == []
     _, problems = build_answer(session, args(blocks=["Volcano has" + ok]))
-    assert any("volcano" in p for p in problems)
+    assert any("Volcano" in p for p in problems)
 
 
 def test_hawaiian_group_word_with_label_and_in_a_decline(s1):

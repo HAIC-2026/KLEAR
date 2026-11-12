@@ -1,0 +1,12 @@
+id: messy_input-005
+category: messy_input
+question: senate dist for hse 26??
+ideal: Read the shorthand as the Hawaiʻi House district it names. Give both Senate districts that hold its
+  residents, each with its share of the district's population.
+district: [house, "026"]
+tags: [senate_overlap]
+allowed_geos:
+  - [senate, "011"]
+  - [senate, "013"]
+must_say: ["Senate District 11", "Senate District 13"]
+refusal: none

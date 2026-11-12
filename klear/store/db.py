@@ -38,6 +38,8 @@ FACT_COLS = [
     "table_id", "value_low", "value_high",
 ]  # fmt: skip
 BLOCK_COLS = ["block", "county", "tract", "zcta", "house", "senate", "pop2020"]
+DISTRICT_OVERLAP_COLS = ["district_type", "district_id", "geo_type", "geo_id", "pop2020", "share"]
+CHAMBERS = {"house", "senate"}
 PLACE_COLS = ["place_id", "name", "plain", "pop2020"]
 OVERLAP_COLS = ["place_id", "geo_type", "geo_id", "pop2020", "share"]
 OVERLAP_TYPES = {"county", "house", "senate", "zcta"}
@@ -105,6 +107,16 @@ def add_blocks(con, df: pd.DataFrame) -> None:
     df = _require_columns(df, BLOCK_COLS, "blocks")
     _fail("blocks", "negative pop2020", df, df["pop2020"] < 0)
     _insert(con, "blocks", df)
+
+
+def add_district_overlap(con, df: pd.DataFrame) -> None:
+    df = _require_columns(df, DISTRICT_OVERLAP_COLS, "district overlap")
+    what = "district overlap"
+    _fail(what, "district_type not house or senate", df, _not_in(df, "district_type", CHAMBERS))
+    other = df["geo_type"].isin(CHAMBERS | {"county"}) & (df["geo_type"] != df["district_type"])
+    _fail(what, "geo_type not the other chamber or county", df, ~other)
+    _fail(what, "share outside (0, 1]", df, ~((df["share"] > 0) & (df["share"] <= 1)))
+    _insert(con, "district_overlap", df)
 
 
 def add_places(con, place: pd.DataFrame, overlap: pd.DataFrame) -> None:

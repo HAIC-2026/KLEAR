@@ -1,0 +1,15 @@
+# Scripted model turns for find_district-006: Resolve the Senate district and name the House districts that hold its residents, with their shares.
+- - type: tool_use
+    name: resolve_place
+    input:
+      text: "Hawaiʻi Senate District 7"
+- - type: tool_use
+    name: submit_answer
+    input:
+      resolved: "senate:007"
+      refusal: none
+      blocks:
+        - "House districts are smaller than Senate districts and do not nest neatly inside them. These House districts hold residents of {geo:senate:007}:\n* {geo:house:013}: {share:senate:007:house:013}\n* {geo:house:012}: {share:senate:007:house:012}"
+      facts: []
+      programs: []
+      caveats: []

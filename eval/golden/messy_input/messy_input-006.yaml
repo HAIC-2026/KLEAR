@@ -1,0 +1,10 @@
+id: messy_input-006
+category: messy_input
+question: evictions in my district?? need numbers
+ideal: Use the selected Senate district and say eviction filings are not in KLEAR's district data yet, a
+  housing subject KLEAR covers. Point to the Hawaiʻi State Judiciary instead of guessing a number.
+context: [senate, "012"]
+district: [senate, "012"]
+tags: [eviction]
+must_say: ["Judiciary"]
+refusal: not_available

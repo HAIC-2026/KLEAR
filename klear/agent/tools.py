@@ -6,8 +6,9 @@ from typing import NamedTuple
 import duckdb
 
 from klear.agent import config
+from klear.agent.topics import topics_in
 from klear.etl.places_gazetteer import plain_name, search_plain
-from klear.eval.contract import FactRef, fill_value, geo_display, geo_key, short_name
+from klear.eval.contract import FactRef, district_overlap, fill_value, geo_display, geo_key, short_name
 from klear.eval.scorers import CV_LIMIT, counties, cv
 from klear.rules.registry import load_rules
 from klear.store.db import MOE_STATUSES, SITE_KINDS, VALUE_STATUSES
@@ -217,7 +218,7 @@ class Session:
         if d := _district_form(text):
             if self._name(*d):
                 self.resolved.add(d)
-                return {"matches": [{"kind": "district", **self._geo(*d)}]}
+                return {"matches": [self._district_match(d)]}
             return {"matches": [], "note": self._range_note(d[0]), "hint": NO_MATCH_HINT}
         if zipm := ZIP.match(text.strip().casefold()):
             if self._name("zcta", zipm.group(1)):
@@ -291,6 +292,15 @@ class Session:
                 [value],
             ).fetchall()
         return int(total), [self._overlap_entry(t, i, p / total, int(p)) for t, i, p in rows]
+
+    def _district_match(self, geo: tuple[str, str]) -> dict:
+        """A district with each district of the other chamber and each county holding its 2020 residents, their
+        share of the district and the marker that prints that share."""
+        overlaps = [
+            self._geo(t, i, share=round(s, 4), pop2020=int(p), marker=f"{{share:{geo[0]}:{geo[1]}:{t}:{i}}}")
+            for t, i, p, s in district_overlap(self.con, geo)
+        ]
+        return {"kind": "district", **self._geo(*geo), "overlaps": overlaps}
 
     def _zcta_match(self, zcta: str) -> dict:
         self.resolved.add(("zcta", zcta))
@@ -540,6 +550,8 @@ class Session:
                 "SELECT geo_type FROM indicator_coverage WHERE indicator_id = ? ORDER BY geo_type", [i]
             ).fetchall()
             out.append({"indicator_id": i, "label": label, "unit": unit, "geo_types": [t[0] for t in types]})
+        if topics := topics_in(" ".join(words)):
+            return {"indicators": out, "topics": [t.card() for t in topics]}
         return {"indicators": out}
 
     # get_facts
@@ -952,13 +964,17 @@ TOOL_SPECS = [
         "Resolve a district, ZIP code, island, county, neighborhood or town to geographies. Returns every "
         "candidate with its island and the districts and counties it overlaps, or no matches with a note on why. "
         "Islands, neighborhood board areas and county divisions have no facts of their own: use their districts, "
-        "or their county when of_county is close to 1. Never guess between candidates.",
+        "or their county when of_county is close to 1. Never guess between candidates. A district's overlaps "
+        "list the other chamber's districts and the counties holding its residents, each with a marker that prints its "
+        "share of the district, for example {share:house:022:senate:011}.",
         {"text": {"type": "string", "description": "District, ZIP code or place name as the user wrote it."}},
         ["text"],
     ),
     _spec(
         "search_indicators",
-        "Find indicators by words. Returns ids, labels, units and the geography types each is published for.",
+        "Find indicators by words. Returns ids, labels, units and the geography types each is published for. "
+        "For a topic KLEAR holds no district data for, topics gives the refusal to use, what it means and who "
+        "publishes the figures.",
         {"words": {**_STRS, "description": "Search words, for example kupuna or poverty."}},
         ["words"],
     ),

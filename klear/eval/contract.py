@@ -8,8 +8,12 @@ from klear.store.db import GEO_TYPES
 VERSION = "1"
 REFUSALS = ("none", "decline_individual", "decline_partisan", "not_available", "out_of_scope")
 # Markers: {fact:REF} renders the cited value, {vintage:REF} its vintage and source, {label:REF} its
-# indicator label, {geo:TYPE:ID} a place name.
-MARKER = re.compile(r"\{(fact|vintage|label|geo):([^{}\s]+)\}")
+# indicator label, {geo:TYPE:ID} a place name, {share:TYPE:ID:TYPE:ID} the share of a district's 2020 Census
+# population living in the second geography.
+MARKER = re.compile(r"\{(fact|vintage|label|geo|share):([^{}\s]+)\}")
+# Marker kinds that name places rather than fact refs.
+PLACE_MARKERS = ("geo", "share")
+CHAMBERS = ("house", "senate")
 TEXT_FIELDS = ("ref", "indicator_id", "geo_type", "geo_id", "source_id", "vintage")
 NUMBER_FIELDS = ("value", "value_low", "value_high", "moe")
 # Short source names by prefix of the stored source name.
@@ -39,6 +43,66 @@ def geo_key(ref: str) -> tuple[str, str] | None:
     """Split a geo marker body TYPE:ID, or None when malformed."""
     geo_type, _, geo_id = ref.partition(":")
     return (geo_type, geo_id) if geo_type in GEO_TYPES and geo_id else None
+
+
+def share_key(ref: str) -> tuple[tuple[str, str], tuple[str, str]] | None:
+    """Split a share marker body into a House or Senate district and a district of the other chamber or a
+    county, or None when malformed."""
+    parts = ref.split(":")
+    if len(parts) != 4 or not all(parts):
+        return None
+    district, other = (parts[0], parts[1]), (parts[2], parts[3])
+    if district[0] not in CHAMBERS or other[0] not in (*CHAMBERS, "county") or other[0] == district[0]:
+        return None
+    return district, other
+
+
+def district_overlap(con, geo: tuple[str, str]) -> list[tuple[str, str, int, float]]:
+    """(geo_type, geo_id, pop2020, share) for each district of the other chamber, then each county, holding a
+    House or Senate district's 2020 residents, largest share first. Empty for a store without the table."""
+    if geo[0] not in CHAMBERS:
+        return []
+    has = con.execute(
+        "SELECT count(*) FROM information_schema.tables WHERE table_name = 'district_overlap'"
+    ).fetchone()[0]
+    if not has:
+        return []
+    return con.execute(
+        "SELECT geo_type, geo_id, pop2020, share FROM district_overlap WHERE district_type = ? AND district_id = ? "
+        "ORDER BY geo_type = 'county', share DESC, geo_id",
+        list(geo),
+    ).fetchall()
+
+
+def share_text(share: float) -> str:
+    """A population share as a percent, never rounded to 0% or 100% unless it is."""
+    if share >= 1:
+        return "100%"
+    if share > 0.999:
+        return ">99.9%"
+    return "<0.1%" if share < 0.001 else f"{share:.1%}"
+
+
+def render_share(con, ref: str) -> str:
+    """A share marker's text, like 89.2% of the 2020 Census population of House District 22."""
+    key = share_key(ref)
+    if key is None:
+        raise ContractError(
+            f"marker {{share:{ref}}} needs a House or Senate district, then TYPE:ID of the other "
+            "chamber's district or a county"
+        )
+    (district, other), names = key, []
+    for geo in key:
+        row = con.execute(
+            "SELECT name FROM geography WHERE geo_type = ? AND geo_id = ?", list(geo)
+        ).fetchone()
+        if row is None:
+            raise ContractError(f"unknown geography {geo[0]}:{geo[1]}")
+        names.append(geo_display(*geo, row[0]))
+    share = next((s for t, i, _, s in district_overlap(con, district) if (t, i) == other), None)
+    if share is None:
+        raise ContractError(f"{names[0]} has no 2020 residents in {names[1]}")
+    return f"{share_text(share)} of the 2020 Census population of {names[0]}"
 
 
 def geo_display(geo_type: str, geo_id: str, name: str) -> str:
@@ -134,7 +198,11 @@ def answer_from_json(d: dict) -> Answer:
         for kind, ref in MARKER.findall(text):
             if kind == "geo" and geo_key(ref) is None:
                 raise ContractError(f"marker {{geo:{ref}}} needs TYPE:ID with TYPE in {sorted(GEO_TYPES)}")
-            if kind != "geo" and ref not in refs:
+            if kind == "share" and share_key(ref) is None:
+                raise ContractError(
+                    f"marker {{share:{ref}}} needs TYPE:ID:TYPE:ID, a district then the other geography"
+                )
+            if kind not in PLACE_MARKERS and ref not in refs:
                 raise ContractError(f"marker {{{kind}:{ref}}} has no fact ref")
     return a
 
@@ -185,6 +253,8 @@ def render(a: Answer, con) -> str:
     sources = dict(con.execute("SELECT source_id, name FROM source").fetchall())
 
     def sub(m: re.Match) -> str:
+        if m.group(1) == "share":
+            return render_share(con, m.group(2))
         if m.group(1) == "geo":
             row = None
             if (key := geo_key(m.group(2))) is not None:

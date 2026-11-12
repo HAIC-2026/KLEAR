@@ -1,0 +1,10 @@
+id: no_data-006
+category: no_data
+question: How many eviction filings were there in Hawaiʻi House District 5 last year?
+ideal: Say that eviction filings are not in KLEAR's district data yet, although housing is a subject KLEAR
+  covers, so the data is not available rather than out of scope. Point to the Hawaiʻi State Judiciary, whose
+  courts hear landlord-tenant cases, and do not invent a count.
+district: [house, "005"]
+tags: [eviction]
+must_say: ["Judiciary"]
+refusal: not_available

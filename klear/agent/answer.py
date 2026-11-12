@@ -5,18 +5,21 @@ from dataclasses import replace
 
 from klear.agent import config
 from klear.agent.tools import _spec, display_name
+from klear.agent.topics import MEANING, asked_topic
 from klear.etl.places_gazetteer import plain_name
-from klear.eval.contract import MARKER, REFUSALS, VERSION, Answer, render
+from klear.eval.contract import MARKER, REFUSALS, VERSION, Answer, district_overlap, render
 from klear.eval.scorers import (
     EMPHASIS,
     FLIP,
     answer_problems,
     counties,
     direction_claims,
+    hawaiian_names,
+    other_chamber,
     program_named,
     program_names,
 )
-from klear.text import strip_ignorable
+from klear.text import LOOKALIKES, VOWELS, strip_ignorable, unmarked
 
 _STRS = {"type": "array", "items": {"type": "string"}}
 SUBMIT_SPEC = _spec(
@@ -44,9 +47,12 @@ REFUSAL_TEXT = {
     "not_available": "That information is not available in the data I have.",
     "out_of_scope": "That question is outside what I can answer, which is facts about Hawaiʻi legislative districts.",
 }
-OKINA_MARKS = str.maketrans("", "", "\u02bb\u2018\u02bc\u0060")
+OKINA_MARKS = str.maketrans("", "", "\u02bb\u02bc")
+# An apostrophe or quotation mark typed for the ʻokina, which stands before a vowel.
+LOOKALIKE_OKINA = re.compile(f"[{LOOKALIKES}](?=[{VOWELS}])")
 NO_FACT_REFUSALS = ("decline_individual", "decline_partisan")
 DISTRICT = re.compile(r"(house|senate):(\d{3})")
+MARKER_TEXT = re.compile(r"\{(?:geo|share):[^{}\s]+\}")
 NO_FACTS_TEXT = "I could not retrieve any facts for that question."
 # Party, candidate and advocacy words a partisan decline must not repeat.
 PARTISAN_WORDS = (
@@ -84,7 +90,7 @@ def allowed_geos(session, resolved: tuple[str, str] | None, context=None) -> set
     allowed |= set(session.resolved)
     for geo in {g for g in (resolved, context or session.context) if g is not None}:
         allowed.add(geo)
-        allowed |= counties(geo, con)
+        allowed |= counties(geo, con) | other_chamber(geo, con)
     return allowed
 
 
@@ -104,6 +110,7 @@ def _typed_places(session, texts: list[str], allowed: set[tuple[str, str]]) -> l
     names |= {n for n, c in config.COUNTY_NAMES.items() if ("county", c) in allowed}
     known = {r[0] for r in session.con.execute("SELECT plain FROM place").fetchall()}
     known |= set(config.COUNTY_NAMES)
+    shown = {plain_name(n): n for n in hawaiian_names(session.con)}
     words = _words(MARKER.sub(" ", " ".join(texts)))
     lower = [w.casefold() for w in words]
     found = []
@@ -111,15 +118,26 @@ def _typed_places(session, texts: list[str], allowed: set[tuple[str, str]]) -> l
         parts = n.split()
         for i in range(len(words) - len(parts) + 1):
             if lower[i : i + len(parts)] == parts and all(w[0].isupper() for w in words[i : i + len(parts)]):
-                found.append(f"names place {n} that was not resolved; use resolve_place or a geo marker")
+                found.append(
+                    f"names place {shown.get(n, n)} that was not resolved; use resolve_place or a geo marker"
+                )
                 break
     return found
+
+
+def _unmarked_places(session, texts: list[str]) -> list[str]:
+    """Known place names typed without their ʻokina or kahakō, or with an apostrophe for the ʻokina."""
+    found = unmarked(MARKER.sub(" ", "\n".join(texts)), hawaiian_names(session.con))
+    return [
+        f"write {right} with its ʻokina and kahakō, as resolve_place returns it, not {written}"
+        for written, right in dict.fromkeys(found)
+    ]
 
 
 def _words(text: str) -> list[str]:
     """Cased words of text with ignorable characters, emphasis, accents and okina removed."""
     text = EMPHASIS.sub("", strip_ignorable(unicodedata.normalize("NFKC", strip_ignorable(text))))
-    text = unicodedata.normalize("NFD", text.translate(OKINA_MARKS))
+    text = unicodedata.normalize("NFD", LOOKALIKE_OKINA.sub("", text).translate(OKINA_MARKS))
     return re.findall(r"[A-Za-z0-9]+", "".join(c for c in text if not unicodedata.combining(c)))
 
 
@@ -182,6 +200,7 @@ def build_answer(session, args: dict, context=None) -> tuple[Answer | None, list
     problems = answer_problems(answer, session.con, allowed) + _typed_places(
         session, [*blocks, *caveats], allowed
     )
+    problems += _unmarked_places(session, [*blocks, *caveats])
     if any(p.startswith("unsourced number") for p in problems):
         problems.append(NUMBER_HINT)
     if not problems:
@@ -193,6 +212,7 @@ def build_answer(session, args: dict, context=None) -> tuple[Answer | None, list
         ]
         problems += _missing_required(session, answer) + _measured_not_available(answer)
         problems += _wrong_directions(answer) + _missing_group_words(session, text)
+        problems += _missing_overlaps(session, answer) + _topic_problems(session, answer, text)
     return (None if problems else answer), problems
 
 
@@ -269,6 +289,76 @@ def _missing_required(session, answer: Answer) -> list[str]:
     ]
 
 
+def asked_chamber(question: str, geo: tuple[str, str] | None) -> str | None:
+    """The other chamber when the question asks which of its districts hold a House or Senate district: it names
+    a senator or representative, or the chamber's districts near a word such as which, contains or in, without
+    a district number and without asking where a measure is highest."""
+    if geo is None or geo[0] not in config.CHAMBER_TYPES:
+        return None
+    other = "senate" if geo[0] == "house" else "house"
+    words = [w.casefold() for w in _words(question)]
+    if set(words) & set(config.RANK_WORDS):
+        return None
+    for i, word in enumerate(words):
+        after = words[i + 1 : i + 3]
+        if word not in config.CHAMBER_WORDS[other] or any(w.isdigit() for w in after):
+            continue
+        if word == "house" and not (after[:1] and after[0] in config.DISTRICT_NOUNS):
+            continue
+        near = set(words[max(0, i - 4) : i] + words[i + 1 : i + 5])
+        if word in config.LEGISLATOR_WORDS or near & set(config.OVERLAP_CUES):
+            return other
+    return None
+
+
+def overlap_lines(con, geo: tuple[str, str], other: str) -> list[str]:
+    """One line per district of the other chamber holding the district's residents, with its share marker."""
+    return [
+        f"* {{geo:{t}:{i}}}: {{share:{geo[0]}:{geo[1]}:{t}:{i}}}"
+        for t, i, _, _ in district_overlap(con, geo)
+        if t == other
+    ]
+
+
+def _missing_overlaps(session, answer: Answer) -> list[str]:
+    """Districts of the other chamber the question asks for that the answer leaves out or gives no share."""
+    if answer.refusal != "none" or (other := asked_chamber(session.question, answer.resolved)) is None:
+        return []
+    text = "\n".join([*answer.blocks, *answer.caveats])
+    geo = answer.resolved
+    missing = [
+        f"{{geo:{t}:{i}}} with {{share:{geo[0]}:{geo[1]}:{t}:{i}}}"
+        for t, i, _, _ in district_overlap(session.con, geo)
+        if t == other
+        and not {f"{{geo:{t}:{i}}}", f"{{share:{geo[0]}:{geo[1]}:{t}:{i}}}"} <= set(MARKER_TEXT.findall(text))
+    ]
+    if not missing:
+        return []
+    return [
+        (
+            f"this question asks which {other.title()} districts hold {geo[0]}:{geo[1]}; name every one with its "
+            f"share of the district, using these markers: {', '.join(missing)}"
+        )
+    ]
+
+
+def _topic_problems(session, answer: Answer, text: str) -> list[str]:
+    """A decline that names the wrong refusal for a catalog topic, or does not say where its figures are."""
+    if answer.refusal not in MEANING or (topic := asked_topic(session.question)) is None:
+        return []
+    if topic.refusal != answer.refusal:
+        return [
+            (
+                f"KLEAR's topic list puts {topic.topic} {MEANING[topic.refusal]}: set refusal {topic.refusal}, say "
+                f"so plainly and point to {topic.where}"
+            )
+        ]
+    said = set(_words(text.casefold()))
+    if not set(_words(topic.source.casefold())) <= said:
+        return [f"name {topic.source} so the reader knows where to find {topic.topic}: {topic.where}"]
+    return []
+
+
 def _interval(f) -> tuple[float, float] | None:
     if f.value_low is not None and f.value_high is not None:
         return f.value_low, f.value_high
@@ -337,11 +427,18 @@ def template_answer(
 ) -> Answer:
     """Fallback answer built only from markers over the session facts, or a neutral refusal sentence."""
     if refusal != "none":
-        return Answer(VERSION, resolved, refusal, [REFUSAL_TEXT[refusal]], [], [], [])
+        topic = asked_topic(session.question)
+        text = topic.text() if topic and topic.refusal == refusal else REFUSAL_TEXT[refusal]
+        return Answer(VERSION, resolved, refusal, [text], [], [], [])
     allowed = allowed_geos(session, resolved, context)
     facts = [replace(f) for f in session.facts.values() if (f.geo_type, f.geo_id) in allowed]
+    overlaps = []
+    if other := asked_chamber(session.question, resolved):
+        lines = overlap_lines(session.con, resolved, other)
+        head = f"{other.title()} districts holding residents of {{geo:{resolved[0]}:{resolved[1]}}}, with each one's share:"
+        overlaps = [head + "\n" + "\n".join(lines)] if lines else []
     if not facts:
-        return Answer(VERSION, resolved, "none", [NO_FACTS_TEXT], [], [], [])
+        return Answer(VERSION, resolved, "none", overlaps or [NO_FACTS_TEXT], [], [], [])
     shown = {f.ref: f for f in facts}
     lines = [
         f"* {{label:{f.ref}}} in {{geo:{f.geo_type}:{f.geo_id}}}: {{fact:{f.ref}}} ({{vintage:{f.ref}}})"
@@ -349,7 +446,7 @@ def template_answer(
         + (", an unreliable estimate" if f.ref in session.unreliable else "")
         for f in facts
     ]
-    blocks = ["\n".join(lines)]
+    blocks = [*overlaps, "\n".join(lines)]
     if groups := asked_group_words(session):
         blocks.insert(0, "Figures on " + " and ".join(groups) + ":")
     compared = [

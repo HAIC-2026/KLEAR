@@ -158,7 +158,8 @@ const kindNotes = {
 function matchGroups(matches) {
   const groups = [];
   for (const m of matches) {
-    const rows = [m, ...(m.overlaps || [])].filter(g => /^(house|senate):/.test(g.geo || ''));
+    // A district stands for itself; its overlaps with the other chamber are for answers, not choices.
+    const rows = (m.kind === 'district' ? [m] : [m, ...(m.overlaps || [])]).filter(g => /^(house|senate):/.test(g.geo || ''));
     if (!rows.length) continue;
     const county = (m.overlaps || []).find(g => /^county:/.test(g.geo || ''));
     const place = m.kind === 'zcta' ? `ZIP code ${m.geo.split(':')[1]}` : m.name;

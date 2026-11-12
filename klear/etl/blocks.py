@@ -135,6 +135,30 @@ def assemble(pop: pd.Series, house: pd.Series, senate: pd.Series, zcta: pd.Serie
     )
 
 
+def district_overlap(blocks: pd.DataFrame) -> pd.DataFrame:
+    """2020 population each House or Senate district shares with each district of the other chamber and each
+    county, with its share of the district."""
+    people = blocks[blocks["pop2020"] > 0]
+    parts = []
+    for chamber, other in (("house", "senate"), ("senate", "house")):
+        total = people.groupby(chamber)["pop2020"].sum()
+        for geo_type in (other, "county"):
+            pop = people.groupby([chamber, geo_type])["pop2020"].sum().reset_index()
+            parts.append(
+                pd.DataFrame(
+                    {
+                        "district_type": chamber,
+                        "district_id": pop[chamber],
+                        "geo_type": geo_type,
+                        "geo_id": pop[geo_type],
+                        "pop2020": pop["pop2020"].astype("int64"),
+                        "share": pop["pop2020"] / pop[chamber].map(total),
+                    }
+                )
+            )
+    return pd.concat(parts, ignore_index=True)
+
+
 def build_block_table(client: httpx.Client | None = None) -> pd.DataFrame:
     pl = pd.concat([get_pl_blocks(c, client=client) for c in COUNTIES], ignore_index=True)
     pop = pd.Series(pl["pop2020"].to_numpy(), index=pl["block"].to_numpy())

@@ -1,0 +1,67 @@
+# Topics people ask about that KLEAR holds no district figures for, read by klear/agent/topics.py.
+# KLEAR covers people, income, housing, health and benefit programs for districts. refusal says which applies:
+#   not_available: inside what KLEAR covers, but no district data is loaded yet.
+#   out_of_scope: outside what KLEAR covers.
+# match lists word stems: an entry matches a question that has a word starting with each of its stems, so
+# "wic enroll" matches "How many people are enrolled in WIC". source names who publishes the figures, and an
+# answer for the topic must name it.
+topics:
+  - topic: eviction filings
+    refusal: not_available
+    match: [evict, landlord tenant]
+    source: Hawaiʻi State Judiciary
+    where: the Hawaiʻi State Judiciary, whose district courts hear landlord-tenant cases
+
+  - topic: WIC enrollment by district
+    refusal: not_available
+    match: [wic enroll, wic participa, wic caseload, wic recipient, wic client]
+    source: Department of Health
+    where: the Hawaiʻi State Department of Health, WIC Services Branch, which publishes enrollment statewide only
+
+  - topic: chronic disease rates such as diabetes, asthma or obesity
+    refusal: not_available
+    match: [diabet, asthma, obes, chronic disease, heart disease, high blood pressure]
+    source: Department of Health
+    where: the Hawaiʻi State Department of Health, and CDC PLACES, which models these rates by Census tract
+
+  - topic: public housing and voucher waitlists
+    refusal: not_available
+    match: [waitlist, wait list, waiting list]
+    source: Hawaiʻi Public Housing Authority
+    where: the Hawaiʻi Public Housing Authority and the county housing agencies, which keep their own waitlists
+
+  - topic: homelessness counts
+    refusal: out_of_scope
+    match: [homeless, unhoused, unsheltered, point in time count]
+    source: Point in Time count
+    where: the yearly Point in Time count by Partners in Care on Oʻahu and Bridging the Gap on the other islands
+
+  - topic: crime
+    refusal: out_of_scope
+    match: [crime, criminal, burglar, theft, robber, arrest]
+    source: Attorney General
+    where: the Hawaiʻi Department of the Attorney General, which publishes crime statistics, and the county police departments
+
+  - topic: school test scores and rankings
+    refusal: out_of_scope
+    match: [test score, school rank, school rating, school performance, graduation rate, proficien]
+    source: Department of Education
+    where: the Hawaiʻi State Department of Education, which reports school results
+
+  - topic: salaries and wages of particular jobs
+    refusal: out_of_scope
+    match: [salar, occupation, teacher pay, nurse pay, teacher earn, nurse earn]
+    source: Department of Labor and Industrial Relations
+    where: the Hawaiʻi Department of Labor and Industrial Relations, which publishes wages by occupation
+
+  - topic: traffic and crashes
+    refusal: out_of_scope
+    match: [traffic, crash, collision]
+    source: Department of Transportation
+    where: the Hawaiʻi Department of Transportation
+
+  - topic: visitors and tourism
+    refusal: out_of_scope
+    match: [touris, visitor arrival, visitor count, visitor spend, how many visitor]
+    source: DBEDT
+    where: DBEDT, the Hawaiʻi Department of Business, Economic Development and Tourism, which publishes visitor statistics

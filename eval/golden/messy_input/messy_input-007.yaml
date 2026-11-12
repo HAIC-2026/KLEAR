@@ -1,0 +1,17 @@
+id: messy_input-007
+category: messy_input
+question: how many kupuna live in aiea
+ideal: Spell the town ʻAiea and write kūpuna. Explain that ʻAiea spans more than one House district and give
+  the count of residents sixty five and over for each, with the ACS vintage.
+tags: [okina]
+facts:
+  - [pop_65_plus, house, "032"]
+  - [pop_65_plus, house, "033"]
+allowed_geos:
+  - [house, "032"]
+  - [house, "033"]
+  - [senate, "015"]
+  - [senate, "016"]
+  - [county, "15003"]
+must_say: ["ʻAiea", "kūpuna", "2020-2024"]
+refusal: none

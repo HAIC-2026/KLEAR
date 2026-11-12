@@ -3,22 +3,51 @@
 import json
 import re
 
-from klear.agent.answer import DIRECTION_TEXT, actual_direction, main_county
+from klear.agent.answer import DIRECTION_TEXT, actual_direction, asked_chamber, main_county
 from klear.agent.config import FIXED_INCOME, FIXED_INCOME_COMPARED, FIXED_INCOME_PROGRAMS, PROFILE_INDICATORS
 from klear.agent.tools import Session
-from klear.eval.contract import geo_display
+from klear.agent.topics import asked_topic
+from klear.eval.contract import district_overlap, geo_display, share_text
 from klear.rules.registry import load_rules
 from klear.web.display import PROFILE_LABELS, _plain, build_month, year_text
 
+# A question about an identifiable person or household: a named or related person, or a street address. Words
+# such as individual, family or household used generically do not count.
 PERSONAL = re.compile(
-    r"\b(?:a specific person|an individual|named resident|home address|phone number|personal information|who lives at|identify a resident|my neighbor|specific resident)\b",
+    r"\b(?:a specific (?:person|individual|resident|household|family)|specific resident|named resident"
+    r"|(?:person|individual|resident|woman|man|family|household|tenant) (?:named|called)"
+    r"|my (?:neighbou?r|constituent|tenant|client|landlord|coworker|relative|friend|cousin|mother|father|mom|dad"
+    r"|son|daughter|wife|husband|partner|grandmother|grandfather)(?!s)\b"
+    r"|(?:his|her|their|someone'?s|somebody'?s|(?:a|the|this|that) (?:resident|person|neighbou?r|tenant)'s)"
+    r" (?:home address|address|phone number|income|benefits|taxes)"
+    r"|(?:home address|phone number|personal information) of (?:my|someone|somebody|this|that)\b"
+    r"|identify (?:a|the|this|that) (?:resident|person|household)|who lives at \d"
+    r"|(?:household|family|home|house|person|people|residents?) (?:at|on) \d+"
+    r"|\d+ [a-z]+(?: [a-z]+)? (?:street|st|avenue|ave|road|rd|place|pl|drive|dr|lane|ln|way|loop|boulevard|blvd"
+    r"|highway|hwy)\b)",
     re.IGNORECASE,
 )
+# A question about elections, candidates, parties, how to vote, targeting voters or a legislator's record.
+# Outreach, awareness and enrollment campaigns and voter registration help are not partisan.
 PARTISAN = re.compile(
-    r"\b(?:vote for|vote against|win (?:an? )?election|campaign|candidate|ballot|persuade voters|target voters|voter|which party|political party|democrat|republican|partisan)\b",
+    r"\b(?:vot(?:e|ed|es|ing) (?:for|against|on)|how (?:to|should \w+|do \w+) vote|who (?:should|to) \w* ?vote"
+    r"|win(?:ning)? (?:back )?(?:(?:the|this|my|our|an?) )?(?:(?:house|senate) )?(?:district|seat|race|election"
+    r"|primary)|flip(?:ping)? (?:(?:the|this|my|our|a) )?(?:(?:house|senate) )?(?:district|seat)"
+    r"|(?:re-?)?elect(?:ions?|ed|ing|oral)?|ballots?|candidates?"
+    r"|(?:persuade|target|targeting|swing|undecided|mobilize) (?:the |our |more )?voters"
+    r"|voters? (?:to support|to oppose|who support)|(?:political|re-?election|reelection) campaigns?"
+    r"|campaign (?:for|against) (?:office|re-?election|(?:the )?(?:seat|senate|house|governor))"
+    r"|campaign (?:donors?|contributions?|fundraising)|run(?:ning)? for (?:office|re-?election|the (?:house|senate|seat))"
+    r"|which party|political part(?:y|ies)|democrat\w*|republican\w*|libertarian\w*|green party|partisan"
+    r"|talking points to (?:win|flip|beat)|(?:voting|legislative) record"
+    r"|how did (?:my |the |our )?(?:senator|representative|legislator|rep) vote|legislators? (?:voted|votes))\b",
     re.IGNORECASE,
 )
 WORDS = re.compile(r"[a-z0-9]+")
+# A House or Senate district named in a question, such as House District 22, hse dist 22 or SD 11.
+NAMED_DISTRICT = re.compile(
+    r"\b(house|hse|hd|senate|sen|sd)\s*(?:district|dist|d)?\.?\s*(?:no\.?\s*|#\s*)?(\d{1,2})\b", re.IGNORECASE
+)
 STOP = {
     "the",
     "and",
@@ -259,6 +288,36 @@ def fixed_income(con, district: tuple[str, str], shown: str) -> dict:
     }
 
 
+def named_district(con, question: str) -> tuple[str, str] | None:
+    """The first stored House or Senate district the question names by number."""
+    for m in NAMED_DISTRICT.finditer(question):
+        geo = (
+            "house" if m.group(1).casefold() in ("house", "hse", "hd") else "senate",
+            f"{int(m.group(2)):03}",
+        )
+        if con.execute("SELECT 1 FROM geography WHERE geo_type = ? AND geo_id = ?", list(geo)).fetchone():
+            return geo
+    return None
+
+
+def overlaps(con, district: tuple[str, str], other: str) -> dict | None:
+    """The districts of the other chamber holding a district's 2020 residents, each with its share."""
+    rows = [(t, i, s) for t, i, _, s in district_overlap(con, district) if t == other]
+    if not rows:
+        return None
+    shown = geo_display(*district, "")
+    parts = [f"{geo_display(t, i, '')} ({share_text(s)})" for t, i, s in rows]
+    if len(parts) == 1:
+        whole = geo_display(*rows[0][:2], "")
+        text = f"{shown} lies entirely in {whole}, which holds all of its 2020 Census population."
+    else:
+        text = (
+            f"{shown} spans {len(parts)} {other.title()} districts. By share of its 2020 Census population: "
+            f"{_joined(parts)}."
+        )
+    return {"text": text, "refusal": "none", "facts": [], "programs": []}
+
+
 def ask(con, question, district):
     if PERSONAL.search(question):
         return {
@@ -274,6 +333,9 @@ def ask(con, question, district):
             "facts": [],
             "programs": [],
         }
+    subject = named_district(con, question) or district
+    if (other := asked_chamber(question, subject)) and (found := overlaps(con, subject, other)):
+        return found
     name = con.execute("SELECT name FROM geography WHERE geo_type=? AND geo_id=?", list(district)).fetchone()[
         0
     ]
@@ -293,6 +355,8 @@ def ask(con, question, district):
             "facts": [],
             "programs": [{"name": r.program, "url": r.url, "year": r.effective} for r in chosen],
         }
+    if topic := asked_topic(question):
+        return {"text": topic.text(), "refusal": topic.refusal, "facts": [], "programs": []}
     ids = indicators(con, question)
     if not ids:
         return {
