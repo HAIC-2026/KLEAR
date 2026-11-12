@@ -113,6 +113,8 @@ function choose(geo, name, quiet) {
   if (busy) {
     queued = geo === district ? null : {geo, name};
     $('chat-status').textContent = queued ? `Switching to ${name} after this answer.` : '';
+    // The profile needs no model, so it shows the chosen district while the answer loads.
+    loadProfile(geo, name);
     showChat();
     $('question').focus({preventScroll: true});
     return;
@@ -383,8 +385,10 @@ for (const [question, label] of examples) {
 
 // Once a district is chosen, its profile takes the starter questions' place and they move into the chat as short buttons.
 // The profile is long, so it is not a live region: a short status line says when it has loaded.
-let profileSeq = 0;
+let profileSeq = 0, profileGeo = null;
 async function loadProfile(geo, name) {
+  if (geo === profileGeo) return;
+  profileGeo = geo;
   const seq = ++profileSeq, panel = $('profile'), live = $('profile-live');
   live.textContent = '';
   if (!$('starter').hidden) {
@@ -402,6 +406,7 @@ async function loadProfile(geo, name) {
     live.textContent = `Profile for ${data.district} loaded.`;
   } catch (err) {
     if (seq !== profileSeq) return;
+    profileGeo = null;
     const message = `The district profile could not load. ${err.message}`;
     panel.replaceChildren(...profileTitle(name), node('p', message, 'profile-status'));
     live.textContent = message;
@@ -704,6 +709,7 @@ function renderAnswer(answer, name) {
     article.append(details);
   }
   if (answer.programs && answer.programs.length) article.append(programList(answer.programs));
+  if (answer.prepared) article.append(node('p', answer.prepared, 'prepared'));
   return article;
 }
 

@@ -23,6 +23,7 @@ from klear.eval.contract import geo_key
 from klear.web import display
 from klear.web.about import about
 from klear.web.assistant import DAILY_CAP, Assistant, DailyBudget, basic
+from klear.web.cache import AnswerCache
 from klear.web.geocode import GeocoderError, find_blocks, looks_like_address
 
 STORE = ROOT / "data" / "build" / "klear.duckdb"
@@ -107,9 +108,11 @@ class Handler(SimpleHTTPRequestHandler):
         ".ico": "image/x-icon",
     }
 
-    def __init__(self, *args, store, assistant=None, geocoder=None, **kwargs):
+    def __init__(self, *args, store, assistant=None, geocoder=None, prepared=None, **kwargs):
         # geocoder finds the blocks of a street address, or is None to leave address search off
         self.store, self.assistant, self.geocoder, self.status = store, assistant, geocoder, 0
+        # prepared holds answers to the starter questions computed ahead, or is None to answer them live
+        self.prepared = prepared
         super().__init__(*args, directory=str(STATIC), **kwargs)
 
     def log_message(self, *args):
@@ -259,6 +262,10 @@ class Handler(SimpleHTTPRequestHandler):
             return self.reply(
                 429, {"error": "Too many questions at once. Please wait a minute and try again."}
             )
+        # A prepared starter answer needs no model, so it skips the queue.
+        prepared = None if self.prepared is None else self.prepared.get(question.strip(), district)
+        if prepared is not None:
+            return self.reply(200, prepared)
         if not BUSY.acquire(blocking=False):
             return self.reply(
                 429, {"error": "KLEAR is busy answering other questions. Please try again shortly."}
@@ -310,7 +317,8 @@ def main(argv: list[str] | None = None):
         else:
             assistant = Assistant(DailyBudget(args.daily_cap), args.model)
     geocoder = None if args.no_address_lookup else find_blocks
-    handler = partial(Handler, store=store, assistant=assistant, geocoder=geocoder)
+    prepared = AnswerCache(store, args.model)
+    handler = partial(Handler, store=store, assistant=assistant, geocoder=geocoder, prepared=prepared)
     try:
         server = Server((args.host, args.port), handler)
     except OSError as error:
@@ -333,6 +341,9 @@ def main(argv: list[str] | None = None):
         if not store.is_file():
             print("Landing page preview only: district search and chat need the data store.", flush=True)
             print("Build it with: uv run python -m klear.etl build", flush=True)
+        elif note := prepared.summary(assistant is not None):
+            print(note, flush=True)
+        threading.Thread(target=prepared.warm, daemon=True).start()
         if assistant is None and not args.basic_only:
             print("Add ANTHROPIC_API_KEY to .env and restart to enable the assistant.", flush=True)
         print("Press Ctrl+C to stop.", flush=True)
