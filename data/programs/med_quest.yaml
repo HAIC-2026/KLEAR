@@ -11,3 +11,4 @@ rules: [medquest_2026]
 needs: [pct_uninsured, pct_uninsured_under_19, pct_people_poverty]
 verified: '2026-11-09'
 verification: The Med-QUEST site blocks scripts (HTTP 403). The page was read from a web.archive.org copy of October 2026 and the phone from the live DHS phone list
+level: state

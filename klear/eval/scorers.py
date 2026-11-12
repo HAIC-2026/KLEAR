@@ -11,6 +11,7 @@ import yaml
 
 from klear.eval.contract import MARKER, Answer, ContractError, geo_key, render
 from klear.eval.golden import RULES, Golden
+from klear.programs import catalog
 from klear.text import hawaiian, misspellings, strip_ignorable
 
 TOL = 1e-9
@@ -313,7 +314,7 @@ def program_names(rules: Path = RULES) -> dict[str, str]:
     return {
         (d := yaml.safe_load(p.read_text(encoding="utf-8")))["rule_id"]: d["program"]
         for p in Path(rules).glob("*.yaml")
-    }
+    } | {p.program_id: p.name for p in catalog() if not p.rules}
 
 
 def _plain(text: str) -> str:

@@ -892,6 +892,9 @@ class Session:
             "program_id": p.program_id,
             "name": p.name,
             "covers": p.description,
+            "level": p.level,
+            "level_label": p.level_label,
+            "counties": list(p.counties),
             "serves": p.serves,
             "agency": p.agency,
             "url": p.url,
@@ -908,15 +911,36 @@ class Session:
             ],
         }
 
+    def _programs_for(self, geos) -> tuple[Program, ...]:
+        """Statewide entries plus programs in any county with residents in these districts."""
+        counties = set()
+        for kind, code in geos:
+            if kind not in ("house", "senate"):
+                continue
+            counties.update(
+                r[0]
+                for r in self.con.execute(
+                    f"SELECT county FROM blocks WHERE {kind} = ? GROUP BY county HAVING sum(pop2020) > 0",
+                    [code],
+                ).fetchall()
+            )
+        return tuple(p for p in catalog() if not p.counties or counties.intersection(p.counties))
+
     def _list_programs(self, args: dict) -> dict:
         words = _strs(args, "words", optional=True)
         query = {t for w in words or [] for t in _tokens(w)}
         out = []
-        for p in catalog():
+        geos = self.resolved or ({self.context} if self.context else set())
+        if args.get("district") is not None:
+            geo = _geo_arg(args["district"])
+            if geo[0] not in ("house", "senate") or self._name(*geo) is None:
+                raise ToolError("district must be a stored House or Senate district")
+            geos = {geo}
+        for p in self._programs_for(geos):
             entry = self._program_entry(p)
             names = " ".join(f"{r['rule_id'].replace('_', ' ')} {r['program']}" for r in entry["rules"])
             if query and not query & _tokens(
-                f"{p.program_id.replace('_', ' ')} {p.name} {p.description} {names}"
+                f"{p.program_id.replace('_', ' ')} {p.name} {p.description} {p.level_label} {names}"
             ):
                 continue
             out.append(entry)
@@ -971,7 +995,7 @@ class Session:
         if geo[0] not in ("house", "senate") or self._name(*geo) is None:
             raise ToolError("district must be a stored House or Senate district, for example house:022")
         self.resolved.add(geo)
-        programs = catalog()
+        programs = self._programs_for([geo])
         needs = list(dict.fromkeys(n for p in programs for n in p.needs))
         self._prefetch(
             list(dict.fromkeys(i for n in needs for i in NEEDS[n].indicators)), [geo, ("state", "15")]
@@ -1103,9 +1127,11 @@ TOOL_SPECS = [
         "list_programs",
         "List benefit programs, one entry per program, optionally filtered by words: what it covers, who it "
         "serves, the agency, the official page to apply or learn more, the agency phone, the date those details "
-        "were verified, and its rules. Each rule has the rule id to put in programs, the name to write in "
+        "were verified, and its rules. County entries require a district, explicit or already resolved. "
+        "For entries without rules, use program_id in answers. Each rule has the rule id to put in programs, "
+        "the name to write in "
         "answers, and its verification status.",
-        {"words": {**_STRS, "description": "Optional words to filter programs."}},
+        {"words": {**_STRS, "description": "Optional words to filter programs."}, "district": _GEO},
         [],
     ),
     _spec(

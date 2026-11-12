@@ -1,0 +1,15 @@
+id: programs_gap-007
+category: programs_gap
+question: Which county office helps kūpuna find care in House District 2?
+ideal: Name the county aging office that serves this Hawaiʻi district. Explain that
+  district data do not show who can get services.
+district:
+- house
+- '002'
+programs:
+- hawaii_aging
+programs_forbidden:
+- honolulu_home_exemption
+must_say:
+- Hawaiʻi County Office of Aging
+refusal: none

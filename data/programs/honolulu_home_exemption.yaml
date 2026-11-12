@@ -1,0 +1,17 @@
+program_id: honolulu_home_exemption
+name: Honolulu home exemption
+description: Lowers the value of a home that is taxed. Older homeowners may get a larger exemption.
+serves: Homeowners who meet the county home exemption rules.
+agency: Honolulu Real Property Assessment Division
+level: county
+counties:
+- '15003'
+url: https://realproperty.honolulu.gov/help-resources/faq/
+phone: (808) 768-3799
+phone_source: https://realproperty.honolulu.gov/help-resources/faq/
+rules: []
+needs:
+- pct_owner_cost_burden_35_plus
+verified: '2026-11-12'
+verification: Read the official county page and its listed phone. Information-only entry; use the linked
+  page for current terms, services and application steps.

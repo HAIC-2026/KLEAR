@@ -1,0 +1,23 @@
+- - type: tool_use
+    name: resolve_place
+    input:
+      text: House District 2
+- - type: tool_use
+    name: list_programs
+    input:
+      district: house:002
+      words:
+      - aging
+- - type: tool_use
+    name: submit_answer
+    input:
+      resolved: house:002
+      refusal: none
+      blocks:
+      - For kūpuna in {geo:house:002}, explore the Hawaiʻi County Office of Aging.
+        This county office can help families find care and local support. District
+        data do not show who can get services. Contact the office to learn more.
+      facts: []
+      programs:
+      - hawaii_aging
+      caveats: []

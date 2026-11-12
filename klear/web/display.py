@@ -540,6 +540,7 @@ def _program_row(p: Program, reasons: list[str]) -> dict:
         "id": p.program_id,
         "name": p.name,
         "description": p.description,
+        "level": p.level_label,
         "agency": p.agency,
         "url": p.url,
         "phone": p.phone,
@@ -580,7 +581,7 @@ def matched_programs(con, raw: dict, session) -> dict:
         "title": "Programs to explore here",
         "intro": intro,
         "programs": rows["higher"],
-        "others_title": "Also available statewide" if rows["higher"] else "Available statewide",
+        "others_title": "Also available here" if rows["higher"] else "Available here",
         "others": rows["other"],
         "note": ELIGIBILITY_NOTE,
         "sources": list(cited.values()),
@@ -589,7 +590,7 @@ def matched_programs(con, raw: dict, session) -> dict:
 
 def program_rows(rule_ids: list[str]) -> list[dict]:
     """One row per program named by the rule ids an answer lists, without district reasons."""
-    owners = by_rule()
+    owners = by_rule() | {p.program_id: p for p in catalog()}
     found = [owners[r] for r in rule_ids if r in owners]
     return [_program_row(p, []) for p in dict.fromkeys(found)]
 

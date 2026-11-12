@@ -1,0 +1,17 @@
+program_id: maui_section8
+name: Maui County housing choice vouchers
+description: Federal rent aid run by the county. Check the county page for waitlist details.
+serves: Households with low income. The county checks who can get help.
+agency: Maui County Department of Housing
+level: county
+counties:
+- '15009'
+url: https://www.mauicounty.gov/2041/Housing-Choice-Voucher-Section-8-Program
+phone: (808) 270-7751
+phone_source: https://www.mauicounty.gov/2041/Housing-Choice-Voucher-Section-8-Program
+rules: []
+needs:
+- pct_rent_burden_35_plus
+verified: '2026-11-12'
+verification: Read the official county page and its listed phone. Information-only entry; use the linked
+  page for current terms, services and application steps.

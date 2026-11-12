@@ -11,3 +11,4 @@ rules: [h_heap_fy2026]
 needs: [pct_people_poverty, pct_65_plus_poverty]
 verified: '2026-11-09'
 verification: Fetched the page (HTTP 200). It says applications go to the Community Action Agency on each island and prints the information line
+level: state

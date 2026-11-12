@@ -153,7 +153,7 @@ def program_answer(con, district, shown: str) -> dict:
     if "error" in raw:
         raise ValueError("Could not match programs to the district")
     laid = matched_programs(con, raw, session)
-    names = [p["name"] for p in laid["programs"]]
+    names = [f"{p['name']} ({p['level']})" for p in laid["programs"]]
     if names:
         listed = ", ".join(names[:-1]) + (" and " if len(names) > 1 else "") + names[-1]
         lead = (
@@ -163,7 +163,7 @@ def program_answer(con, district, shown: str) -> dict:
     else:
         lead = (
             f"None of {shown}'s need figures sit clearly above the state's, so no program stands out here. "
-            "These programs serve residents statewide."
+            "These programs may help residents here."
         )
     return {
         "text": f"{lead}\n\n{laid['note']}",
