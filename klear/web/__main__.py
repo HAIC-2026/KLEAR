@@ -24,6 +24,7 @@ from klear.eval.contract import geo_key
 from klear.web import display
 from klear.web.about import about
 from klear.web.assistant import DAILY_CAP, Assistant, DailyBudget, basic
+from klear.web.cache import AnswerCache
 from klear.web.checks import checks_report
 from klear.web.geocode import GeocoderError, find_blocks, looks_like_address
 
@@ -114,9 +115,11 @@ class Handler(SimpleHTTPRequestHandler):
         ".ico": "image/x-icon",
     }
 
-    def __init__(self, *args, store, assistant=None, geocoder=None, **kwargs):
+    def __init__(self, *args, store, assistant=None, geocoder=None, prepared=None, **kwargs):
         # geocoder finds the blocks of a street address, or is None to leave address search off
         self.store, self.assistant, self.geocoder, self.status = store, assistant, geocoder, 0
+        # prepared holds answers to the starter questions computed ahead, or is None to answer them live
+        self.prepared = prepared
         super().__init__(*args, directory=str(STATIC), **kwargs)
 
     def log_message(self, *args):
@@ -259,7 +262,12 @@ class Handler(SimpleHTTPRequestHandler):
                 if as_csv:
                     name = f"klear-{geo[0]}-district-{int(geo[1])}.csv"
                     return self.attachment(display.profile_csv(con, raw, session), "text/csv", name)
-                return self.reply(200, display.profile(con, raw, session, _islands().get(":".join(geo), "")))
+                matched = json.loads(session.run("district_programs", {"district": ":".join(geo)}))
+                # A program catalog that cannot be read or matched leaves the profile without programs.
+                if "error" in matched:
+                    matched = None
+                islands = _islands().get(":".join(geo), "")
+                return self.reply(200, display.profile(con, raw, session, islands, matched))
         except Exception:  # noqa: BLE001 - redact internal errors at the HTTP boundary
             return self.reply(503, {"error": "The district profile is unavailable right now."})
 
@@ -269,7 +277,9 @@ class Handler(SimpleHTTPRequestHandler):
         # Reject cross-origin browser requests to the chat endpoint.
         origin = self.headers.get("Origin")
         if origin and urlsplit(origin).netloc != self.headers.get("Host"):
-            return self.reply(403, {"error": "Request origin is not allowed."})
+            return self.reply(
+                403, {"error": "This question came from another site. Ask it on the KLEAR site instead."}
+            )
         try:
             length = int(self.headers.get("Content-Length", "0"))
             if not 0 < length <= 8192:
@@ -291,6 +301,10 @@ class Handler(SimpleHTTPRequestHandler):
             return self.reply(
                 429, {"error": "Too many questions at once. Please wait a minute and try again."}
             )
+        # A prepared starter answer needs no model, so it skips the queue.
+        prepared = None if self.prepared is None else self.prepared.get(question.strip(), district)
+        if prepared is not None:
+            return self.reply(200, prepared)
         if not BUSY.acquire(blocking=False):
             return self.reply(
                 429, {"error": "KLEAR is busy answering other questions. Please try again shortly."}
@@ -342,7 +356,8 @@ def main(argv: list[str] | None = None):
         else:
             assistant = Assistant(DailyBudget(args.daily_cap), args.model)
     geocoder = None if args.no_address_lookup else find_blocks
-    handler = partial(Handler, store=store, assistant=assistant, geocoder=geocoder)
+    prepared = AnswerCache(store, args.model)
+    handler = partial(Handler, store=store, assistant=assistant, geocoder=geocoder, prepared=prepared)
     try:
         server = Server((args.host, args.port), handler)
     except OSError as error:
@@ -365,6 +380,9 @@ def main(argv: list[str] | None = None):
         if not store.is_file():
             print("Landing page preview only: district search and chat need the data store.", flush=True)
             print("Build it with: uv run python -m klear.etl build", flush=True)
+        elif note := prepared.summary(assistant is not None):
+            print(note, flush=True)
+        threading.Thread(target=prepared.warm, daemon=True).start()
         if assistant is None and not args.basic_only:
             print("Add ANTHROPIC_API_KEY to .env and restart to enable the assistant.", flush=True)
         print("Press Ctrl+C to stop.", flush=True)

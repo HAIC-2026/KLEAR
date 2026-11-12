@@ -1,0 +1,13 @@
+program_id: preschool_open_doors
+name: Preschool Open Doors
+description: Help paying preschool tuition in the year before kindergarten.
+serves: Families of keiki who will enter kindergarten the next school year.
+agency: Hawaiʻi Department of Human Services, Child Care Program Office
+url: https://humanservices.hawaii.gov/bessd/child-care-program/
+phone: (808) 791-2130
+phone_label: PATCH, which takes applications for the program
+phone_source: https://humanservices.hawaii.gov/bessd/files/2026/10/POD-update-for-applications_2026-10.pdf
+rules: [preschool_open_doors]
+needs: [pct_children_poverty, pct_hh_with_children]
+verified: '2026-11-09'
+verification: Fetched the Child Care Program Office page and its October 2026 application update (HTTP 200)

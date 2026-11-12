@@ -5,7 +5,15 @@ from pathlib import Path
 
 import anthropic
 
-from klear.agent.answer import SUBMIT_SPEC, build_answer, required_facts, stored_district, template_answer
+from klear.agent.answer import (
+    SUBMIT_SPEC,
+    build_answer,
+    required_comparisons,
+    required_facts,
+    required_programs,
+    stored_district,
+    template_answer,
+)
 from klear.agent.config import (
     CLIENT_MAX_RETRIES,
     CLIENT_TIMEOUT_S,
@@ -119,11 +127,14 @@ class KlearAgent:
         picked = picked if picked in session.resolved else None
         resolved = picked or context or (districts[0] if len(districts) == 1 else None)
         programs = tried.get("programs") if isinstance(tried.get("programs"), list) else []
+        programs = [p for p in programs if isinstance(p, str)] + required_programs(session)
         if resolved is not None and (needed := required_facts(session, resolved)):
             session.run("get_facts", {"indicator_ids": needed, "geos": [":".join(resolved)]})
-        return template_answer(
-            session, resolved, "none", context, [p for p in programs if isinstance(p, str)]
-        )
+        if resolved is not None and (pairs := required_comparisons(session, resolved)):
+            for place in dict.fromkeys(p for _, p in pairs):
+                ids = [i for i, p in pairs if p == place]
+                session.run("get_facts", {"indicator_ids": ids, "geos": [":".join(place)]})
+        return template_answer(session, resolved, "none", context, programs)
 
     def _review(self, session: Session, answer: Answer, totals: list[int]) -> list[tuple[str, str]]:
         """Flags from one reviewer call on the rendered answer; none when the call fails or runs too long."""

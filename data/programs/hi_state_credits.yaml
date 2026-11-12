@@ -1,0 +1,13 @@
+program_id: hi_state_credits
+name: Hawaiʻi state tax credits
+description: State income tax credits for working filers (the state EITC), for food and excise taxes, and for renters, claimed on a state return.
+serves: Hawaiʻi filers with low to moderate income, including renters.
+agency: Hawaiʻi Department of Taxation
+url: https://tax.hawaii.gov/geninfo/
+phone: (808) 587-4242
+phone_label: Department of Taxation, toll-free 1-800-222-3229
+phone_source: https://tax.hawaii.gov/contact/
+rules: [hi_state_credits]
+needs: [eitc_share, pct_people_poverty, pct_rent_burden_35_plus]
+verified: '2026-11-09'
+verification: Fetched the tax information page, its EITC and food/excise credit flyers, and the contact page (HTTP 200)

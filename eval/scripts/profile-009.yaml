@@ -1,0 +1,119 @@
+# Scripted model turns for profile-009: resolve the district, find the fixed income figures and programs, fetch them for the district, its county and the state, then submit.
+- - type: tool_use
+    name: resolve_place
+    input:
+      text: house:022
+  - type: tool_use
+    name: search_indicators
+    input:
+      words:
+      - kupuna
+      - fixed income
+  - type: tool_use
+    name: list_programs
+    input:
+      words:
+      - SSI
+      - Kūpuna Care
+      - SNAP
+      - Med-QUEST
+- - type: tool_use
+    name: get_facts
+    input:
+      indicator_ids:
+      - pop_65_plus
+      - pct_65_plus
+      - median_household_income_65_plus
+      - pct_65_plus_poverty
+      - kupuna_under_100pct_poverty
+      - kupuna_under_200pct_poverty
+      - householders_65_plus_alone
+      - pct_hh_social_security
+      - pct_hh_retirement_income
+      - pct_hh_ssi
+      geos:
+      - house:022
+  - type: tool_use
+    name: get_facts
+    input:
+      indicator_ids:
+      - pct_65_plus
+      - median_household_income_65_plus
+      - pct_65_plus_poverty
+      - pct_hh_social_security
+      - pct_hh_retirement_income
+      - pct_hh_ssi
+      geos:
+      - county:15003
+      - state:15
+- - type: tool_use
+    name: submit_answer
+    input:
+      resolved: house:022
+      refusal: none
+      blocks:
+      - 'Kūpuna in {geo:house:022} ({vintage:f1}):
+
+        * {label:f1}: {fact:f1}
+
+        * {label:f2}: {fact:f2}, higher than {geo:county:15003} at {fact:f11} and higher than {geo:state:15} at
+        {fact:f17}'
+      - 'Income and poverty among kūpuna ({vintage:f3}):
+
+        * {label:f3}: {fact:f3}, within the margin of error of {geo:county:15003} at {fact:f12} and higher than
+        {geo:state:15} at {fact:f18}
+
+        * {label:f4}: {fact:f4}, lower than {geo:county:15003} at {fact:f13} and lower than {geo:state:15} at
+        {fact:f19}
+
+        * {label:f5}: {fact:f5}
+
+        * {label:f6}: {fact:f6}
+
+        * {label:f7}: {fact:f7}'
+      - 'Household income sources ({vintage:f8}):
+
+        * {label:f8}: {fact:f8}, within the margin of error of {geo:county:15003} at {fact:f14} and within the
+        margin of error of {geo:state:15} at {fact:f20}
+
+        * {label:f9}: {fact:f9}, within the margin of error of {geo:county:15003} at {fact:f15} and within the
+        margin of error of {geo:state:15} at {fact:f21}
+
+        * {label:f10}: {fact:f10}, lower than {geo:county:15003} at {fact:f16} and lower than {geo:state:15} at
+        {fact:f22}'
+      - Programs that can help kūpuna on fixed incomes include SSI federal payment, Kūpuna Care, SNAP and Med-QUEST.
+        These district figures cannot show whether any person qualifies.
+      facts:
+      - f1
+      - f2
+      - f3
+      - f4
+      - f5
+      - f6
+      - f7
+      - f8
+      - f9
+      - f10
+      - f11
+      - f12
+      - f13
+      - f14
+      - f15
+      - f16
+      - f17
+      - f18
+      - f19
+      - f20
+      - f21
+      - f22
+      programs:
+      - ssi_federal_2026
+      - kupuna_care
+      - snap_fy2027
+      - medquest_2026
+      caveats:
+      - The Social Security, retirement income and Supplemental Security Income shares cover all households, whatever
+        the age of the householder, not only kūpuna households.
+      - '{label:f6}: this count meets the income test only. Assets, age, immigration status and household rules
+        also apply, and the national poverty thresholds the Census Bureau uses sit under the state''s poverty
+        guidelines.'

@@ -30,6 +30,7 @@ CATEGORY_LABELS = {
     "decline_individual": "Declining questions about a person or household",
     "decline_partisan": "Declining partisan questions",
     "messy_input": "Typos and shorthand",
+    "rank": "Ranking districts by a measure",
 }
 LIMITS = [
     (

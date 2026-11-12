@@ -54,7 +54,7 @@
               <div id="log"></div>
             </div>
             <div id="suggest" class="suggest" role="group" aria-label="Suggested questions" hidden></div>
-            <form id="question-form"><label for="question" class="visually-hidden">Your question</label><div class="question-row"><textarea id="question" rows="1" required maxlength="2000" placeholder="Type your question here"></textarea><button id="send" type="submit">Ask KLEAR</button></div></form>
+            <form id="question-form"><label for="question" class="visually-hidden">Your question</label><div class="question-row"><textarea id="question" rows="1" required maxlength="2000" placeholder="Type your question here" aria-describedby="send-hint"></textarea><button id="send" type="submit">Ask KLEAR</button></div><p id="send-hint" class="send-hint">Press Ctrl+Enter to send.</p></form>
             <p id="chat-status" class="status" role="status"></p>
             <p id="chat-live" class="visually-hidden" role="status"></p>
           </div>
