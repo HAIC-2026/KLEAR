@@ -1,4 +1,5 @@
-# User-facing text writes the ʻokina as U+02BB, never as ' ‘ ’ or `, official organization names excepted.
+# User-facing text writes the ʻokina as U+02BB, never as ' ‘ ’ ` or another lookalike, official organization
+# names excepted.
 import re
 from pathlib import Path
 
@@ -7,11 +8,11 @@ import pytest
 import yaml
 
 from klear import config
-from klear.text import OKINA, ORG_NAMES
+from klear.text import OKINA, OKINA_LOOKALIKES, ORG_NAMES
 
 ROOT = config.ROOT
 STORE = config.BUILD_DIR / "klear.duckdb"
-LOOKALIKES = "'‘’`"
+LOOKALIKES = re.escape(OKINA_LOOKALIKES)
 VOWELS = "aeiouāēīōū"
 MACRON = {"ā": "a", "ē": "e", "ī": "i", "ō": "o", "ū": "u"}
 TEXT_SUFFIXES = {".css", ".html", ".js", ".json", ".md", ".py", ".sql", ".svg", ".txt", ".yaml"}
@@ -129,7 +130,9 @@ def _strings(node) -> list[str]:
 @pytest.mark.parametrize("name", ["hawaiian_names.yaml", "areas.yaml"])
 def test_place_files_use_only_u02bb(name):
     data = yaml.safe_load((ROOT / "data" / "places" / name).read_text(encoding="utf-8"))
-    bad = [s for s in _strings(data) if any(c in s for c in LOOKALIKES) and not s.startswith("https://")]
+    bad = [
+        s for s in _strings(data) if any(c in s for c in OKINA_LOOKALIKES) and not s.startswith("https://")
+    ]
     assert not bad
 
 
@@ -146,4 +149,4 @@ def test_built_names_use_only_u02bb():
     finally:
         con.close()
     assert names
-    assert not [n for n in names if n and any(c in n for c in LOOKALIKES)]
+    assert not [n for n in names if n and any(c in n for c in OKINA_LOOKALIKES)]

@@ -9,6 +9,7 @@ from urllib.parse import quote
 import httpx
 import pytest
 
+from klear.text import OKINA, OKINA_LOOKALIKES
 from klear.web import __main__ as web
 from klear.web.geocode import GeocoderError, find_blocks, looks_like_address
 
@@ -45,6 +46,26 @@ def _client(handler):
 )
 def test_looks_like_address(text, address):
     assert looks_like_address(text) is address
+
+
+@pytest.mark.parametrize("mark", [OKINA, *OKINA_LOOKALIKES, ""])
+def test_street_names_may_start_with_any_okina(mark):
+    assert looks_like_address(f"99-1849 {mark}Aiea Heights Dr")
+    assert looks_like_address(f"91-1001 {mark}Ewa Beach Rd, {mark}Ewa Beach")
+    assert not looks_like_address(f"96701 {mark}Aiea")
+
+
+@pytest.mark.parametrize("mark", [OKINA, *OKINA_LOOKALIKES])
+def test_find_blocks_reads_any_okina_in_the_state_name(mark):
+    seen = []
+
+    def handler(request):
+        seen.append(dict(request.url.params))
+        return httpx.Response(200, json=_reply())
+
+    with _client(handler) as client:
+        find_blocks(f"46-056 Kamehameha Hwy, Kāne{mark}ohe, Hawai{mark}i", client=client)
+    assert seen[0]["address"] == f"46-056 Kamehameha Hwy, Kāne{mark}ohe, Hawai{mark}i"
 
 
 def test_find_blocks_adds_the_state_and_keeps_hawaii_blocks():

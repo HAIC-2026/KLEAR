@@ -6,8 +6,17 @@ import pytest
 import yaml
 
 from klear.etl.gazetteer_names import build_overrides, dump_overrides, read_checked
-from klear.etl.places_gazetteer import OVERRIDES_PATH, build_places, load_overrides, plain_name, read_baf
+from klear.etl.places_gazetteer import (
+    OVERRIDES_PATH,
+    build_places,
+    display_name,
+    load_overrides,
+    plain_name,
+    read_baf,
+    search_plain,
+)
 from klear.store.db import add_blocks, add_places, open_store
+from klear.text import OKINA, OKINA_LOOKALIKES
 
 GAZ = (
     "USPS\tGEOID\tANSICODE\tNAME\tLSAD\tFUNCSTAT\tALAND\tAWATER\tINTPTLAT\tINTPTLONG   \n"
@@ -55,6 +64,22 @@ def test_plain_name():
     assert plain_name("Kāneʻohe") == plain_name("kaneohe") == plain_name("Kane'ohe") == "kaneohe"
     assert plain_name("Haiku-Pauwela") == plain_name("Haiku  Pauwela") == "haiku pauwela"
     assert plain_name("Kane‘ohe") == "kaneohe"
+
+
+@pytest.mark.parametrize("mark", [OKINA, *OKINA_LOOKALIKES, ""])
+def test_search_plain_reads_any_okina(mark):
+    assert search_plain(f"Kāne{mark}ohe") == "kaneohe"
+    assert search_plain(f"{mark}Aiea") == "aiea"
+    assert search_plain(f"Hōnaunau-Nāpo{mark}opo{mark}o") == "honaunau napoopoo"
+    if mark:
+        assert display_name(f"Kāne{mark}ohe") == "Kāneʻohe"
+
+
+@pytest.mark.parametrize(
+    "text", ["Kāneʻohe", "Kāneʻohe", "Käneʻohe", "Káneʻohe", "Kaneohe", "KĀNEʻOHE", "ＫＡＮＥ＇ＯＨＥ"]
+)
+def test_search_plain_reads_any_kahako_accent_or_width(text):
+    assert search_plain(text) == "kaneohe"
 
 
 def test_overlap_shares_sum_to_one_per_type(store):

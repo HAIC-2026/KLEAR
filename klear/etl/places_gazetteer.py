@@ -10,14 +10,14 @@ import yaml
 
 from klear import config
 from klear.etl.fetch import fetch
+from klear.text import OKINA, OKINA_LOOKALIKES
 
 BAF_URL = "https://www2.census.gov/geo/docs/maps-data/data/baf2020/BlockAssign_ST15_HI.zip"
 BAF_MEMBER = "BlockAssign_ST15_HI_INCPLACE_CDP.txt"
 GAZ_URL = "https://www2.census.gov/geo/docs/maps-data/data/gazetteer/2020_Gazetteer/2020_gaz_place_15.txt"
 OVERRIDES_PATH = config.ROOT / "data" / "places" / "hawaiian_names.yaml"
 GEO_TYPES = ("county", "house", "senate", "zcta")
-OKINA = "ʻ"
-_LOOKALIKES = str.maketrans({"‘": OKINA, "’": OKINA, "'": OKINA, "`": OKINA})
+_LOOKALIKES = str.maketrans(dict.fromkeys(OKINA_LOOKALIKES, OKINA))
 _CDP = re.compile(r"\s+CDP$")
 
 
@@ -26,7 +26,9 @@ def display_name(text: str) -> str:
 
 
 def plain_name(text: str) -> str:
-    s = unicodedata.normalize("NFD", display_name(text).casefold())
+    """Lower-case letters without ʻokina or marks, however they were typed: kahakō as ā or a with a combining
+    macron, other accents such as ä or á, and full-width letters from phone keyboards all read as plain letters."""
+    s = unicodedata.normalize("NFKD", display_name(text).casefold())
     s = "".join(c for c in s if not unicodedata.combining(c) and c != OKINA)
     return " ".join(s.replace("-", " ").split())
 

@@ -1,7 +1,8 @@
 # Names for district search beyond Census places, read by klear/etl/areas.py.
 
 # Census county divisions (TIGER 2020 county subdivisions) on the neighbor islands, by GEOID. Spellings follow
-# the Census places in hawaiian_names.yaml (USGS GNIS) and Place Names of Hawaii (Pukui, Elbert and Mookini).
+# the Census places in hawaiian_names.yaml (USGS GNIS or the Hawaiʻi Board on Geographic Names) and Place Names
+# of Hawaii (Pukui, Elbert and Mookini).
 # Each must match the Census name once ʻokina, kahakō and case are ignored. Oʻahu uses neighborhood boards instead.
 divisions:
   '1500190630': Hilo
@@ -27,7 +28,7 @@ divisions:
   '1500792970': Puhi-Hanamāʻulu
   '1500793780': Wailua-Anahola
   '1500990090': East Molokaʻi
-  '1500990360': Haʻikū-Pauwela
+  '1500990360': Haʻikū-Paʻuwela
   '1500990450': Hāna
   '1500990900': Kahului
   '1500991530': Kīhei
