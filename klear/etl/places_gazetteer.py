@@ -58,8 +58,9 @@ def read_census_names(path: Path) -> dict[str, str]:
 
 
 def load_overrides(path: Path = OVERRIDES_PATH) -> dict[str, str]:
+    # a value is a GNIS name, or a hand-checked entry with its name, source and url
     data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
-    return {str(k): display_name(v) for k, v in data.items()}
+    return {str(k): display_name(v["name"] if isinstance(v, dict) else v) for k, v in data.items()}
 
 
 def place_names(census: dict[str, str], overrides: dict[str, str]) -> dict[str, str]:

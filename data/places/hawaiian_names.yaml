@@ -1,4 +1,6 @@
-# Census place id to Hawaiian name, from USGS GNIS (klear/etl/gazetteer_names.py).
+# Census place id to Hawaiian name (klear/etl/gazetteer_names.py).
+# A bare name comes from USGS GNIS and is rewritten on each run. An entry with a name, source and url
+# was checked by hand against that source and is kept on each run.
 '1500400': ʻĀhuimanu
 '1500550': ʻAiea
 '1501085': ʻĀinaloa
@@ -7,6 +9,10 @@
 '1507470': ʻEwa Gentry
 '1507485': ʻEwa Villages
 '1508950': Hāʻena
+'1509260':
+  name: Haʻikū-Paʻuwela
+  source: 'Hawaiʻi Board on Geographic Names, Maui names (May 2018): Haiku-Pauwela CDP corrected to Haʻikū-Paʻuwela, from Pukui, Elbert and Mookini, Place Names of Hawaii'
+  url: https://files.hawaii.gov/dbedt/op/gis/bgn/placenames/HBGN%20-%20Maui%20-%20Official%20May%202018.pdf
 '1509700': Halaʻula
 '1510000': Hālawa
 '1510750': Haleʻiwa
@@ -18,13 +24,29 @@
 '1513600': Hāwī
 '1513900': Heʻeia
 '1515700': Hōlualoa
+'1516160':
+  name: Hōnaunau-Nāpoʻopoʻo
+  source: 'Hawaiʻi Board on Geographic Names, Hawaiʻi Island names (Oct 2018): Honaunau-Napoopoo CDP corrected to Hōnaunau-Nāpoʻopoʻo, from Pukui, Elbert and Mookini, Place Names of Hawaii'
+  url: https://files.hawaii.gov/dbedt/op/gis/bgn/placenames/HBGN%20-%20Hawaii%20-%20Official%20Oct%202018.pdf
 '1516450': Honokaʻa
 '1517450': Honomū
 '1519550': Kaʻaʻawa
 '1520000': Kāʻanapali
 '1521200': Kahaluʻu
+'1521230':
+  name: Kahaluʻu-Keauhou
+  source: 'Hawaiʻi Board on Geographic Names, Hawaiʻi Island names (Oct 2018): Kahaluu-Keauhou CDP corrected to Kahaluʻu-Keauhou, from Pukui, Elbert and Mookini, Place Names of Hawaii'
+  url: https://files.hawaii.gov/dbedt/op/gis/bgn/placenames/HBGN%20-%20Hawaii%20-%20Official%20Oct%202018.pdf
 '1524950': Kalāheo
+'1527350':
+  name: Kamāʻili
+  source: 'Hawaiʻi Board on Geographic Names, Hawaiʻi Island names (Oct 2018): Kamaili and Kamaili Homesteads in Puna, where the 2020 CDP lies, corrected to Kamāʻili, from Pukui, Elbert and Mookini, Place Names of Hawaii'
+  url: https://files.hawaii.gov/dbedt/op/gis/bgn/placenames/HBGN%20-%20Hawaii%20-%20Official%20Oct%202018.pdf
 '1528250': Kāneʻohe
+'1528287':
+  name: Kāneʻohe Base
+  source: 'Hawaiʻi Board on Geographic Names, Oʻahu names (Oct 2014): Kāneʻohe, as in Kāneʻohe Stream, from Pukui, Elbert and Mookini, Place Names of Hawaii; Base is English'
+  url: https://files.hawaii.gov/dbedt/op/gis/bgn/placenames/HBGN%20-%20Oahu%20-%20Official%20Oct%202014-rev.pdf
 '1528850': Kapaʻa
 '1529000': Kapaʻau
 '1532900': Keaʻau
@@ -39,14 +61,26 @@
 '1544450': Lāwaʻi
 '1545200': Līhuʻe
 '1546400': Māʻalaea
+'1547050':
+  name: Māhinahina
+  source: 'Hawaiʻi Board on Geographic Names, Maui names (May 2018): Mahinahina Camp, Point and land sections, where the 2020 CDP lies, corrected to Māhinahina, from Pukui, Elbert and Mookini, Place Names of Hawaii'
+  url: https://files.hawaii.gov/dbedt/op/gis/bgn/placenames/HBGN%20-%20Maui%20-%20Official%20May%202018.pdf
 '1547300': Māʻili
 '1547450': Mākaha
 '1547560': Mākaha Valley
 '1548350': Mākena
+'1549425':
+  name: Mānele
+  source: 'Hawaiʻi Board on Geographic Names, Lānaʻi names (Apr 2017): Manele CDP: Pukui, Elbert and Mookini, Place Names of Hawaii has Mānele, and the board recommends Mānele'
+  url: https://files.hawaii.gov/dbedt/op/gis/bgn/placenames/HBGN%20-%20Lanai%20-%20Official%20Apr%202017.pdf
 '1552550': Mokulēʻia
 '1553600': Nāʻālehu
 '1553900': Nānākuli
 '1553975': Nānāwale Estates
+'1554100':
+  name: Nāpili-Honokōwai
+  source: 'Hawaiʻi Board on Geographic Names, Maui names (May 2018): Napili-Honokowai CDP corrected to Nāpili-Honokōwai, from Pukui, Elbert and Mookini, Place Names of Hawaii'
+  url: https://files.hawaii.gov/dbedt/op/gis/bgn/placenames/HBGN%20-%20Maui%20-%20Official%20May%202018.pdf
 '1557800': ʻŌmaʻo
 '1559300': Paʻauilo
 '1559750': Pāhala
@@ -62,7 +96,15 @@
 '1566800': Pūpūkea
 '1570700': ʻUalapuʻe
 '1572650': Wahiawā
+'1572957':
+  name: Waiāhole-Waikāne
+  source: 'Hawaiʻi Board on Geographic Names, Oʻahu names (Oct 2014): Waiāhole and Waikāne, the land sections and villages where the 2020 CDP lies, from Pukui, Elbert and Mookini, Place Names of Hawaii'
+  url: https://files.hawaii.gov/dbedt/op/gis/bgn/placenames/HBGN%20-%20Oahu%20-%20Official%20Oct%202014-rev.pdf
 '1574450': Waiʻanae
+'1575510':
+  name: Waiheʻe-Waiehu
+  source: 'Hawaiʻi Board on Geographic Names, Maui names (May 2018): Waihee-Waiehu CDP corrected to Waiheʻe-Waiehu, from Pukui, Elbert and Mookini, Place Names of Hawaii'
+  url: https://files.hawaii.gov/dbedt/op/gis/bgn/placenames/HBGN%20-%20Maui%20-%20Official%20May%202018.pdf
 '1575950': Waikapū
 '1578050': Waimānalo
 '1578200': Waimānalo Beach
