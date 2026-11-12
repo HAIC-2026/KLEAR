@@ -8,6 +8,7 @@ import socket
 import subprocess
 import sys
 import threading
+from collections import defaultdict, deque
 from functools import partial
 from http.client import HTTPConnection
 from http.server import ThreadingHTTPServer
@@ -132,6 +133,7 @@ def test_profile_endpoint_lays_out_the_district_profile(endpoint):
     profile = json.loads(data)
     assert status == 200 and headers["Cache-Control"] == "no-store"
     assert profile["district"] == "House District 22" and profile["where"].startswith("Honolulu County")
+    assert profile["county"] == "Honolulu County"
     assert profile["overlaps"] == [{"name": "Senate District 12", "share": "100%"}]
     row = next(r for s in profile["sections"] for r in s["rows"] if r["id"] == "pop_65_plus")
     assert row["label"] == "Kūpuna (65 and over)" and row["value"] == "1,000" and row["spread"] == "± 100"
@@ -171,7 +173,8 @@ def test_about_without_a_store_is_unavailable(tmp_path):
 
 def test_validation_and_cross_origin(endpoint):
     assert request(endpoint, "POST", "/api/chat", "[]")[0] == 400
-    assert request(endpoint, "POST", "/api/chat", "{}", {"Origin": "https://other.example"})[0] == 403
+    status, data = request(endpoint, "POST", "/api/chat", "{}", {"Origin": "https://other.example"})
+    assert status == 403 and json.loads(data)["error"].endswith("Ask it on the KLEAR site instead.")
     assert chat(endpoint, "Hello", "house:999")[0] == 400
 
 
@@ -186,6 +189,22 @@ def test_free_answer_has_figure_year_source_and_margin(endpoint, monkeypatch):
     assert fact["source"] == "American Community Survey 5-year"
     assert fact["geography"] == "House District 22"
     assert fact["uncertainty"] == "ok"
+
+
+def test_free_answer_adds_the_main_county_when_asked(endpoint, monkeypatch):
+    # Keep these questions out of the rate limit the other tests share.
+    monkeypatch.setattr(web, "_RECENT", defaultdict(deque))
+    status, data = chat(endpoint, "Compare kūpuna in House District 22 with Honolulu County and the state.")
+    assert status == 200 and data["mode"] == "basic" and data["refusal"] == "none"
+    kupuna = [f["geography"] for f in data["facts"] if f["label"] == "Population 65 years and over"]
+    assert kupuna == ["House District 22", "Honolulu County", "Hawaiʻi"]
+    assert [b["geography"] for b in data["charts"][0]["bars"]] == kupuna
+    assert "District, county and state figures" in data["text"]
+    county_only = chat(endpoint, "How many kūpuna live in House District 22 and in its county?")[1]
+    assert [f["geography"] for f in county_only["facts"]] == ["House District 22", "Honolulu County"]
+    assert "District and county figures" in county_only["text"]
+    alone = chat(endpoint, "How many kūpuna live here?")[1]
+    assert {f["geography"] for f in alone["facts"]} == {"House District 22"}
 
 
 def test_refusals_and_unknown_question(endpoint):

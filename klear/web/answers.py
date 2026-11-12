@@ -136,6 +136,16 @@ def indicators(con, question):
     return [key for _, key in sorted(ranked, reverse=True)[:3]]
 
 
+def main_county(con, district) -> str | None:
+    """County id holding most of a district's residents."""
+    column = {"house": "house", "senate": "senate"}[district[0]]
+    row = con.execute(
+        f"SELECT county FROM blocks WHERE {column} = ? GROUP BY county ORDER BY sum(pop2020) DESC, county LIMIT 1",
+        [district[1]],
+    ).fetchone()
+    return row[0] if row else None
+
+
 def ask(con, question, district):
     if PERSONAL.search(question):
         return {
@@ -177,6 +187,8 @@ def ask(con, question, district):
             "programs": [],
         }
     geos = [f"{district[0]}:{district[1]}"]
+    if "county" in q and (county := main_county(con, district)):
+        geos.append(f"county:{county}")
     if "compare" in q or "state" in q or "hawaiʻi" in q or "hawaii" in q:
         geos.append("state:15")
     session = Session(con)
@@ -185,7 +197,7 @@ def ask(con, question, district):
         raise ValueError("Could not read district facts")
     facts, month = [], build_month(con)
     for fact in result["facts"]:
-        if len(facts) >= max(8, len(ids)):
+        if len(facts) >= max(8, len(ids) * len(geos)):
             break
         row = con.execute(
             "SELECT s.name,s.url,f.moe_status FROM fact f JOIN source s USING(source_id) WHERE f.indicator_id=? AND f.geo_type=? AND f.geo_id=? AND f.source_id=?",
@@ -213,6 +225,7 @@ def ask(con, question, district):
         f"{f['label']} in {f['geography']}: {f['value']}. Source: {f['source']}, {f['year']}." for f in facts
     )
     if len(geos) > 1:
-        text += "\n\nDistrict and state figures are shown side by side. Consider their margins of error before drawing a conclusion."
+        places = "District, county and state" if len(geos) == 3 else "District and " + geos[1].split(":")[0]
+        text += f"\n\n{places} figures are shown side by side. Consider their margins of error before drawing a conclusion."
     shown = [session.facts[f["ref"]] for f in result["facts"][: len(facts)]]
     return {"text": text, "refusal": "none", "facts": facts, "programs": [], "fact_refs": shown}

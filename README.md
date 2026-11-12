@@ -315,6 +315,9 @@ above the question box. Program questions list official guidance without
 assessing individual eligibility. Questions outside the available measures
 receive a clear limit instead of a guessed answer. Questions are independent:
 previous messages are displayed locally but are not sent as conversation history.
+After each answer the chat offers up to three next questions, each written out in full with the
+district and county named, so the basic lookup can answer them too. A question that takes more
+than 45 seconds is stopped. A waiting question can be cancelled, and errors that may pass offer Retry.
 
 Choosing a district also shows its district profile next to the chat. The profile is read
 straight from the store with no model call, through `GET /api/profile?district=house:022`.

@@ -3,7 +3,7 @@
 import duckdb
 import pytest
 
-from klear.web.answers import indicators
+from klear.web.answers import indicators, main_county
 
 LABELS = {
     "poverty_universe": "Population for whom poverty status is determined",
@@ -48,3 +48,9 @@ def test_topic_words_match_at_word_starts(con):
 def test_label_words_still_match(con):
     assert indicators(con, "What is the tax credit amount?")[0] == "irs_eitc_dollars"
     assert indicators(con, "How many veterans live here?") == ["civilian_veterans"]
+
+
+def test_main_county_holds_most_of_the_district(small_con):
+    assert main_county(small_con, ("house", "022")) == "15003"
+    assert main_county(small_con, ("senate", "012")) == "15003"
+    assert main_county(small_con, ("house", "099")) is None

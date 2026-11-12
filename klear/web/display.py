@@ -348,6 +348,7 @@ def profile(con, raw: dict, session, islands: str = "") -> dict:
         "geo": raw["district"]["geo"],
         "district": raw["district"]["name"],
         "where": where,
+        "county": raw["counties"][0]["name"] if raw["counties"] else "",
         "places": [{"name": p["name"], "share": _percent(p["share"])} for p in raw["places"]],
         "overlaps": [{"name": o["name"], "share": _percent(o["share"])} for o in raw["overlaps"]],
         "headline": headline,

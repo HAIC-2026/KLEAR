@@ -101,7 +101,7 @@ function needDistrict() {
 // button would drop focus to the page, and keyboard and screen reader users would lose their place.
 function setBusy(on) {
   busy = on;
-  for (const b of [$('send'), ...$('examples').querySelectorAll('button')]) {
+  for (const b of [$('send'), ...document.querySelectorAll('#examples button, #log .followup, #log .retry')]) {
     if (on) b.setAttribute('aria-disabled', 'true'); else b.removeAttribute('aria-disabled');
   }
 }
@@ -399,6 +399,7 @@ async function loadProfile(geo, name) {
     const data = await api('/api/profile?district=' + encodeURIComponent(geo));
     if (seq !== profileSeq) return;
     panel.replaceChildren(...renderProfile(data));
+    districtExamples(data);
     live.textContent = `Profile for ${data.district} loaded.`;
   } catch (err) {
     if (seq !== profileSeq) return;
@@ -475,10 +476,11 @@ $('question-form').onsubmit = async e => {
   if (!card.classList.contains('started')) { card.classList.add('started'); showChat(); }
   setBusy(true);
   asked = district;
-  const name = $('district-title').textContent;
+  const name = $('district-title').textContent, geo = district;
+  askedQuestions.add(sameQuestion(question, name));
   // The conversation is not a live region, since answers are long. A short status line says what is happening,
   // and the new answer's heading takes focus.
-  const sent = node('p', '', 'user'), pending = node('p', 'Checking district data and sources…', 'pending');
+  const sent = node('p', '', 'user'), wait = waiting(name), pending = wait.box;
   sent.append(hidden('You asked: '), question);
   // Each exchange keeps the color of the chamber it was about, even after the chat switches district.
   const chamber = district.split(':')[0];
@@ -491,22 +493,31 @@ $('question-form').onsubmit = async e => {
   $('chat-live').textContent = `Checking district data and sources for ${name}…`;
   let follow = true, hold = null, reply = null, done, reader = null;
   try {
-    const answer = await api('/api/chat', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({question, district})});
+    const answer = await askKlear(question, geo, wait);
     reader = readerPlace();
     hold = holdPage(pending);
     follow = onScreen(pending);
     reply = renderAnswer(answer, name);
     reply.dataset.chamber = chamber;
+    showMode(reply, answer.mode);
+    // Only the newest answer offers next questions, and an earlier failure's Retry goes once this one is answered.
+    for (const n of $('log').querySelectorAll('.followups, .retry')) n.remove();
+    const next = followUpGroup(followUps(question, answer, name, counties.get(geo)));
+    if (next) reply.append(next);
     pending.replaceWith(reply);
     done = `Answer ready for ${name}.`;
   } catch (err) {
     reader = reader || readerPlace();
     hold = holdPage(pending);
     follow = onScreen(pending);
-    pending.replaceWith(node('p', err.message, 'error'));
-    done = err.message;
+    for (const n of $('log').querySelectorAll('.retry')) n.remove();
+    // A reply the page could not lay out reads like any other unreadable reply.
+    const shown = 'retry' in err ? err : problem('KLEAR sent a reply it could not read. Press Retry to ask again.');
+    pending.replaceWith(errorNote(shown, question));
+    done = shown.message;
     if (!$('question').value.trim()) { $('question').value = question; fitQuestion(); $('chat-status').textContent = 'Your question is ready to retry.'; }
   } finally {
+    wait.stop();
     setBusy(false);
     const {elsewhere, inChat} = reader || readerPlace();
     $('chat-live').textContent = done;
@@ -531,6 +542,189 @@ function readerPlace() {
 
 // The last announcement is cleared once the reader starts the next question, so it is not read again.
 $('question').addEventListener('input', () => { if (!busy) $('chat-live').textContent = ''; });
+
+// Ctrl+Enter, or Command+Enter on a Mac, sends the question. Enter alone starts a new line.
+$('question').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && !e.isComposing) { e.preventDefault(); $('question-form').requestSubmit(); }
+});
+if (/Mac|iPhone|iPad/.test((navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform)) $('send-hint').textContent = 'Press ⌘+Enter to send.';
+
+// Ask again with a question already written out: a follow-up, a district example, or a retry.
+function askAgain(question) {
+  if (busy) return;
+  $('question').value = question;
+  fitQuestion();
+  $('question-form').requestSubmit();
+}
+
+// The waiting line: elapsed seconds, a Cancel button, and a time limit. The status line notes every 15 seconds that
+// the answer is still coming, since the waiting line itself is not a live region.
+const ASK_LIMIT = 45;
+function waiting(name) {
+  const box = node('div', '', 'pending'), text = node('p', 'Checking district data and sources… '), clock = node('span', '', 'elapsed');
+  const cancel = node('button', 'Cancel', 'cancel'), control = new AbortController(), started = Date.now();
+  const wait = {box, signal: control.signal, why: ''};
+  const stop = why => { if (!wait.why) { wait.why = why; control.abort(why); } };
+  cancel.type = 'button';
+  cancel.onclick = () => stop('cancel');
+  text.append(clock);
+  box.append(text, cancel);
+  let note = 15;
+  const tick = setInterval(() => {
+    const s = Math.floor((Date.now() - started) / 1000);
+    clock.textContent = s === 1 ? '1 second' : `${s} seconds`;
+    if (s >= note) { $('chat-live').textContent = `Still checking for ${name}: ${note} seconds so far. Press Cancel to stop.`; note += 15; }
+  }, 1000);
+  const limit = setTimeout(() => stop('timeout'), ASK_LIMIT * 1000);
+  wait.stop = () => { clearInterval(tick); clearTimeout(limit); };
+  return wait;
+}
+
+// An error that says what to do next, and whether pressing Retry could help.
+const problem = (message, retry = true) => Object.assign(new Error(message), {retry});
+function statusProblem(status) {
+  if (status === 429) return problem('KLEAR is getting too many questions right now. Wait a minute, then press Retry.');
+  if (status === 413) return problem('That question is too long for KLEAR to receive. Shorten it, then ask again.', false);
+  if ([502, 503, 504].includes(status)) return problem(`KLEAR’s server is not responding right now (error ${status}). Wait a moment, then press Retry.`);
+  if (status >= 500) return problem(`KLEAR ran into a server problem (error ${status}). Wait a moment, then press Retry.`);
+  if (status >= 400) return problem(`KLEAR could not take this question (error ${status}). Reload the page, then ask again.`, false);
+  return problem('KLEAR sent a reply it could not read. Press Retry to ask again.');
+}
+
+// Send a question. Replies that are not JSON, such as a proxy's error page, get a plain message instead of a parse error.
+async function askKlear(question, geo, wait) {
+  const stopped = () => problem(wait.why === 'timeout'
+    ? `KLEAR did not answer within ${ASK_LIMIT} seconds, so the question was stopped. Press Retry to ask again.`
+    : 'You cancelled this question. Press Retry to ask it again.');
+  let r, data = null;
+  try {
+    r = await fetch('/api/chat', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({question, district: geo}), signal: wait.signal});
+  } catch {
+    throw wait.why ? stopped() : problem('KLEAR could not be reached. Check your internet connection, then press Retry.');
+  }
+  try { data = await r.json(); } catch { if (wait.why) throw stopped(); }
+  if (r.ok && data && typeof data === 'object') return data;
+  if (data && typeof data.error === 'string') throw problem(data.error, r.status >= 500 || r.status === 429);
+  throw statusProblem(r.ok ? 200 : r.status);
+}
+
+function errorNote(err, question) {
+  const box = node('div', '', 'error');
+  box.append(node('p', err.message));
+  if (err.retry) {
+    const retry = node('button', 'Retry', 'retry');
+    retry.type = 'button';
+    retry.onclick = () => askAgain(question);
+    box.append(retry);
+  }
+  return box;
+}
+
+// A small badge after the answer heading that says whether the assistant or the basic lookup answered.
+const modeNames = {assistant: ['Assistant', 'Written by the KLEAR assistant from the data store'], basic: ['Basic lookup', 'Figures matched by keyword in the data store, without the assistant']};
+function showMode(article, mode) {
+  if (!modeNames[mode]) return;
+  const [label, about] = modeNames[mode], h = article.querySelector('h3'), head = node('div', '', 'answer-head'), badge = node('p', '', 'mode-badge');
+  badge.title = about;
+  badge.append(hidden('Answer type: '), label);
+  h.replaceWith(head);
+  head.append(h, badge);
+}
+
+// Topics for next questions, matched in the order the basic lookup matches them, so every question written here is
+// one the basic lookup answers too. Each question names its district, so it stands on its own.
+const TOPICS = [
+  {key: 'programs', match: /program|benefit|assistance|support|help available/, ask: d => `What support programs could residents of ${d} explore?`, next: ['poverty', 'housing']},
+  {key: 'profile', match: /\b(profile|socioeconomic|overview)/, ask: d => `Give me a socioeconomic profile of ${d}.`, next: ['kupuna', 'housing', 'programs']},
+  {key: 'kupuna', match: /\b(kūpuna|kupuna|senior|older adult|65)/, compare: 'kūpuna', ask: d => `How many kūpuna live in ${d}?`, more: d => `How many kūpuna in ${d} live below the poverty level?`, next: ['health', 'programs']},
+  {key: 'poverty', match: /\b(poverty|low income)/, compare: 'poverty', ask: d => `How many people in ${d} live below the poverty level?`, more: d => `How many keiki in ${d} live below the poverty level?`, next: ['income', 'programs']},
+  {key: 'housing', match: /\b(housing|rent|cost burden)/, compare: 'housing costs', ask: d => `What does the data say about housing needs in ${d}?`, more: d => `How many renters in ${d} pay 35% or more of their income on rent?`, next: ['income', 'programs']},
+  {key: 'income', match: /\b(income|wage|earn)/, compare: 'household income', ask: d => `What is the median household income in ${d}?`, more: d => `What is the per capita income in ${d}?`, next: ['poverty', 'housing']},
+  {key: 'work', match: /\b(unemploy|jobs|work)/, compare: 'unemployment', ask: d => `How many people in ${d} are unemployed?`, more: d => `How many people in ${d} work from home?`, next: ['income', 'poverty']},
+  {key: 'health', match: /\b(health|uninsured|disabil)/, compare: 'health insurance coverage', ask: d => `How many people in ${d} have no health insurance?`, more: d => `How many people in ${d} have a disability?`, next: ['kupuna', 'programs']},
+  {key: 'keiki', match: /\b(child|keiki|young)/, compare: 'keiki', ask: d => `How many keiki live in ${d}?`, more: d => `How many households in ${d} have children?`, next: ['poverty', 'programs']},
+  {key: 'people', match: /\b(population|people|residents)/, ask: d => `How many people live in ${d}?`, next: ['kupuna', 'keiki', 'income']},
+];
+const topic = key => TOPICS.find(t => t.key === key);
+const topicOf = text => TOPICS.find(t => t.match.test(text.toLowerCase()));
+const compareQuestion = (what, name, county) => `Compare ${what} in ${name} with ${county || 'its county'} and the state.`;
+// Questions already asked, written the same way whether they said "this district" or named it.
+const askedQuestions = new Set();
+const sameQuestion = (q, name) => q.trim().toLowerCase().replaceAll('this district', name.toLowerCase()).replace(/\s+/g, ' ');
+// Main county of each district whose profile has loaded.
+const counties = new Map();
+
+// Up to three next questions: the same measure against the county and state, a closer look, then related topics.
+function followUps(question, answer, name, county) {
+  const out = [], add = q => { if (!askedQuestions.has(sameQuestion(q, name)) && !out.includes(q)) out.push(q); };
+  const declined = /^decline/.test(answer.refusal || '');
+  const words = [...(answer.lead || []), ...(answer.tiles || []).map(t => t.label), ...(answer.charts || []).map(c => c.label), ...(answer.facts || []).map(f => f.label)].join(' ');
+  const t = declined ? null : topicOf(question) || topicOf(words);
+  if (t && t.compare && !/county/i.test(question)) add(compareQuestion(t.compare, name, county));
+  if (t && t.more) add(t.more(name));
+  for (const key of [...(t ? t.next : []), 'profile', 'kupuna', 'housing', 'poverty', 'programs']) add(topic(key).ask(name));
+  return out.slice(0, 3);
+}
+
+let followSeq = 0;
+function followUpGroup(questions) {
+  if (!questions.length) return null;
+  const box = node('div', '', 'followups'), title = node('p', 'Ask next', 'followups-title');
+  title.id = `followups-${++followSeq}`;
+  box.setAttribute('role', 'group');
+  box.setAttribute('aria-labelledby', title.id);
+  box.append(title);
+  for (const q of questions) {
+    const b = says('button', q, 'followup');
+    b.type = 'button';
+    b.onclick = () => askAgain(q);
+    box.append(b);
+  }
+  return box;
+}
+
+// Measures that make a district example when the district's rate stands well above the state's or its county's.
+const STANDOUTS = [['pct_65_plus', 'Kūpuna share', 'kūpuna'], ['pct_people_poverty', 'Poverty', 'poverty'], ['pct_children_poverty', 'Keiki poverty', 'keiki poverty'], ['pct_65_plus_poverty', 'Kūpuna poverty', 'poverty among kūpuna'], ['pct_rent_burden_35_plus', 'Rent burden', 'rent burden'], ['pct_uninsured', 'Uninsured rate', 'health insurance coverage'], ['pct_disability', 'Disability rate', 'disability']];
+// Places burned in the August 2023 Maui wildfires, whose survey figures mostly predate the fires.
+const WILDFIRE_PLACES = ['Lahaina', 'Kula'];
+// How many times the other place's rate the district's is, read from the profile's comparison words.
+function timesAbove(a) {
+  const m = a && /^about (?:([\d.]+) times|(\d+) percent higher)/.exec(a.lead);
+  return !m ? 0 : m[1] ? Number(m[1]) : 1 + Number(m[2]) / 100;
+}
+
+// Examples that fit the chosen district, from its profile: a wildfire note where the survey years matter, and the
+// measure that stands out most against the state, or else the county. They lead the suggested questions.
+function districtExamples(p) {
+  counties.set(p.geo, p.county);
+  for (const b of $('examples').querySelectorAll('.local')) b.remove();
+  const rows = new Map(p.sections.flatMap(s => s.rows).map(r => [r.id, r]));
+  let best = null;
+  for (const [id, label, what] of STANDOUTS) {
+    const r = rows.get(id);
+    if (!r || !r.against.length) continue;
+    const state = timesAbove(r.against.at(-1)), county = r.against.length > 1 ? timesAbove(r.against[0]) : 0;
+    const score = state >= 1.2 ? 10 + state : county >= 1.2 ? county : 0;
+    if (score && (!best || score > best.score)) best = {score, label: `${label} higher than ${state >= 1.2 ? 'statewide' : 'countywide'}`, what};
+  }
+  const chips = [];
+  if (p.places.some(x => WILDFIRE_PLACES.includes(x.name))) chips.push(['Survey years and the 2023 wildfires', `Which survey years do the housing figures for ${p.district} cover, given the 2023 Maui wildfires?`]);
+  if (best) chips.push([best.label, compareQuestion(best.what, p.district, p.county)]);
+  $('examples').prepend(...chips.map(([label, question]) => {
+    const b = node('button', '', 'local'), rest = hidden(': ');
+    b.type = 'button';
+    if (busy) b.setAttribute('aria-disabled', 'true');
+    rest.append(says('span', question));
+    b.append(says('span', label, 'example-label'), rest);
+    b.onclick = () => askAgain(question);
+    return b;
+  }));
+}
+
+// Next questions, retries and district examples name a district, so they go when the chat switches to another.
+document.addEventListener('klear:district', () => {
+  for (const n of document.querySelectorAll('#log .followups, #log .retry, #examples .local')) n.remove();
+});
 
 // Answer heading that names the district the question was asked about. It takes focus when the answer arrives.
 function heading(answer, name) {
