@@ -100,6 +100,18 @@ def test_misspellings_any_case():
     assert misspellings("Waimanalo Health Center") == []
 
 
+def test_web_addresses_are_not_place_names():
+    text = (
+        "Apply at https://medquest.hawaii.gov/en/apply, call hpha.hawaii.gov/how-to-apply, or see HAWAII.GOV."
+    )
+    assert misspellings(text) == []
+    assert hawaiian(text) == text
+    # The place name beside a link is still checked and fixed.
+    assert misspellings("Hawaii residents: health.hawaii.gov") == ["Hawaii"]
+    assert hawaiian("Hawaii residents: health.hawaii.gov") == "Hawaiʻi residents: health.hawaii.gov"
+    assert misspellings("Lihue.") == ["Lihue"]
+
+
 def test_misspellings_ignores_invisible_characters():
     from klear.text import misspellings
 

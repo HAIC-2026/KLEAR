@@ -203,6 +203,8 @@ def main(argv: list[str] | None = None) -> None:
     web.PER_MINUTE = 10_000
     web.BUSY = threading.BoundedSemaphore(64)
     assistant = Assistant(DailyBudget(1_000.0, work / "spend.json"), client=ScriptedClient())
+    # Load the agent code before serving, so the first test's question is not slowed by the import.
+    assistant.warm()
     server = Server(
         ("127.0.0.1", args.port), partial(web.Handler, store=store, assistant=assistant, geocoder=geocoder)
     )
