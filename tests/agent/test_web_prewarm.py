@@ -221,7 +221,8 @@ def test_warm_lays_out_every_answer_so_lookups_need_no_store(ready, monkeypatch)
 
 def test_cache_keys_by_model_and_skips_bad_entries(ready):
     path = cache_path(ready)
-    rows = read_entries(path)
+    # Prewarm answers in parallel, so rows come in any order: alter two other than the one checked below.
+    rows = sorted(read_entries(path), key=lambda r: (r["question"], r["district"]) == (KUPUNA, "house:022"))
     typed = rows[0] | {"question": "What is the median rent?"}
     broken = rows[1] | {"answer": {"contract": "0"}}
     write_entries(path, [*rows[2:], typed, broken])
