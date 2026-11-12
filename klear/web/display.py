@@ -22,9 +22,14 @@ LIMIT_RULES = {"fpg_2026_hi", "hud_il_fy2026_hi", "hpha_limits"}
 # Where a profile's shares of residents in each place and overlapping district come from (klear/etl/blocks.py).
 SHARES_SOURCE = {
     "name": "2020 Census Redistricting Data (P.L. 94-171), population by block",
-    "url": "https://api.census.gov/data/2020/dec/pl",
+    "url": "https://www.census.gov/programs-surveys/decennial-census/about/rdo/summary-files.html",
     "year": "2020 Census",
 }
+# How KLEAR moves ZIP code and tract figures to districts (tier A) and averages modeled ones (tier M), with a
+# section for each source, anchored by its source_id.
+METHODS_PAGE = "/methods.html"
+METHOD_TIERS = {"A", "M"}
+METHODS_TEXT = "How KLEAR estimates district ranges"
 VINTAGE_NOTE = re.compile(r"\s*\(\{vintage:\w+\}\)")
 TAGS = {
     "higher": "Higher than {other}",
@@ -40,9 +45,11 @@ class _Store:
         self.con = con
         self.units = dict(con.execute("SELECT indicator_id, unit FROM indicator").fetchall())
         self.labels = dict(con.execute("SELECT indicator_id, label FROM indicator").fetchall())
+        # Readers are sent to each source's page; its url, what the build downloads, stays in the manifest.
         self.sources = {
-            r[0]: (r[1], r[2]) for r in con.execute("SELECT source_id, name, url FROM source").fetchall()
+            r[0]: (r[1], r[2]) for r in con.execute("SELECT source_id, name, page_url FROM source").fetchall()
         }
+        self._kinds: dict[tuple, tuple] = {}
         self.additive = {
             r[0] for r in con.execute("SELECT indicator_id FROM indicator WHERE additive").fetchall()
         }
@@ -56,6 +63,19 @@ class _Store:
 
     def unit(self, f) -> str:
         return self.units.get(f.indicator_id, "count")
+
+    def links(self, f) -> list[dict]:
+        """Where a fact can be checked: its ACS table for that place, or the methods page."""
+        key = (f.geo_type, f.geo_id, f.indicator_id, f.source_id)
+        if key not in self._kinds:
+            row = self.con.execute(
+                "SELECT tier, table_id FROM fact WHERE geo_type = ? AND geo_id = ? AND indicator_id = ? "
+                "AND source_id = ?",
+                list(key),
+            ).fetchone()
+            self._kinds[key] = row or (None, None)
+        tier, table = self._kinds[key]
+        return figure_links(f.source_id, tier, table, f.geo_type, f.geo_id, self.place(f.geo_type, f.geo_id))
 
     def vintage(self, f) -> str:
         name = self.sources.get(f.source_id, (f.source_id, ""))[0]
@@ -123,6 +143,32 @@ def year_text(vintage: str, month: str) -> str:
     if vintage != CURRENT_LAYER:
         return vintage
     return f"Current list as of {month}" if month else "Current list"
+
+
+def figure_links(
+    source_id: str, tier: str | None, table_id: str | None, geo_type: str, geo_id: str, place: str
+) -> list[dict]:
+    """Where one figure can be checked. An ACS figure links to its table for that place on data.census.gov, which
+    shows the same number. A figure KLEAR moved to districts or CDC modeled links to the methods page, since no
+    publisher prints it for a district."""
+    from klear.etl.profile import table_page  # ACS table names and Census GEO_IDs live with the ACS build
+
+    if url := table_page(source_id, table_id, geo_type, geo_id):
+        return [{"text": f"Table {table_id} for {place}", "url": url}]
+    if tier in METHOD_TIERS:
+        return [{"text": METHODS_TEXT, "url": f"{METHODS_PAGE}#{source_id}"}]
+    return []
+
+
+def _cited(sources: list[dict]) -> list[dict]:
+    """One citation per source and vintage, in first-cited order, with links to where the figures it covers can be
+    checked. A citation with nothing to check has no links."""
+    out: dict[tuple, dict] = {}
+    for s in sources:
+        cited = out.setdefault((s["name"], s["year"]), {k: v for k, v in s.items() if k != "links"})
+        if new := [x for x in s.get("links", []) if x not in cited.get("links", [])]:
+            cited["links"] = cited.get("links", []) + new
+    return list(out.values())
 
 
 def _share(facts, home, store: _Store) -> str:
@@ -275,13 +321,7 @@ def tiles(answer, store: _Store, skip: set[str]) -> list[dict]:
 
 
 def sources(answer, store: _Store) -> list[dict]:
-    seen, out = set(), []
-    for f in answer.facts:
-        name, url = store.sources.get(f.source_id, (f.source_id, ""))
-        if (name, f.vintage) not in seen:
-            seen.add((name, f.vintage))
-            out.append({"name": name, "url": url, "year": year_text(f.vintage, store.month)})
-    return out
+    return _cited([_source(f, store) | {"links": store.links(f)} for f in answer.facts])
 
 
 def build(con, answer) -> dict:
@@ -417,7 +457,13 @@ def profile(con, raw: dict, session, islands: str = "") -> dict:
     }
     headline = [dict(rows[i]) for i in PROFILE_HEADLINE if i in rows]
     sections = [
-        _section(s["title"], [rows[r["fact"]["indicator_id"]] for r in s["rows"]]) for s in raw["sections"]
+        _linked(
+            _section(s["title"], [rows[r["fact"]["indicator_id"]] for r in s["rows"]]),
+            s["rows"],
+            session,
+            store,
+        )
+        for s in raw["sections"]
     ]
     where = ", ".join([*(c["name"] for c in raw["counties"]), *([islands] if islands else [])])
     return {
@@ -432,6 +478,23 @@ def profile(con, raw: dict, session, islands: str = "") -> dict:
         "programs": programs(),
         "built": build_date(con),
     }
+
+
+def _linked(section: dict, raw_rows: list[dict], session, store: _Store) -> dict:
+    """A section whose sources each list where the district's figures from that source can be checked: its
+    tables on data.census.gov, or the methods page."""
+    cited = _cited(
+        [
+            _source(f, store, r["fact"]["source"]) | {"links": store.links(f)}
+            for r in raw_rows
+            for f in [session.facts[r["fact"]["ref"]]]
+        ]
+    )
+    links = {(x["name"], x["year"]): x["links"] for x in cited if "links" in x}
+    sources = [
+        x | {"links": links[k]} if (k := (x["name"], x["year"])) in links else x for x in section["sources"]
+    ]
+    return section | {"sources": sources}
 
 
 def _percent(share: float) -> str:

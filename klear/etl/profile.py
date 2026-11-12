@@ -27,17 +27,30 @@ CATALOG_PATH = config.ROOT / "data" / "catalog" / "indicators.yaml"
 YEAR = 2024
 PROFILE = "acs/acs5/profile"
 DETAILED = "acs/acs5"
+# product is how data.census.gov names the dataset's tables, like ACSDP5Y2024.DP05; page_url is the Census page
+# about the dataset.
 SOURCES = {
     "acs2024_5yr_profile": {
         "dataset": PROFILE,
         "name": "American Community Survey 5-year Data Profiles (DP02-DP05)",
+        "product": f"ACSDP5Y{YEAR}",
+        "page_url": f"https://www.census.gov/acs/www/data/data-tables-and-tools/data-profiles/{YEAR}/",
     },
-    "acs2024_5yr_detailed": {"dataset": DETAILED, "name": "American Community Survey 5-year Detailed Tables"},
+    "acs2024_5yr_detailed": {
+        "dataset": DETAILED,
+        "name": "American Community Survey 5-year Detailed Tables",
+        "product": f"ACSDT5Y{YEAR}",
+        "page_url": "https://www.census.gov/programs-surveys/acs/data/data-tables.html",
+    },
 }
 SOURCE_BY_DATASET = {s["dataset"]: sid for sid, s in SOURCES.items()}
 PUBLISHER = "U.S. Census Bureau"
 VINTAGE = "2020-2024 ACS 5-year"
 LICENSE = "public domain"
+# Census GEO_ID of each stored geography is this prefix and the stored geo_id, as the Census API returns it for
+# the 2024 ACS. The 900 in the district prefixes is the 2024 legislative district vintage the ACS tabulates.
+CENSUS_GEO_ID = {"state": "0400000US", "county": "0500000US", "senate": "610U900US15", "house": "620L900US15"}
+TABLE_PAGE = "https://data.census.gov/table/{product}.{table}?g={geo}"
 VAR_RE = {PROFILE: re.compile(r"DP0[2-5]_\d{4}P?"), DETAILED: re.compile(r"[BC]\d{5}[A-Z]?_\d{3}")}
 FIELDS = ("indicator_id", "label", "unit", "universe", "acs_var", "dataset")
 GEO_TYPES = ("state", "county", "senate", "house")
@@ -216,11 +229,27 @@ def build_geographies(geo_types=GEO_TYPES) -> pd.DataFrame:
     return pd.DataFrame(rows, columns=["geo_type", "geo_id", "name"])
 
 
+def census_geo_id(geo_type: str, geo_id: str) -> str | None:
+    """The Census GEO_ID of a stored geography, like 620L900US15022 for House District 22, or None."""
+    prefix = CENSUS_GEO_ID.get(geo_type)
+    return f"{prefix}{geo_id}" if prefix else None
+
+
+def table_page(source_id: str, table_id: str | None, geo_type: str, geo_id: str) -> str | None:
+    """The data.census.gov page of an ACS table for one place, where its published figure can be read, or None
+    for a fact that is not from an ACS table."""
+    source, geo = SOURCES.get(source_id), census_geo_id(geo_type, geo_id)
+    if not (source and table_id and geo):
+        return None
+    return TABLE_PAGE.format(product=source["product"], table=table_id, geo=geo)
+
+
 def _register(con, catalog: list[Indicator], geographies: pd.DataFrame) -> None:
     have = {r[0] for r in con.execute("SELECT source_id FROM source").fetchall()}
     for sid, s in SOURCES.items():
         if sid not in have:
-            add_source(con, sid, s["name"], PUBLISHER, f"{BASE_URL}/{YEAR}/{s['dataset']}", VINTAGE, LICENSE)
+            url = f"{BASE_URL}/{YEAR}/{s['dataset']}"
+            add_source(con, sid, s["name"], PUBLISHER, url, VINTAGE, LICENSE, page_url=s["page_url"])
     have = {r[0] for r in con.execute("SELECT indicator_id FROM indicator").fetchall()}
     new = [i for i in catalog if i.indicator_id not in have]
     if new:

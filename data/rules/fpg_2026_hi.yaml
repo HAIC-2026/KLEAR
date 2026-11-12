@@ -2,7 +2,8 @@ rule_id: fpg_2026_hi
 program: HHS poverty guidelines (Hawaiʻi)
 status: confirmed
 effective: '2026-01-13'
-url: https://aspe.hhs.gov/topics/poverty-economic-mobility/poverty-guidelines/api/2026/hi
+info_url: https://aspe.hhs.gov/topics/poverty-economic-mobility/poverty-guidelines
+source_url: https://aspe.hhs.gov/topics/poverty-economic-mobility/poverty-guidelines/api/2026/hi
 effective_source:
   url: https://www.federalregister.gov/documents/full_text/text/2026/01/15/2026-00755.txt
   quote: 'Effective Date: January 13, 2026'

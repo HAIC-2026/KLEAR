@@ -51,16 +51,44 @@ SITE_COLS = [
 ]  # fmt: skip
 
 
+SCHEMA = Path(__file__).parent / "schema.sql"
+COLUMNS_SQL = "SELECT table_name, column_name FROM information_schema.columns WHERE table_schema = 'main'"
+
+
 def open_store(path: Path) -> duckdb.DuckDBPyConnection:
     con = duckdb.connect(str(path))
-    con.execute((Path(__file__).parent / "schema.sql").read_text(encoding="utf-8"))
+    con.execute(SCHEMA.read_text(encoding="utf-8"))
     return con
 
 
-def add_source(con, source_id: str, name: str, publisher: str, url: str, vintage: str, license: str) -> None:
+def missing_columns(con) -> list[str]:
+    """Columns of the current schema that a store lacks, like 'source.page_url'. A store built by an older KLEAR
+    lacks them and must be rebuilt; an empty list means the store matches this code."""
+    with duckdb.connect() as want:
+        want.execute(SCHEMA.read_text(encoding="utf-8"))
+        expected = want.execute(COLUMNS_SQL).fetchall()
+    have = set(con.execute(COLUMNS_SQL).fetchall())
+    return [f"{t}.{c}" for t, c in expected if (t, c) not in have]
+
+
+def add_source(
+    con,
+    source_id: str,
+    name: str,
+    publisher: str,
+    url: str,
+    vintage: str,
+    license: str,
+    *,
+    page_url: str | None = None,
+) -> None:
+    """Register a source: url is the address the build reads, page_url the page people read about it. Without
+    a page_url, url is taken to be that page. The build names one for every source (klear/etl/build.py and
+    klear/etl/profile.py), and tests/test_readable_links.py checks each is a page, not a download."""
     con.execute(
-        "INSERT INTO source VALUES (?, ?, ?, ?, ?, ?)",
-        [source_id, name, publisher, url, vintage, license],
+        "INSERT INTO source (source_id, name, publisher, url, vintage, license, page_url) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?)",
+        [source_id, name, publisher, url, vintage, license, page_url or url],
     )
 
 

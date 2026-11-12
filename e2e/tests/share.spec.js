@@ -126,8 +126,9 @@ test('printing gives a one-page summary with every source, year and address writ
   const sources = sheet.locator('.sheet-sources li');
   await expect(sources.first()).toHaveText('American Community Survey 5-year, 2020-2024 https://example.org');
   await expect(sources.last()).toContainText('2020 Census Redistricting Data (P.L. 94-171), population by block, 2020 Census');
+  await expect(sources.last()).toContainText('https://www.census.gov/programs-surveys/decennial-census/about/rdo/summary-files.html');
   await expect(sheet.locator('.sheet-programs')).toContainText('SNAP: food assistance benefits');
-  await expect(sheet.locator('.sheet-programs')).toContainText('https://www.fna.usda.gov/snap/allotment/cola');
+  await expect(sheet.locator('.sheet-programs')).toContainText('https://humanservices.hawaii.gov/bessd/snap/');
   await expect(sheet.locator('.sheet-live')).toContainText(address(page));
   await expect(sheet.locator('.sheet-live')).toContainText(/Printed \w+ \d+, \d{4}/);
   await expect(sheet.locator('.sheet-foot')).toContainText('Not an official State of Hawaiʻi product.');

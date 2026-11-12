@@ -11,6 +11,9 @@ from klear.etl.geographies import small_geographies
 from klear.store.db import FACT_COLS
 
 PLACES_URL = "https://data.cdc.gov/resource/cwsq-ngmh.csv?stateabbr=HI&$limit=50000"
+PAGE_URL = (
+    "https://data.cdc.gov/500-Cities-Places/PLACES-Local-Data-for-Better-Health-Census-Tract-D/cwsq-ngmh"
+)
 SOURCE_ID = "cdc_places_2025"
 VINTAGE = "PLACES 2025 release, BRFSS 2023 model"
 PLACES_MEASURES = {

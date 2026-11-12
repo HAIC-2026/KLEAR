@@ -2,7 +2,8 @@ rule_id: aca_ptc_2026
 program: ACA premium tax credit
 status: confirmed
 effective: '2026-01-01'
-url: https://www.irs.gov/affordable-care-act/individuals-and-families/the-premium-tax-credit
+info_url: https://www.healthcare.gov/lower-costs/
+source_url: https://www.irs.gov/affordable-care-act/individuals-and-families/the-premium-tax-credit
 fetch_url: https://www.irs.gov/pub/irs-drop/rp-25-25.pdf
 effective_source:
   url: https://www.irs.gov/pub/irs-drop/rp-25-25.pdf

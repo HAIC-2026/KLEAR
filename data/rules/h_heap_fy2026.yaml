@@ -2,7 +2,8 @@ rule_id: h_heap_fy2026
 program: Hawaiʻi Home Energy Assistance Program (H-HEAP)
 status: confirmed
 effective: '2025-10-01'
-url: https://humanservices.hawaii.gov/bessd/liheap/
+info_url: https://humanservices.hawaii.gov/bessd/liheap/
+source_url: https://humanservices.hawaii.gov/bessd/liheap/
 fetch_url: https://humanservices.hawaii.gov/bessd/files/2026/06/2026-Application-Packet.pdf
 values:
   program_year:

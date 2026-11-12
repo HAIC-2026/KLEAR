@@ -811,11 +811,11 @@ class Session:
     def _explain_source(self, args: dict) -> dict:
         sid = _str(args, "source_id")
         row = self.con.execute(
-            "SELECT name, publisher, vintage, url FROM source WHERE source_id = ?", [sid]
+            "SELECT name, publisher, vintage, url, page_url FROM source WHERE source_id = ?", [sid]
         ).fetchone()
         if row is None:
             raise ToolError(f"unknown source {sid!r}")
-        return dict(zip(("name", "publisher", "vintage", "url"), row, strict=True))
+        return dict(zip(("name", "publisher", "vintage", "url", "page_url"), row, strict=True))
 
 
 def _spec(name: str, description: str, properties: dict, required: list[str]) -> dict:
@@ -896,7 +896,8 @@ TOOL_SPECS = [
     ),
     _spec(
         "explain_source",
-        "Explain a data source by source id: name, publisher, vintage and url.",
+        "Explain a data source by source id: name, publisher, vintage, the url the data was downloaded from "
+        "and page_url, the publisher's page about it.",
         {"source_id": _STR},
         ["source_id"],
     ),

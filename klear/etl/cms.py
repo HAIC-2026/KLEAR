@@ -12,6 +12,11 @@ from klear.etl.geographies import small_geographies
 
 ZIP_URL = "https://www.cms.gov/files/zip/2026-oep-zip-code-level-public-use-file.zip"
 COUNTY_URL = "https://www.cms.gov/files/zip/2026-oep-county-level-public-use-file.zip"
+# the CMS page that describes these files and links them
+PAGE_URL = (
+    "https://www.cms.gov/data-research/statistics-trends-reports/marketplace-products/"
+    "2026-marketplace-open-enrollment-period-public-use-files"
+)
 SOURCE_ID = "cms_oep_2026"
 VINTAGE = "2026 open enrollment period"
 ZIP_RANGE = ("96701", "96898")

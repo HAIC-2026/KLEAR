@@ -21,7 +21,8 @@ def write(path, **over):
         "program": "SNAP",
         "status": "confirmed",
         "effective": "2026-10-01",
-        "url": "https://example.org/snap",
+        "source_url": "https://example.org/snap",
+        "info_url": "https://example.org/apply",
         "values": {"max_hh4": dict(ENTRY)},
         "verified_by": "read from page",
         "retrieved": "2026-10-30",
@@ -96,7 +97,7 @@ def test_shown_date_override_must_match_value(tmp_rules):
 def fpg_with_es(tmp_rules, effective, shown):
     return tmp_rules(
         rule_id="fpg_2026_hi",
-        url=FPG_API,
+        source_url=FPG_API,
         effective=effective,
         values=dict(FPG_VALUES),
         effective_source={
@@ -158,6 +159,23 @@ def test_fetch_url_used_and_failed_fetch_not_compared(tmp_rules):
     assert not res.passed and res.n_compared == 0
 
 
+def test_rules_are_checked_against_source_url_and_link_residents_to_info_url(tmp_rules):
+    seen = []
+
+    def ft(url):
+        seen.append(url)
+        return PAGE
+
+    (rule,) = tmp_rules()
+    assert check_rules([rule], fetch_text=ft).passed and seen == ["https://example.org/snap"]
+    # A caller that links a rule's url gets the page to learn or apply, never the one its values were checked on.
+    assert rule.info_url == rule.url == "https://example.org/apply"
+    with pytest.raises(ValueError, match="info_url"):
+        tmp_rules(info_url="example.org/apply")
+    with pytest.raises(ValueError, match="unknown fields"):
+        tmp_rules(url="https://example.org/snap")
+
+
 def test_needs_manual_does_not_fail(tmp_rules):
     rules = tmp_rules(status="needs_manual", values={}, note="site blocks scripts")
 
@@ -214,7 +232,7 @@ def fake_api(values):
 
 
 def fpg_rule(tmp_rules, values):
-    return tmp_rules(rule_id="fpg_2026_hi", url=FPG_API, values=values)
+    return tmp_rules(rule_id="fpg_2026_hi", source_url=FPG_API, values=values)
 
 
 def test_fpg_matches_api(tmp_rules):

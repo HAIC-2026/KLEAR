@@ -74,6 +74,9 @@ No `source`, environment export, or `--env-file` option is needed. Restart the w
 - **Port 8000 is already in use:** run `uv run python -m klear.web --port 8001 --open`.
 - **The page opens but district search fails:** build the store below, or use `--store PATH`
   to select an existing `klear.duckdb`.
+- **The terminal says the data store was built by an older KLEAR:** the store's tables changed since
+  it was built, so district search, profiles and chat stay off until you run
+  `uv run python -m klear.etl build` again. It reuses the downloads in `data/raw`.
 - **The site uses basic lookups:** check `ANTHROPIC_API_KEY` in `.env`, restart the server,
   and leave off `--basic-only`. The site also falls back to basic lookups if the daily cap
   is reached or the API is unavailable.
@@ -198,7 +201,7 @@ uv run python -m klear.eval run --mode live --agent klear --model claude-haiku-5
 
 The DuckDB store in data/build/klear.duckdb has these tables (schema in klear/store/schema.sql):
 
-- source: every publisher and dataset a fact can come from. A fact without a registered source cannot be stored.
+- source: every publisher and dataset a fact can come from. A fact without a registered source cannot be stored. url is what the build downloads (an API, a CSV or ZIP file, a map service), kept for provenance. page_url is the publisher's page about the dataset, the only address the website links. manifest.json lists both for every source.
 - geography: the state, the counties, the House and Senate districts, and the 2020 tracts and ZCTAs of the block table (geo_type, geo_id, name, parent_county).
 - indicator: the curated catalog from data/catalog/indicators.yaml, with label, unit, universe, ACS variable and additive (counts and dollar totals that may be summed across units).
 - indicator_coverage: the geography types each indicator is declared for, each marked complete or partial. Every geography of a complete type must have a fact. Partial coverage is for sources that publish only some tracts or ZIP codes.
@@ -209,9 +212,9 @@ The DuckDB store in data/build/klear.duckdb has these tables (schema in klear/st
 - place and place_overlap: Census 2020 places (CDPs) with Hawaiian names, and the share of each place's 2020 residents in each county, House and Senate district and ZIP code area.
 - area, area_overlap and area_alias: what district search finds beyond Census places. Islands, Honolulu neighborhood board areas (City and County of Honolulu) on Oʻahu and Census county divisions (TIGER 2020) on the other islands, each with its main island and its residents' shares in each county, district, ZIP code area and place. Each 2020 block counts in the area holding its internal point. area_alias holds other names people use, such as Kona, upcountry Maui or Lanikai, from data/places/areas.yaml.
 
-Sources beyond the Census Bureau, each moved to House and Senate districts with a range: IRS SOI tax year 2023 returns and earned income tax credit by ZIP code, CMS 2026 marketplace enrollment by ZIP code, HUD housing choice vouchers by tract, CDC PLACES 2025 modeled need by tract and HUD CHAS 2018-2022 cost burden by tract. HUD public housing, LIHTC projects and HRSA health center sites are stored as points with their districts. Program rules (poverty guidelines, SNAP, WIC, EITC, SSI and others) live in data/rules/ as YAML, and every build checks each confirmed value against a quote on its official page.
+Sources beyond the Census Bureau, each moved to House and Senate districts with a range: IRS SOI tax year 2023 returns and earned income tax credit by ZIP code, CMS 2026 marketplace enrollment by ZIP code, HUD housing choice vouchers by tract, CDC PLACES 2025 modeled need by tract and HUD CHAS 2018-2022 cost burden by tract. HUD public housing, LIHTC projects and HRSA health center sites are stored as points with their districts. Program rules (poverty guidelines, SNAP, WIC, EITC, SSI and others) live in data/rules/ as YAML, and every build checks each confirmed value against a quote on its official page. Each rule has a source_url, the page its values are checked against (read from fetch_url when that is set), and an info_url, where residents learn about the program or apply, which is the link the website shows.
 
-Ranges. For counts moved from ZIP codes or tracts, value_low counts only units wholly inside the district, and value_high counts every unit touching it plus the most a suppressed unit touching it could hide. The IRS 99999 amount has no known location: it is assigned to districts by 2020 population and value_high includes only the district's population share of it, so its true district share is not inside the guaranteed range. A CMS county residual is placed in that county's suppressed ZIP codes and counted whole in value_high of every district they touch, but the residual location is assumed, not published. PLACES district ranges average the tract confidence limits with the same weights as the estimate, so they assume tract errors move together and are wider than a formal interval, and a suppressed tract counts as 0 in value_low and 100 percent in value_high.
+Ranges. For counts moved from ZIP codes or tracts, value_low counts only units wholly inside the district, and value_high counts every unit touching it plus the most a suppressed unit touching it could hide. The IRS 99999 amount has no known location: it is assigned to districts by 2020 population and value_high includes only the district's population share of it, so its true district share is not inside the guaranteed range. A CMS county residual is placed in that county's suppressed ZIP codes and counted whole in value_high of every district they touch, but the residual location is assumed, not published. PLACES district ranges average the tract confidence limits with the same weights as the estimate, so they assume tract errors move together and are wider than a formal interval, and a suppressed tract counts as 0 in value_low and 100 percent in value_high. The website explains these ranges in plain language on its methods page (klear/web/static/methods.html, served at /methods.html), with a section for each source, and every apportioned or modeled figure links to its source's section.
 
 ## Status vocabulary
 
@@ -315,7 +318,11 @@ says so beside the search box. If the geocoder is unreachable, search falls back
 says so. Start the site with `--no-address-lookup` to keep every request local.
 Chat offers five example questions, a waiting state, explicit refusal labels,
 and figure cards with uncertainty, vintage, geography and official source
-links. Each comparison chart has a sentence saying what it shows (written in
+links. Source names open the publisher's page about the dataset, never an API answer or a
+file download. Each ACS figure also links to its table for that place on data.census.gov
+(Table DP05 for House District 22, built from the place's Census GEO_ID), where the same number
+can be read. Each figure moved to districts from ZIP codes or tracts, or modeled by CDC, links
+to its source's section of the methods page instead. Each comparison chart has a sentence saying what it shows (written in
 `_summary` in klear/web/display.py) and a data table under it. The examples are a list until a district is chosen, then short buttons
 above the question box. Program questions list official guidance without
 assessing individual eligibility. Questions outside the available measures

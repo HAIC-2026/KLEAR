@@ -1,10 +1,13 @@
+-- url is the address the build downloads from (an API, a CSV or ZIP file, a map service), kept for provenance
+-- and listed in manifest.json. page_url is the publisher's page about the dataset, the one people are sent to.
 CREATE TABLE IF NOT EXISTS source (
     source_id VARCHAR PRIMARY KEY CHECK (length(source_id) > 0),
     name VARCHAR NOT NULL,
     publisher VARCHAR NOT NULL,
     url VARCHAR NOT NULL,
     vintage VARCHAR NOT NULL,
-    license VARCHAR NOT NULL
+    license VARCHAR NOT NULL,
+    page_url VARCHAR NOT NULL CHECK (length(page_url) > 0)
 );
 
 CREATE TABLE IF NOT EXISTS geography (

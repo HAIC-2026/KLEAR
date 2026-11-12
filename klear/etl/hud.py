@@ -9,6 +9,9 @@ from klear.etl.geographies import small_geographies
 
 HUD_BASE = "https://services.arcgis.com/VTyQ9soqVukalItT/ArcGIS/rest/services"
 HCV_URL = f"{HUD_BASE}/Housing_Choice_Vouchers_by_Tract/FeatureServer/0"
+# HUD's open data pages, one per map layer
+HUD_PAGES = "https://hudgis-hud.opendata.arcgis.com/datasets"
+HCV_PAGE_URL = f"{HUD_PAGES}/HUD::housing-choice-vouchers-by-tract"
 SOURCE_ID = "hud_hcv_tract"
 VINTAGE = "Through December 2025"
 INDICATOR = "hud_vouchers"

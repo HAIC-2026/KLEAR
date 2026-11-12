@@ -342,6 +342,15 @@ td:last-child{white-space:nowrap}
 .notes,.team{margin:var(--block-gap) 0 0;padding-left:20px;max-width:var(--measure)}
 .notes li,.team li{margin:0 0 8px}
 .validation-link{margin:var(--block-gap) 0 0;max-width:var(--measure)}
+/* The methods page, linked from every figure KLEAR moved to districts or CDC modeled. */
+.methods{padding:var(--section-y) 0;background:var(--surface)}
+.methods h1{font-size:var(--fs-h1);line-height:1.1;margin:4px 0 16px}
+.methods>.wrap>p,.methods section{max-width:var(--measure)}
+.methods section{margin:var(--section-y) 0 0;scroll-margin-top:16px}
+.methods section section{margin-top:var(--block-gap)}
+.method-terms{padding-left:20px}.method-terms li{margin:0 0 8px}
+/* Where a source's figures can be checked: its tables on data.census.gov, or the methods page. */
+.source-links{display:block}
 
 /* About */
 .about h3{margin:0}

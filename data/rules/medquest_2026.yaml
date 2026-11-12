@@ -2,7 +2,8 @@ rule_id: medquest_2026
 program: Med-QUEST
 status: confirmed
 effective: '2026-01-13'
-url: https://medquest.hawaii.gov/content/dam/formsanddocuments/resources/magi-and-magi-excepted-income-standard-charts/2026%20PPDO%20MAGI%20and%20MAGI-Excepted%20Income%20Standards%20CHART.pdf
+info_url: https://medquest.hawaii.gov/en/members-applicants/get-started
+source_url: https://medquest.hawaii.gov/content/dam/formsanddocuments/resources/magi-and-magi-excepted-income-standard-charts/2026%20PPDO%20MAGI%20and%20MAGI-Excepted%20Income%20Standards%20CHART.pdf
 saved: medquest-2026-magi-income-standards.pdf
 values:
   adult_limit_pct_fpl:

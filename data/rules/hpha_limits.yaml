@@ -2,7 +2,8 @@ rule_id: hpha_limits
 program: Hawaiʻi Public Housing Authority income limits
 status: confirmed
 effective: '2026-01-01'
-url: https://www.hpha.hawaii.gov/programs-and-resources/public-housing
+info_url: https://www.hpha.hawaii.gov/
+source_url: https://www.hpha.hawaii.gov/programs-and-resources/public-housing
 values:
   low_income_pct_of_median:
     value: 50

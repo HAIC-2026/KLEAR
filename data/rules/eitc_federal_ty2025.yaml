@@ -2,7 +2,8 @@ rule_id: eitc_federal_ty2025
 program: Federal EITC (tax year 2025)
 status: confirmed
 effective: '2025-01-01'
-url: https://www.irs.gov/credits-deductions/individuals/earned-income-tax-credit/earned-income-and-earned-income-tax-credit-eitc-tables
+info_url: https://www.irs.gov/credits-deductions/individuals/earned-income-tax-credit-eitc
+source_url: https://www.irs.gov/credits-deductions/individuals/earned-income-tax-credit/earned-income-and-earned-income-tax-credit-eitc-tables
 effective_source:
   url: https://www.irs.gov/credits-deductions/individuals/earned-income-tax-credit/earned-income-and-earned-income-tax-credit-eitc-tables
   quote: Tax year 2025 Find the maximum AGI
