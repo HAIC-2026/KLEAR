@@ -113,6 +113,11 @@ class Assistant:
         self.budget, self.model, self._client = budget, model, client
         self.prices = load_prices()
 
+    @staticmethod
+    def warm() -> None:
+        """Load the agent and model client code, so the first question does not wait for the import."""
+        import klear.agent.loop  # noqa: F401
+
     def client(self):
         if self._client is None:
             from klear.agent.loop import KlearAgent  # Import on first use to keep startup fast.
