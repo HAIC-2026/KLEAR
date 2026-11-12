@@ -3,6 +3,8 @@ import {test, expect} from '@playwright/test';
 import {ask, chooseDistrict, expectAccessible, offline, openAll} from './helpers.js';
 
 test.beforeEach(async ({context, page}) => {
+  // A full-page axe run can take over ten seconds on a busy machine.
+  test.slow();
   await offline(context);
   await page.goto('/');
 });
@@ -48,6 +50,31 @@ test('declined question and a failed question', async ({page}, testInfo) => {
   await page.getByRole('button', {name: 'Ask KLEAR'}).click();
   await expect(page.locator('#log .error')).toBeVisible();
   await expectAccessible(page, testInfo, 'declined and failed answers');
+});
+
+test('waiting line with its Cancel button', async ({page}, testInfo) => {
+  await chooseDistrict(page);
+  await page.route('**/api/chat', () => {});
+  await page.getByLabel('Your question').fill('How many kūpuna live here?');
+  await page.getByRole('button', {name: 'Ask KLEAR'}).click();
+  await expect(page.locator('#log .pending .elapsed')).not.toBeEmpty();
+  await expectAccessible(page, testInfo, 'waiting line');
+});
+
+test('answers with next questions, then a non-JSON error with Retry', async ({page}, testInfo) => {
+  await chooseDistrict(page);
+  await page.getByLabel('Your question').fill('Which candidate should I vote for?');
+  await page.getByRole('button', {name: 'Ask KLEAR'}).click();
+  await expect(page.locator('#log article')).toHaveCount(1);
+  await page.locator('#log .followup').first().click();
+  await expect(page.locator('#log article')).toHaveCount(2);
+  await page.route('**/api/chat', route => route.fulfill({status: 502, contentType: 'text/html', body: '<h1>Bad Gateway</h1>'}));
+  await page.getByLabel('Your question').fill('How many kūpuna live here?');
+  await page.getByRole('button', {name: 'Ask KLEAR'}).click();
+  await expect(page.locator('#log .retry')).toBeVisible();
+  await expect(page.locator('#log .followups')).toBeVisible();
+  await openAll(page);
+  await expectAccessible(page, testInfo, 'answers with next questions and a retry');
 });
 
 test('map with a ZIP code and a picked district', async ({page}, testInfo) => {

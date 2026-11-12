@@ -10,6 +10,7 @@ import pytest
 
 from klear import config
 from klear.etl import build, chas, cms, hud, irs, places, profile
+from klear.programs import catalog
 from klear.rules.registry import load_rules
 from klear.web import __main__ as web
 from klear.web.display import SHARES_SOURCE
@@ -20,7 +21,9 @@ MACHINE_PATH = re.compile(
 )
 MACHINE_HOST = re.compile(r"^(api\.|services\.arcgis\.com$)")
 # Sources whose district figures KLEAR moves from ZIP codes or tracts (tier A) or averages from a model (tier M).
-METHOD_SOURCES = [irs.SOURCE_ID, cms.SOURCE_ID, hud.SOURCE_ID, places.SOURCE_ID, chas.SOURCE_ID]
+METHOD_SOURCES = [
+    irs.SOURCE_ID, cms.SOURCE_ID, hud.SOURCE_ID, places.SOURCE_ID, places.COUNTY_SOURCE_ID, chas.SOURCE_ID,
+]  # fmt: skip
 # Sites that answer scripts with a block or a challenge page, though a browser gets the page.
 SCRIPT_WALLS = {"www.ssa.gov": {403}, "www.huduser.gov": {202, 403}}
 BROWSER = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36"
@@ -32,6 +35,7 @@ def pages() -> dict[str, str]:
     out |= {f"source {sid}": s["page_url"] for sid, s in profile.SOURCES.items()}
     out["source 2020 Census shares"] = SHARES_SOURCE["url"]
     out |= {f"rule {r.rule_id}": r.info_url for r in load_rules()}
+    out |= {f"program {p.program_id}": p.url for p in catalog()}
     return out
 
 

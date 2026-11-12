@@ -1,4 +1,4 @@
-# Loads CDC PLACES 2025 tract measures and averages them into districts with ranges.
+# Loads CDC PLACES 2025 tract and county measures, averaging tracts into districts and counties into the state.
 import unicodedata
 from pathlib import Path
 
@@ -14,7 +14,13 @@ PLACES_URL = "https://data.cdc.gov/resource/cwsq-ngmh.csv?stateabbr=HI&$limit=50
 PAGE_URL = (
     "https://data.cdc.gov/500-Cities-Places/PLACES-Local-Data-for-Better-Health-Census-Tract-D/cwsq-ngmh"
 )
+COUNTY_URL = "https://data.cdc.gov/resource/swc5-untb.csv?stateabbr=HI&$limit=50000"
+COUNTY_PAGE_URL = (
+    "https://data.cdc.gov/500-Cities-Places/PLACES-Local-Data-for-Better-Health-County-Data-20/swc5-untb"
+)
 SOURCE_ID = "cdc_places_2025"
+COUNTY_SOURCE_ID = "cdc_places_2025_county"
+STATE = "15"
 VINTAGE = "PLACES 2025 release, BRFSS 2023 model"
 PLACES_MEASURES = {
     "FOODINSECU": "places_food_insecurity",
@@ -39,7 +45,7 @@ def parse_places(path: Path) -> pd.DataFrame:
         num[c] = num[c].mask(foot)
     return pd.DataFrame(
         {
-            "src_id": raw.locationname.to_numpy(),
+            "src_id": raw.locationid.to_numpy(),
             "measureid": raw.measureid.to_numpy(),
             "measure": raw.measure.map(lambda s: unicodedata.normalize("NFC", s)).to_numpy(),
             "value": num["data_value"].to_numpy(),
@@ -52,6 +58,10 @@ def parse_places(path: Path) -> pd.DataFrame:
 
 def load_places(client=None) -> pd.DataFrame:
     return parse_places(fetch(PLACES_URL, "cdc/places_tract_hi.csv", client=client))
+
+
+def load_places_county(client=None) -> pd.DataFrame:
+    return parse_places(fetch(COUNTY_URL, "cdc/places_county_hi.csv", client=client))
 
 
 def places_indicator_rows(df: pd.DataFrame) -> pd.DataFrame:
@@ -72,7 +82,7 @@ def places_indicator_rows(df: pd.DataFrame) -> pd.DataFrame:
     )
 
 
-def _facts(geo_type: str, df: pd.DataFrame, id_col: str, tier: str = "M") -> pd.DataFrame:
+def _facts(geo_type: str, df: pd.DataFrame, id_col: str, source_id: str = SOURCE_ID) -> pd.DataFrame:
     return pd.DataFrame(
         {
             "geo_type": geo_type,
@@ -82,8 +92,8 @@ def _facts(geo_type: str, df: pd.DataFrame, id_col: str, tier: str = "M") -> pd.
             "moe": float("nan"),
             "value_status": df["value"].notna().map({True: "ok", False: "suppressed"}).to_numpy(),
             "moe_status": df["value"].notna().map({True: "range", False: "not_applicable"}).to_numpy(),
-            "tier": tier,
-            "source_id": SOURCE_ID,
+            "tier": "M",
+            "source_id": source_id,
             "table_id": None,
             "value_low": df["value_low"].to_numpy(),
             "value_high": df["value_high"].to_numpy(),
@@ -91,11 +101,16 @@ def _facts(geo_type: str, df: pd.DataFrame, id_col: str, tier: str = "M") -> pd.
     )[FACT_COLS]
 
 
-def places_facts(df: pd.DataFrame, blocks: pd.DataFrame, *, geos: pd.DataFrame | None = None) -> pd.DataFrame:
+def _with_ids(df: pd.DataFrame) -> pd.DataFrame:
+    # indicator ids, and no range on a suppressed row
     df = df.assign(indicator_id=df.measureid.map(PLACES_MEASURES))
-    df = df.assign(
+    return df.assign(
         value_low=df.value_low.where(df.value.notna()), value_high=df.value_high.where(df.value.notna())
     )
+
+
+def places_facts(df: pd.DataFrame, blocks: pd.DataFrame, *, geos: pd.DataFrame | None = None) -> pd.DataFrame:
+    df = _with_ids(df)
     notes: list[str] = []
     geos = small_geographies(blocks) if geos is None else geos
     known = set(geos[geos.geo_type == "tract"].geo_id)
@@ -136,4 +151,25 @@ def places_facts(df: pd.DataFrame, blocks: pd.DataFrame, *, geos: pd.DataFrame |
     facts.attrs.update(
         notes=notes, excluded=excluded, no_fact=no_fact, uncovered=uncovered, off_block_rows=n_off
     )
+    return facts
+
+
+def places_county_facts(df: pd.DataFrame, counties: list[str]) -> pd.DataFrame:
+    # published county estimates, and a state value averaged from them by adult population
+    df = _with_ids(df)
+    df = df[df.src_id.isin(counties)]
+    xw = pd.DataFrame({"src_id": counties, "dst_id": STATE, "pop_share": 1.0})
+    state = apportion_mean(df, xw)
+    facts = pd.concat(
+        [
+            _facts("county", df, "src_id", COUNTY_SOURCE_ID),
+            _facts("state", state, "dst_id", COUNTY_SOURCE_ID),
+        ],
+        ignore_index=True,
+    )
+    missing = {
+        ind: sorted(set(counties) - set(df[(df.indicator_id == ind) & df.value.notna()].src_id))
+        for ind in PLACES_MEASURES.values()
+    }
+    facts.attrs.update(missing=missing)
     return facts

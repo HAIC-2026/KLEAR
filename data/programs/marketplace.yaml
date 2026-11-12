@@ -1,0 +1,13 @@
+program_id: marketplace
+name: Marketplace premium tax credits
+description: Tax credits that lower the monthly premium of a health plan bought on HealthCare.gov.
+serves: People who buy their own health insurance and are not offered affordable coverage through work or Med-QUEST.
+agency: HealthCare.gov, U.S. Centers for Medicare and Medicaid Services
+url: https://www.healthcare.gov/
+phone: 1-800-318-2596
+phone_label: Marketplace call center
+phone_source: https://www.healthcare.gov/
+rules: [aca_ptc_2026]
+needs: [pct_uninsured]
+verified: '2026-11-09'
+verification: Fetched the page (HTTP 200). It prints the phone

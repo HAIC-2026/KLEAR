@@ -1,11 +1,12 @@
-# Loads public housing, LIHTC and health center sites and places each point in a House and Senate district.
+# Loads public housing, LIHTC and health center sites and places each point in a district and a county.
 from pathlib import Path
 
 import geopandas as gpd
 import pandas as pd
+import pyogrio
 
 from klear.etl.arcgis import query_features
-from klear.etl.blocks import AREA_CRS
+from klear.etl.blocks import AREA_CRS, TIGER_URL
 from klear.etl.fetch import fetch
 from klear.etl.hud import HUD_BASE, HUD_PAGES
 from klear.store.db import FACT_COLS, SITE_COLS
@@ -32,6 +33,7 @@ SITE_INDICATORS = {
     "units_public_housing": ("public_housing", "Public housing units", True),
     "units_lihtc": ("lihtc", "Low-income housing tax credit low-income units", True),
 }
+STATE = "15"
 SITES_UNIVERSE = "Sites in the source file"
 UNITS_UNIVERSE = "Housing units at sites in the source file"
 HRSA_COLS = {
@@ -133,7 +135,7 @@ def assign_points(df: pd.DataFrame, districts: gpd.GeoDataFrame, chamber: str) -
     polys = districts[["geo_id", "geometry"]].to_crs("EPSG:4326")
     hits = gpd.sjoin(pts, polys, predicate="intersects", how="inner")
     inside = hits.groupby("i")["geo_id"].min()
-    geo = out.index.to_series().map(inside)
+    geo = out.index.to_series().map(inside).astype(object)
     dist = pd.Series(0.0, index=out.index)
     miss = geo.isna()
     if miss.any():
@@ -148,35 +150,48 @@ def assign_points(df: pd.DataFrame, districts: gpd.GeoDataFrame, chamber: str) -
     return out
 
 
+def county_blocks(client=None) -> gpd.GeoDataFrame:
+    # 2020 Census block polygons with their county as geo_id
+    path = fetch(TIGER_URL, "blocks/tl_2020_15_tabblock20.zip", client=client)
+    df = pyogrio.read_dataframe(path, columns=["GEOID20"])
+    return gpd.GeoDataFrame({"geo_id": df.GEOID20.str[:5]}, geometry=df.geometry, crs=df.crs)
+
+
+def assign_counties(sites: pd.DataFrame, blocks: gpd.GeoDataFrame) -> pd.Series:
+    # county of the block holding each point, or of the nearest block
+    return assign_points(sites[["lon", "lat"]], blocks, "county")["county"].set_axis(sites.index)
+
+
 def load_sites(house: gpd.GeoDataFrame, senate: gpd.GeoDataFrame, client=None) -> pd.DataFrame:
+    # site rows for the store, plus the county each one lies in
     hrsa = parse_hrsa(fetch(HRSA_URL, "hrsa/health_center_sites.csv", client=client))
     sites = pd.concat([load_hud_sites(client), hrsa], ignore_index=True)
     no_xy = sites[sites[["lat", "lon"]].isna().any(axis=1)]
     if not no_xy.empty:
         raise ValueError(f"sites without coordinates: {', '.join(no_xy.site_id)}")
     sites = assign_points(assign_points(sites, house, "house"), senate, "senate")
-    return sites.sort_values("site_id", ignore_index=True)[SITE_COLS]
+    sites["county"] = assign_counties(sites, county_blocks(client))
+    return sites.sort_values("site_id", ignore_index=True)[[*SITE_COLS, "county"]]
 
 
 def site_facts(sites: pd.DataFrame, districts: dict[str, list[str]] | None = None) -> pd.DataFrame:
-    # counts are 0 for districts without sites, units are absent where no site reports units
+    # counts are 0 for places without sites, units are absent where no site reports units;
+    # sites that carry their county are also counted by county and for the state
     parts = []
-    for chamber in ("house", "senate"):
-        every = (
-            sorted(set(districts[chamber]) | set(sites[chamber]))
-            if districts
-            else sorted(set(sites[chamber]))
-        )
+    levels = ("house", "senate", "county", "state") if "county" in sites else ("house", "senate")
+    sites = sites.assign(state=STATE)
+    for level in levels:
+        every = sorted(set((districts or {}).get(level, [])) | set(sites[level]))
         for ind, (kind, _, is_units) in SITE_INDICATORS.items():
             sub = sites[sites.kind == kind]
             if is_units:
-                g = sub.groupby(chamber)["units"].sum(min_count=1).dropna().astype(float)
+                g = sub.groupby(level)["units"].sum(min_count=1).dropna().astype(float)
             else:
-                g = sub.groupby(chamber).size().reindex(every, fill_value=0).astype(float)
+                g = sub.groupby(level).size().reindex(every, fill_value=0).astype(float)
             parts.append(
                 pd.DataFrame(
                     {
-                        "geo_type": chamber,
+                        "geo_type": level,
                         "geo_id": g.index.to_numpy(),
                         "indicator_id": ind,
                         "value": g.to_numpy(),

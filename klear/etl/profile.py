@@ -1,4 +1,5 @@
 # Loads the indicator catalog, aligns DBEDT rows to ACS profile variables and stores catalog facts.
+import math
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -54,7 +55,9 @@ TABLE_PAGE = "https://data.census.gov/table/{product}.{table}?g={geo}"
 VAR_RE = {PROFILE: re.compile(r"DP0[2-5]_\d{4}P?"), DETAILED: re.compile(r"[BC]\d{5}[A-Z]?_\d{3}")}
 FIELDS = ("indicator_id", "label", "unit", "universe", "acs_var", "dataset")
 GEO_TYPES = ("state", "county", "senate", "house")
-OPTIONAL_FIELDS = ("geo_types",)
+OPTIONAL_FIELDS = ("geo_types", "note")
+# an entry may give bins instead of acs_var: detailed-table cells summed, margins of error by root sum of squares
+BINS_FIELD = "bins"
 
 
 class AlignmentError(ValueError):
@@ -70,20 +73,36 @@ class Indicator:
     acs_var: str
     dataset: str
     geo_types: tuple[str, ...] = GEO_TYPES
+    note: str | None = None
+    bins: tuple[str, ...] = ()
 
     @property
     def additive(self) -> bool:
         return self.unit == "count"
+
+    @property
+    def variables(self) -> tuple[str, ...]:
+        return self.bins or (self.acs_var,)
+
+    @property
+    def table_id(self) -> str:
+        return "+".join(dict.fromkeys(v.split("_")[0] for v in self.variables))
 
 
 def load_catalog(path: Path | None = None) -> list[Indicator]:
     entries = yaml.safe_load(Path(path or CATALOG_PATH).read_text(encoding="utf-8"))["indicators"]
     out, seen = [], set()
     for e in entries:
+        bins = tuple(str(b) for b in e.get(BINS_FIELD) or ())
+        if bins:
+            e = {**{k: v for k, v in e.items() if k != BINS_FIELD}, "acs_var": "+".join(bins)}
         if not set(FIELDS) <= set(e) <= set(FIELDS + OPTIONAL_FIELDS):
-            raise ValueError(f"catalog entry {e}: fields must be {FIELDS}, optionally {OPTIONAL_FIELDS}")
+            raise ValueError(
+                f"catalog entry {e}: fields must be {FIELDS} (bins in place of acs_var), optionally {OPTIONAL_FIELDS}"
+            )
         geo_types = tuple(e.get("geo_types") or GEO_TYPES)
-        i = Indicator(**{k: str(e[k]) for k in FIELDS}, geo_types=geo_types)
+        note = str(e["note"]).strip() if e.get("note") else None
+        i = Indicator(**{k: str(e[k]) for k in FIELDS}, geo_types=geo_types, note=note, bins=bins)
         where = f"catalog entry {i.indicator_id}"
         if i.indicator_id in seen:
             raise ValueError(f"{where}: duplicate indicator_id")
@@ -93,8 +112,10 @@ def load_catalog(path: Path | None = None) -> list[Indicator]:
             )
         if i.unit not in UNITS:
             raise ValueError(f"{where}: unit {i.unit!r} not in {sorted(UNITS)}")
-        if i.dataset not in VAR_RE or not VAR_RE[i.dataset].fullmatch(i.acs_var):
+        if i.dataset not in VAR_RE or not all(VAR_RE[i.dataset].fullmatch(v) for v in i.variables):
             raise ValueError(f"{where}: acs_var {i.acs_var!r} does not fit dataset {i.dataset!r}")
+        if bins and (i.dataset != DETAILED or i.unit != "count" or len(set(bins)) != len(bins)):
+            raise ValueError(f"{where}: bins must be distinct detailed-table count cells")
         if i.acs_var.endswith("P") != (i.unit == "percent"):
             raise ValueError(f"{where}: percent unit and P variable must go together")
         seen.add(i.indicator_id)
@@ -186,29 +207,51 @@ def _fact(i: Indicator, r, coded: dict) -> tuple[float | None, float | None, str
     return value, None, status, "open_ended"
 
 
+def sum_bins(rows: pd.DataFrame) -> tuple[float | None, float | None, str, str]:
+    # sum published cells, margin of error as root sum of squares like population 65 and over in apportionment
+    if rows["estimate"].isna().any() or (rows["estimate_status"] != "ok").any():
+        return None, None, "suppressed", "not_computable"
+    value = float(rows["estimate"].sum())
+    ms = rows["moe_status"]
+    if not ms.isin(("ok", "controlled")).all():
+        return value, None, "ok", "not_computable"
+    if (ms == "controlled").all():
+        return value, None, "ok", "controlled"
+    return value, math.sqrt(float((rows.loc[ms == "ok", "moe"] ** 2).sum())), "ok", "ok"
+
+
 def facts_from_api(
     api: pd.DataFrame,
     catalog: list[Indicator],
     source_id: str,
     dbedt_aligned: pd.DataFrame | None = None,
 ) -> pd.DataFrame:
-    by_var = {i.acs_var: i for i in catalog}
-    absent = sorted(set(by_var) - set(api["variable"]))
+    wanted = {v for i in catalog for v in i.variables}
+    absent = sorted(wanted - set(api["variable"]))
     if absent:
         raise ValueError(f"API rows missing for {absent}")
     coded = _coded_cells(dbedt_aligned)
     rows = []
-    for r in api[api["variable"].isin(by_var)].itertuples():
-        i = by_var[r.variable]
-        value, moe, value_status, moe_status = _fact(i, r, coded)
-        rows.append(
-            {
-                "geo_type": r.geo_type, "geo_id": r.geo_id, "indicator_id": i.indicator_id,
-                "value": value, "moe": moe, "value_status": value_status, "moe_status": moe_status,
-                "tier": "D", "source_id": source_id,
-                "table_id": i.acs_var.split("_")[0],
-            }
-        )  # fmt: skip
+    for i in catalog:
+        if i.bins:
+            cells = api[api["variable"].isin(i.bins)]
+            parts = [
+                (geo_type, geo_id, *sum_bins(g))
+                for (geo_type, geo_id), g in cells.groupby(["geo_type", "geo_id"], sort=False)
+            ]
+        else:
+            parts = [
+                (r.geo_type, r.geo_id, *_fact(i, r, coded))
+                for r in api[api["variable"] == i.acs_var].itertuples()
+            ]
+        for geo_type, geo_id, value, moe, value_status, moe_status in parts:
+            rows.append(
+                {
+                    "geo_type": geo_type, "geo_id": geo_id, "indicator_id": i.indicator_id,
+                    "value": value, "moe": moe, "value_status": value_status, "moe_status": moe_status,
+                    "tier": "D", "source_id": source_id, "table_id": i.table_id,
+                }
+            )  # fmt: skip
     out = pd.DataFrame(rows)
     out["value"] = out["value"].astype("float64")
     out["moe"] = out["moe"].astype("float64")
@@ -285,7 +328,8 @@ def load_profile_facts(
                 part = [i for i in catalog if i.dataset == dataset and g in i.geo_types]
                 if not part:
                     continue
-                api = get_acs(dataset, [i.acs_var for i in part], g, year=YEAR, client=client)
+                names = list(dict.fromkeys(v for i in part for v in i.variables))
+                api = get_acs(dataset, names, g, year=YEAR, client=client)
                 dbedt = dbedt_aligned
                 if dbedt is None and (api["moe_status"] == "open_ended").any():
                     dbedt = aligned_dbedt(g, client)

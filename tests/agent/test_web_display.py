@@ -1,11 +1,13 @@
 """Website answers show a plain lead, number tiles, comparison charts and one source list."""
 
-import shutil
+import json
 
+from klear.agent.config import PROFILE_BESIDE
+from klear.agent.tools import Session
 from klear.config import CURRENT_LAYER
 from klear.eval.contract import Answer, FactRef
 from klear.store.db import add_source
-from klear.web.display import RULES, build, programs
+from klear.web.display import PROFILE_LABELS, build, profile, profile_csv
 
 
 def fact(ref, geo_id, value, moe, low=None, high=None):
@@ -89,6 +91,54 @@ def test_layers_downloaded_by_the_build_read_as_a_current_list(small_con):
     assert build(small_con, answer([f], ["x"]))["sources"][0]["year"] == "Current list as of October 2026"
 
 
+def _profile(con):
+    session = Session(con)
+    return profile(con, json.loads(session.run("district_profile", {"district": "house:022"})), session)
+
+
+def _profile_rows(con):
+    return {r["id"]: r for s in _profile(con)["sections"] for r in s["rows"]}
+
+
+def test_profile_names_the_reason_a_place_has_no_figure(small_con):
+    row = _profile_rows(small_con)["sites_lihtc"]
+    assert [a["lead"] + " " + a["rest"] for a in row["against"]] == [
+        "No figure for Honolulu County: not published for county geographies",
+        "No figure for Hawaiʻi: not published for state geographies",
+    ]
+
+
+def test_profile_notes_a_state_value_derived_from_counties(small_con):
+    add_source(
+        small_con,
+        "cdc_places_2025_county",
+        "PLACES county data",
+        "CDC",
+        "https://example.org/cdc",
+        "2025",
+        "pd",
+    )
+    small_con.execute(
+        "INSERT INTO indicator VALUES "
+        "('places_food_insecurity', 'Food insecurity', 'percent', NULL, NULL, FALSE, NULL)"
+    )
+    small_con.execute(
+        "INSERT INTO fact VALUES "
+        "('house', '022', 'places_food_insecurity', 20.0, NULL, 'ok', 'range', 'M', 'acs', NULL, 18.0, 22.0), "
+        "('county', '15003', 'places_food_insecurity', 16.9, NULL, 'ok', 'range', 'M', 'cdc_places_2025_county', NULL, 14.4, 19.4), "
+        "('state', '15', 'places_food_insecurity', 17.4, NULL, 'ok', 'range', 'M', 'cdc_places_2025_county', NULL, 15.0, 20.1)"
+    )  # fmt: skip
+    row = _profile_rows(small_con)["places_food_insecurity"]
+    assert [a["rest"] for a in row["against"]] == [
+        "the rate in Honolulu County: about 16.9%",
+        "the rate in Hawaiʻi: about 17.4% (average of the CDC county estimates)",
+    ]
+    # the county data the comparisons come from is cited after the section's own sources
+    needs = next(s for s in _profile(small_con)["sections"] if s["title"] == "Modeled needs")
+    assert [c["name"] for c in needs["compared"]] == ["PLACES county data"]
+    assert all(set(r) >= {"against", "note"} and "compared" not in r for r in needs["rows"])
+
+
 def test_charts_say_what_they_show_in_a_sentence_and_keep_table_figures(small_con):
     facts = [fact("f1", "022", 1000.0, 100.0), fact("f2", "023", 100.0, 80.0)]
     (chart,) = build(small_con, answer(facts, ["x"]))["charts"]
@@ -113,17 +163,45 @@ def test_chart_sentences_name_shares_ranges_and_overlapping_margins(small_con):
     assert chart["summary"].endswith("is within the margin of error of House District 23 (950 ± 80).")
 
 
-def test_programs_follow_rule_file_changes_and_survive_broken_rules(tmp_path):
-    rules = tmp_path / "rules"
-    shutil.copytree(RULES, rules)
-    names = [p["name"] for p in programs(rules)]
-    assert "WIC" in names and names.count("Federal EITC") == 1
-    # The list is read again when a rule file changes.
-    wic = rules / "wic_2026_27.yaml"
-    text = wic.read_text(encoding="utf-8")
-    wic.write_text(text.replace("status: confirmed", "status: needs_manual"), encoding="utf-8")
-    assert "WIC" not in [p["name"] for p in programs(rules)]
-    # A rule file that cannot be read leaves the list empty rather than failing the profile.
-    wic.write_text("status: [broken", encoding="utf-8")
-    assert programs(rules) == []
-    assert programs(tmp_path / "missing") == []
+def test_who_may_qualify_section_states_its_caveat_once_and_shows_figures_beside(real_con):
+    session = Session(real_con)
+    raw = json.loads(session.run("district_profile", {"district": "house:022"}))
+    tool_rows = {r["fact"]["indicator_id"]: r for s in raw["sections"] for r in s["rows"]}
+    assert tool_rows["hh_poverty_no_snap"]["beside"]["fact"]["indicator_id"] == "hh_snap"
+    assert tool_rows["hh_poverty_no_snap"]["fact"]["note"].startswith("Meets the income test only.")
+    out = profile(real_con, raw, session)
+    sec = next(s for s in out["sections"] if s["title"] == "Who may qualify")
+    assert sec["caveat"].startswith("Meets the income test only.") and all(
+        r["caveat"] == "" for r in sec["rows"]
+    )
+    rows = {r["id"]: r for r in sec["rows"]}
+    assert set(rows) >= set(PROFILE_BESIDE) and all(r["label"] == PROFILE_LABELS[i] for i, r in rows.items())
+    eitc = rows["working_below_poverty"]["beside"]
+    assert (
+        eitc["value"].startswith("about ")
+        and eitc["spread"].startswith("range ")
+        and "tax returns" in eitc["text"]
+    )
+    assert eitc["source"]["year"] != rows["working_below_poverty"]["source"]["year"] and eitc["note"] > 0
+    assert (
+        rows["pop_under_150pct_poverty"]["beside"]["value"] == ""
+        and "130" in rows["pop_under_150pct_poverty"]["beside"]["text"]
+    )
+    names = [x["name"] for x in sec["sources"]]
+    assert any("Statistics of Income" in n for n in names) and len(names) == len(set(names))
+    text = json.dumps(out, ensure_ascii=False)
+    assert "·" not in text and "—" not in text
+    other = next(s for s in out["sections"] if s["title"] == "People")
+    assert other["caveat"] == ""
+
+
+def test_profile_download_keeps_a_place_with_no_figure_and_says_why(small_con):
+    session = Session(small_con)
+    raw = json.loads(session.run("district_profile", {"district": "house:022"}))
+    lines = profile_csv(small_con, raw, session).splitlines()
+    rows = [ln for ln in lines if "Low-income housing tax credit projects" in ln]
+    assert len(rows) == 3 and rows[1].startswith(
+        "Help sites,Low-income housing tax credit projects,Honolulu County,,"
+    )
+    assert rows[1].endswith("not published for county geographies")
+    assert rows[2].endswith("not published for state geographies")

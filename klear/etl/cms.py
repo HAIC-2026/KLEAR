@@ -1,4 +1,4 @@
-# Parses CMS 2026 marketplace enrollment by ZIP and county and apportions it to districts with ranges.
+# Parses CMS 2026 marketplace enrollment by ZIP and county, apportions it to districts and sums counties to the state.
 import io
 import zipfile
 from pathlib import Path
@@ -21,6 +21,7 @@ SOURCE_ID = "cms_oep_2026"
 VINTAGE = "2026 open enrollment period"
 ZIP_RANGE = ("96701", "96898")
 STATE_ABBR = "HI"
+STATE = "15"
 # column in the CMS files; APTC_Cnsmr_Avg_APTC is an average and is not loaded
 CMS_INDICATORS = {
     "aca_consumers": {"column": "Cnsmr", "unit": "count", "label": "Marketplace plan selections (consumers)"},
@@ -88,6 +89,21 @@ def parse_cms_county(path: Path) -> pd.DataFrame:
     df["county"] = df["County_FIPS_Cd"].str.strip().str.zfill(5)
     out = _long(df, "county")
     return out.sort_values(["indicator_id", "county"], ignore_index=True)
+
+
+def state_rows(county_df: pd.DataFrame) -> pd.DataFrame:
+    # published county rows summed to the state, suppressed when any county is
+    g = county_df.groupby("indicator_id", as_index=False).agg(
+        value=("value", "sum"), suppressed=("value_status", lambda s: (s != "ok").any())
+    )
+    return pd.DataFrame(
+        {
+            "geo_id": STATE,
+            "indicator_id": g.indicator_id,
+            "value": g.value.mask(g.suppressed),
+            "value_status": g.suppressed.map({True: "suppressed", False: "ok"}),
+        }
+    )
 
 
 def zip_county_map(geos: pd.DataFrame) -> pd.Series:
@@ -160,6 +176,7 @@ def cms_facts(
     parts = [
         fact_frame("zcta", on, "zcta", "D", SOURCE_ID),
         fact_frame("county", county_df, "county", "D", SOURCE_ID),
+        fact_frame("state", state_rows(county_df), "geo_id", "S", SOURCE_ID),
     ]
     placed: dict[str, dict[str, float]] = {}
     lost_by_chamber: dict[str, dict[str, dict[str, float]]] = {}

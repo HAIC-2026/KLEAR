@@ -90,7 +90,7 @@ No `source`, environment export, or `--env-file` option is needed. Restart the w
 - klear/agent: the agent, its data tools and the code that builds and checks each answer (python -m klear.agent).
 - klear/web: the local web server, landing page, district profile and chat interface (python -m klear.web).
 - klear/eval: the answer format, eval runner, answer checks, reports and spending cap (python -m klear.eval run).
-- data: the checked-in indicator catalog (data/catalog), Hawaiian place names and district search names (data/places) and program rules (data/rules). The build also writes data/raw (download cache), data/manual (hand downloads) and data/build (the store), none of them tracked.
+- data: the checked-in indicator catalog and the official program counts the validation report compares with (data/catalog), Hawaiian place names and district search names (data/places) and program rules (data/rules). The build also writes data/raw (download cache), data/manual (hand downloads) and data/build (the store), none of them tracked.
 - eval: test questions (eval/golden), saved model replies (eval/scripts), recorded live answers (eval/recordings) and model prices. Run reports go to eval/reports, which is not tracked.
 - tests: the pytest suite, laid out like the klear packages, with small fixtures in tests/fixtures.
 - e2e: browser and accessibility tests with Playwright and axe (see [Browser and accessibility tests](#browser-and-accessibility-tests)).
@@ -135,10 +135,10 @@ Outputs in data/build:
 
 - klear.duckdb: the fact store.
 - manifest.json: build time, code commit, skipped checks, store counts and every raw file with its source URL, retrieval time and SHA-256 hash.
-- validation.json: full results of every check.
+- validation.json: full results of every check, the report text the website shows, and the assistant eval results.
 - house.geojson and senate.geojson: simplified district polygons for the web.
 
-The build also rewrites docs/VALIDATION.md, the public validation report.
+The build also rewrites docs/VALIDATION.md, the public validation report. After the checks it rescores the newest recorded live run in eval/recordings against the new store (free, no model calls) and adds the published held-out totals from eval/heldout_summary.yaml. The website's How we check KLEAR page (/checks.html, linked from the footer) reads validation.json through /api/checks, so it always shows the latest build.
 
 ## Tests and evaluation
 
@@ -203,18 +203,20 @@ The DuckDB store in data/build/klear.duckdb has these tables (schema in klear/st
 
 - source: every publisher and dataset a fact can come from. A fact without a registered source cannot be stored. url is what the build downloads (an API, a CSV or ZIP file, a map service), kept for provenance. page_url is the publisher's page about the dataset, the only address the website links. manifest.json lists both for every source.
 - geography: the state, the counties, the House and Senate districts, and the 2020 tracts and ZCTAs of the block table (geo_type, geo_id, name, parent_county).
-- indicator: the curated catalog from data/catalog/indicators.yaml, with label, unit, universe, ACS variable and additive (counts and dollar totals that may be summed across units).
+- indicator: the curated catalog from data/catalog/indicators.yaml, with label, unit, universe, ACS variable, additive (counts and dollar totals that may be summed across units) and note, a caveat to state with every figure. A catalog entry may list bins instead of one ACS variable: published detailed-table cells summed, with the margin of error as the root sum of squares of theirs. The income-eligible estimates (people under 125, 138, 150 and 200 percent of poverty, uninsured people under 138 and from 138 to 399 percent, kūpuna under 200 percent, households below poverty without SNAP, and working families and individuals below poverty) are built this way from tables B22003, C17002, C27016, B17024, B17014 and B17009, which the Census Bureau publishes for every House and Senate district. They use only published cut points: SNAP's 130 percent limit lies between the stored 125 and 150 percent counts and is never interpolated. Their note says they meet the income test only.
 - indicator_coverage: the geography types each indicator is declared for, each marked complete or partial. Every geography of a complete type must have a fact. Partial coverage is for sources that publish only some tracts or ZIP codes.
 - coverage_exclusion: named geographies a source does not publish inside a complete coverage, with the reason (IRS and CMS publish no Kalawao County rows).
 - build_info: one row describing the build that wrote the store.
-- fact: one value per geography, indicator and source, with its margin of error, value_status, moe_status, tier (D direct, A apportioned, P points, M modeled, C context) and source table. Tier A and M facts with a value carry value_low and value_high with moe_status range, and tier D and P facts leave both empty.
+- fact: one value per geography, indicator and source, with its margin of error, value_status, moe_status, tier (D direct, A apportioned, P points, M modeled, S summed from published parts, C context) and source table. Tier A and M facts with a value carry value_low and value_high with moe_status range, tier S facts carry them only when some of their parts were not published, and tier D and P facts leave both empty. The method the assistant states for each fact comes from its tier, source and geography type (klear/store/methods.py).
 - site: public housing, LIHTC and health center points with their House and Senate district, the meters the point was snapped to reach it, and source.
 - place and place_overlap: Census 2020 places (CDPs) with Hawaiian names, and the share of each place's 2020 residents in each county, House and Senate district and ZIP code area.
 - area, area_overlap and area_alias: what district search finds beyond Census places. Islands, Honolulu neighborhood board areas (City and County of Honolulu) on Oʻahu and Census county divisions (TIGER 2020) on the other islands, each with its main island and its residents' shares in each county, district, ZIP code area and place. Each 2020 block counts in the area holding its internal point. area_alias holds other names people use, such as Kona, upcountry Maui or Lanikai, from data/places/areas.yaml.
 
-Sources beyond the Census Bureau, each moved to House and Senate districts with a range: IRS SOI tax year 2023 returns and earned income tax credit by ZIP code, CMS 2026 marketplace enrollment by ZIP code, HUD housing choice vouchers by tract, CDC PLACES 2025 modeled need by tract and HUD CHAS 2018-2022 cost burden by tract. HUD public housing, LIHTC projects and HRSA health center sites are stored as points with their districts. Program rules (poverty guidelines, SNAP, WIC, EITC, SSI and others) live in data/rules/ as YAML, and every build checks each confirmed value against a quote on its official page. Each rule has a source_url, the page its values are checked against (read from fetch_url when that is set), and an info_url, where residents learn about the program or apply, which is the link the website shows.
+Sources beyond the Census Bureau, each moved to House and Senate districts with a range: IRS SOI tax year 2023 returns and earned income tax credit by ZIP code, CMS 2026 marketplace enrollment by ZIP code, HUD housing choice vouchers by tract, CDC PLACES 2025 modeled need by tract and HUD CHAS 2018-2022 cost burden by tract. HUD public housing, LIHTC projects and HRSA health center sites are stored as points with their districts.
 
-Ranges. For counts moved from ZIP codes or tracts, value_low counts only units wholly inside the district, and value_high counts every unit touching it plus the most a suppressed unit touching it could hide. The IRS 99999 amount has no known location: it is assigned to districts by 2020 population and value_high includes only the district's population share of it, so its true district share is not inside the guaranteed range. A CMS county residual is placed in that county's suppressed ZIP codes and counted whole in value_high of every district they touch, but the residual location is assumed, not published. PLACES district ranges average the tract confidence limits with the same weights as the estimate, so they assume tract errors move together and are wider than a formal interval, and a suppressed tract counts as 0 in value_low and 100 percent in value_high. The website explains these ranges in plain language on its methods page (klear/web/static/methods.html, served at /methods.html), with a section for each source, and every apportioned or modeled figure links to its source's section.
+County and state values. Every profile figure can be compared with its county and the state. PLACES county values are the CDC PLACES 2025 county estimates from the same release as the tracts. CDC publishes no state value for these measures, so the state value is derived: the average of the five county estimates weighted by adult population, labeled as derived wherever it is shown. Vouchers are summed from the published tracts to counties and the state, site counts and units are counted from the site points by county (the 2020 Census block that holds each point) and for the state, and the four CMS county rows are summed to a state row. The build checks that each sum equals its parts and that every county and state value has a source, tier and method. Program rules (poverty guidelines, SNAP, WIC, EITC, SSI and others) live in data/rules/ as YAML, and every build checks each confirmed value against a quote on its official page. Each rule has a source_url, the page its values are checked against (read from fetch_url when that is set), and an info_url, where residents learn about the program or apply.
+
+Ranges. For counts moved from ZIP codes or tracts, value_low counts only units wholly inside the district, and value_high counts every unit touching it plus the most a suppressed unit touching it could hide. The IRS 99999 amount has no known location: it is assigned to districts by 2020 population and value_high includes only the district's population share of it, so its true district share is not inside the guaranteed range. A CMS county residual is placed in that county's suppressed ZIP codes and counted whole in value_high of every district they touch, but the residual location is assumed, not published. PLACES district ranges average the tract confidence limits with the same weights as the estimate, so they assume tract errors move together and are wider than a formal interval, and a suppressed tract counts as 0 in value_low and 100 percent in value_high. The derived PLACES state range averages the county confidence limits the same way. A summed voucher total for a county or the state counts the published tracts in value_low and adds 10 to value_high for each tract HUD did not publish (10 or fewer voucher holders). The website explains these ranges in plain language on its methods page (klear/web/static/methods.html, served at /methods.html), with a section for each source, and every apportioned or modeled figure links to its source's section.
 
 ## Status vocabulary
 
@@ -254,13 +256,33 @@ Website spending has its own cap of 5 dollars per HST day, kept in ~/.config/kle
 | Option | Purpose |
 | --- | --- |
 | `--open` | Open the site in your default browser after binding the server. |
-| `--basic-only` | Use free lookups only, even if an Anthropic key is present. |
+| `--basic-only` | Make no model calls, even if an Anthropic key is present: use free lookups and any prepared starter answers. |
 | `--port 8001` | Choose a different port; the default is 8000. |
 | `--host 127.0.0.1` | Choose the bind address; the default is local access only. |
 | `--store PATH` | Use a different DuckDB store. |
 | `--daily-cap 5` | Set the website's model budget in dollars per HST day. |
 | `--model MODEL` | Choose the model used by the assistant. |
 | `--no-address-lookup` | Turn off street address search, so the server never contacts the Census geocoder. |
+
+### Prepared answers to the starter questions
+
+The five starter questions ask the same thing for every district, so their answers can be prepared once after each
+data build and shown at once instead of after several seconds. With ANTHROPIC_API_KEY set, run:
+
+    uv run python -m klear.web.prewarm
+
+It asks the assistant each starter question for all 76 districts (380 answers), four at a time (--jobs), after showing
+the most the run can cost and asking before it spends. The spending counts toward the 60 dollar eval cap. At Haiku 5.5
+prices a run costs about 1.50 dollars and takes about 15 minutes. It writes data/build/answer_cache.json and
+data/build/answer_cache_sample.md, a random sample of 12 answers with every question at least once. Read the sample
+before the demo. If a run stops partway, run it again: it keeps the answers already prepared and asks only the rest.
+
+The server answers a starter question from the file when it holds an answer for that question, district, store build
+and model, and says under the answer that it was prepared ahead from the data update of that date. Every other question
+goes to the assistant as before, and no typed question is stored. A rebuilt store has a new build time, so its old
+answers are no longer used and the next prewarm run drops them. Prepared answers make no model call, so they are served
+with --basic-only too. The startup lines say how many prepared answers match the store. To host the site elsewhere,
+copy answer_cache.json along with klear.duckdb.
 
 The landing page uses the project-provided `background1.png` photo, copied
 as a smaller metadata-free `klear/web/static/background1.jpg`. It loads no
@@ -328,9 +350,13 @@ above the question box. Program questions list official guidance without
 assessing individual eligibility. Questions outside the available measures
 receive a clear limit instead of a guessed answer. Questions are independent:
 previous messages are displayed locally but are not sent as conversation history.
+After each answer the chat offers up to three next questions, each written out in full with the
+district and county named, so the basic lookup can answer them too. A question that takes more
+than 45 seconds is stopped. A waiting question can be cancelled, and errors that may pass offer Retry.
 
 Choosing a district also shows its district profile next to the chat. The profile is read
 straight from the store with no model call, through `GET /api/profile?district=house:022`.
+A district chosen while an answer is still loading shows its profile at once, and the chat switches to it after that answer.
 It names the district's counties, islands, Census places and the overlapping districts
 in the other chamber, shows four headline figures, then 37 figures in seven sections:
 People, Income, Housing, Health and access, Programs in use, Modeled needs and Help sites.
@@ -338,7 +364,10 @@ Each figure shows its margin of error or range, is compared with the county that
 of the district's population and with the state, flags an unreliable estimate, and is cited
 under its section. Rates are compared in plain sentences ("about 40 percent higher than the
 rate in Maui County: 9.2%", or "about the same as" when the gap is inside the margins of
-error), and totals show the district's share of the county and state total.
+error), and totals show the district's share of the county and state total. A county or state
+value that KLEAR derived is marked, for example "(average of the CDC county estimates)", and a
+place with no value says why, for example "No figure for Kalawao County: CMS publishes no rows for
+Kalawao County".
 The figures and labels are in `PROFILE_SECTIONS` in klear/agent/config.py and
 `PROFILE_LABELS` in klear/web/display.py.
 
@@ -346,6 +375,15 @@ The agent's `district_profile` tool returns the same set, so a profile question 
 the free lookup and the page cite the same figures. A question that contains the word
 "profile" must cite every profile figure the store holds for its district, and the free
 lookup returns them all for a profile, socioeconomic or overview question.
+
+A question about kūpuna on fixed incomes, such as the challenge deck's "How many kūpuna in my district live on
+fixed incomes?", gets the same figures from the assistant and the free lookup: the kūpuna count and share, the
+median household income of householders 65 and over (B19049), kūpuna under 100 and 200 percent of poverty (B17024),
+householders 65 and over living alone (B11007, equal to DP02_0009 plus DP02_0013), and the shares of households
+with Social Security, retirement income and SSI. Those shares cover households of every age, and their note says so.
+The rates and the median are compared with the county holding most of the district's people and with the state,
+and the answer lists SSI, Kūpuna Care, SNAP and Med-QUEST with official links. The assistant's answer is rejected
+until it cites each figure, comparison and program, as listed in FIXED_INCOME in klear/agent/config.py.
 
 On screens at least 1200 px wide the profile and the chat are equal-width columns; below that
 the profile sits under the chat at full width. The chat card stays compact until the first

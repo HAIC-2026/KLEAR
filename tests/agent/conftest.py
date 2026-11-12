@@ -9,6 +9,14 @@ from tests.fixtures.small_store import build_small_store
 STORE = ROOT / "data/build/klear.duckdb"
 
 
+@pytest.fixture(autouse=True)
+def _fresh_rate_limit():
+    # Each test starts with an empty per-minute question count.
+    from klear.web import __main__ as web
+
+    web._RECENT.clear()
+
+
 @pytest.fixture(scope="module")
 def real_con():
     if not STORE.exists():

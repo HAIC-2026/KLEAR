@@ -15,10 +15,11 @@ import pandas as pd
 import pytest
 
 from klear.eval.contract import Answer, FactRef
+from klear.programs import by_rule
 from klear.rules.registry import load_rules
 from klear.store.db import SCHEMA, add_facts, add_source
 from klear.web import __main__ as web
-from klear.web.display import SHARES_SOURCE, _cited, build, profile, profile_csv, programs
+from klear.web.display import SHARES_SOURCE, _cited, build, profile, profile_csv
 from tests.fixtures.small_store import _fact
 
 DP05_HOUSE_22 = "https://data.census.gov/table/ACSDP5Y2024.DP05?g=620L900US15022"
@@ -101,9 +102,10 @@ def test_citations_merge_the_links_of_every_figure_from_a_source():
 
 
 def test_programs_link_where_residents_learn_or_apply_not_the_page_a_rule_was_checked_on():
+    # The website links each program's own page from data/programs/; a rule's source_url is only for checking.
     rules = {r.rule_id: r for r in load_rules()}
-    by_name = {p["name"]: p["url"] for p in programs()}
-    assert by_name["SSI federal payment"] == rules["ssi_federal_2026"].info_url == "https://www.ssa.gov/ssi"
+    assert by_rule()["ssi_federal_2026"].url == "https://www.ssa.gov/apply/ssi"
+    assert rules["ssi_federal_2026"].info_url == "https://www.ssa.gov/ssi"
     assert rules["ssi_federal_2026"].source_url.endswith(".txt")
     assert SHARES_SOURCE["url"].startswith("https://www.census.gov/")
 

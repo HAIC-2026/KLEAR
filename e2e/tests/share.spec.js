@@ -79,7 +79,7 @@ test('a question still loading, or failed, when the page reloads waits in the bo
   // A failed answer shows its error until the reload, which keeps only the question.
   await page.route('**/api/chat', route => route.fulfill({status: 503, contentType: 'application/json', body: '{"error": "KLEAR could not answer. Please try again."}'}));
   await page.getByRole('button', {name: 'Ask KLEAR'}).click();
-  await expect(page.locator('#log .error')).toHaveText('KLEAR could not answer. Please try again.');
+  await expect(page.locator('#log .error p')).toHaveText('KLEAR could not answer. Please try again.');
   await page.reload();
   await expect(page.getByLabel('Your question')).toHaveValue('How many kūpuna live here?');
   await expect(page.locator('#log .error, #log .user')).toHaveCount(0);
@@ -127,8 +127,13 @@ test('printing gives a one-page summary with every source, year and address writ
   await expect(sources.first()).toHaveText('American Community Survey 5-year, 2020-2024 https://example.org');
   await expect(sources.last()).toContainText('2020 Census Redistricting Data (P.L. 94-171), population by block, 2020 Census');
   await expect(sources.last()).toContainText('https://www.census.gov/programs-surveys/decennial-census/about/rdo/summary-files.html');
-  await expect(sheet.locator('.sheet-programs')).toContainText('SNAP: food assistance benefits');
-  await expect(sheet.locator('.sheet-programs')).toContainText('https://humanservices.hawaii.gov/bessd/snap/');
+  // No need figure in the fixture district sits above the state's, so the statewide programs print, six at most.
+  const programs = sheet.locator('.sheet-programs');
+  await expect(programs.locator('li')).toHaveCount(6);
+  await expect(programs).toContainText('SNAP: Monthly food benefits on an EBT card');
+  await expect(programs).toContainText('https://humanservices.hawaii.gov/bessd/snap/');
+  await expect(programs.locator('.sheet-note')).toContainText('None of this district’s need figures sit clearly above the state’s');
+  await expect(programs.locator('.sheet-note')).toContainText('The live profile lists every program.');
   await expect(sheet.locator('.sheet-live')).toContainText(address(page));
   await expect(sheet.locator('.sheet-live')).toContainText(/Printed \w+ \d+, \d{4}/);
   await expect(sheet.locator('.sheet-foot')).toContainText('Not an official State of Hawaiʻi product.');

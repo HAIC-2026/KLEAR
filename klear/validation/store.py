@@ -16,7 +16,7 @@ MAX_LISTED = 20
 VALUE_COLS = ["value", "moe", "value_status", "moe_status"]
 TIER_WORDS = {
     "D": "direct", "A": "apportioned with a range", "P": "counted from points", "M": "modeled with a range",
-    "C": "context",
+    "S": "summed from published parts", "C": "context",
 }  # fmt: skip
 SITE_WORDS = {"public_housing": "public housing", "lihtc": "LIHTC", "health_center": "health center"}
 RULE_WORDS = {"confirmed": "confirmed", "needs_manual": "needing a manual check"}

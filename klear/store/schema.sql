@@ -24,7 +24,9 @@ CREATE TABLE IF NOT EXISTS indicator (
     unit VARCHAR NOT NULL CHECK (unit IN ('count', 'dollars', 'percent', 'ratio', 'years')),
     universe VARCHAR,
     acs_var VARCHAR,
-    additive BOOLEAN NOT NULL
+    additive BOOLEAN NOT NULL,
+    -- plain caveat to state with every figure of the indicator, such as what an income-eligible estimate leaves out
+    note VARCHAR
 );
 
 -- Geography types each indicator is published for. Completeness is checked only where complete is true,
@@ -86,7 +88,7 @@ CREATE TABLE IF NOT EXISTS fact (
         CHECK (value_status IN ('ok', 'top_coded', 'bottom_coded', 'suppressed', 'not_applicable')),
     moe_status VARCHAR NOT NULL
         CHECK (moe_status IN ('ok', 'controlled', 'open_ended', 'not_computable', 'not_applicable', 'range')),
-    tier VARCHAR NOT NULL CHECK (tier IN ('D', 'A', 'P', 'M', 'C')),
+    tier VARCHAR NOT NULL CHECK (tier IN ('D', 'A', 'P', 'M', 'S', 'C')),
     source_id VARCHAR NOT NULL REFERENCES source (source_id),
     table_id VARCHAR,
     value_low DOUBLE,
@@ -99,8 +101,9 @@ CREATE TABLE IF NOT EXISTS fact (
     CHECK (value IS NOT NULL OR moe_status IN ('not_computable', 'not_applicable')),
     CHECK ((value_low IS NULL) = (value_high IS NULL)),
     CHECK (value_low IS NULL OR (value_low <= value AND value <= value_high)),
-    CHECK ((tier IN ('A', 'M') AND value IS NOT NULL) = (value_low IS NOT NULL)),
-    CHECK (moe_status <> 'range' OR value_low IS NOT NULL),
+    -- tier S (summed) carries a range only when some of its parts were suppressed
+    CHECK (tier = 'S' OR (tier IN ('A', 'M') AND value IS NOT NULL) = (value_low IS NOT NULL)),
+    CHECK ((moe_status = 'range') = (value_low IS NOT NULL)),
     CHECK (tier NOT IN ('A', 'M') OR value IS NULL OR moe_status = 'range')
 );
 

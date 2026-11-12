@@ -4,8 +4,15 @@ import json
 import pytest
 
 from klear.agent import config
-from klear.agent.answer import NUMBER_HINT, SUBMIT_SPEC, allowed_geos, build_answer, template_answer
-from klear.eval.contract import REFUSALS
+from klear.agent.answer import (
+    NUMBER_HINT,
+    SUBMIT_SPEC,
+    _method_text,
+    allowed_geos,
+    build_answer,
+    template_answer,
+)
+from klear.eval.contract import REFUSALS, FactRef
 from klear.eval.scorers import answer_problems
 
 GOOD = "{geo:house:022} has {fact:f1} {label:f1} ({vintage:f1})."
@@ -135,6 +142,35 @@ def test_question_asking_for_a_fact_requires_it(s1, monkeypatch, question, requi
     a, problems = build_answer(s1, args())
     expected = [f"this question asks for {required} at house:022; call get_facts for it and cite it"]
     assert (a is None, problems) == ((True, expected) if bad else (False, []))
+
+
+def test_question_asking_to_compare_requires_main_county_and_state(s1, monkeypatch):
+    monkeypatch.setattr(config, "REQUIRED_COMPARISONS", ((("fixed",), ("pop_65_plus",)),))
+    monkeypatch.setattr(config, "REQUIRED_PROGRAMS", ())
+    s1.question = "Who lives on a fixed income in House 22?"
+    a, problems = build_answer(s1, args())
+    assert a is None and problems == [
+        f"this question compares pop_65_plus at house:022 with {g}; call get_facts for it there and cite it"
+        for g in ("county:15003", "state:15")
+    ]
+    s1.run("get_facts", {"indicator_ids": ["pop_65_plus"], "geos": ["county:15003", "state:15"]})
+    text = GOOD + " Compare {geo:county:15003} at {fact:f2} and {geo:state:15} at {fact:f3}."
+    a, problems = build_answer(s1, args(blocks=[text], facts=["f1", "f2", "f3"]))
+    assert problems == [] and a is not None
+
+
+def test_question_asking_about_programs_requires_them(s1, monkeypatch):
+    monkeypatch.setattr(config, "REQUIRED_COMPARISONS", ())
+    monkeypatch.setattr(config, "REQUIRED_PROGRAMS", ((("fixed",), ("snap_fy2027",)),))
+    s1.question = "Who lives on a fixed income in House 22?"
+    a, problems = build_answer(s1, args())
+    assert a is None and problems == [
+        "this question asks about snap_fy2027; list it in programs and write it as 'SNAP'"
+    ]
+    a, problems = build_answer(s1, args(blocks=[GOOD + " SNAP can help."], programs=["snap_fy2027"]))
+    assert problems == [] and a.programs == ["snap_fy2027"]
+    _, problems = build_answer(s1, args(refusal="not_available"))
+    assert not any("asks about" in p for p in problems)
 
 
 def test_required_facts_skip_refusals(s1, monkeypatch):
@@ -345,6 +381,18 @@ def test_template_flags_unreliable_and_method(small):
     small.resolved.add(("house", "022"))
     a = template_answer(small, ("house", "023"), "none", None)
     assert a.blocks[0].splitlines()[1].endswith("{vintage:f2}), a modeled estimate")
+
+
+def test_template_names_values_derived_for_a_place():
+    def ref(source_id, geo_type):
+        return FactRef("f1", "x", geo_type, "15", source_id, 1.0, None, None, None, "2026")
+
+    assert _method_text("S", ref("cms_oep_2026", "state")) == ", the sum of the published county counts"
+    assert _method_text("M", ref("cdc_places_2025_county", "state")) == (
+        ", a modeled estimate, the average of the CDC county estimates"
+    )
+    assert _method_text("M", ref("cdc_places_2025_county", "county")) == ", a modeled estimate"
+    assert _method_text("D", ref("acs", "state")) == ""
 
 
 def test_template_names_known_programs_without_digits(s1):

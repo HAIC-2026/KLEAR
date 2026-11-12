@@ -1,0 +1,15 @@
+# Published totals of the held-out eval run. The held-out questions themselves are not in this repository.
+# Update this file when a new held-out run is published, then rebuild so the report and website show it.
+model: claude-haiku-5-5
+run: '2026-11-03 HST'
+reviewer: off (the default)
+questions: 100
+source: >-
+  Published summary of the held-out run, as reported by the team that ran it. The 100 held-out questions are
+  kept outside this repository so they cannot be used to tune the assistant, and only these totals are
+  published.
+# passed and total for each eval gate
+results:
+  overall: [89, 100]
+  fidelity: [100, 100]
+  refusal: [8, 8]

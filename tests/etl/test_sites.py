@@ -6,6 +6,7 @@ from shapely.geometry import box
 
 from klear.etl.sites import (
     SITE_SOURCES,
+    assign_counties,
     assign_points,
     parse_hrsa,
     site_facts,
@@ -118,6 +119,32 @@ def test_site_facts_zero_for_districts_without_sites():
     assert h.value[("001", "sites_lihtc")] == 0 and h.value[("002", "sites_lihtc")] == 1
     s = f[f.geo_type == "senate"].set_index(["geo_id", "indicator_id"])
     assert s.value[("03", "sites_public_housing")] == 0
+
+
+def test_site_facts_by_county_and_state():
+    s = _sites(county=["15003", "15003", "15001"])
+    f = site_facts(s, {"county": ["15001", "15003", "15005"]})
+    c = f[f.geo_type == "county"].set_index(["geo_id", "indicator_id"])
+    assert c.value[("15003", "sites_lihtc")] == 1 and c.value[("15001", "sites_health_center")] == 1
+    assert c.value[("15005", "sites_public_housing")] == 0 and ("15005", "units_lihtc") not in c.index
+    st = f[f.geo_type == "state"].set_index("indicator_id")
+    assert st.geo_id.unique().tolist() == ["15"]
+    assert st.value["sites_health_center"] == 1 and st.value["units_public_housing"] == 10
+    assert (f.tier == "P").all()
+
+
+def test_counties_from_block_polygons(square_districts):
+    blocks = square_districts.assign(geo_id=["15003", "15009"])
+    pts = pd.DataFrame({"lon": [-157.95, -157.85, -157.85], "lat": [21.35, 21.35, 21.45]}, index=[5, 6, 7])
+    # the third point is offshore and takes the nearest block's county
+    assert assign_counties(pts, blocks).to_dict() == {5: "15003", 6: "15009", 7: "15009"}
+
+
+def test_check_flags_site_without_county():
+    res = check_sites(_sites(county=["15003", None, "15001"]))
+    assert not res.passed and any(d["check"] == "missing_county" for d in res.details)
+    res = check_sites(_sites(county=["15003", "15003", "15001"]))
+    assert res.passed and "sites by county: 15001 1, 15003 2" in res.notes
 
 
 def test_sites_load_into_store(store):

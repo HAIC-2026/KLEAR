@@ -13,7 +13,7 @@ import yaml
 from shapely.geometry import Point, box
 
 from klear import config
-from klear.etl import areas, census_api, chas, manual, profile
+from klear.etl import areas, census_api, chas, manual, profile, reapportionment
 from klear.etl import build as build_mod
 from klear.etl import fetch as fetch_mod
 from klear.etl.__main__ import main
@@ -45,8 +45,9 @@ PROFILE_LABELS = {
     "DP03_0002": "Estimate!!EMPLOYMENT STATUS!!In labor force",
 }
 CHECKS = [
-    "source_fidelity", "boundaries_house", "boundaries_senate", "blocks", "apportionment", "irs_state", "irs_county",
-    "cms_county", "hud_hcv", "sites", "places", "chas", "gazetteer", "areas", "rules", "store", "raw_files",
+    "source_fidelity", "boundaries_house", "boundaries_senate", "blocks", "population", "apportionment", "irs_state",
+    "irs_county", "cms_county", "hud_hcv", "sites", "places", "chas", "gazetteer", "areas", "rules", "district_sums",
+    "admin_counts", "store", "raw_files",
 ]  # fmt: skip
 NEW_TITLES = [
     "irs_state",
@@ -199,6 +200,37 @@ def _tiger(tmp):
     return buf.getvalue()
 
 
+def _district_pops(chamber):
+    out = {}
+    for b in BLOCKS:
+        out[b[chamber]] = out.get(b[chamber], 0) + b["pop"]
+    return out
+
+
+def _commission(tmp, unit, chamber):
+    # the Commission's files split districts by island unit: district 1 to Hawaii, 2 to Maui, 3 to Kauai
+    units = dict(zip(reapportionment.UNITS, (1, 2, 3), strict=False))
+    pops = _district_pops(chamber)
+    ids = [int(g) for g in pops if units.get(unit) == int(g) or (unit == "Oahu" and int(g) > 3)]
+    gdf = gpd.GeoDataFrame(
+        {
+            "DISTRICT": ids,
+            "TOTAL": [pops[f"{i:03d}"] for i in ids],
+            "PopHaw2022": [pops[f"{i:03d}"] - 10 for i in ids],
+        },
+        geometry=[Point(-158.0, 21.3) for _ in ids],
+        crs="EPSG:4326",
+    )
+    out = tmp / "commission" / f"{unit}_{chamber}"
+    out.mkdir(parents=True)
+    gdf.to_file(out / "districts.shp")
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as z:
+        for f in sorted(out.iterdir()):
+            z.write(f, f.name)
+    return buf.getvalue()
+
+
 def _dbedt(tmp, geo_type):
     labels = {
         "state": ["Hawaii"],
@@ -285,17 +317,29 @@ def _hrsa():
     return _csv(rows, cols)
 
 
+PLACES_COLS = [
+    "locationname", "locationid", "measureid", "datavaluetypeid", "measure", "data_value", "low_confidence_limit",
+    "high_confidence_limit", "totalpop18plus", "data_value_footnote_symbol", "data_value_footnote",
+]  # fmt: skip
+
+
 def _places():
-    cols = [
-        "locationname", "measureid", "datavaluetypeid", "measure", "data_value", "low_confidence_limit",
-        "high_confidence_limit", "totalpop18plus", "data_value_footnote_symbol", "data_value_footnote",
-    ]  # fmt: skip
     rows = [
-        (t, m, "CrdPrv", f"Measure {m}", 10 + n, 8 + n, 12 + n, 1000, "", "")
+        (t, t, m, "CrdPrv", f"Measure {m}", 10 + n, 8 + n, 12 + n, 1000, "", "")
         for n, t in enumerate(TRACTS)
         for m in PLACES_MEASURES
     ]
-    return _csv(rows, cols)
+    return _csv(rows, PLACES_COLS)
+
+
+def _places_county():
+    # the county file names each county and gives its FIPS code as locationid
+    rows = [
+        (name, fips, m, "CrdPrv", f"Measure {m}", 10 + n, 8 + n, 12 + n, 1000 * (n + 1), "", "")
+        for n, (name, fips) in enumerate(COUNTY_FIPS.items())
+        for m in PLACES_MEASURES
+    ]
+    return _csv(rows, PLACES_COLS)
 
 
 def _chas_zip(path, base=50):
@@ -372,6 +416,9 @@ class Stub:
             "tl_2020_15_tabblock20.zip": _tiger(tmp),
             "tl_2020_15_cousub.zip": _cousub(tmp),
         }
+        for unit in reapportionment.UNITS:
+            for chamber in ("house", "senate"):
+                self.files[reapportionment.file_name(unit, chamber)] = _commission(tmp, unit, chamber)
         for g, f in (("house", "house"), ("senate", "senate"), ("county", "counties"), ("state", "state")):
             self.files[f"acs2024_5yr_{f}_hi.xlsx"] = _dbedt(tmp, g)
         cms_zip, cms_county = _cms()
@@ -388,6 +435,7 @@ class Stub:
             "2026-oep-county-level-public-use-file.zip": cms_county,
             "Health_Center_Service_Delivery_and_LookAlike_Sites.csv": _hrsa(),
             "cwsq-ngmh.csv": _places(),
+            "swc5-untb.csv": _places_county(),
             "smoke_page": RULE_PAGE.encode(),
         }
 
@@ -398,6 +446,14 @@ class Stub:
             labels = {f"{k}E": {"label": v} for k, v in PROFILE_LABELS.items()}
             labels |= {f"{k}PE": {"label": "Percent" + v[8:]} for k, v in PROFILE_LABELS.items()}
             return httpx.Response(200, json={"variables": labels})
+        if path.endswith("/dec/cd118"):
+            geos, cols = _geo_rows(request.url.params)
+            chamber = "house" if "lower" in cols[-1] else "senate"
+            pops, word = _district_pops(chamber), chamber.title()
+            rows = [
+                [f"State {word} District {int(g[-1])} (2022), Hawaii", str(pops[g[-1]]), *g] for g in geos
+            ]
+            return httpx.Response(200, json=[["NAME", "P1_001N", *cols], *rows])
         if path.endswith("/dec/pl"):
             county = next(v for v in request.url.params.get_list("in") if v.startswith("county:"))[7:]
             rows = [
@@ -409,11 +465,13 @@ class Stub:
         get = request.url.params["get"].split(",")
         geos, cols = _geo_rows(request.url.params)
         out = [get + cols]
+        # a detailed-table state count equals its five counties, so district sums add up
+        state_sum = path.endswith("/acs/acs5") and request.url.params["for"] == "state:15"
         for g in geos:
             vals = []
             for v in get[1:]:
                 pct = v[:-1].endswith("P")
-                est, moe = ("50.0", "5.0") if pct else ("100", "10")
+                est, moe = ("50.0", "5.0") if pct else ("500" if state_sum else "100", "10")
                 vals.append(self.override.get((g[-1], v), est if v[-1] == "E" else moe))
             out.append(["X"] + vals + g)
         return httpx.Response(200, json=out)
@@ -463,6 +521,7 @@ def env(tmp_path, monkeypatch):
     _write_rules(tmp_path / "rules", "confirmed")
     monkeypatch.setattr(build_mod, "RULES_DIR", tmp_path / "rules")
     monkeypatch.setattr(build_mod, "REQUIRED_RULES", ())
+    monkeypatch.setattr(build_mod, "EVAL_RECORDINGS", tmp_path / "recordings")
     return stub
 
 
@@ -510,7 +569,7 @@ def test_build_creates_store_outputs_and_report(env, capsys):
     build = env.tmp / "build"
     con = duckdb.connect(str(build / "klear.duckdb"), read_only=True)
     sources = {r[0] for r in con.execute("SELECT source_id FROM source").fetchall()}
-    assert len(sources) == 2 + 8
+    assert len(sources) == 2 + 9
     geos = dict(con.execute("SELECT geo_type, count(*) FROM geography GROUP BY 1").fetchall())
     assert geos == {"state": 1, "county": 5, "senate": 25, "house": 51, "tract": len(TRACTS), "zcta": 2}
     n_facts, n_unsourced = con.execute(

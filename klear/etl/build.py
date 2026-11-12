@@ -20,7 +20,7 @@ from klear.etl import areas, chas, cms, hud, irs, manual, places, places_gazette
 from klear.etl import fetch as fetch_mod
 from klear.etl.blocks import build_block_table, load_block_points
 from klear.etl.boundaries import ArcGISError, download_districts, export_web_geojson
-from klear.etl.census_api import get_acs, get_variable_labels
+from klear.etl.census_api import get_acs, get_district_pop, get_variable_labels
 from klear.etl.census_cache import CacheMissError, CensusCache
 from klear.etl.dbedt import fetch_dbedt, parse_dbedt_profile
 from klear.etl.fetch import fetch
@@ -34,6 +34,9 @@ from klear.etl.profile import (
     load_profile_facts,
     profile_bases,
 )
+from klear.etl.reapportionment import load_commission
+from klear.eval import runner as eval_runner
+from klear.eval.summary import HELDOUT, eval_summary
 from klear.rules.registry import REQUIRED_RULE_IDS, Rule, load_rules, page_text
 from klear.store.db import (
     add_areas,
@@ -55,11 +58,21 @@ from klear.validation.blocks import check_blocks
 from klear.validation.boundaries import check_boundaries
 from klear.validation.chas import check_chas
 from klear.validation.cms import check_cms, check_cms_districts
+from klear.validation.county_state import check_county_state
+from klear.validation.eligible import check_admin_counts, check_district_sums
 from klear.validation.gazetteer import check_gazetteer
 from klear.validation.hud import check_hcv
 from klear.validation.irs import check_irs
-from klear.validation.places import check_places
-from klear.validation.report import render_validation
+from klear.validation.places import check_places, check_places_county
+from klear.validation.population import check_population
+from klear.validation.report import (
+    CAVEATS,
+    check_view,
+    eval_tables,
+    render_validation,
+    skipped_view,
+    verdict,
+)
 from klear.validation.rules import HUD_FILE, HUD_URL, check_rules
 from klear.validation.sites import check_sites
 from klear.validation.source_fidelity import check_source_fidelity
@@ -75,6 +88,9 @@ HUD_RULE = "hud_il_fy2026_hi"
 LICENSE = "Public domain, U.S. Government work"
 HUD_PUBLISHER = "U.S. Department of Housing and Urban Development"
 CURRENT = config.CURRENT_LAYER
+# the tracked eval recordings rescored after each build, and the published held-out totals
+EVAL_RECORDINGS = eval_runner.RECORDINGS
+EVAL_HELDOUT = HELDOUT
 # source_id: name, publisher, url, vintage
 # then page_url. url is what the build downloads, page_url the publisher's page about it that people read.
 SOURCES = {
@@ -104,6 +120,10 @@ SOURCES = {
         "PLACES: Local Data for Better Health, census tract data", "Centers for Disease Control and Prevention",
         places.PLACES_URL, places.VINTAGE, places.PAGE_URL,
     ),
+    places.COUNTY_SOURCE_ID: (
+        "PLACES: Local Data for Better Health, county data", "Centers for Disease Control and Prevention",
+        places.COUNTY_URL, places.VINTAGE, places.COUNTY_PAGE_URL,
+    ),
     chas.SOURCE_ID: (
         "Comprehensive Housing Affordability Strategy (CHAS) data, Table 8", HUD_PUBLISHER, chas.CHAS_URL,
         chas.VINTAGE, chas.PAGE_URL,
@@ -116,11 +136,23 @@ class StepSkipped(RuntimeError):
 
 
 CHAMBERS = {"house": True, "senate": True}
+WHOLE = {"county": True, "state": True}
 # geographies a source does not publish inside a complete coverage
 KALAWAO_IRS = {("county", KALAWAO): "IRS publishes no Kalawao County row"}
 KALAWAO_CMS = {("county", KALAWAO): "CMS publishes no rows for Kalawao County"}
 # steps after the base build that need the fact store and the block table
-STORE_STEPS = ("geographies", "irs", "cms", "hud_vouchers", "sites", "places", "chas", "gazetteer", "areas")
+STORE_STEPS = (
+    "geographies",
+    "irs",
+    "cms",
+    "hud_vouchers",
+    "sites",
+    "places",
+    "chas",
+    "gazetteer",
+    "areas",
+    "county_state",
+)
 EXIT_MEANING = {
     0: "all gated checks ran and passed",
     1: "a gated check failed",
@@ -269,6 +301,16 @@ def _register(con, source_ids, indicators: pd.DataFrame, coverage, exclusions=No
         add_coverage_exclusions(con, pd.DataFrame(rows))
 
 
+def _population(blocks: pd.DataFrame, api) -> CheckResult:
+    # Census Bureau counts gate the check; the Commission's files are only reported
+    census = pd.concat([get_district_pop(c, client=api) for c in ("house", "senate")], ignore_index=True)
+    try:
+        commission, problem = load_commission(client=api), None
+    except (httpx.HTTPError, OSError, RuntimeError, ValueError, KeyError) as e:
+        commission, problem = None, f"download or read failed ({type(e).__name__})"
+    return check_population(blocks, census, commission, commission_problem=problem)
+
+
 def _site_counts(df: pd.DataFrame) -> str:
     n = df.kind.value_counts()
     return "sites by kind: " + ", ".join(f"{SITE_WORDS[k]} {n.get(k, 0):,}" for k in SITE_WORDS)
@@ -281,6 +323,10 @@ def _store_steps(con, blocks, house, senate, step, checks: list[CheckResult]) ->
     step("geographies", lambda: add_geographies(con, geos))
     zip_county = cms.zip_county_map(geos)
     expected = geos.geo_type.value_counts().to_dict()
+    counties = [
+        r[0]
+        for r in con.execute("SELECT geo_id FROM geography WHERE geo_type = 'county' ORDER BY 1").fetchall()
+    ]
 
     def irs_step():
         z = irs.parse_irs_zip(fetch(irs.ZIP_URL, "irs/23zpallnoagi.csv"))
@@ -295,7 +341,7 @@ def _store_steps(con, blocks, house, senate, step, checks: list[CheckResult]) ->
         z = cms.parse_cms_zip(fetch(cms.ZIP_URL, "cms/zip.zip"))
         c = cms.parse_cms_county(fetch(cms.COUNTY_URL, "cms/county.zip"))
         facts = cms.cms_facts(z, c, blocks, geos=geos)
-        cover = CHAMBERS | {"county": True, "zcta": False}
+        cover = CHAMBERS | WHOLE | {"zcta": False}
         _register(con, [cms.SOURCE_ID], cms.cms_indicator_rows(), cover, KALAWAO_CMS)
         add_facts(con, facts)
         checks.append(check_cms(z, c, zip_county, notes=facts.attrs["notes"]))
@@ -303,7 +349,9 @@ def _store_steps(con, blocks, house, senate, step, checks: list[CheckResult]) ->
 
     def hud_step():
         facts = hud.hcv_facts(hud.load_hcv_rows(), blocks, geos=geos)
-        _register(con, [hud.SOURCE_ID], hud.hud_indicator_rows(), CHAMBERS | {"tract": False})
+        listed = set(facts[facts.geo_type == "county"].geo_id)
+        none = {("county", c): "HUD lists no tracts in this county" for c in counties if c not in listed}
+        _register(con, [hud.SOURCE_ID], hud.hud_indicator_rows(), CHAMBERS | WHOLE | {"tract": False}, none)
         add_facts(con, facts)
         result = check_hcv(facts)
         result.notes += facts.attrs["notes"]
@@ -311,11 +359,12 @@ def _store_steps(con, blocks, house, senate, step, checks: list[CheckResult]) ->
 
     def sites_step():
         df = sites.load_sites(house, senate)
-        facts = sites.site_facts(df, districts={"house": list(house.geo_id), "senate": list(senate.geo_id)})
+        places_in = {"house": list(house.geo_id), "senate": list(senate.geo_id), "county": counties}
+        facts = sites.site_facts(df, districts=places_in)
 
         def cover(ind):
             # unit totals exist only where a site reports units
-            return {c: not sites.SITE_INDICATORS[ind][2] for c in CHAMBERS}
+            return {c: not sites.SITE_INDICATORS[ind][2] for c in places_in} | {"state": True}
 
         _register(con, list(sites.SITE_SOURCES.values()), sites.site_indicator_rows(), cover)
         add_sites(con, df)
@@ -327,12 +376,16 @@ def _store_steps(con, blocks, house, senate, step, checks: list[CheckResult]) ->
     def places_step():
         df = places.load_places()
         facts = places.places_facts(df, blocks, geos=geos)
-        _register(con, [places.SOURCE_ID], places.places_indicator_rows(df), CHAMBERS | {"tract": False})
-        add_facts(con, facts)
+        by_county = places.load_places_county()
+        whole = places.places_county_facts(by_county, counties)
+        sources = [places.SOURCE_ID, places.COUNTY_SOURCE_ID]
+        _register(con, sources, places.places_indicator_rows(df), CHAMBERS | WHOLE | {"tract": False})
+        add_facts(con, pd.concat([facts, whole], ignore_index=True))
         result = check_places(df, facts)
         n = df.groupby("measureid").src_id.nunique()
         result.notes.insert(0, "tracts per measure: " + ", ".join(f"{m} {v:,}" for m, v in n.items()))
         checks.append(result)
+        checks.append(check_places_county(by_county, whole, counties))
 
     def chas_step():
         facts = chas.chas_facts(None, blocks, geos=geos)
@@ -379,6 +432,7 @@ def _store_steps(con, blocks, house, senate, step, checks: list[CheckResult]) ->
         ("chas", chas_step),
         ("gazetteer", gazetteer_step),
         ("areas", areas_step),
+        ("county_state", lambda: checks.append(check_county_state(con))),
     ):
         step(name, fn)
     return expected
@@ -536,10 +590,12 @@ def build(
             loaded = step("store", lambda: load_profile_facts(con, client=api, dbedt_aligned=aligned))
             blocks = step("blocks", blocks_step)
             if blocks is None:
-                skipped.append(
-                    {"name": "apportionment", "reason": "needs the block table, which was skipped"}
-                )
+                skipped += [
+                    {"name": n, "reason": "needs the block table, which was skipped"}
+                    for n in ("population", "apportionment")
+                ]
             else:
+                step("population", lambda: checks.append(_population(blocks, api)))
                 fetch_acs = functools.partial(get_acs, client=api)
                 step(
                     "apportionment",
@@ -555,6 +611,8 @@ def build(
                 ]
             rules = step("rules", lambda: _rules_step(checks, skipped))
             if loaded is not None:
+                checks.append(check_district_sums(con))
+                checks.append(check_admin_counts(con))
                 checks.append(check_store(con, aligned, expected))
                 if aligned is None:
                     skipped.append(
@@ -592,11 +650,23 @@ def build(
     (build_dir / "manifest.json").write_text(
         json.dumps(_clean(manifest), indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
     )
-    validation = {"built_at": manifest["built_at"], "checks": [asdict(r) for r in checks], "skipped": skipped}
+    ev = eval_summary(
+        final if store_status["replaced"] else None, recordings=EVAL_RECORDINGS, heldout_path=EVAL_HELDOUT
+    )
+    validation = {
+        "built_at": manifest["built_at"],
+        "git_commit": commit,
+        "verdict": verdict(checks, skipped),
+        "store": store_status,
+        "checks": [asdict(r) | check_view(r) for r in checks],
+        "skipped": [s | skipped_view(s) for s in skipped],
+        "caveats": CAVEATS,
+        "eval": ev | {"tables": eval_tables(ev)},
+    }
     (build_dir / "validation.json").write_text(
         json.dumps(_clean(validation), indent=1, ensure_ascii=False, default=str) + "\n", encoding="utf-8"
     )
-    meta = manifest | {"raw_files": checks[-1].notes[0]}
+    meta = manifest | {"raw_files": checks[-1].notes[0], "eval": validation["eval"]}
     docs_path.parent.mkdir(parents=True, exist_ok=True)
     docs_path.write_text(render_validation(checks, skipped, meta), encoding="utf-8")
     return BuildResult(checks=checks, skipped=skipped, manifest=manifest)
