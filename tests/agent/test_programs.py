@@ -166,7 +166,7 @@ def test_need_above_the_state_ranks_first_with_its_reason(need_con):
     # The EITC share (30.0%) is 2.5 times the state's 12.0%, so it outranks kūpuna at 1.1 times.
     assert ids.index("eitc_federal") < ids.index("kupuna_care")
     assert out["note"] == ELIGIBILITY_NOTE
-    laid = display.programs(need_con, out, s)
+    laid = display.matched_programs(need_con, out, s)
     kupuna = next(p for p in laid["programs"] if p["id"] == "kupuna_care")
     assert kupuna["reasons"] == [
         "Kūpuna are 22.8% of House District 22 residents (± 1.8 points), compared with 20.5% statewide."
@@ -183,7 +183,7 @@ def test_gaps_within_the_margin_read_as_about_the_same(need_con):
     s = Session(need_con)
     out = call(s, "district_programs", district="house:023")
     assert not [p for p in out["programs"] if p["need"] == "higher"]
-    laid = display.programs(need_con, out, s)
+    laid = display.matched_programs(need_con, out, s)
     assert laid["programs"] == [] and laid["others_title"] == "Available statewide"
     assert laid["intro"].startswith("None of House District 23's need figures sit clearly above the state's")
     kupuna = next(p for p in laid["others"] if p["id"] == "kupuna_care")
@@ -218,7 +218,7 @@ def test_contrasting_districts_get_different_ranked_lists(real_con):
     for geo in ("house:022", "house:044"):
         s = Session(real_con)
         out = call(s, "district_programs", district=geo)
-        laid = display.programs(real_con, out, s)
+        laid = display.matched_programs(real_con, out, s)
         names = [p["name"] for p in laid["programs"] + laid["others"]]
         assert len(names) == len(set(names)) == len(catalog())
         assert all(p["reasons"] for p in laid["programs"])
@@ -235,7 +235,7 @@ def test_every_district_gets_a_ranked_list(real_con):
     ).fetchall():
         s = Session(real_con)
         out = call(s, "district_programs", district=f"{geo_type}:{geo_id}")
-        laid = display.programs(real_con, out, s)
+        laid = display.matched_programs(real_con, out, s)
         text = json.dumps(laid, ensure_ascii=False)
         assert "·" not in text and "—" not in text
         for p in laid["programs"]:

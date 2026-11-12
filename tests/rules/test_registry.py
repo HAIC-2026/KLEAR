@@ -7,7 +7,7 @@ import yaml
 
 from klear.etl import manual
 from klear.etl.manual import ManualInputMissing
-from klear.rules.registry import FPG_API, REQUIRED_RULE_IDS, Rule, load_rules
+from klear.rules.registry import FPG_API, REQUIRED_RULE_IDS, Rule, document_text, load_rules
 from klear.validation.rules import HUD_COLUMNS, HUD_COUNTIES, check_rules, shown_matches
 
 FPG_VALUES = {1: 18360, 2: 24860, 3: 31360, 4: 37950, 5: 44450, 6: 50950, 7: 57450, 8: 63950}
@@ -239,12 +239,12 @@ def test_hud_missing_file_raises(tmp_rules, tmp_path, monkeypatch):
         check_rules(hud_rule(tmp_rules, hud_values()), fetch_text=lambda url: "")
 
 
-def save_hud_xlsx(tmp_path, monkeypatch):
+def save_hud_xlsx(tmp_path, monkeypatch, state="state_alpha"):
     d = tmp_path / "manual"
     d.mkdir()
     wb = openpyxl.Workbook()
     ws = wb.active
-    ws.append(["state_alpha", "County_Name", *HUD_COLUMNS])
+    ws.append([state, "County_Name", *HUD_COLUMNS])
     for c in HUD_COUNTIES:
         ws.append(["HI", f"{c} County", 150000] + [1] * (len(HUD_COLUMNS) - 1))
     ws.append(["CA", "Honolulu County", 5] + [5] * (len(HUD_COLUMNS) - 1))
@@ -255,10 +255,17 @@ def save_hud_xlsx(tmp_path, monkeypatch):
 def test_hud_compares_xlsx(tmp_rules, tmp_path, monkeypatch):
     save_hud_xlsx(tmp_path, monkeypatch)
     res = check_rules(hud_rule(tmp_rules, hud_values()), fetch_text=lambda url: "")
-    assert res.passed and res.n_compared == 4 * len(HUD_COLUMNS)
+    assert res.passed and res.n_compared == len(HUD_COUNTIES) * len(HUD_COLUMNS)
     assert not check_rules(hud_rule(tmp_rules, hud_values(1)), fetch_text=lambda url: "").passed
     one = {"Honolulu": hud_values()["Honolulu"]}
     assert not check_rules(hud_rule(tmp_rules, one), fetch_text=lambda url: "").passed
+
+
+def test_hud_reads_fy26_state_column(tmp_rules, tmp_path, monkeypatch):
+    # The FY26 file names the state column stusps.
+    save_hud_xlsx(tmp_path, monkeypatch, state="stusps")
+    res = check_rules(hud_rule(tmp_rules, hud_values()), fetch_text=lambda url: "")
+    assert res.passed and res.n_compared == len(HUD_COUNTIES) * len(HUD_COLUMNS)
 
 
 def test_hud_check_closes_the_workbook(tmp_rules, tmp_path, monkeypatch):
@@ -308,3 +315,53 @@ def test_real_rules_pass_against_live_pages():
     res = check_rules(load_rules(), fetch_text=page_text)
     print([(d["rule_id"], d.get("problem", d["check"])) for d in res.details], res.notes)
     assert res.passed, res.details
+
+
+def pdf_bytes(text):
+    """A one-page PDF that prints text, written by hand so tests need no PDF writer."""
+    stream = f"BT /F1 12 Tf 72 720 Td ({text}) Tj ET".encode()
+    objects = [
+        b"<< /Type /Catalog /Pages 2 0 R >>",
+        b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>",
+        b"<< /Length %d >>\nstream\n" % len(stream) + stream + b"\nendstream",
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+    ]
+    out, offsets = b"%PDF-1.4\n", []
+    for i, body in enumerate(objects, 1):
+        offsets.append(len(out))
+        out += b"%d 0 obj\n" % i + body + b"\nendobj\n"
+    xref = len(out)
+    out += b"xref\n0 %d\n0000000000 65535 f \n" % (len(objects) + 1)
+    out += b"".join(b"%010d 00000 n \n" % o for o in offsets)
+    return out + b"trailer\n<< /Size %d /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF\n" % (len(objects) + 1, xref)
+
+
+def test_pdf_text_drops_dot_leaders():
+    assert document_text(pdf_bytes("Under $15,000 ........ $220")) == "Under $15,000 $220"
+
+
+def test_a_value_can_cite_its_own_document(tmp_rules):
+    values = {
+        "max_hh4": dict(ENTRY),
+        "renters": {"value": 50, "url": "https://example.org/x", "quote": "by $50"},
+    }
+    pages = {"https://example.org/snap": PAGE, "https://example.org/x": "Multiply by $50 and enter"}
+    assert check_rules(tmp_rules(values=values), fetch_text=pages.__getitem__).passed
+    pages["https://example.org/x"] = "Multiply by $60 and enter"
+    assert not check_rules(tmp_rules(values=values), fetch_text=pages.__getitem__).passed
+
+
+def test_saved_copy_is_read_when_the_page_blocks_scripts(tmp_rules, tmp_path, monkeypatch):
+    d = tmp_path / "manual"
+    d.mkdir()
+    (d / "snap.html").write_text(f"<p>{PAGE}</p>", encoding="utf-8")
+    monkeypatch.setattr(manual, "MANUAL_DIR", d)
+
+    def blocked(url):
+        raise RuntimeError("HTTP 403")
+
+    res = check_rules(tmp_rules(saved="snap.html"), fetch_text=blocked)
+    assert res.passed and "saved copy snap.html" in res.notes[0]
+    assert (d / "snap.html.meta.json").exists()
+    assert not check_rules(tmp_rules(), fetch_text=blocked).passed

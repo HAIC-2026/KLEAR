@@ -82,6 +82,24 @@ function reveal(message) {
   else message.scrollIntoView({block: 'start'});
 }
 
+// Each district has its own address, like /district/house-22, so a link, Back, Forward and refresh all keep it.
+const BASE_TITLE = document.title;
+const SEATS = {house: 51, senate: 25};
+function districtPath(geo) { const [chamber, id] = geo.split(':'); return `/district/${chamber}-${Number(id)}`; }
+function districtName(geo) { const [chamber, id] = geo.split(':'); return `${chamber === 'house' ? 'House' : 'Senate'} District ${Number(id)}`; }
+// Change the address bar, adding a history entry unless replacing. A page the browser will not let change its
+// address, such as one opened from a file, keeps working without it.
+function setAddress(path, replace) {
+  try {
+    if (replace) history.replaceState(null, '', path); else history.pushState(null, '', path);
+  } catch { /* history unavailable */ }
+}
+// The district the address names, or null for any other page or a district that does not exist.
+function routeGeo() {
+  const m = location.pathname.match(/^\/district\/(house|senate)-(\d{1,2})$/);
+  return m && +m[2] >= 1 && +m[2] <= SEATS[m[1]] ? `${m[1]}:${m[2].padStart(3, '0')}` : null;
+}
+
 function setLookup(open) {
   $('lookup').hidden = !open;
   $('change').setAttribute('aria-expanded', String(open));
@@ -106,13 +124,21 @@ function setBusy(on) {
   }
 }
 
-// Set the district the chat asks about, or queue the switch while an answer loads.
-function choose(geo, name, quiet) {
+function switchLine(name) {
+  const line = node('p', '', 'switch');
+  line.append(node('span', `Now asking about ${name}`));
+  return line;
+}
+
+// Set the district the chat asks about, or queue the switch while an answer loads. A switch adds the district's
+// address to the browser history, unless it came from there (push false): Back, Forward or an opened link.
+function choose(geo, name, quiet, push = true) {
   setLookup(false);
   $('place').value = '';
   if (busy) {
-    queued = geo === district ? null : {geo, name};
+    queued = geo === district ? null : {geo, name, push};
     $('chat-status').textContent = queued ? `Switching to ${name} after this answer.` : '';
+    if (quiet) return;
     showChat();
     $('question').focus({preventScroll: true});
     return;
@@ -122,9 +148,7 @@ function choose(geo, name, quiet) {
     const log = $('log'), last = log.lastElementChild;
     if (last && last.classList.contains('switch')) last.remove();
     if (asked && geo !== asked) {
-      const line = node('p', '', 'switch');
-      line.append(node('span', `Now asking about ${name}`));
-      log.append(line);
+      log.append(switchLine(name));
       if (!quiet) $('messages').scrollTop = $('messages').scrollHeight;
     }
     district = geo;
@@ -132,6 +156,8 @@ function choose(geo, name, quiet) {
     $('district-title').textContent = name;
     $('welcome-text').textContent = `Ask about ${name}.`;
     $('change').textContent = 'Change district';
+    document.title = `${name} – KLEAR`;
+    if (push) setAddress(districtPath(geo));
     document.dispatchEvent(new CustomEvent('klear:district', {detail: {geo, name}}));
     loadProfile(geo, name);
   }
@@ -141,6 +167,37 @@ function choose(geo, name, quiet) {
   showChat();
   $('question').focus({preventScroll: true});
 }
+
+// Back to the page with no district: the starter questions return in place of the profile. The conversation stays.
+function clearDistrict() {
+  queued = null;
+  district = null;
+  profileSeq++;
+  setLookup(false);
+  delete $('chat').dataset.chamber;
+  $('district-title').textContent = 'No district chosen yet';
+  $('welcome-text').textContent = 'Ask about this district.';
+  $('chat-status').textContent = '';
+  $('profile').hidden = true;
+  $('profile').replaceChildren();
+  $('profile-live').textContent = '';
+  setSheet(null);
+  if ($('starter').hidden) {
+    for (const b of $('examples').children) for (const part of b.children) part.hidden = !part.hidden;
+    $('starter').append($('examples'));
+    $('starter').hidden = false;
+    $('suggest').hidden = true;
+  }
+  document.title = BASE_TITLE;
+}
+
+window.addEventListener('popstate', () => {
+  const geo = routeGeo();
+  // Back or Forward within the same district, such as to a section link, changes nothing.
+  if (geo === (queued ? queued.geo : district)) return;
+  if (geo) choose(geo, districtName(geo), true, false);
+  else clearDistrict();
+});
 
 const share = s => s < 0.01 ? '<1%' : `${Math.round(s * 100)}%`;
 // A place with more districts than this in one chamber shows a summary first, with its full list folded.
@@ -395,10 +452,12 @@ async function loadProfile(geo, name) {
   }
   panel.hidden = false;
   panel.replaceChildren(...profileTitle(name), node('p', 'Loading the district profile…', 'profile-status'));
+  setSheet(null);
   try {
     const data = await api('/api/profile?district=' + encodeURIComponent(geo));
     if (seq !== profileSeq) return;
     panel.replaceChildren(...renderProfile(data));
+    setSheet(data);
     live.textContent = `Profile for ${data.district} loaded.`;
   } catch (err) {
     if (seq !== profileSeq) return;
@@ -469,26 +528,107 @@ function programList(matched, others, othersTitle) {
   return out;
 }
 
+// The district's matched programs, or null when the profile has none in the expected shape.
+function programsOf(p) {
+  const pr = p.programs;
+  return pr && Array.isArray(pr.programs) && Array.isArray(pr.others) ? pr : null;
+}
+// Programs on the one-page summary, so it stays one page.
+const SHEET_PROGRAMS = 6;
+
 function profilePrograms(pr) {
   const d = node('details', '', 'profile-section profile-programs');
   d.append(node('summary', pr.title), node('p', pr.intro, 'program-intro'), ...programList(pr.programs, pr.others, pr.others_title), node('p', pr.note, 'program-note'));
-  if (pr.sources.length) d.append(profileSources(pr.sources));
+  if ((pr.sources || []).length) d.append(profileSources(pr.sources));
   return d;
+}
+
+// The largest places in a district and the other chamber's districts it overlaps, with their shares of its residents.
+function placesList(p) {
+  const more = p.places.length - 4;
+  return p.places.slice(0, 4).map(x => `${x.name} (${x.share})`).join(', ') + (more > 0 ? `, and ${more} more places` : '');
+}
+const overlapsList = p => p.overlaps.map(o => `${o.name} (${o.share})`).join(', ');
+
+// Line icons for the share controls, on a 24-unit grid in the text color. Screen readers skip them.
+const ICONS = {
+  print: 'M7 9V3h10v6M7 17H5a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2M7 14h10v7H7z',
+  link: 'M9 7H7a5 5 0 0 0 0 10h2M15 7h2a5 5 0 0 1 0 10h-2M8 12h8',
+  download: 'M12 4v11M7 10l5 5 5-5M5 20h14',
+  check: 'M5 12.5l4.5 4.5L19 7.5',
+};
+function icon(name) {
+  const ns = 'http://www.w3.org/2000/svg', svg = document.createElementNS(ns, 'svg'), path = document.createElementNS(ns, 'path');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('aria-hidden', 'true');
+  svg.setAttribute('focusable', 'false');
+  svg.setAttribute('class', 'icon');
+  path.setAttribute('d', ICONS[name]);
+  svg.append(path);
+  return svg;
+}
+
+// Copy a link to the district. Without the clipboard API, as on a page served over plain HTTP, copy through a
+// selection, and failing that show the address to copy by hand.
+async function copyLink(url, status) {
+  let copied = false;
+  try {
+    await navigator.clipboard.writeText(url);
+    copied = true;
+  } catch {
+    // Fixed and transparent, so selecting it neither scrolls the page nor shows.
+    const back = document.activeElement, box = node('textarea', url, 'copy-buffer');
+    box.readOnly = true;
+    document.body.append(box);
+    box.focus({preventScroll: true});
+    box.setSelectionRange(0, url.length);
+    try { copied = document.execCommand('copy'); } catch { /* not supported */ }
+    box.remove();
+    if (back && back.focus) back.focus({preventScroll: true});
+  }
+  const text = copied ? 'Link copied.' : `Copy this link: ${url}`;
+  status.replaceChildren(...(copied ? [icon('check'), text] : [text]));
+  // Cleared first, so a second copy is announced again.
+  $('profile-live').textContent = '';
+  requestAnimationFrame(() => { $('profile-live').textContent = text; });
+}
+
+// Print, link and download controls, in their own panel near the top of the profile. Printing shows the one-page
+// summary in place of the page.
+function profileActions(p) {
+  const box = node('div', '', 'profile-share'), title = node('p', 'Share this profile', 'profile-share-title');
+  title.id = 'share-title';
+  box.setAttribute('role', 'group');
+  box.setAttribute('aria-labelledby', title.id);
+  const control = (tag, text, name, primary) => {
+    const c = node(tag, '', primary ? 'action primary' : 'action');
+    c.append(icon(name), node('span', text));
+    if (tag === 'button') c.type = 'button';
+    return c;
+  };
+  const print = control('button', 'Print or save as PDF', 'print', true), copy = control('button', 'Copy link', 'link');
+  const csv = control('a', 'Download data (CSV)', 'download');
+  print.onclick = () => window.print();
+  csv.href = '/api/profile.csv?district=' + encodeURIComponent(p.geo);
+  csv.download = '';
+  const actions = node('div', '', 'profile-actions'), status = node('p', '', 'profile-share-status');
+  copy.onclick = () => copyLink(location.origin + districtPath(p.geo), status);
+  actions.append(print, copy, csv);
+  box.append(title, node('p', 'A one-page summary with sources, a link to this district, or every figure as a spreadsheet.', 'profile-share-note'), actions, status);
+  return box;
 }
 
 function renderProfile(p) {
   const out = profileTitle(p.district);
   if (p.where) out.push(node('p', p.where, 'profile-where'));
-  if (p.places.length) {
-    const more = p.places.length - 4;
-    out.push(node('p', 'Includes ' + p.places.slice(0, 4).map(x => `${x.name} (${x.share})`).join(', ') + (more > 0 ? `, and ${more} more places` : ''), 'profile-meta'));
-  }
-  if (p.overlaps.length) out.push(node('p', 'Overlaps ' + p.overlaps.map(o => `${o.name} (${o.share})`).join(', '), 'profile-meta'));
+  if (p.places.length) out.push(node('p', `Includes ${placesList(p)}`, 'profile-meta'));
+  if (p.overlaps.length) out.push(node('p', `Overlaps ${overlapsList(p)}`, 'profile-meta'));
+  out.push(profileActions(p));
   const stats = node('dl', '', 'profile-stats');
   // Each term comes before its value, as a description list needs; the CSS shows the value on top.
   for (const h of p.headline) { const s = node('div', ''); s.append(says('dt', h.label), node('dd', h.value)); stats.append(s); }
   out.push(stats);
-  if (p.programs) out.push(profilePrograms(p.programs));
+  if (programsOf(p)) out.push(profilePrograms(p.programs));
   for (const sec of p.sections) {
     if (!sec.rows.length) continue;
     const d = node('details', '', 'profile-section');
@@ -497,6 +637,216 @@ function renderProfile(p) {
   }
   return out;
 }
+
+// The one-page summary that prints in place of the page: twelve key figures beside the county and the state, programs
+// to explore, and every source with its vintage. Paper cannot follow links, so every address is written out.
+const PRINT_GROUPS = [
+  ['People', ['pop_total', 'pct_65_plus', 'pop_under_18']],
+  ['Income and poverty', ['median_household_income', 'pct_people_poverty', 'pct_children_poverty', 'pct_65_plus_poverty']],
+  ['Housing', ['pct_renter_occupied', 'median_gross_rent', 'pct_rent_burden_35_plus']],
+  ['Health and assistance', ['pct_uninsured', 'pct_hh_snap']],
+];
+const longDate = d => d.toLocaleDateString('en-US', {month: 'long', day: 'numeric', year: 'numeric'});
+
+// A summary that cannot be drawn leaves the page to print as it is, and never stops the profile from showing.
+function setSheet(p) {
+  const sheet = $('print-sheet');
+  let parts = [];
+  try {
+    if (p) parts = sheetParts(p);
+  } catch (err) {
+    console.warn('KLEAR could not lay out the printed summary.', err);
+  }
+  sheet.replaceChildren(...parts);
+  sheet.dataset.chamber = parts.length ? p.geo.split(':')[0] : '';
+  document.body.classList.toggle('has-sheet', parts.length > 0);
+}
+// The print date is the day it is printed, even when the page has been open since an earlier day.
+window.addEventListener('beforeprint', () => {
+  const printed = $('print-sheet').querySelector('.sheet-printed');
+  if (printed) printed.textContent = `Printed ${longDate(new Date())}`;
+});
+
+function sheetParts(p) {
+  // Sources are numbered in the order the figures cite them; each row's Source cell lists every source it uses.
+  const sources = [];
+  const cite = s => {
+    if (!s || !s.name) return 0;
+    const i = sources.findIndex(x => x.name === s.name && x.year === s.year);
+    return i < 0 ? sources.push(s) : i + 1;
+  };
+  const url = text => node('span', text, 'sheet-url');
+  const section = (title, className, ...content) => {
+    const s = node('section', '', `sheet-section ${className}`);
+    s.append(node('h2', title), ...content);
+    return s;
+  };
+  const byId = new Map(p.sections.flatMap(s => s.rows.map(r => [r.id, r])));
+  const groups = PRINT_GROUPS.map(([title, ids]) => [title, ids.map(id => byId.get(id)).filter(Boolean)]).filter(([, rows]) => rows.length);
+  const against = (r, kind) => (r.against || []).find(a => String(a.geo || '').startsWith(`${kind}:`));
+  const placeOf = kind => (groups.flatMap(([, rows]) => rows).map(r => against(r, kind)).find(a => a && a.place) || {}).place;
+  // A column pair (estimate, then margin) for the district, then its county and the state when the profile has them.
+  const places = [['home', p.district], ['county', placeOf('county')], ['state', placeOf('state')]].filter(([, name]) => name);
+
+  const table = node('table', '', 'sheet-figures'), headRow = table.createTHead().insertRow(), measure = node('th', 'Measure');
+  measure.scope = 'col';
+  headRow.append(measure);
+  for (const [kind, name] of places) {
+    const th = node('th', name, `place ${kind}`);
+    th.colSpan = 2;
+    th.scope = 'colgroup';
+    headRow.append(th);
+  }
+  const sourceHead = node('th', 'Source', 'src');
+  sourceHead.scope = 'col';
+  headRow.append(sourceHead);
+  let unreliable = false, ranged = false;
+  for (const [title, rows] of groups) {
+    const body = table.createTBody(), group = node('th', title, 'sheet-group');
+    group.colSpan = 2 + places.length * 2;
+    group.scope = 'colgroup';
+    body.insertRow().append(group);
+    for (const r of rows) {
+      const tr = body.insertRow(), label = says('th', r.label), cited = [];
+      label.scope = 'row';
+      tr.append(label);
+      for (const [kind] of places) {
+        const f = kind === 'home' ? r : against(r, kind);
+        if (!f) {
+          const none = node('td', 'Not available', `sheet-none ${kind}`);
+          none.colSpan = 2;
+          tr.append(none);
+          continue;
+        }
+        const value = node('td', f.value, `num ${kind}`);
+        if (kind === 'home' && r.caution) { value.append('†'); unreliable = true; }
+        ranged ||= String(f.spread || '').startsWith('range');
+        cited.push(cite(f.source));
+        tr.append(value, node('td', f.spread || '', `moe ${kind}`));
+      }
+      tr.append(node('td', [...new Set(cited.filter(Boolean))].sort((a, b) => a - b).join(', '), 'src'));
+    }
+  }
+  const margins = ['± is the 90% margin of error. Where two figures’ margins overlap, the difference may not be real.'];
+  if (ranged) margins.push('A range gives the low and high bounds of an estimate.');
+  if (unreliable) margins.push('† The margin of error is large; use with care.');
+
+  // Who the district is on the left; where to find it online, and how current it is, on the right.
+  const head = node('header', '', 'sheet-head'), who = node('div', ''), live = node('div', '', 'sheet-live');
+  who.append(node('p', 'KLEAR district summary', 'sheet-kicker'), node('h1', p.district));
+  if (p.where) who.append(node('p', p.where, 'sheet-where'));
+  live.append(node('p', 'Full profile, sources and questions online', ''), url(location.origin + districtPath(p.geo)));
+  const dates = node('p', p.built ? `Data built ${p.built} · ` : '', 'sheet-dates');
+  dates.append(node('span', `Printed ${longDate(new Date())}`, 'sheet-printed'));
+  live.append(dates);
+  head.append(who, live);
+
+  const parts = [head];
+  const about = node('div', '', 'sheet-about'), line = (label, text) => { const l = node('p', ''); l.append(node('b', label), ` ${text}`); return l; };
+  if (p.places.length) about.append(line('Includes', placesList(p)));
+  if (p.overlaps.length) about.append(line('Overlaps', overlapsList(p)));
+  if (about.lastChild) {
+    const n = cite(p.shares_source);
+    about.lastChild.append(`. Shares of 2020 Census residents${n ? ` (source ${n})` : ''}.`);
+    parts.push(about);
+  }
+  parts.push(section('Key figures', 'sheet-key', table, node('p', margins.join(' '), 'sheet-note')));
+
+  // The programs whose need figures here sit above the state's, or the statewide list when none does.
+  const matched = programsOf(p), shown = matched ? (matched.programs.length ? matched.programs : matched.others) : [];
+  const programs = shown.filter(g => g && g.name).slice(0, SHEET_PROGRAMS);
+  if (programs.length) {
+    const list = node('ul', '', 'sheet-list');
+    for (const g of programs) {
+      const li = document.createElement('li');
+      li.append(node('b', g.name));
+      if (g.description) li.append(': ', says('span', g.description));
+      if (g.agency) li.append(` (${g.agency})`);
+      if (g.url) li.append(' ', url(g.url));
+      list.append(li);
+    }
+    const why = matched.programs.length ? 'Listed because this district’s need figures sit above the state’s, highest first.' : 'None of this district’s need figures sit clearly above the state’s, so these programs serve residents statewide.';
+    const more = shown.length > programs.length ? ' The live profile lists every program.' : '';
+    parts.push(section('Programs to explore', 'sheet-programs', list, node('p', `${why}${more} ${matched.note || ''}`.trim(), 'sheet-note')));
+  }
+  const list = node('ol', '', 'sheet-list');
+  for (const s of sources) {
+    const li = node('li', [s.name, s.year].filter(Boolean).join(', '));
+    if (s.url) li.append(' ', url(s.url));
+    list.append(li);
+  }
+  if (sources.length) parts.push(section('Sources', 'sheet-sources', list));
+  // A paragraph, not a footer element, so the site footer's dark band never reaches the page.
+  parts.push(node('p', 'Public, aggregated data from KLEAR, made for HAIC 2026. Not an official State of Hawaiʻi product.', 'sheet-foot'));
+  return parts;
+}
+
+function sentLine(question, chamber) {
+  const sent = node('p', '', 'user');
+  sent.append(hidden('You asked: '), question);
+  sent.dataset.chamber = chamber;
+  return sent;
+}
+
+// This tab's questions and answers, kept in session storage so a refresh does not lose them. Storage can be blocked
+// or full; the chat works the same without it. Errors are not kept: some browsers fail a request as the page reloads,
+// which is not an error worth showing again. The newest question without an answer is kept, to wait in the box.
+const SAVED_CHAT = 'klear-chat';
+const exchanges = [];
+function saveChat() {
+  const kept = exchanges.filter((x, i) => x.answer || i === exchanges.length - 1);
+  // When storage is full, keep the newest exchanges that fit.
+  for (let from = 0; from <= kept.length; from++) {
+    try { sessionStorage.setItem(SAVED_CHAT, JSON.stringify(kept.slice(from))); return; } catch { /* full or blocked */ }
+  }
+}
+
+function restoreChat() {
+  let saved = null;
+  try { saved = JSON.parse(sessionStorage.getItem(SAVED_CHAT)); } catch { /* blocked or unreadable */ }
+  if (!Array.isArray(saved)) return;
+  let last = null, sent = null;
+  for (const x of saved) {
+    if (!x || typeof x.geo !== 'string' || typeof x.name !== 'string' || typeof x.question !== 'string') continue;
+    // A question whose answer was still loading, or failed, waits in the box to ask again.
+    if (!x.answer) {
+      if (!$('question').value.trim()) { $('question').value = x.question; fitQuestion(); }
+      continue;
+    }
+    const chamber = x.geo.split(':')[0];
+    let reply;
+    try { reply = renderAnswer(x.answer, x.name); } catch { continue; }
+    reply.dataset.chamber = chamber;
+    if (last && x.geo !== last) $('log').append(switchLine(x.name));
+    sent = sentLine(x.question, chamber);
+    $('log').append(sent, reply);
+    exchanges.push(x);
+    last = x.geo;
+  }
+  saveChat();
+  if (!last) return;
+  asked = last;
+  $('chat-card').classList.add('started');
+  if (logScrolls()) $('messages').scrollTop = sent.offsetTop - 16;
+}
+
+// Restore the conversation and open the district the address names. This waits for the page's other scripts, so the
+// map hears which district opened too.
+document.addEventListener('DOMContentLoaded', () => {
+  restoreChat();
+  const geo = routeGeo();
+  if (geo) {
+    // An address like /district/house-07 is shown the usual way, /district/house-7.
+    if (location.pathname !== districtPath(geo)) setAddress(districtPath(geo) + location.search + location.hash, true);
+    choose(geo, districtName(geo), true, false);
+    // A link opened fresh moves to the district; a reload, Back or Forward keeps the reader's place.
+    const nav = performance.getEntriesByType ? performance.getEntriesByType('navigation')[0] : null;
+    if ((!nav || nav.type === 'navigate') && !location.hash) $('chat').scrollIntoView({behavior: 'instant'});
+  } else if (location.pathname.startsWith('/district/')) {
+    setAddress('/', true);
+    $('find-status').textContent = 'That link names a district that does not exist. Hawaiʻi has 51 House and 25 Senate districts.';
+  }
+});
 
 $('question-form').onsubmit = async e => {
   e.preventDefault();
@@ -512,12 +862,14 @@ $('question-form').onsubmit = async e => {
   const name = $('district-title').textContent;
   // The conversation is not a live region, since answers are long. A short status line says what is happening,
   // and the new answer's heading takes focus.
-  const sent = node('p', '', 'user'), pending = node('p', 'Checking district data and sources…', 'pending');
-  sent.append(hidden('You asked: '), question);
   // Each exchange keeps the color of the chamber it was about, even after the chat switches district.
   const chamber = district.split(':')[0];
-  sent.dataset.chamber = pending.dataset.chamber = chamber;
+  const sent = sentLine(question, chamber), pending = node('p', 'Checking district data and sources…', 'pending');
+  pending.dataset.chamber = chamber;
   $('log').append(sent, pending);
+  const saved = {geo: district, name, question};
+  exchanges.push(saved);
+  saveChat();
   reveal(sent);
   $('question').value = '';
   fitQuestion();
@@ -525,13 +877,14 @@ $('question-form').onsubmit = async e => {
   $('chat-live').textContent = `Checking district data and sources for ${name}…`;
   let follow = true, hold = null, reply = null, done, reader = null;
   try {
-    const answer = await api('/api/chat', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({question, district})});
+    const answer = await api('/api/chat', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({question, district: saved.geo})});
     reader = readerPlace();
     hold = holdPage(pending);
     follow = onScreen(pending);
     reply = renderAnswer(answer, name);
     reply.dataset.chamber = chamber;
     pending.replaceWith(reply);
+    saved.answer = answer;
     done = `Answer ready for ${name}.`;
   } catch (err) {
     reader = reader || readerPlace();
@@ -542,9 +895,10 @@ $('question-form').onsubmit = async e => {
     if (!$('question').value.trim()) { $('question').value = question; fitQuestion(); $('chat-status').textContent = 'Your question is ready to retry.'; }
   } finally {
     setBusy(false);
+    saveChat();
     const {elsewhere, inChat} = reader || readerPlace();
     $('chat-live').textContent = done;
-    if (queued) { const next = queued; queued = null; choose(next.geo, next.name, true); }
+    if (queued) { const next = queued; queued = null; choose(next.geo, next.name, true, next.push); }
     if (hold) hold();
     if (follow && (logScrolls() || (!elsewhere && !(hold && hold.field)))) reveal(sent);
     // A reader still in the chat moves to the new answer; after an error, back to the question to retry.

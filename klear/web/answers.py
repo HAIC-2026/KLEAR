@@ -6,7 +6,7 @@ import re
 from klear.agent.config import PROFILE_INDICATORS
 from klear.agent.tools import Session
 from klear.eval.contract import geo_display
-from klear.web.display import build_month, programs, year_text
+from klear.web.display import build_month, matched_programs, year_text
 
 PERSONAL = re.compile(
     r"\b(?:a specific person|an individual|named resident|home address|phone number|personal information|who lives at|identify a resident|my neighbor|specific resident)\b",
@@ -141,7 +141,7 @@ def program_answer(con, district, shown: str) -> dict:
     raw = json.loads(session.run("district_programs", {"district": f"{district[0]}:{district[1]}"}))
     if "error" in raw:
         raise ValueError("Could not match programs to the district")
-    laid = programs(con, raw, session)
+    laid = matched_programs(con, raw, session)
     names = [p["name"] for p in laid["programs"]]
     if names:
         listed = ", ".join(names[:-1]) + (" and " if len(names) > 1 else "") + names[-1]

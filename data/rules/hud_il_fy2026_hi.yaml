@@ -1,9 +1,142 @@
 rule_id: hud_il_fy2026_hi
 program: HUD income limits
-status: needs_manual
+status: confirmed
 effective: '2026-04-01'
 url: https://www.huduser.gov/portal/datasets/il/il26/Section8-FY26.xlsx
-values: {}
-verified_by: 'not yet read: Section8-FY26.xlsx is a manual download (huduser.gov blocks scripts)'
-retrieved: '2026-10-30'
-note: save Section8-FY26.xlsx to data/manual/, then fill values for the four Hawaiʻi counties (median2026, eli_1..8, l50_1..8, l80_1..8) and set status confirmed
+values:
+  Honolulu:
+    median2026: 133400
+    eli_1: 32350
+    eli_2: 37000
+    eli_3: 41600
+    eli_4: 46200
+    eli_5: 49900
+    eli_6: 53600
+    eli_7: 57540
+    eli_8: 64070
+    l50_1: 53900
+    l50_2: 61600
+    l50_3: 69300
+    l50_4: 77000
+    l50_5: 83200
+    l50_6: 89350
+    l50_7: 95500
+    l50_8: 101650
+    l80_1: 86250
+    l80_2: 98600
+    l80_3: 110900
+    l80_4: 123200
+    l80_5: 133100
+    l80_6: 142950
+    l80_7: 152800
+    l80_8: 162650
+  Hawaii:
+    median2026: 98300
+    eli_1: 25450
+    eli_2: 29050
+    eli_3: 32700
+    eli_4: 37950
+    eli_5: 44480
+    eli_6: 51010
+    eli_7: 57540
+    eli_8: 64070
+    l50_1: 42350
+    l50_2: 48400
+    l50_3: 54450
+    l50_4: 60500
+    l50_5: 65350
+    l50_6: 70200
+    l50_7: 75050
+    l50_8: 79900
+    l80_1: 67800
+    l80_2: 77450
+    l80_3: 87150
+    l80_4: 96800
+    l80_5: 104550
+    l80_6: 112300
+    l80_7: 120050
+    l80_8: 127800
+  Maui:
+    median2026: 121400
+    eli_1: 31100
+    eli_2: 35550
+    eli_3: 40000
+    eli_4: 44400
+    eli_5: 48000
+    eli_6: 51550
+    eli_7: 57540
+    eli_8: 64070
+    l50_1: 51800
+    l50_2: 59200
+    l50_3: 66600
+    l50_4: 74000
+    l50_5: 79950
+    l50_6: 85850
+    l50_7: 91800
+    l50_8: 97700
+    l80_1: 82900
+    l80_2: 94800
+    l80_3: 106600
+    l80_4: 118450
+    l80_5: 127950
+    l80_6: 137400
+    l80_7: 146900
+    l80_8: 156400
+  Kauai:
+    median2026: 120100
+    eli_1: 28550
+    eli_2: 32600
+    eli_3: 36700
+    eli_4: 40750
+    eli_5: 44480
+    eli_6: 51010
+    eli_7: 57540
+    eli_8: 64070
+    l50_1: 47600
+    l50_2: 54400
+    l50_3: 61200
+    l50_4: 67950
+    l50_5: 73400
+    l50_6: 78850
+    l50_7: 84300
+    l50_8: 89700
+    l80_1: 76100
+    l80_2: 87000
+    l80_3: 97850
+    l80_4: 108700
+    l80_5: 117400
+    l80_6: 126100
+    l80_7: 134800
+    l80_8: 143500
+  Kalawao:
+    median2026: 121400
+    eli_1: 25600
+    eli_2: 29250
+    eli_3: 32900
+    eli_4: 37950
+    eli_5: 44480
+    eli_6: 51010
+    eli_7: 57540
+    eli_8: 64070
+    l50_1: 42700
+    l50_2: 48800
+    l50_3: 54900
+    l50_4: 60950
+    l50_5: 65850
+    l50_6: 70750
+    l50_7: 75600
+    l50_8: 80500
+    l80_1: 68250
+    l80_2: 78000
+    l80_3: 87750
+    l80_4: 97500
+    l80_5: 105300
+    l80_6: 113100
+    l80_7: 120900
+    l80_8: 128700
+verified_by: read from Section8-FY26.xlsx, saved by hand from huduser.gov (which blocks scripts), Hawaii rows for all five
+  counties
+retrieved: '2026-11-09'
+note: The build compares every value here with the Hawaii rows of data/manual/Section8-FY26.xlsx. median2026 is the area median
+  family income; eli, l50 and l80 are the extremely low (30%), very low (50%) and low (80%) income limits by household size
+  1 to 8.

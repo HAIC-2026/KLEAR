@@ -5,6 +5,16 @@ from klear.etl.chas import CHAS_INDICATORS
 from klear.validation import CheckResult
 
 TOLERANCE = 1e-6
+# HUD CHAS query tool, Hawaiʻi state summary for 2018-2022, "Income by Cost Burden" tables:
+# households at or below 80% HAMFI, summed over the three income bands.
+HUD_STATE = {
+    "chas_renter_lowinc_burdened": 29_435 + 23_980 + 23_435,
+    "chas_owner_lowinc_burdened": 17_665 + 13_685 + 21_320,
+    "chas_renter_lowinc": 40_855 + 29_950 + 41_130,
+    "chas_owner_lowinc": 25_370 + 25_115 + 47_870,
+}
+# tract values are rounded, so their sum differs slightly from the state estimate
+STATE_TOLERANCE = 0.005
 
 
 def check_chas(facts: pd.DataFrame) -> CheckResult:
@@ -37,6 +47,15 @@ def check_chas(facts: pd.DataFrame) -> CheckResult:
                         "unplaced": total,
                     }
                 )
+    hawaii = facts.attrs.get("hawaii")
+    if hawaii is None:
+        details.append({"check": "state", "problem": "no Hawaiʻi tract totals on the facts"})
+    else:
+        for ind, want in HUD_STATE.items():
+            got = float(hawaii.get(ind, 0.0))
+            notes.append(f"{ind}: Hawaiʻi tracts sum to {got:,.0f}, HUD state summary {want:,}")
+            if abs(got - want) > STATE_TOLERANCE * want:
+                details.append({"check": "state", "indicator_id": ind, "tracts": got, "hud_state": want})
     live = facts[facts.value.notna() & (facts.tier == "A")]
     bad = live[~((live.value_low <= live.value) & (live.value <= live.value_high))]
     for r in bad.itertuples():
