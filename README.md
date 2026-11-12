@@ -251,13 +251,33 @@ Website spending has its own cap of 5 dollars per HST day, kept in ~/.config/kle
 | Option | Purpose |
 | --- | --- |
 | `--open` | Open the site in your default browser after binding the server. |
-| `--basic-only` | Use free lookups only, even if an Anthropic key is present. |
+| `--basic-only` | Make no model calls, even if an Anthropic key is present: use free lookups and any prepared starter answers. |
 | `--port 8001` | Choose a different port; the default is 8000. |
 | `--host 127.0.0.1` | Choose the bind address; the default is local access only. |
 | `--store PATH` | Use a different DuckDB store. |
 | `--daily-cap 5` | Set the website's model budget in dollars per HST day. |
 | `--model MODEL` | Choose the model used by the assistant. |
 | `--no-address-lookup` | Turn off street address search, so the server never contacts the Census geocoder. |
+
+### Prepared answers to the starter questions
+
+The five starter questions ask the same thing for every district, so their answers can be prepared once after each
+data build and shown at once instead of after several seconds. With ANTHROPIC_API_KEY set, run:
+
+    uv run python -m klear.web.prewarm
+
+It asks the assistant each starter question for all 76 districts (380 answers), four at a time (--jobs), after showing
+the most the run can cost and asking before it spends. The spending counts toward the 60 dollar eval cap. At Haiku 5.5
+prices a run costs about 1.50 dollars and takes about 15 minutes. It writes data/build/answer_cache.json and
+data/build/answer_cache_sample.md, a random sample of 12 answers with every question at least once. Read the sample
+before the demo. If a run stops partway, run it again: it keeps the answers already prepared and asks only the rest.
+
+The server answers a starter question from the file when it holds an answer for that question, district, store build
+and model, and says under the answer that it was prepared ahead from the data update of that date. Every other question
+goes to the assistant as before, and no typed question is stored. A rebuilt store has a new build time, so its old
+answers are no longer used and the next prewarm run drops them. Prepared answers make no model call, so they are served
+with --basic-only too. The startup lines say how many prepared answers match the store. To host the site elsewhere,
+copy answer_cache.json along with klear.duckdb.
 
 The landing page uses the project-provided `background1.png` photo, copied
 as a smaller metadata-free `klear/web/static/background1.jpg`. It loads no
@@ -327,6 +347,7 @@ than 45 seconds is stopped. A waiting question can be cancelled, and errors that
 
 Choosing a district also shows its district profile next to the chat. The profile is read
 straight from the store with no model call, through `GET /api/profile?district=house:022`.
+A district chosen while an answer is still loading shows its profile at once, and the chat switches to it after that answer.
 It names the district's counties, islands, Census places and the overlapping districts
 in the other chamber, shows four headline figures, then 37 figures in seven sections:
 People, Income, Housing, Health and access, Programs in use, Modeled needs and Help sites.

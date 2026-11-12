@@ -327,6 +327,7 @@ article .answer-programs summary+.program{margin-top:10px}
 .chart-data caption{text-align:left}
 .answer .caveat{font-size:var(--fs-sm);color:var(--muted);margin:0 0 10px}
 .source-line{font-size:var(--fs-xs);color:var(--muted);border-top:1px solid var(--line);padding-top:10px;margin:0}
+.answer .prepared{font-size:var(--fs-xs);color:var(--muted);margin:10px 0 0}
 .answer details ul{font-size:var(--fs-sm);padding-left:18px;margin:8px 0 0}
 .answer{container-type:inline-size}
 @container (max-width:440px){.chart-bars{grid-template-columns:minmax(96px,1fr) fit-content(13em);row-gap:2px}.bar-place{grid-column:1/-1;margin-top:6px}.bar-spread{display:block}.chart.wide .bar-track,.chart.wide .bar-value{grid-column:1/-1}.chart.wide .bar-value{text-align:left}.chart.wide .bar-spread{display:inline-block}}
