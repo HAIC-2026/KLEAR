@@ -491,7 +491,20 @@ function profileRow(r) {
     for (const a of r.against) { const li = document.createElement('li'); li.append(node('b', a.lead), ` ${a.rest}`); list.append(li); }
     row.append(list);
   }
+  if (r.beside) row.append(besideLine(r.beside));
+  if (r.caveat) row.append(node('p', r.caveat, 'profile-caveat'));
   return row;
+}
+
+// A second figure shown next to a row for comparison, or a sentence on how to read the row.
+function besideLine(b) {
+  const p = node('p', '', 'profile-beside');
+  if (!b.value) { p.append(b.text); return p; }
+  p.append('For comparison, ', node('b', b.value));
+  if (b.spread) p.append(' ', node('span', b.spread.startsWith('range') ? `(${b.spread})` : b.spread, 'moe'));
+  p.append(` ${b.text}`);
+  if (b.note) { const sup = node('sup', String(b.note)); sup.setAttribute('aria-label', `source ${b.note}`); p.append(sup); }
+  return p;
 }
 
 // The section's citations, numbered when its figures come from more than one source.
@@ -502,6 +515,47 @@ function profileSources(sources) {
   for (const s of sources) { const li = document.createElement('li'); li.append(link(s.name, s.url), `, ${s.year}`); list.append(li); }
   box.append(list);
   return box;
+}
+
+// One program: its name linked to the page to apply or learn more, the agency, why it is listed here, and how to call.
+function programRow(p, full) {
+  const row = node('div', '', 'program');
+  const name = node('p', '', 'program-name');
+  name.append(link(p.name, p.url));
+  row.append(name, node('p', p.agency, 'program-agency'));
+  if (full && p.description) row.append(node('p', p.description, 'program-about'));
+  if (p.reasons && p.reasons.length) {
+    const list = node('ul', '', 'program-reasons');
+    for (const r of p.reasons) list.append(node('li', r));
+    row.append(list);
+  }
+  const contact = node('p', '', 'program-contact'), tel = node('a', p.phone);
+  tel.href = 'tel:+' + (p.phone.startsWith('1-') ? '' : '1') + p.phone.replace(/\D/g, '');
+  contact.append('Call ', tel, p.phone_label ? `, ${p.phone_label}.` : '.', ` Details last verified ${p.verified}.`);
+  row.append(contact);
+  return row;
+}
+
+// Matched programs first, then the rest of the catalog under its own heading.
+function programList(matched, others, othersTitle) {
+  const out = matched.map(p => programRow(p, true));
+  if (others.length) out.push(node('p', othersTitle, 'program-subhead'), ...others.map(p => programRow(p, false)));
+  return out;
+}
+
+// The district's matched programs, or null when the profile has none in the expected shape.
+function programsOf(p) {
+  const pr = p.programs;
+  return pr && Array.isArray(pr.programs) && Array.isArray(pr.others) ? pr : null;
+}
+// Programs on the one-page summary, so it stays one page.
+const SHEET_PROGRAMS = 6;
+
+function profilePrograms(pr) {
+  const d = node('details', '', 'profile-section profile-programs');
+  d.append(node('summary', pr.title), node('p', pr.intro, 'program-intro'), ...programList(pr.programs, pr.others, pr.others_title), node('p', pr.note, 'program-note'));
+  if ((pr.sources || []).length) d.append(profileSources(pr.sources));
+  return d;
 }
 
 // The largest places in a district and the other chamber's districts it overlaps, with their shares of its residents.
@@ -589,10 +643,13 @@ function renderProfile(p) {
   // Each term comes before its value, as a description list needs; the CSS shows the value on top.
   for (const h of p.headline) { const s = node('div', ''); s.append(says('dt', h.label), node('dd', h.value)); stats.append(s); }
   out.push(stats);
+  if (programsOf(p)) out.push(profilePrograms(p.programs));
   for (const sec of p.sections) {
     if (!sec.rows.length) continue;
     const d = node('details', '', 'profile-section');
-    d.append(node('summary', sec.title), ...sec.rows.map(profileRow), profileSources(sec.sources));
+    d.append(node('summary', sec.title));
+    if (sec.caveat) d.append(node('p', sec.caveat, 'profile-caveat lead'));
+    d.append(...sec.rows.map(profileRow), profileSources(sec.sources));
     out.push(d);
   }
   return out;
@@ -712,18 +769,22 @@ function sheetParts(p) {
   }
   parts.push(section('Key figures', 'sheet-key', table, node('p', margins.join(' '), 'sheet-note')));
 
-  const programs = Array.isArray(p.programs) ? p.programs.filter(g => g && g.name) : [];
+  // The programs whose need figures here sit above the state's, or the statewide list when none does.
+  const matched = programsOf(p), shown = matched ? (matched.programs.length ? matched.programs : matched.others) : [];
+  const programs = shown.filter(g => g && g.name).slice(0, SHEET_PROGRAMS);
   if (programs.length) {
     const list = node('ul', '', 'sheet-list');
     for (const g of programs) {
       const li = document.createElement('li');
       li.append(node('b', g.name));
-      if (g.covers) li.append(': ', says('span', g.covers));
+      if (g.description) li.append(': ', says('span', g.description));
       if (g.agency) li.append(` (${g.agency})`);
       if (g.url) li.append(' ', url(g.url));
       list.append(li);
     }
-    parts.push(section('Programs to explore', 'sheet-programs', list, node('p', 'The same programs are listed for every district. District figures cannot establish any person’s eligibility; check each program’s official guidance.', 'sheet-note')));
+    const why = matched.programs.length ? 'Listed because this district’s need figures sit above the state’s, highest first.' : 'None of this district’s need figures sit clearly above the state’s, so these programs serve residents statewide.';
+    const more = shown.length > programs.length ? ' The live profile lists every program.' : '';
+    parts.push(section('Programs to explore', 'sheet-programs', list, node('p', `${why}${more} ${matched.note || ''}`.trim(), 'sheet-note')));
   }
   const list = node('ol', '', 'sheet-list');
   for (const s of sources) {
@@ -1088,16 +1149,6 @@ function factCard(f) {
   return card;
 }
 
-function programList(programs) {
-  const details = document.createElement('details');
-  details.open = true;
-  details.append(node('summary', 'Official program guidance'));
-  const list = document.createElement('ul');
-  for (const p of programs) { const li = document.createElement('li'); li.append(link(p.name, p.url)); list.append(li); }
-  details.append(list);
-  return details;
-}
-
 function basicAnswer(answer, name) {
   const article = document.createElement('article');
   article.append(heading(answer, name));
@@ -1108,7 +1159,7 @@ function basicAnswer(answer, name) {
     details.append(node('summary', 'Figures & sources'), ...answer.facts.map(factCard));
     article.append(details);
   }
-  if (answer.programs && answer.programs.length) article.append(programList(answer.programs));
+  if (answer.programs && answer.programs.length) article.append(answerPrograms(answer.programs, answer.program_sources));
   return article;
 }
 
@@ -1243,7 +1294,7 @@ function renderAnswer(answer, name) {
     details.append(list);
     article.append(details);
   }
-  if (answer.programs && answer.programs.length) article.append(programList(answer.programs));
+  if (answer.programs && answer.programs.length) article.append(answerPrograms(answer.programs, answer.program_sources));
   return article;
 }
 
@@ -1273,3 +1324,13 @@ async function loadAbout() {
   if (data.crosscheck) { $('crosscheck').textContent = data.crosscheck; $('crosscheck').hidden = false; }
 }
 loadAbout();
+// Programs named in an answer; a district lookup marks which ones its figures point to.
+function answerPrograms(programs, sources) {
+  const details = node('details', '', 'answer-programs');
+  details.open = true;
+  const matched = programs.filter(p => p.match !== false), others = programs.filter(p => p.match === false);
+  const ranked = programs.some(p => 'match' in p);
+  details.append(node('summary', ranked ? 'Programs to explore here' : 'Program pages'), ...programList(matched, others, matched.length ? 'Also available statewide' : 'Available statewide'));
+  if (sources && sources.length) details.append(profileSources(sources));
+  return details;
+}

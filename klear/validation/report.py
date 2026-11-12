@@ -29,6 +29,8 @@ TITLES = {
     "areas": "Islands, neighborhoods and county divisions for district search",
     "rules": "Program rules against their official sources",
     "hud_income_limits": "HUD FY2026 income limits",
+    "district_sums": "Detailed-table counts: districts and counties against the state",
+    "admin_counts": "Income-eligible estimates against program counts",
 }
 PROVES = {
     "source_fidelity": (
@@ -183,6 +185,20 @@ PROVES = {
         "The HUD FY2026 income limits for the four Hawaiʻi counties are compared with Section8-FY26.xlsx, a "
         "file huduser.gov serves only to a browser."
     ),
+    "district_sums": (
+        "Every count KLEAR takes from the Census API detailed tables, including the income-eligible estimates "
+        "summed from published income bins, is summed over the 51 House districts, the 25 Senate districts and "
+        "the 5 counties. A pass means every district and county has a value and each sum is within the 90% "
+        "margin of error of the state estimate, so districts neither lose nor double count people. The sums "
+        "match exactly when the Census Bureau tabulates every geography from the same survey records."
+    ),
+    "admin_counts": (
+        "The state totals of the income-eligible estimates are set beside official program counts: USDA SNAP "
+        "households, Med-QUEST (Medicaid and CHIP) enrollment reported to CMS, and the IRS EITC participation "
+        "rate for Hawaiʻi. The measures count different things, so this is a check of scale, reported and not "
+        "gated. Each figure is listed with where it was read. A figure that could not be fetched from an "
+        "official source is named as not compared."
+    ),
 }
 LABELS = {
     "total_pop": "Total population",
@@ -207,6 +223,15 @@ CAVEATS = [
         "The margin of error for population 65 and over is a root-sum-of-squares approximation over the 12 "
         "age and sex cells of table B01001, following Census Bureau guidance. It is not a published margin "
         "of error, and it ignores correlation between the cells."
+    ),
+    (
+        "Income-eligible estimates sum published ACS income-to-poverty bins and combine their margins of error "
+        "as a root sum of squares, which ignores correlation between the bins and overstates the margin when "
+        "many bins are zero. They meet the income test only: assets, age, immigration status and household "
+        "rules are not measured. Where a program limit falls between published cuts, such as SNAP's 130 "
+        "percent between the cuts at 125 and 150 percent, both cuts are stored and nothing is interpolated. "
+        "The ACS measures income against national poverty thresholds, which sit below Hawaiʻi's poverty "
+        "guidelines, so counts near a program limit may run low."
     ),
     (
         "Not yet checked: per-district 2020 populations against the Reapportionment Commission's published "
@@ -280,6 +305,10 @@ def summary(r: CheckResult) -> str:
         return f"{r.n_compared:,} chamber and indicator totals reconciled, {r.n_mismatch:,} problems"
     if r.name in ("hud_hcv", "chas"):
         return f"{r.n_compared:,} totals reconciled, {r.n_mismatch:,} mismatches"
+    if r.name == "district_sums":
+        return f"{r.n_compared:,} sums compared with the state, {r.n_mismatch:,} outside its margin of error"
+    if r.name == "admin_counts":
+        return f"{r.n_compared:,} program counts compared, {r.n_mismatch:,} not compared"
     if r.name == "places":
         return f"{r.n_compared:,} tract and district values checked against their ranges, {r.n_mismatch:,} problems"
     return f"{r.n_compared:,} compared, {r.n_mismatch:,} mismatches"
@@ -339,6 +368,91 @@ def _apportionment_table(r: CheckResult) -> list[str]:
     return out
 
 
+SUM_PARTS = {"house": "House sum", "senate": "Senate sum", "county": "County sum"}
+
+
+def _sums_table(r: CheckResult) -> list[str]:
+    by: dict[str, dict] = {}
+    for d in r.details:
+        by.setdefault(d["indicator"], {})[d["parts"]] = d
+    parts = [p for p in SUM_PARTS if any(p in v for v in by.values())]
+    out = [
+        "",
+        "| Indicator | State estimate | " + " | ".join(SUM_PARTS[p] for p in parts) + " | Within state MOE |",
+        "| --- | ---: | " + " | ".join("---:" for _ in parts) + " | --- |",
+    ]
+    for ind, rows in by.items():
+        first = next(iter(rows.values()))
+        state = "n/a" if first["state"] is None else f"{first['state']:,.0f}"
+        if first["state_moe"] is not None:
+            state += f" ± {first['state_moe']:,.0f}"
+        sums = ["n/a" if rows[p]["sum"] is None else f"{rows[p]['sum']:,.0f}" for p in parts]
+        ok = all(rows[p]["passed"] for p in parts)
+        out.append(f"| {ind} | {state} | " + " | ".join(sums) + f" | {'yes' if ok else 'NO'} |")
+    return out
+
+
+ADMIN_LABELS = {
+    "hh_snap": "Households that received SNAP in the past 12 months (ACS)",
+    "pop_under_138pct_poverty": "People under 138 percent of poverty (ACS)",
+    "working_below_poverty": "Working families and individuals below poverty (ACS)",
+}
+
+
+def _admin_reading(d: dict) -> str:
+    share = "n/a" if d["ratio"] is None else f"{d['ratio']:.0%}"
+    if d["admin"] == "snap_households":
+        return (
+            f"The ACS count is {share} of the SNAP caseload, although it counts any receipt during the year. SNAP "
+            "counts case units, and one home can hold more than one, while the ACS counts each home once. Surveys "
+            "also miss some receipt, so ACS receipt figures likely run low."
+        )
+    if d["admin"] == "medicaid_chip_enrollment":
+        return (
+            f"The ACS count is {share} of enrollment. Med-QUEST enrolls more people than live under 138 percent of "
+            "poverty: children qualify at higher incomes, some people qualify by age or disability, and from 2020 "
+            "to early 2023 people stayed enrolled without renewals. This compares scale, not a coverage rate."
+        )
+    implied = "n/a" if d["admin_value"] is None else f"{d['admin_value']:,.0f}"
+    returns = "n/a" if d.get("eitc_returns") is None else f"{d['eitc_returns']:,.0f}"
+    return (
+        f"The {returns} EITC returns in the store (tax year 2023) divided by the {d['rate']:.1f} percent "
+        f"participation rate (tax year 2022) suggest about {implied} returns that met the rules. Working families "
+        f"and individuals below poverty are {share} of that, since the credit also reaches incomes above poverty. "
+        "The units differ: tax returns against families and individuals."
+    )
+
+
+def _admin_table(r: CheckResult) -> list[str]:
+    rows = [d for d in r.details if d.get("kind") == "comparison"]
+    sources = [d for d in r.details if d.get("kind") == "source"]
+    out = [
+        "",
+        "| KLEAR state estimate | Value | Program figure | Value | What it shows |",
+        "| --- | ---: | --- | ---: | --- |",
+    ]
+    names = {s["id"]: s["label"] for s in sources}
+    for d in rows:
+        value = "n/a" if d["value"] is None else f"{d['value']:,.0f}"
+        if d.get("moe") is not None:
+            value += f" ± {d['moe']:,.0f}"
+        admin = "n/a" if d["admin_value"] is None else f"{d['admin_value']:,.0f}"
+        label = names.get(d["admin"], d["admin"])
+        if d["admin"] == "eitc_participation_rate":
+            label = f"EITC returns that met the rules, implied by the IRS {label}"
+        out.append(
+            f"| {ADMIN_LABELS.get(d['estimate'], d['estimate'])} | {value} | {label} | {admin} "
+            f"| {_admin_reading(d)} |"
+        )
+    out += ["", "Program figures:", ""]
+    for s in sources:
+        value = f"{s['value']:,}" + (" percent" if s["unit"] == "percent" else "")
+        out.append(
+            f"- {s['label']}: {value}. {s['publisher']}. {s['source']} Read {s['retrieved']} from {s['url']}"
+        )
+    return out
+
+
 def _detail_line(d: dict) -> str:
     return "- " + ", ".join(f"{k} {_num(v)}" for k, v in d.items())
 
@@ -355,6 +469,10 @@ def _section(r: CheckResult) -> list[str]:
         out += ["", "Key numbers:", ""] + [f"- {n}" for n in r.notes]
     if r.name == "apportionment":
         out += _apportionment_table(r)
+    if r.name == "district_sums":
+        out += _sums_table(r)
+    if r.name == "admin_counts":
+        out += _admin_table(r)
     if not r.passed:
         bad = [d for d in r.details if d.get("kind") != "summary" and d.get("passed", False) is not True]
         out += ["", f"First {min(len(bad), MAX_DETAILS)} of {len(bad)} findings:", ""]

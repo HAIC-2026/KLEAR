@@ -149,6 +149,11 @@ def test_profile_endpoint_lays_out_the_district_profile(endpoint):
         "20.0% of the total in Honolulu County: 5,000",
         "11.1% of the total in Hawaiʻi: 9,000",
     ]
+    programs = profile["programs"]
+    assert programs["title"] == "Programs to explore here" and "eligibility" in programs["note"]
+    shown = programs["programs"] + programs["others"]
+    assert len({p["name"] for p in shown}) == len(shown) >= 12
+    assert all(p["agency"] and p["verified"] and p["phone"] and ".gov" in p["url"] for p in shown)
     for bad in ["house:999", "county:15003", ""]:
         assert get(endpoint, "/api/profile?district=" + bad)[0] == 400
 
@@ -161,11 +166,13 @@ def test_profile_gives_the_printed_summary_its_columns_programs_and_sources(endp
         ("state:15", "Hawaiʻi", "9,000", ""),
     ]
     assert row["against"][1]["source"] == row["source"]
-    # One entry per program across its tax years, each with an address to print, and no income limit tables.
-    names = [p["name"] for p in profile["programs"]]
+    # The district's matched programs, then the rest: one entry per program across its tax years, each with an
+    # address to print, and no income limit tables.
+    listed = profile["programs"]["programs"] + profile["programs"]["others"]
+    names = [p["name"] for p in listed]
     assert names.count("Federal EITC") == 1 and "SNAP" in names and len(names) == len(set(names))
     assert not any("poverty guidelines" in n or "income limits" in n for n in names)
-    assert all(p["url"].startswith("https://") and p["covers"] and p["agency"] for p in profile["programs"])
+    assert all(p["url"].startswith("https://") and p["description"] and p["agency"] for p in listed)
     assert profile["shares_source"]["year"] == "2020 Census"
     assert profile["built"] == ""  # the small store records no build
 
@@ -256,6 +263,15 @@ def test_free_answer_adds_the_main_county_when_asked(endpoint, monkeypatch):
     assert "District and county figures" in county_only["text"]
     alone = chat(endpoint, "How many kūpuna live here?")[1]
     assert {f["geography"] for f in alone["facts"]} == {"House District 22"}
+
+
+def test_free_program_answer_lists_each_program_once_with_its_page(endpoint):
+    status, data = chat(endpoint, "What support programs could residents of this district explore?")
+    assert status == 200 and data["refusal"] == "none" and "eligibility" in data["text"]
+    names = [p["name"] for p in data["programs"]]
+    assert len(names) == len(set(names)) >= 12 and names.count("Federal EITC") == 1
+    assert all(p["url"].startswith("https://") and "match" in p for p in data["programs"])
+    assert not any("federalregister" in p["url"] or p["url"].endswith(".txt") for p in data["programs"])
 
 
 def test_refusals_and_unknown_question(endpoint):
@@ -392,3 +408,21 @@ def test_web_command_serves_real_store_and_assets(small_con, tmp_path):
             process.wait(timeout=10)
         process.stdout.close()
         reader.join(timeout=5)
+
+
+def test_profile_survives_a_program_catalog_that_cannot_be_read(endpoint, monkeypatch):
+    def broken():
+        raise ValueError("program catalog cannot be read")
+
+    monkeypatch.setattr("klear.agent.tools.catalog", broken)
+    status, body = get(endpoint, "/api/profile?district=house:022")[:2]
+    profile = json.loads(body)
+    assert status == 200 and profile["programs"] is None and profile["sections"]
+
+
+def test_web_server_starts_without_loading_the_model_sdk():
+    code = "import sys, klear.web.__main__; print('anthropic' in sys.modules)"
+    result = subprocess.run(
+        [sys.executable, "-c", code], cwd=config.ROOT, capture_output=True, text=True, check=True
+    )
+    assert result.stdout.strip() == "False"

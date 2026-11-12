@@ -1,0 +1,13 @@
+program_id: med_quest
+name: Med-QUEST
+description: Hawaiʻi's Medicaid program, free or low-cost health coverage.
+serves: Residents with low income, including keiki, pregnant women, adults, kūpuna and people with disabilities.
+agency: Hawaiʻi Department of Human Services, Med-QUEST Division
+url: https://medquest.hawaii.gov/en/members-applicants/get-started/how-to-apply.html
+phone: (808) 524-3370
+phone_label: Med-QUEST customer service on Oʻahu, neighbor islands 1-800-316-8005
+phone_source: https://humanservices.hawaii.gov/important-phone-numbers/
+rules: [medquest_2026]
+needs: [pct_uninsured, pct_uninsured_under_19, pct_people_poverty]
+verified: '2026-11-09'
+verification: The Med-QUEST site blocks scripts (HTTP 403). The page was read from a web.archive.org copy of October 2026 and the phone from the live DHS phone list

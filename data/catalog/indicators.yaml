@@ -1,5 +1,7 @@
 # Curated ACS 2020-2024 5-year indicators loaded into the KLEAR fact store.
-# An entry may add geo_types, the geographies it is published for (default: state, county, senate, house).
+# An entry may add geo_types, the geographies it is published for (default: state, county, senate, house),
+# and note, a caveat stated with every figure. A detailed-table count may give bins in place of acs_var:
+# published cells summed, with the margin of error as the root sum of squares of theirs.
 indicators:
   - indicator_id: pop_total
     label: "Total population"
@@ -97,6 +99,12 @@ indicators:
     universe: "Households"
     acs_var: DP03_0062
     dataset: acs/acs5/profile
+  - indicator_id: median_household_income_65_plus
+    label: "Median household income of householders 65 years and over"
+    unit: dollars
+    universe: "Households with a householder 65 years and over"
+    acs_var: B19049_005
+    dataset: acs/acs5
   - indicator_id: per_capita_income
     label: "Per capita income"
     unit: dollars
@@ -157,18 +165,21 @@ indicators:
     universe: "Households"
     acs_var: DP03_0070P
     dataset: acs/acs5/profile
+    note: &all_households "Covers all households, whatever the age of the householder, not only kūpuna households."
   - indicator_id: pct_hh_social_security
     label: "Percent of households with Social Security income"
     unit: percent
     universe: "Households"
     acs_var: DP03_0066P
     dataset: acs/acs5/profile
+    note: *all_households
   - indicator_id: pct_hh_retirement_income
     label: "Percent of households with retirement income"
     unit: percent
     universe: "Households"
     acs_var: DP03_0068P
     dataset: acs/acs5/profile
+    note: *all_households
   - indicator_id: total_households
     label: "Total households"
     unit: count
@@ -187,6 +198,13 @@ indicators:
     universe: "Households"
     acs_var: DP02_0014P
     dataset: acs/acs5/profile
+  # equals DP02_0009 plus DP02_0013 in every geography, published as one cell with its own margin of error
+  - indicator_id: householders_65_plus_alone
+    label: "Householders 65 years and over living alone"
+    unit: count
+    universe: "Households"
+    acs_var: B11007_003
+    dataset: acs/acs5
   - indicator_id: grandparents_responsible
     label: "Grandparents responsible for own grandchildren under 18 years"
     unit: count
@@ -307,3 +325,85 @@ indicators:
     universe: "Households"
     acs_var: DP02_0154P
     dataset: acs/acs5/profile
+  - indicator_id: hh_snap
+    label: "Households that received SNAP in the past 12 months"
+    unit: count
+    universe: "Households"
+    acs_var: B22003_002
+    dataset: acs/acs5
+  - indicator_id: hh_ssi
+    label: "Households with Supplemental Security Income"
+    unit: count
+    universe: "Households"
+    acs_var: B19056_002
+    dataset: acs/acs5
+    note: *all_households
+  - indicator_id: hh_poverty_no_snap
+    label: "Households below the poverty level that did not receive SNAP in the past 12 months"
+    unit: count
+    universe: "Households"
+    acs_var: B22003_006
+    dataset: acs/acs5
+    note: &income_test "Meets the income test only. This is an estimate, and assets, age, immigration status and household rules also apply. The Census Bureau measures income against national poverty thresholds, which sit below Hawaiʻi's poverty guidelines, so counts near a program's limit may run low."
+  - indicator_id: pop_under_125pct_poverty
+    label: "People with income under 125 percent of the poverty level"
+    unit: count
+    universe: "Population for whom poverty status is determined"
+    bins: [C17002_002, C17002_003, C17002_004]
+    dataset: acs/acs5
+    note: *income_test
+  - indicator_id: pop_under_138pct_poverty
+    label: "People with income under 138 percent of the poverty level"
+    unit: count
+    universe: "Civilian noninstitutionalized population for whom poverty status is determined"
+    bins: [C27016_002, C27016_012]
+    dataset: acs/acs5
+    note: *income_test
+  - indicator_id: pop_under_150pct_poverty
+    label: "People with income under 150 percent of the poverty level"
+    unit: count
+    universe: "Population for whom poverty status is determined"
+    bins: [C17002_002, C17002_003, C17002_004, C17002_005]
+    dataset: acs/acs5
+    note: *income_test
+  - indicator_id: pop_under_200pct_poverty
+    label: "People with income under 200 percent of the poverty level"
+    unit: count
+    universe: "Population for whom poverty status is determined"
+    bins: [C17002_002, C17002_003, C17002_004, C17002_005, C17002_006, C17002_007]
+    dataset: acs/acs5
+    note: *income_test
+  - indicator_id: uninsured_under_138pct_poverty
+    label: "People without health insurance with income under 138 percent of the poverty level"
+    unit: count
+    universe: "Civilian noninstitutionalized population for whom poverty status is determined"
+    bins: [C27016_005, C27016_008, C27016_011, C27016_015, C27016_018, C27016_021]
+    dataset: acs/acs5
+    note: *income_test
+  - indicator_id: uninsured_138_399pct_poverty
+    label: "People without health insurance with income from 138 to 399 percent of the poverty level"
+    unit: count
+    universe: "Civilian noninstitutionalized population for whom poverty status is determined"
+    bins: [C27016_025, C27016_028, C27016_031, C27016_035, C27016_038, C27016_041]
+    dataset: acs/acs5
+    note: *income_test
+  - indicator_id: kupuna_under_100pct_poverty
+    label: "People 65 years and over with income under 100 percent of the poverty level"
+    unit: count
+    universe: "Population 65 years and over for whom poverty status is determined"
+    bins: [B17024_107, B17024_108, B17024_109, B17024_120, B17024_121, B17024_122]
+    dataset: acs/acs5
+  - indicator_id: kupuna_under_200pct_poverty
+    label: "People 65 years and over with income under 200 percent of the poverty level"
+    unit: count
+    universe: "Population 65 years and over for whom poverty status is determined"
+    bins: [B17024_107, B17024_108, B17024_109, B17024_110, B17024_111, B17024_112, B17024_113, B17024_114, B17024_120, B17024_121, B17024_122, B17024_123, B17024_124, B17024_125, B17024_126, B17024_127]
+    dataset: acs/acs5
+    note: *income_test
+  - indicator_id: working_below_poverty
+    label: "Families with a worker and working people not in families, below the poverty level"
+    unit: count
+    universe: "Families and unrelated individuals for whom poverty status is determined"
+    bins: [B17014_005, B17014_006, B17014_007, B17014_011, B17014_012, B17014_013, B17014_016, B17014_017, B17014_018, B17009_003, B17009_006]
+    dataset: acs/acs5
+    note: *income_test

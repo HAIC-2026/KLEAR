@@ -1,30 +1,163 @@
-# Scripted model turns for find_district-002: resolve place, search indicators, get facts, then submit.
+# Scripted model turns for find_district-002: resolve the Senate district, bring up its profile, then submit.
 - - type: tool_use
     name: resolve_place
     input:
-      text: "Hawaiʻi Senate District 8"
+      text: Hawaiʻi Senate District 8
 - - type: tool_use
-    name: search_indicators
+    name: district_profile
     input:
-      words:
-      - total
-      - population
-- - type: tool_use
-    name: get_facts
-    input:
-      indicator_ids:
-      - pop_total
-      geos:
-      - senate:008
+      district: senate:008
 - - type: tool_use
     name: submit_answer
     input:
       resolved: senate:008
       refusal: none
       blocks:
-      - '{label:f1} in {geo:senate:008}: {fact:f1} ({vintage:f1}). Fixed to official
-        population totals, no margin of error.'
+      - Here is the profile of {geo:senate:008}, the Senate district, not a House district.
+      - 'People
+
+        * {label:f1}: {fact:f1} ({vintage:f1})
+
+        * {label:f4}: {fact:f4}
+
+        * {label:f7}: {fact:f7}
+
+        * {label:f10}: {fact:f10}
+
+        * {label:f13}: {fact:f13}
+
+        * {label:f16}: {fact:f16} ({vintage:f16})
+
+        * {label:f19}: {fact:f19}
+
+        * {label:f22}: {fact:f22}
+
+        * {label:f25}: {fact:f25}'
+      - 'Income
+
+        * {label:f28}: {fact:f28}
+
+        * {label:f31}: {fact:f31}
+
+        * {label:f34}: {fact:f34}
+
+        * {label:f37}: {fact:f37}
+
+        * {label:f40}: {fact:f40}'
+      - 'Housing
+
+        * {label:f43}: {fact:f43}
+
+        * {label:f46}: {fact:f46}
+
+        * {label:f49}: {fact:f49}
+
+        * {label:f52}: {fact:f52}
+
+        * {label:f55}: {fact:f55}'
+      - 'Health and access
+
+        * {label:f58}: {fact:f58}
+
+        * {label:f61}: {fact:f61}
+
+        * {label:f64}: {fact:f64}'
+      - 'Programs in use
+
+        * {label:f67}: {fact:f67}
+
+        * {label:f70}: {fact:f70}
+
+        * {label:f73}: {fact:f73}
+
+        * {label:f76}: {fact:f76} ({vintage:f76})
+
+        * {label:f79}: {fact:f79}
+
+        * {label:f82}: {fact:f82} ({vintage:f82})
+
+        * {label:f84}: {fact:f84}
+
+        * {label:f86}: {fact:f86} ({vintage:f86})'
+      - 'Who may qualify
+
+        * {label:f87}: {fact:f87}
+
+        * {label:f91}: {fact:f91}
+
+        * {label:f94}: {fact:f94}
+
+        * {label:f97}: {fact:f97}
+
+        * {label:f100}: {fact:f100}
+
+        * {label:f103}: {fact:f103}
+
+        * {label:f107}: {fact:f107}'
+      - 'Modeled needs
+
+        * {label:f110}: {fact:f110} ({vintage:f110})
+
+        * {label:f111}: {fact:f111}
+
+        * {label:f112}: {fact:f112}
+
+        * {label:f113}: {fact:f113}'
+      - 'Help sites
+
+        * {label:f114}: {fact:f114} ({vintage:f114})
+
+        * {label:f115}: {fact:f115} ({vintage:f115})
+
+        * {label:f116}: {fact:f116} ({vintage:f116})'
       facts:
       - f1
+      - f4
+      - f7
+      - f10
+      - f13
+      - f16
+      - f19
+      - f22
+      - f25
+      - f28
+      - f31
+      - f34
+      - f37
+      - f40
+      - f43
+      - f46
+      - f49
+      - f52
+      - f55
+      - f58
+      - f61
+      - f64
+      - f67
+      - f70
+      - f73
+      - f76
+      - f79
+      - f82
+      - f84
+      - f86
+      - f87
+      - f91
+      - f94
+      - f97
+      - f100
+      - f103
+      - f107
+      - f110
+      - f111
+      - f112
+      - f113
+      - f114
+      - f115
+      - f116
       programs: []
-      caveats: []
+      caveats:
+      - Figures marked unreliable have large margins of error, so read them with care. Apportioned figures are estimates
+        moved to the district from ZIP code or tract data, and CDC PLACES figures are modeled estimates.
+      - Income-eligible figures meet the income test only. Assets, age, immigration status and household rules also
+        apply.

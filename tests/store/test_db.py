@@ -185,3 +185,15 @@ def test_blocks_roundtrip_and_checks(con):
     assert con.execute("SELECT house, pop2020 FROM blocks").fetchall() == [("022", 7)]
     with pytest.raises(ValueError, match="pop2020"):
         add_blocks(con, pd.DataFrame([row | {"block": "x", "house": "022", "senate": "012", "pop2020": -1}]))
+
+
+def test_indicator_note_is_optional_and_stored(con):
+    row = {"label": "X", "unit": "count", "universe": "U", "acs_var": None, "additive": True}
+    add_indicators(
+        con, pd.DataFrame([{"indicator_id": "with_note", **row, "note": "Meets the income test only."}])
+    )
+    add_indicators(con, pd.DataFrame([{"indicator_id": "no_note", **row}]))
+    notes = dict(
+        con.execute("SELECT indicator_id, note FROM indicator WHERE indicator_id LIKE '%note'").fetchall()
+    )
+    assert notes == {"with_note": "Meets the income test only.", "no_note": None}

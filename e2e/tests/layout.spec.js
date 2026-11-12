@@ -68,7 +68,8 @@ test('links that leave the site say so, and in-page links have no arrow', async 
   await fullPage(page);
   const links = await page.locator('a[href]').evaluateAll(all => all.map(a => ({
     text: a.textContent, ext: a.classList.contains('ext'), blank: a.target === '_blank',
-    external: new URL(a.href).origin !== location.origin,
+    // Phone (tel:) and email links open an app, not another site.
+    external: /^https?:$/.test(new URL(a.href).protocol) && new URL(a.href).origin !== location.origin,
   })));
   for (const l of links) {
     expect(l.ext, `arrow only on links that leave the site: ${l.text}`).toBe(l.external);

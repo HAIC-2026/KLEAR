@@ -243,6 +243,27 @@ summary{font-weight:600;color:var(--accent);cursor:pointer}
 .profile-sources-title{margin:0 0 2px;font-weight:600;color:var(--ink)}
 .profile-sources ul,.profile-sources ol{margin:0;padding-left:18px}.profile-sources ul{list-style:none;padding-left:0}
 @media(min-width:641px) and (max-width:1199px){.profile-stats{grid-template-columns:repeat(4,minmax(0,1fr))}}
+/* Programs matched to a district: linked name, agency, reasons and a phone. */
+.program-intro{margin:0 0 6px;font-size:var(--fs-xs);line-height:1.5;color:var(--muted)}
+.program{padding:12px 0 14px;border-top:1px solid var(--line)}
+.program-name{margin:0;font-size:var(--fs-base);font-weight:600;line-height:1.35}
+.program-name a{color:var(--accent-dark)}
+.program-agency,.program-contact{margin:2px 0 0;font-size:var(--fs-xs);line-height:1.45;color:var(--muted)}
+.program-contact{margin-top:6px}
+.program-contact a{white-space:nowrap}
+.program-about{margin:6px 0 0;font-size:var(--fs-sm);line-height:1.5}
+.program-reasons{list-style:none;margin:6px 0 0;padding:0;font-size:var(--fs-xs);line-height:1.5;color:var(--muted)}
+.program-reasons li+li{margin-top:4px}
+.program-subhead{margin:4px 0 0;padding:14px 0 2px;border-top:1px solid var(--line);font-size:var(--fs-xs);font-weight:600}
+.program-subhead+.program{border-top:0}
+.program-note{margin:0;padding:10px 0 8px;border-top:1px solid var(--line);font-size:var(--fs-xs);line-height:1.5;color:var(--muted)}
+article .answer-programs .program-reasons{padding-left:0}
+article .answer-programs summary+.program{margin-top:10px}
+/* Income-eligible estimates: a second figure beside the row and a caveat line. */
+.profile-beside,.profile-caveat{margin:6px 0 0;font-size:var(--fs-xs);line-height:1.5;color:var(--muted)}
+.profile-beside b{font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums}
+.profile-beside sup{margin-left:3px;line-height:0}
+.profile-caveat.lead{margin:0 0 4px}
 /* Print, link and download controls under the profile's heading */
 /* Print, link and download controls: a tinted panel near the top of the profile. */
 .profile-share{margin:16px 0 4px;padding:14px 16px 16px;background:var(--accent-soft);border-radius:var(--r-ctl)}

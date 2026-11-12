@@ -1,0 +1,13 @@
+program_id: kupuna_care
+name: Kūpuna Care
+description: In-home and community services such as personal care, chores, meals, transportation and adult day care.
+serves: Kūpuna 60 and older who need help to keep living at home.
+agency: Hawaiʻi Executive Office on Aging, with each county's office on aging
+url: https://health.hawaii.gov/eoa/home/home-and-community-services/
+phone: (808) 643-2372
+phone_label: Aging and Disability Resource Center, statewide
+phone_source: https://www.hawaiiadrc.org/
+rules: [kupuna_care]
+needs: [pct_65_plus, pct_65_plus_poverty]
+verified: '2026-11-09'
+verification: Fetched the Executive Office on Aging services page, which lists each county office, and the resource center site it links (HTTP 200)
