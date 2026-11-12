@@ -9,6 +9,9 @@ import re
 
 import httpx
 
+from klear.text import OKINA, OKINA_LOOKALIKES
+
+_OKINA = f"[{OKINA}{re.escape(OKINA_LOOKALIKES)}]"
 URL = "https://geocoding.geo.census.gov/geocoder/geographies/onelineaddress"
 # Census 2020 blocks stay fixed for the decade, so the block layer of the 2020 vintage matches the block table.
 PARAMS = {
@@ -19,10 +22,13 @@ PARAMS = {
 }
 TIMEOUT = 8.0
 MAX_MATCHES = 3
-# A house number, as in 415 or 94-275, then a street name. A leading Hawaiʻi ZIP code is not a house number.
-ADDRESS = re.compile(r"^\s*(?!96[78]\d\d\b)\d{1,6}(?:-\d{1,5})?[a-z]?\s+[^\W\d_]", re.IGNORECASE)
+# A house number, as in 415 or 94-275, then a street name, which may start with an ʻokina typed as any of its
+# lookalikes (as in ʻAiea Heights Dr). A leading Hawaiʻi ZIP code is not a house number.
+ADDRESS = re.compile(
+    r"^\s*(?!96[78]\d\d\b)\d{1,6}(?:-\d{1,5})?[a-z]?\s+" + _OKINA + r"?[^\W\d_]", re.IGNORECASE
+)
 # Without a state the geocoder rarely finds an address, so Hawaiʻi is added unless one is given.
-STATE = re.compile(r"\b(?:hi|hawai[ʻ'‘’`]?i|96[78]\d\d)\b", re.IGNORECASE)
+STATE = re.compile(r"\b(?:hi|hawai" + _OKINA + r"?i|96[78]\d\d)\b", re.IGNORECASE)
 
 
 class GeocoderError(RuntimeError):

@@ -119,6 +119,21 @@ test('the chat’s district search suggests too, and typing one letter suggests 
   await expect(page.locator('#place-list')).toBeHidden();
 });
 
+// People type the ʻokina many ways, or leave it out, and the kahakō too. Each finds the same place.
+const TYPED = ['Kāneʻohe', "Kane'ohe", 'Kane`ohe', 'Kane‘ohe', 'Kane’ohe', 'Kaneʼohe', 'Kane´ohe', 'Kaneohe', "KANE'OHE"];
+
+test('the ʻokina typed as ʻ, \', `, ‘, ’, ʼ or ´, or left out, finds the place', async ({page}) => {
+  await page.goto('/');
+  const box = page.getByRole('combobox', {name: 'District, place, ZIP code, or street address'}).first();
+  const options = page.locator('#find-place-list').getByRole('option');
+  for (const text of TYPED) {
+    await box.fill(text);
+    await expect(options, text).toHaveText([/^Kāneʻohe\s+Oʻahu · Town$/]);
+    await page.getByRole('button', {name: 'Find district'}).first().click();
+    await expect(page.locator('#find-matches').getByRole('group', {name: 'House districts for Kāneʻohe'}), text).toBeVisible();
+  }
+});
+
 test('after more typing, the keys never pick an option left from the earlier text', async ({page}) => {
   await page.goto('/');
   const box = page.getByRole('combobox', {name: 'District, place, ZIP code, or street address'}).first();

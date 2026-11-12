@@ -378,11 +378,11 @@ Key numbers:
 
 **gazetteer: PASS** (gated). 163 places, 0 problems.
 
-Every Census 2020 place (CDP) with population gets its 2020 population from the block assignment file joined to the block table, and its share of people in each county, House district, Senate district and ZIP code area. A pass means each place's population equals the sum of its blocks, the shares add up to 1 for every place and geography type, Kāneʻohe, Waiʻanae, Hilo and Kailua are spelled exactly, and every Hawaiian spelling in data/places/hawaiian_names.yaml (from USGS GNIS) matches the Census name once ʻokina, kahakō and case are ignored. Places without a GNIS spelling keep the Census name, and the key numbers count them.
+Every Census 2020 place (CDP) with population gets its 2020 population from the block assignment file joined to the block table, and its share of people in each county, House district, Senate district and ZIP code area. A pass means each place's population equals the sum of its blocks, the shares add up to 1 for every place and geography type, Kāneʻohe, Waiʻanae, Hilo and Kailua are spelled exactly, and every Hawaiian spelling in data/places/hawaiian_names.yaml matches the Census name once ʻokina, kahakō and case are ignored. The spellings come from USGS GNIS or, for places GNIS does not match, from the Hawaiʻi Board on Geographic Names place-name lists, checked by hand. Other places keep the Census name, and the key numbers count them.
 
 Key numbers:
 
-- 163 places, 70 with a Hawaiian spelling, 93 keep an ASCII-only name
+- 163 places, 80 with a Hawaiian spelling, 83 keep an ASCII-only name
 
 ## Islands, neighborhoods and county divisions for district search
 

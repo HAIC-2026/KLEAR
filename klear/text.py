@@ -3,6 +3,9 @@ import re
 import unicodedata
 
 OKINA = "ʻ"
+# What people type for the ʻokina (U+02BB): apostrophes and single quotes ' ‘ ’ ‛ ＇, accents ` ´ ΄, primes
+# ′ ‵, and modifier letters ʹ ʼ ʽ ʿ ˈ ˋ. Search and spelling read each one as an ʻokina.
+OKINA_LOOKALIKES = "'‘’‛＇`´΄′‵ʹʼʽʿˈˋ"
 NAMES = ("Hawaiʻi", "Kauaʻi", "Oʻahu", "Lānaʻi", "Molokaʻi", "Kahoʻolawe", "Niʻihau")
 PLACES = (
     "Kāneʻohe",
@@ -47,7 +50,7 @@ def _pattern(name: str) -> str:
     out = []
     for ch in name:
         if ch == OKINA:
-            out.append("[ʻ'’‘`]?")
+            out.append(f"[{OKINA}{re.escape(OKINA_LOOKALIKES)}]?")
         elif ch in MACRON:
             out.append(f"[{ch}{MACRON[ch]}]")
         else:

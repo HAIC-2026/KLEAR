@@ -179,9 +179,10 @@ PROVES = {
         "file joined to the block table, and its share of people in each county, House district, Senate "
         "district and ZIP code area. A pass means each place's population equals the sum of its blocks, the "
         "shares add up to 1 for every place and geography type, Kāneʻohe, Waiʻanae, Hilo and Kailua are "
-        "spelled exactly, and every Hawaiian spelling in data/places/hawaiian_names.yaml (from USGS GNIS) "
-        "matches the Census name once ʻokina, kahakō and case are ignored. Places without a GNIS spelling "
-        "keep the Census name, and the key numbers count them."
+        "spelled exactly, and every Hawaiian spelling in data/places/hawaiian_names.yaml matches the Census "
+        "name once ʻokina, kahakō and case are ignored. The spellings come from USGS GNIS or, for places GNIS "
+        "does not match, from the Hawaiʻi Board on Geographic Names place-name lists, checked by hand. Other "
+        "places keep the Census name, and the key numbers count them."
     ),
     "areas": (
         "District search also finds islands, Honolulu neighborhood board areas (City and County of Honolulu) "

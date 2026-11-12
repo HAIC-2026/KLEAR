@@ -3,7 +3,7 @@ import unicodedata
 
 import pytest
 
-from klear.text import hawaiian
+from klear.text import OKINA, OKINA_LOOKALIKES, hawaiian, misspellings
 
 
 def test_hawaiian_fixes_names():
@@ -31,6 +31,17 @@ def test_hawaiian_fixes_names():
 )
 def test_hawaiian_mapping(raw, want):
     assert hawaiian(raw) == want
+
+
+@pytest.mark.parametrize("mark", OKINA_LOOKALIKES)
+def test_hawaiian_reads_every_okina_lookalike(mark):
+    assert hawaiian(f"Hawai{mark}i and Kane{mark}ohe") == "Hawaiʻi and Kāneʻohe"
+    assert misspellings(f"Kāne{mark}ohe")  # flagged, though a ` is read as Markdown and dropped first
+
+
+def test_okina_lookalikes_are_distinct_and_exclude_the_okina():
+    assert len(set(OKINA_LOOKALIKES)) == len(OKINA_LOOKALIKES) and OKINA not in OKINA_LOOKALIKES
+    assert {"'", "`", "‘", "’", "ʼ"} <= set(OKINA_LOOKALIKES)
 
 
 def test_hawaiian_normalizes_nfc():
