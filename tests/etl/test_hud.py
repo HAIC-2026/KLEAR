@@ -1,4 +1,4 @@
-# Tests for HUD housing choice vouchers by tract and their apportionment to districts.
+# Tests for HUD housing choice vouchers by tract, their apportionment to districts and county and state sums.
 import pandas as pd
 import pytest
 
@@ -10,6 +10,10 @@ from klear.store.db import add_facts, add_geographies, add_indicators, add_sourc
 from klear.validation.hud import check_hcv
 
 IND = "hud_vouchers"
+WHOLE = pd.DataFrame(
+    [("state", "15", "Hawaii", None), ("county", "15001", "Hawaii County", None), ("county", "15003", "Honolulu County", None)],
+    columns=["geo_type", "geo_id", "name", "parent_county"],
+)  # fmt: skip
 
 
 @pytest.fixture
@@ -33,6 +37,30 @@ def test_null_vouchers_suppressed_and_widen_high(hcv_rows, blocks_fixture):
     assert h.value_low["001"] == 0 and h.value_low["002"] == 0
     assert h.value_high["001"] == 50 + 10 and h.value_high["002"] == 50 + 10
     assert (h.tier == "A").all() and (h.moe_status == "range").all()
+
+
+def test_county_and_state_sum_published_tracts(blocks_fixture):
+    rows = [
+        {"OBJECTID": 1, "GEOID": "15003008001", "HCV_PUBLIC": 50.0},
+        {"OBJECTID": 2, "GEOID": "15001021200", "HCV_PUBLIC": None},
+    ]
+    facts = hcv_facts(rows, blocks_fixture)
+    c = facts[facts.geo_type == "county"].set_index("geo_id")
+    # every tract in 15001 is suppressed, so the county is too; 15003 is published whole
+    assert (
+        c.value_status["15001"] == "suppressed"
+        and pd.isna(c.value["15001"])
+        and pd.isna(c.value_high["15001"])
+    )
+    assert (
+        c.value["15003"] == 50 and c.moe_status["15003"] == "not_applicable" and pd.isna(c.value_low["15003"])
+    )
+    st = facts[facts.geo_type == "state"].iloc[0]
+    # the suppressed tract may hold up to 10 voucher holders
+    assert (st.value, st.value_low, st.value_high, st.moe_status) == (50, 50, 60, "range")
+    assert (facts[facts.geo_type.isin(["county", "state"])].tier == "S").all()
+    res = check_hcv(facts)
+    assert res.passed and any("summed to the state 50" in n for n in res.notes)
 
 
 def test_unknown_tract_noted_and_dropped(hcv_rows, blocks_fixture):
@@ -77,9 +105,11 @@ def test_facts_load_into_store(hcv_rows, blocks_fixture, store):
     )
     add_indicators(store, hud_indicator_rows())
     add_geographies(store, small_geographies(blocks_fixture))
+    add_geographies(store, WHOLE)
     add_facts(store, hcv_facts(hcv_rows, blocks_fixture))
     n = store.execute("SELECT count(*) FROM fact WHERE value_status = 'suppressed'").fetchone()[0]
-    assert n == 1
+    # the suppressed tract and its county, which has no other tract
+    assert n == 2
     assert set(HUD_INDICATORS) == {IND}
 
 
@@ -98,6 +128,7 @@ def test_off_table_tract_is_published_and_unplaced(hcv_rows, blocks_fixture):
     res = check_hcv(facts)
     assert res.passed
     assert any("published tracts 90" in n for n in res.notes)
+    assert any("summed to the state 50, in tracts not in the block table 40" in n for n in res.notes)
     facts.attrs["unplaced"] = {"house": {}, "senate": {}}
     assert not check_hcv(facts).passed
 

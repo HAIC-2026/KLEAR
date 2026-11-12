@@ -242,6 +242,8 @@ summary{font-weight:600;color:var(--accent);cursor:pointer}
 .profile-sources{border-top:1px solid var(--line);padding:10px 0 14px;font-size:var(--fs-xs);line-height:1.5;color:var(--muted)}
 .profile-sources-title{margin:0 0 2px;font-weight:600;color:var(--ink)}
 .profile-sources ul,.profile-sources ol{margin:0;padding-left:18px}.profile-sources ul{list-style:none;padding-left:0}
+.profile-sources ul+.profile-sources-title,.profile-sources ol+.profile-sources-title{margin-top:8px}
+.profile-source-year{display:block}.profile-sources li+li{margin-top:4px}
 @media(min-width:641px) and (max-width:1199px){.profile-stats{grid-template-columns:repeat(4,minmax(0,1fr))}}
 /* Programs matched to a district: linked name, agency, reasons and a phone. */
 .program-intro{margin:0 0 6px;font-size:var(--fs-xs);line-height:1.5;color:var(--muted)}

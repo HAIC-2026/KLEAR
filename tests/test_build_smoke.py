@@ -317,17 +317,29 @@ def _hrsa():
     return _csv(rows, cols)
 
 
+PLACES_COLS = [
+    "locationname", "locationid", "measureid", "datavaluetypeid", "measure", "data_value", "low_confidence_limit",
+    "high_confidence_limit", "totalpop18plus", "data_value_footnote_symbol", "data_value_footnote",
+]  # fmt: skip
+
+
 def _places():
-    cols = [
-        "locationname", "measureid", "datavaluetypeid", "measure", "data_value", "low_confidence_limit",
-        "high_confidence_limit", "totalpop18plus", "data_value_footnote_symbol", "data_value_footnote",
-    ]  # fmt: skip
     rows = [
-        (t, m, "CrdPrv", f"Measure {m}", 10 + n, 8 + n, 12 + n, 1000, "", "")
+        (t, t, m, "CrdPrv", f"Measure {m}", 10 + n, 8 + n, 12 + n, 1000, "", "")
         for n, t in enumerate(TRACTS)
         for m in PLACES_MEASURES
     ]
-    return _csv(rows, cols)
+    return _csv(rows, PLACES_COLS)
+
+
+def _places_county():
+    # the county file names each county and gives its FIPS code as locationid
+    rows = [
+        (name, fips, m, "CrdPrv", f"Measure {m}", 10 + n, 8 + n, 12 + n, 1000 * (n + 1), "", "")
+        for n, (name, fips) in enumerate(COUNTY_FIPS.items())
+        for m in PLACES_MEASURES
+    ]
+    return _csv(rows, PLACES_COLS)
 
 
 def _chas_zip(path, base=50):
@@ -418,6 +430,7 @@ class Stub:
             "2026-oep-county-level-public-use-file.zip": cms_county,
             "Health_Center_Service_Delivery_and_LookAlike_Sites.csv": _hrsa(),
             "cwsq-ngmh.csv": _places(),
+            "swc5-untb.csv": _places_county(),
             "smoke_page": RULE_PAGE.encode(),
         }
 
@@ -551,7 +564,7 @@ def test_build_creates_store_outputs_and_report(env, capsys):
     build = env.tmp / "build"
     con = duckdb.connect(str(build / "klear.duckdb"), read_only=True)
     sources = {r[0] for r in con.execute("SELECT source_id FROM source").fetchall()}
-    assert len(sources) == 2 + 8
+    assert len(sources) == 2 + 9
     geos = dict(con.execute("SELECT geo_type, count(*) FROM geography GROUP BY 1").fetchall())
     assert geos == {"state": 1, "county": 5, "senate": 25, "house": 51, "tract": len(TRACTS), "zcta": 2}
     n_facts, n_unsourced = con.execute(

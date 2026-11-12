@@ -13,6 +13,7 @@ from klear.eval.scorers import CV_LIMIT, counties, cv
 from klear.programs import ELIGIBILITY_NOTE, NEEDS, Program, catalog
 from klear.rules.registry import load_rules
 from klear.store.db import MOE_STATUSES, SITE_KINDS, VALUE_STATUSES
+from klear.store.methods import fact_method
 
 CHAMBERS = {
     "house": ("h", "hd", "hse", "house"),
@@ -617,9 +618,7 @@ class Session:
             "source": short_name(source),
             "source_id": source_id,
             "status": VALUE_STATUSES[vstatus] if vstatus != "ok" else MOE_STATUSES[mstatus],
-            "method": config.SOURCE_METHODS.get(source_id)
-            if tier == "A" and source_id in config.SOURCE_METHODS
-            else config.METHODS.get(tier, tier),
+            "method": fact_method(tier, source_id, geo[0]),
             "reliable": reliable,
         }
         if note := self._note(indicator_id):
@@ -718,13 +717,14 @@ class Session:
             return f.value_low, f.value_high
         return None if f.value is None else (f.value - (f.moe or 0), f.value + (f.moe or 0))
 
-    def _against(self, ind: str, mine: dict, other: tuple[str, str], additive: bool) -> dict | None:
+    def _against(self, ind: str, mine: dict, other: tuple[str, str], additive: bool) -> dict:
         """One comparison for a profile row: the other place's value, and the district's share of a total
-        or the direction of a rate."""
-        theirs = self._facts_for([ind], [other])["facts"]
-        if not theirs:
-            return None
-        t = theirs[0]
+        or the direction of a rate, or the reason the other place has no value."""
+        found = self._facts_for([ind], [other])
+        if not found["facts"]:
+            reason = found["missing"][0]["reason"]
+            return {"geo": f"{other[0]}:{other[1]}", "geo_name": self._name(*other), "missing": reason}
+        t = found["facts"][0]
         entry = {"geo": t["geo"], "geo_name": t["geo_name"], "ref": t["ref"], "value_text": t["value_text"]}
         a, b = self.facts[mine["ref"]], self.facts[t["ref"]]
         if additive:
@@ -780,8 +780,10 @@ class Session:
                 out["missing"] += mine["missing"]
                 if mine["facts"]:
                     fact = mine["facts"][0]
-                    compared = [self._against(ind, fact, g, ind in additive) for g in against]
-                    row = {"fact": fact, "against": [c for c in compared if c]}
+                    row = {
+                        "fact": fact,
+                        "against": [self._against(ind, fact, g, ind in additive) for g in against],
+                    }
                     if extra := self._beside(ind, geo):
                         row["beside"] = extra
                     rows.append(row)

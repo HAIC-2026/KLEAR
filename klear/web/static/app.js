@@ -513,13 +513,18 @@ function besideLine(b) {
   return p;
 }
 
-// The section's citations, numbered when its figures come from more than one source.
-function profileSources(sources) {
+// The section's citations, numbered when its figures come from more than one source, then any source
+// that only the county and state figures come from.
+function profileSources(sources, compared = []) {
   const box = node('div', '', 'profile-sources');
-  box.append(node('p', sources.length > 1 ? 'Sources' : 'Source', 'profile-sources-title'));
-  const list = node(sources.length > 1 ? 'ol' : 'ul', '');
-  for (const s of sources) { const li = document.createElement('li'); li.append(link(s.name, s.url), `, ${s.year}`); list.append(li); }
-  box.append(list);
+  const cite = (items, tag) => {
+    const list = node(tag, '');
+    // the year goes on its own line, so a wrapped link never leaves its comma at the start of a line
+    for (const s of items) { const li = document.createElement('li'); li.append(link(s.name, s.url), node('span', s.year, 'profile-source-year')); list.append(li); }
+    return list;
+  };
+  box.append(node('p', sources.length > 1 ? 'Sources' : 'Source', 'profile-sources-title'), cite(sources, sources.length > 1 ? 'ol' : 'ul'));
+  if (compared.length) box.append(node('p', 'County and state figures', 'profile-sources-title'), cite(compared, 'ul'));
   return box;
 }
 
@@ -655,7 +660,7 @@ function renderProfile(p) {
     const d = node('details', '', 'profile-section');
     d.append(node('summary', sec.title));
     if (sec.caveat) d.append(node('p', sec.caveat, 'profile-caveat lead'));
-    d.append(...sec.rows.map(profileRow), profileSources(sec.sources));
+    d.append(...sec.rows.map(profileRow), profileSources(sec.sources, sec.compared));
     out.push(d);
   }
   return out;

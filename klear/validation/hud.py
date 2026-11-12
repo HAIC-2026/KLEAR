@@ -1,4 +1,4 @@
-# Validation 9: published HCV source total equals placed district total plus unplaced tracts (gated).
+# Validation 9: published HCV total equals the district totals plus unplaced tracts, and the state total (gated).
 import pandas as pd
 
 from klear.etl.hud import INDICATOR
@@ -34,4 +34,18 @@ def check_hcv(facts: pd.DataFrame) -> CheckResult:
                     "unplaced": total,
                 }
             )
-    return CheckResult("hud_hcv", not details, True, 2, len(details), details, notes)
+    state = ind[ind.geo_type == "state"]
+    off = float(facts.attrs.get("off_table", {}).get(INDICATOR, 0.0))
+    if state.empty:
+        details.append({"check": "no_state_total"})
+    else:
+        summed = float(state.value.iloc[0])
+        notes.append(
+            f"state: published tracts {published:,.0f}, summed to the state {summed:,.0f}, in tracts not in the "
+            f"block table {off:,.0f}"
+        )
+        if abs(published - (summed + off)) > TOLERANCE * max(published, 1.0):
+            details.append(
+                {"check": "state_total", "published": published, "state": summed, "off_table": off}
+            )
+    return CheckResult("hud_hcv", not details, True, 3, len(details), details, notes)

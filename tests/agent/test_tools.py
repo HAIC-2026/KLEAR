@@ -367,6 +367,15 @@ def test_district_profile_header_and_comparisons(small):
         ("state:15", "11.1%"),
     ]
     assert rows["sites_lihtc"]["fact"]["value_text"] == "2"
+    # a place with no value is listed with the reason, never dropped
+    assert rows["sites_lihtc"]["against"] == [
+        {
+            "geo": "county:15003",
+            "geo_name": "Honolulu County",
+            "missing": "not published for county geographies",
+        },
+        {"geo": "state:15", "geo_name": "Hawaiʻi", "missing": "not published for state geographies"},
+    ]
     assert {"indicator_id": "pop_under_18", "geo": "house:022"}.items() <= next(
         m for m in out["missing"] if m["indicator_id"] == "pop_under_18"
     ).items()
@@ -395,6 +404,13 @@ def test_every_district_profile_is_complete_and_fast(real_con):
             assert f["geo"] == f"{geo_type}:{geo_id}" and f["source"] and f["vintage"] and f["status"], f
         rates = [a for r in rows for a in r["against"] if "direction" in a]
         assert rates and all(a["direction"] in ("higher", "lower", "within_margin") for a in rates)
+        # every profile figure is set against its main county and the state
+        for r in rows:
+            where, ind = [a["geo"].split(":")[0] for a in r["against"]], r["fact"]["indicator_id"]
+            assert where == ["county", "state"] and not [a for a in r["against"] if "missing" in a], (
+                geo_id,
+                ind,
+            )
     assert statistics.median(took) < 1, "profiles are slow"
 
 

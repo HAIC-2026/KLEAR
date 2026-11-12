@@ -25,6 +25,8 @@ TITLES = {
     "hud_hcv": "Housing choice vouchers: tract totals placed in districts",
     "sites": "Public housing, LIHTC and health center sites",
     "places": "CDC PLACES modeled need by tract",
+    "places_county": "CDC PLACES modeled need by county and for the state",
+    "county_state": "County and state values built from smaller areas",
     "chas": "HUD CHAS housing cost burden",
     "gazetteer": "Census places and their districts",
     "areas": "Islands, neighborhoods and county divisions for district search",
@@ -156,6 +158,22 @@ PROVES = {
         "of the published tracts weighted by adult population. A suppressed tract widens the district range "
         "as if it held 0 (low) or 100 percent (high)."
     ),
+    "places_county": (
+        "CDC PLACES 2025 county estimates for the same six measures and release as the tracts. A pass means "
+        "each of the five counties has one published row per measure, stored with its value and 95% "
+        "confidence limits exactly as published. CDC publishes no state value, so KLEAR derives one: the "
+        "average of the county estimates weighted by adult population, with a range that averages the "
+        "county confidence limits the same way. The check recomputes that average and requires the stored "
+        "state value to match it and to lie inside its range."
+    ),
+    "county_state": (
+        "Every county and state value names a registered source with a URL, a known tier and a method the "
+        "assistant can state. Values KLEAR adds up from smaller areas (tier S) equal the sum of their parts: "
+        "county and state housing vouchers equal the published tracts inside them, with a range that adds up "
+        "to 10 for each tract HUD does not publish. The state marketplace counts equal the four published "
+        "county rows, and the state site counts and units equal the site table and the sum over each chamber. "
+        "Every summed or counted state value also equals the sum of its county values."
+    ),
     "gazetteer": (
         "Every Census 2020 place (CDP) with population gets its 2020 population from the block assignment "
         "file joined to the block table, and its share of people in each county, House district, Senate "
@@ -254,7 +272,9 @@ CAVEATS = [
         "location is assumed, not published. For PLACES, district ranges average the tract confidence "
         "limits with the same population weights as the estimate, so they assume tract errors move together "
         "and are wider than a formal confidence interval, and a suppressed tract counts as 0 in the low and "
-        "100 percent in the high."
+        "100 percent in the high. The PLACES state value is derived the same way from the county estimates. "
+        "A summed (tier S) county or state voucher total carries a range only when some of its tracts are "
+        "not published: the low counts the published tracts and the high adds 10 for each one left out."
     ),
     (
         "Apportioned district values (IRS, CMS, vouchers, CHAS) use 2020 block population as weights. The "
@@ -322,6 +342,10 @@ def summary(r: CheckResult) -> str:
         return f"{r.n_compared:,} program counts compared, {r.n_mismatch:,} not compared"
     if r.name == "places":
         return f"{r.n_compared:,} tract and district values checked against their ranges, {r.n_mismatch:,} problems"
+    if r.name == "places_county":
+        return f"{r.n_compared:,} county and state values checked, {r.n_mismatch:,} problems"
+    if r.name == "county_state":
+        return f"{r.n_compared:,} values and totals checked, {r.n_mismatch:,} problems"
     return f"{r.n_compared:,} compared, {r.n_mismatch:,} mismatches"
 
 

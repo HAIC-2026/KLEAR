@@ -4,8 +4,15 @@ import json
 import pytest
 
 from klear.agent import config
-from klear.agent.answer import NUMBER_HINT, SUBMIT_SPEC, allowed_geos, build_answer, template_answer
-from klear.eval.contract import REFUSALS
+from klear.agent.answer import (
+    NUMBER_HINT,
+    SUBMIT_SPEC,
+    _method_text,
+    allowed_geos,
+    build_answer,
+    template_answer,
+)
+from klear.eval.contract import REFUSALS, FactRef
 from klear.eval.scorers import answer_problems
 
 GOOD = "{geo:house:022} has {fact:f1} {label:f1} ({vintage:f1})."
@@ -374,6 +381,18 @@ def test_template_flags_unreliable_and_method(small):
     small.resolved.add(("house", "022"))
     a = template_answer(small, ("house", "023"), "none", None)
     assert a.blocks[0].splitlines()[1].endswith("{vintage:f2}), a modeled estimate")
+
+
+def test_template_names_values_derived_for_a_place():
+    def ref(source_id, geo_type):
+        return FactRef("f1", "x", geo_type, "15", source_id, 1.0, None, None, None, "2026")
+
+    assert _method_text("S", ref("cms_oep_2026", "state")) == ", the sum of the published county counts"
+    assert _method_text("M", ref("cdc_places_2025_county", "state")) == (
+        ", a modeled estimate, the average of the CDC county estimates"
+    )
+    assert _method_text("M", ref("cdc_places_2025_county", "county")) == ", a modeled estimate"
+    assert _method_text("D", ref("acs", "state")) == ""
 
 
 def test_template_names_known_programs_without_digits(s1):

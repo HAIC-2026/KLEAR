@@ -113,6 +113,21 @@ def test_ranged_tier_needs_range_status(con):
         )
 
 
+def test_summed_tier_range_only_when_parts_suppressed(con):
+    # an exact sum has no range, a sum over suppressed parts bounds what they could add
+    add_facts(con, fact(tier="S", moe_status="not_applicable", value_low=None, value_high=None))
+    add_facts(con, fact(geo_id="002", tier="S", value=110.0, value_low=110.0, value_high=150.0))
+    got = con.execute("SELECT geo_id, moe_status, value_low FROM fact ORDER BY 1").fetchall()
+    assert got == [("001", "not_applicable", None), ("002", "range", 110.0)]
+    with pytest.raises(ValueError, match="value_low without moe_status range"):
+        add_facts(con, fact(geo_type="senate", geo_id="01", tier="S", moe_status="not_applicable"))
+    cols = "geo_type, geo_id, indicator_id, value, value_status, moe_status, tier, source_id, value_low, value_high"
+    with pytest.raises(duckdb.ConstraintException):
+        con.execute(
+            f"INSERT INTO fact ({cols}) VALUES ('senate','01','eitc',110,'ok','not_applicable','S','test_src',100,140)"
+        )
+
+
 def test_range_status_phrase():
     assert MOE_STATUSES["range"] == "about X (range L to H)"
 

@@ -10,6 +10,7 @@ from klear.agent.config import PROFILE_HEADLINE
 from klear.config import CURRENT_LAYER
 from klear.eval.contract import MARKER, _has, _number, geo_display, geo_key, short_name
 from klear.programs import ELIGIBILITY_NOTE, NEEDS, Program, by_rule, catalog
+from klear.store.methods import place_note
 
 MAX_TILES = 6
 # Where a profile's shares of residents in each place and overlapping district come from (klear/etl/blocks.py).
@@ -355,10 +356,16 @@ def _profile_row(row: dict, session, store: _Store) -> dict:
     fact = row["fact"]
     f = session.facts[fact["ref"]]
     unit = store.unit(f)
-    against = []
+    against, compared = [], []
     for a in row["against"]:
+        if "missing" in a:
+            against.append({"lead": "No figure", "rest": f"for {a['geo_name']}: {a['missing']}"})
+            continue
         theirs = session.facts[a["ref"]]
+        compared.append(_source(theirs, store))
         value = _plain(theirs, unit)
+        if note := place_note(theirs.source_id, theirs.geo_type):
+            value = f"{value} ({note})"
         # The other place's figure on its own too, for the printed summary's county and state columns.
         figure = {
             "geo": a["geo"],
@@ -384,23 +391,30 @@ def _profile_row(row: dict, session, store: _Store) -> dict:
         "source": _source(f, store, fact["source"]),
         "against": against,
         "beside": _beside(row.get("beside"), session, store),
+        "compared": compared,
     }
+
+
+def _public(row: dict) -> dict:
+    return {k: v for k, v in row.items() if k != "compared"}
 
 
 def _section(title: str, rows: list[dict]) -> dict:
     """A profile section with its sources listed once; when there are several, each row notes which it uses.
-    A caveat every row shares is stated once for the section."""
+    Sources that only the county and state figures come from are listed after them. A caveat every row
+    shares is stated once for the section."""
     cited = [r["source"] for r in rows] + [
         r["beside"]["source"] for r in rows if (r["beside"] or {}).get("source")
     ]
     sources = list({(x["name"], x["year"]): x for x in cited}.values())
     keys = [(x["name"], x["year"]) for x in sources]
+    compared = {(c["name"], c["year"]): c for r in rows for c in r["compared"]}
 
     def number(src: dict | None) -> int:
         return keys.index((src["name"], src["year"])) + 1 if src and len(sources) > 1 else 0
 
     rows = [
-        r
+        _public(r)
         | {"note": number(r["source"])}
         | ({"beside": r["beside"] | {"note": number(r["beside"]["source"])}} if r["beside"] else {})
         for r in rows
@@ -409,7 +423,8 @@ def _section(title: str, rows: list[dict]) -> dict:
     shared = caveats.pop() if len(caveats) == 1 else ""
     if shared:
         rows = [r | {"caveat": ""} for r in rows]
-    return {"title": title, "rows": rows, "sources": sources, "caveat": shared}
+    others = [c for k, c in compared.items() if k not in keys]
+    return {"title": title, "rows": rows, "sources": sources, "compared": others, "caveat": shared}
 
 
 def profile(con, raw: dict, session, islands: str = "", matched: dict | None = None) -> dict:
@@ -419,7 +434,7 @@ def profile(con, raw: dict, session, islands: str = "", matched: dict | None = N
     rows = {
         r["fact"]["indicator_id"]: _profile_row(r, session, store) for s in raw["sections"] for r in s["rows"]
     }
-    headline = [dict(rows[i]) for i in PROFILE_HEADLINE if i in rows]
+    headline = [_public(rows[i]) for i in PROFILE_HEADLINE if i in rows]
     sections = [
         _section(s["title"], [rows[r["fact"]["indicator_id"]] for r in s["rows"]]) for s in raw["sections"]
     ]
@@ -578,8 +593,16 @@ def profile_csv(con, raw: dict, session) -> str:
         for row in section["rows"]:
             fact = row["fact"]
             places = [(session.facts[fact["ref"]], district, _caution(fact))]
-            places += [(session.facts[a["ref"]], a["geo_name"], "") for a in row["against"]]
+            places += [
+                (session.facts.get(a.get("ref")), a["geo_name"], a.get("missing", "")) for a in row["against"]
+            ]
             for f, place, note in places:
+                if f is None:
+                    # a place with no figure keeps its row and says why
+                    writer.writerow(
+                        [section["title"], fact["label"], place, "", "", "", "", "", "", "", "", note]
+                    )
+                    continue
                 source = _source(f, store, fact["source"])
                 writer.writerow(
                     [

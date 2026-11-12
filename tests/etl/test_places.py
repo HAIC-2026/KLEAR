@@ -1,4 +1,4 @@
-# Tests for CDC PLACES modeled need measures by tract and their weighted means in districts.
+# Tests for CDC PLACES modeled need measures by tract and county and their weighted means.
 from pathlib import Path
 
 import pandas as pd
@@ -6,14 +6,16 @@ import pytest
 
 from klear.etl.geographies import small_geographies
 from klear.etl.places import (
+    COUNTY_SOURCE_ID,
     PLACES_MEASURES,
     SOURCE_ID,
     parse_places,
+    places_county_facts,
     places_facts,
     places_indicator_rows,
 )
 from klear.store.db import add_facts, add_geographies, add_indicators, add_source
-from klear.validation.places import check_places
+from klear.validation.places import check_places, check_places_county
 
 FIXTURES = Path(__file__).parent.parent / "fixtures"
 FOOD = "places_food_insecurity"
@@ -171,6 +173,82 @@ def test_facts_load_into_store(places_sample, places_blocks, store):
     assert n > 0
 
 
+COUNTIES = ["15001", "15003", "15005", "15007", "15009"]
+
+
+@pytest.fixture
+def county_rows():
+    # food insecurity from the live 2025 county file; adult populations rounded
+    data = {
+        "15001": (19.9, 17.3, 22.8, 165000),
+        "15003": (16.9, 14.4, 19.4, 788000),
+        "15005": (23.2, 18.8, 28.3, 75),
+        "15007": (16.5, 14.1, 19.3, 58000),
+        "15009": (17.1, 14.8, 19.7, 130000),
+    }
+    return pd.DataFrame(
+        [
+            {"src_id": c, "measureid": "FOODINSECU", "measure": "Food insecurity in the past 12 months among adults",
+             "value": v, "value_low": lo, "value_high": hi, "weight": w}
+            for c, (v, lo, hi, w) in data.items()
+        ]
+    )  # fmt: skip
+
+
+def test_county_facts_as_published_and_state_derived(county_rows):
+    facts = places_county_facts(county_rows, COUNTIES)
+    c = facts[facts.geo_type == "county"].set_index("geo_id")
+    assert c.value["15005"] == 23.2 and c.value_low["15005"] == 18.8 and c.value_high["15005"] == 28.3
+    assert (facts.source_id == COUNTY_SOURCE_ID).all() and (facts.tier == "M").all()
+    s = facts[facts.geo_type == "state"].iloc[0]
+    w = county_rows.weight
+    assert s.geo_id == "15" and s.moe_status == "range"
+    assert s.value == pytest.approx((county_rows.value * w).sum() / w.sum())
+    assert s.value_low == pytest.approx((county_rows.value_low * w).sum() / w.sum())
+    assert s.value_low < s.value < s.value_high
+    res = check_places_county(county_rows, facts, COUNTIES)
+    # the other five measures have no rows in this sample
+    assert {d["indicator_id"] for d in res.details} == set(PLACES_MEASURES.values()) - {FOOD}
+    one = {"FOODINSECU": FOOD}
+    res = check_places_county(county_rows, facts, COUNTIES, measures=one)
+    assert res.passed and res.name == "places_county" and res.gate
+    assert any("places_food_insecurity: state" in n for n in res.notes)
+
+
+def test_county_check_fails_on_changed_value(county_rows):
+    facts = places_county_facts(county_rows, COUNTIES)
+    bad = facts.copy()
+    bad.loc[(bad.geo_type == "county") & (bad.geo_id == "15003"), "value"] = 17.0
+    one = {"FOODINSECU": FOOD}
+    res = check_places_county(county_rows, bad, COUNTIES, measures=one)
+    assert not res.passed and any(d.get("geo_id") == "15003" for d in res.details)
+    bad = facts.copy()
+    bad.loc[bad.geo_type == "state", "value"] += 0.5
+    assert not check_places_county(county_rows, bad, COUNTIES, measures=one).passed
+
+
+def test_suppressed_county_widens_state_range(county_rows):
+    rows = county_rows.copy()
+    rows.loc[rows.src_id == "15005", ["value", "value_low", "value_high"]] = float("nan")
+    facts = places_county_facts(rows, COUNTIES)
+    c = facts[facts.geo_type == "county"].set_index("geo_id")
+    assert c.value_status["15005"] == "suppressed" and pd.isna(c.value_low["15005"])
+    assert facts.attrs["missing"][FOOD] == ["15005"]
+    s = facts[facts.geo_type == "state"].iloc[0]
+    pub = rows.dropna(subset=["value"])
+    assert s.value == pytest.approx((pub.value * pub.weight).sum() / pub.weight.sum())
+
+
+def test_county_rows_keyed_by_location_id(tmp_path):
+    # the county file names each county in locationname and gives its FIPS code in locationid
+    lines = (FIXTURES / "places_sample.csv").read_text(encoding="utf-8").splitlines()
+    src = next(ln for ln in lines if '"15003008001"' in ln and '"FOODINSECU"' in ln)
+    row = src.replace('"15003008001"', '"Honolulu"', 1).replace('"15003008001"', '"15003"', 1)
+    path = tmp_path / "county.csv"
+    path.write_text(f"{lines[0]}\n{row}\n", encoding="utf-8")
+    assert list(parse_places(path).src_id) == ["15003"]
+
+
 @pytest.mark.network
 def test_live_places_counts():
     from klear.etl.places import load_places
@@ -179,3 +257,13 @@ def test_live_places_counts():
     counts = df.groupby("measureid").src_id.nunique().to_dict()
     assert set(counts) == set(PLACES_MEASURES)
     assert all(n == 426 for n in counts.values())
+
+
+@pytest.mark.network
+def test_live_places_county_rows():
+    from klear.etl.places import load_places_county
+
+    df = load_places_county()
+    counts = df.groupby("measureid").src_id.apply(sorted).to_dict()
+    assert set(counts) == set(PLACES_MEASURES)
+    assert all(ids == COUNTIES for ids in counts.values())
