@@ -153,7 +153,7 @@ def test_address_search_finds_the_block_districts(server):
     status, data = resolve(port, "1 Test St")
     assert status == 200
     [m] = data["matches"]
-    assert (m["kind"], m["name"], m["island"]) == ("address", "1 TEST ST, HONOLULU, HI, 96744", "Oʻahu")
+    assert (m["kind"], m["name"], m["island"]) == ("address", "1 Test St, Honolulu, HI 96744", "Oʻahu")
     assert [o["geo"] for o in m["overlaps"]] == ["house:023", "senate:012", "county:15003"]
     assert calls == ["1 Test St"]
 

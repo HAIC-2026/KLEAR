@@ -23,7 +23,7 @@ test('a street address lists its districts, and the page says where the address 
   await expect(page.locator('#find .privacy')).toContainText('goes to the U.S. Census Bureau only to find its district');
   const matches = await search(page, '1 Test St');
   await expect(page.locator('#find-status')).toHaveText('Choose the House or Senate district to ask about.');
-  await expect(matches.locator('.match-title')).toHaveText('1 TEST ST, KANEOHE, HI, 96744');
+  await expect(matches.locator('.match-title')).toHaveText('1 Test St, Kāneʻohe, HI 96744');
   await expect(matches.getByRole('button')).toHaveText(['House 23', 'Senate 12']);
   await expect(page.locator('#find .privacy')).toBeVisible();
   await matches.getByRole('button', {name: 'House 23'}).click();
@@ -33,11 +33,18 @@ test('a street address lists its districts, and the page says where the address 
 test('a street address in a chat question gets its own district, and the question box says where it goes', async ({page}) => {
   await page.goto('/');
   await chooseDistrict(page);
-  await expect(page.locator('#question-form .chat-privacy')).toHaveText('A street address in a question goes to the U.S. Census Bureau only to find its district. KLEAR does not store or log it.');
+  await expect(page.locator('#question-form .chat-privacy')).toHaveText('A street address in a question goes to the U.S. Census Bureau only to find its district. KLEAR does not store or log it. Assistant answers send the question to the AI model provider.');
   await expect(page.locator('#question-form .chat-privacy')).toBeVisible();
   const answer = await ask(page, 'Which House and Senate district is 1 Test St, Kāneʻohe in?');
   await expect(answer).toContainText('That address is in House District 23 and Senate District 12.');
-  await expect(answer.locator('h3')).not.toContainText('declined');
+  // The answer is labeled with the address's district, and so are its next questions.
+  await expect(answer.locator('h3')).toHaveText('KLEAR, House District 23');
+  await expect(answer.locator('.followup').nth(1)).toContainText('House District 23');
+  await expect(answer.locator('.followups')).not.toContainText('House District 22');
+  await answer.getByRole('button', {name: 'Switch to House District 23'}).click();
+  await expect(page.locator('#district-title')).toHaveText('House District 23');
+  await expect(page.locator('#profile-live')).toHaveText('Profile for House District 23 loaded.');
+  await expect(answer.getByRole('button', {name: 'Switch to House District 23'})).toHaveCount(0);
 });
 
 test('a district number out of range says how many there are', async ({page}) => {

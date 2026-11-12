@@ -71,7 +71,17 @@ class DailyBudget:
             return s["spent"] + sum(s["held"].values())
 
 
-def _payload(con, answer, mode: str) -> dict:
+def answered_district(con, answered: tuple[str, str] | None, selected: tuple[str, str] | None) -> dict:
+    """The House or Senate district an answer is about when it is not the selected one, as {"district": ...}."""
+    if answered is None or selected is None or answered == selected or answered[0] not in ("house", "senate"):
+        return {}
+    row = con.execute(
+        "SELECT name FROM geography WHERE geo_type = ? AND geo_id = ?", list(answered)
+    ).fetchone()
+    return {"district": {"geo": ":".join(answered), "name": geo_display(*answered, row[0])}} if row else {}
+
+
+def _payload(con, answer, mode: str, selected: tuple[str, str] | None = None) -> dict:
     units = dict(con.execute("SELECT indicator_id, unit FROM indicator").fetchall())
     labels = dict(con.execute("SELECT indicator_id, label FROM indicator").fetchall())
     month = display.build_month(con)
@@ -97,13 +107,17 @@ def _payload(con, answer, mode: str) -> dict:
             }
         )
     programs = display.program_rows(answer.programs)
-    return {
-        "text": render(answer, con),
-        "refusal": answer.refusal,
-        "facts": facts,
-        "programs": programs,
-        "mode": mode,
-    } | display.build(con, answer)
+    return (
+        {
+            "text": render(answer, con),
+            "refusal": answer.refusal,
+            "facts": facts,
+            "programs": programs,
+            "mode": mode,
+        }
+        | display.build(con, answer)
+        | answered_district(con, answer.resolved, selected)
+    )
 
 
 class Assistant:
@@ -133,7 +147,7 @@ class Assistant:
         try:
             answer, usage = agent.answer("web", question, district)
             cost = request_cost(self.model, usage)
-            return _payload(con, answer, "assistant")
+            return _payload(con, answer, "assistant", district)
         except Exception:  # noqa: BLE001 - any failure falls back to the free lookup
             return self._basic(con, question, district, geocoder)
         finally:
@@ -166,4 +180,4 @@ def basic(con, question: str, district: tuple[str, str], note: str = "", geocode
         result["caveats"] = caveats
     elif note and result["refusal"] in ("none", "not_available"):
         result["text"] = f"{note}\n\n{result['text']}"
-    return result | {"mode": "basic"}
+    return result | {"mode": "basic"} | answered_district(con, answered, district)

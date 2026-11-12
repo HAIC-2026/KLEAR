@@ -9,7 +9,7 @@ import re
 
 import httpx
 
-from klear.text import OKINA, OKINA_LOOKALIKES
+from klear.text import MACRON, OKINA, OKINA_LOOKALIKES, hawaiian
 
 _OKINA = f"[{OKINA}{re.escape(OKINA_LOOKALIKES)}]"
 URL = "https://geocoding.geo.census.gov/geocoder/geographies/onelineaddress"
@@ -61,6 +61,29 @@ class GeocoderError(RuntimeError):
 
 def looks_like_address(text: str) -> bool:
     return bool(ADDRESS.match(text))
+
+
+def _plain(word: str) -> str:
+    return "".join(MACRON.get(c, c) for c in re.sub(_OKINA, "", word.casefold()))
+
+
+def readable(matched: str, typed: str) -> str:
+    """The geocoder's capitalized match in title case, with Hawaiian spelling from the typed address and the
+    place-name rules, as in 310 W Kaʻahumanu Ave, Kahului, HI 96732."""
+    spelled = {
+        _plain(w): re.sub(_OKINA, OKINA, w)
+        for w in re.findall(r"[\w" + _OKINA[1:-1] + r"]+", typed)
+        if _plain(w) != w.casefold()
+    }
+
+    def word(m: re.Match) -> str:
+        w = m.group(0)
+        if w == "HI" or not w.isalpha():
+            return w
+        return spelled.get(_plain(w), w.capitalize())
+
+    text = re.sub(r"[^\W_]+", word, matched)
+    return hawaiian(re.sub(r"\b(HI),\s*(\d{5})\b", r"\1 \2", text))
 
 
 def address_in(text: str) -> str | None:

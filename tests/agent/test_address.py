@@ -13,13 +13,15 @@ from klear.agent.tools import ADDRESS_FOUND, Session
 from klear.eval.contract import render
 from klear.web import __main__ as web
 from klear.web.assistant import Assistant, DailyBudget, basic
-from klear.web.geocode import NOTES, GeocoderError, address_in
+from klear.web.geocode import NOTES, GeocoderError, address_in, readable
 from tests.agent.fake_client import FakeClient, tool
 from tests.eval.conftest import _home  # noqa: F401
 
 # Kāneʻohe is mostly House 22 in the small store, but this block of it is in House 23.
 BLOCK = "150030001001001"
 MATCHED = "1 TEST ST, KANEOHE, HI, 96744"
+SHOWN = "1 Test St, Kāneʻohe, HI 96744"
+ABOUT = {"geo": "house:023", "name": "House District 23"}
 SELECTED = ("house", "022")
 
 
@@ -54,6 +56,31 @@ def geocoder(calls: list, reply=((BLOCK, MATCHED),), error: bool = False):
 )
 def test_address_in_finds_the_address_a_question_names(question, address):
     assert address_in(question) == address
+
+
+@pytest.mark.parametrize(
+    ("matched", "typed", "shown"),
+    [
+        (
+            "310 W KAAHUMANU AVE, KAHULUI, HI, 96732",
+            "310 W Kaʻahumanu Ave, Kahului",
+            "310 W Kaʻahumanu Ave, Kahului, HI 96732",
+        ),
+        (
+            "99-1849 AIEA HEIGHTS DR, AIEA, HI, 96701",
+            "99-1849 \u2018Aiea Heights Dr",
+            "99-1849 ʻAiea Heights Dr, ʻAiea, HI 96701",
+        ),
+        (MATCHED, "1 Test St", SHOWN),
+        (
+            "415 S BERETANIA ST, HONOLULU, HI, 96813",
+            "415 s beretania",
+            "415 S Beretania St, Honolulu, HI 96813",
+        ),
+    ],
+)
+def test_matched_address_reads_in_title_case_with_hawaiian_spelling(matched, typed, shown):
+    assert readable(matched, typed) == shown
 
 
 def test_resolve_place_finds_the_address_district_not_the_town_majority(small_con):
@@ -120,6 +147,7 @@ def test_assistant_passes_the_geocoder_to_the_agent(small_con, tmp_path):
         small_con, "Which district is 1 Test St in?", SELECTED, geocoder=geocoder(calls)
     )
     assert result["mode"] == "assistant" and result["refusal"] == "none" and calls == ["1 Test St"]
+    assert result["district"] == ABOUT
 
 
 def test_basic_names_the_address_districts(small_con):
@@ -132,7 +160,8 @@ def test_basic_names_the_address_districts(small_con):
     )
     assert result["refusal"] == "none" and result["mode"] == "basic"
     assert "House District 23 and Senate District 12, in Honolulu County" in result["text"]
-    assert MATCHED in result["text"] and "House District 22" not in result["text"]
+    assert SHOWN in result["text"] and "House District 22" not in result["text"]
+    assert result["district"] == ABOUT
     assert calls == ["1 Test St, Kāneʻohe"]
 
 
@@ -141,7 +170,8 @@ def test_basic_answers_the_question_for_the_address_district(small_con):
         small_con, "How many kūpuna live near 1 Test St, Kāneʻohe?", SELECTED, geocoder=geocoder([])
     )
     assert result["refusal"] == "none"
-    assert MATCHED in result["lead"][0] and "House District 23" in result["lead"][0]
+    assert SHOWN in result["lead"][0] and "House District 23" in result["lead"][0]
+    assert result["district"] == ABOUT
     assert {f["geography"] for f in result["facts"]} == {"House District 23"}
 
 
@@ -153,6 +183,7 @@ def test_basic_says_why_an_address_was_not_placed(small_con, lookup, outcome):
     result = basic(small_con, "Which House district is 1 Test St, Kāneʻohe in?", SELECTED, geocoder=lookup)
     assert result["refusal"] == "none" and result["text"].startswith(NOTES[outcome])
     assert "House District" not in result["text"] and "place, ZIP code or district" in result["text"]
+    assert "district" not in result
 
 
 @pytest.mark.parametrize(
@@ -192,6 +223,10 @@ def test_chat_endpoint_looks_up_an_address_only_when_lookup_is_on(chat):
     calls = []
     status, data = chat(geocoder(calls), "Which House and Senate district is 1 Test St, Kāneʻohe in?")
     assert status == 200 and data["refusal"] == "none" and "House District 23" in data["text"]
-    assert calls == ["1 Test St, Kāneʻohe"]
+    assert calls == ["1 Test St, Kāneʻohe"] and data["district"] == ABOUT
     status, data = chat(None, "Which House and Senate district is 1 Test St, Kāneʻohe in?")
     assert status == 200 and data["refusal"] == "none" and data["text"].startswith(NOTES["off"])
+
+
+def test_answers_about_the_selected_district_name_no_other(small_con):
+    assert "district" not in basic(small_con, "How many kūpuna live here?", SELECTED)

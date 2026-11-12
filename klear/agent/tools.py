@@ -15,7 +15,7 @@ from klear.rules.registry import load_rules
 from klear.store.db import MOE_STATUSES, SITE_KINDS, VALUE_STATUSES
 from klear.store.methods import fact_method
 from klear.web.geocode import NOTES as ADDRESS_NOTES
-from klear.web.geocode import GeocoderError, looks_like_address
+from klear.web.geocode import GeocoderError, looks_like_address, readable
 
 CHAMBERS = {
     "house": ("h", "hd", "hse", "house"),
@@ -333,7 +333,7 @@ class Session:
                 found = self.geocoder(text)
             except GeocoderError:
                 outcome = "failed"
-        matches = [m for block, label in found if (m := self.block_match(block, label))]
+        matches = [m for block, label in found if (m := self.block_match(block, readable(label, text)))]
         self._places_named(" ".join([text, *(m["name"] for m in matches)]))
         if matches:
             return {"matches": matches, "note": ADDRESS_FOUND}

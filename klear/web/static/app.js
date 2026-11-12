@@ -873,7 +873,7 @@ function restoreChat() {
     const chamber = x.geo.split(':')[0];
     let reply;
     try { reply = renderAnswer(x.answer, x.name); } catch { continue; }
-    reply.dataset.chamber = chamber;
+    reply.dataset.chamber = answerAbout(x.answer, x.geo).geo.split(':')[0];
     showMode(reply, x.answer.mode);
     askedQuestions.add(sameQuestion(x.question, x.name));
     if (last && x.geo !== last) $('log').append(switchLine(x.name));
@@ -942,11 +942,13 @@ $('question-form').onsubmit = async e => {
     hold = holdPage(pending);
     follow = onScreen(pending);
     reply = renderAnswer(answer, name);
-    reply.dataset.chamber = chamber;
+    const about = answerAbout(answer, geo, name);
+    reply.dataset.chamber = about.geo.split(':')[0];
     showMode(reply, answer.mode);
     // Only the newest answer offers next questions, and an earlier failure's Retry goes once this one is answered.
-    for (const n of $('log').querySelectorAll('.followups, .retry')) n.remove();
-    const next = followUpGroup(followUps(question, answer, name, counties.get(geo)));
+    for (const n of $('log').querySelectorAll('.followups, .retry, .switch-offer')) n.remove();
+    if (about.geo !== geo) reply.append(switchOffer(about));
+    const next = followUpGroup(followUps(question, answer, about.name, counties.get(about.geo)), about);
     if (next) reply.append(next);
     pending.replaceWith(reply);
     saved.answer = answer;
@@ -1112,8 +1114,25 @@ function followUps(question, answer, name, county) {
   return out.slice(0, 3);
 }
 
+// The district an answer is about: the one the server names when it differs from the selected one, as for a
+// street address in another district, else the selected one.
+function answerAbout(answer, geo, name) {
+  const d = answer.district;
+  return d && typeof d.geo === 'string' && typeof d.name === 'string' ? d : {geo, name};
+}
+
+// A button that moves the chat and profile to the district an answer turned out to be about.
+function switchOffer(about) {
+  const box = node('p', '', 'switch-offer'), b = node('button', `Switch to ${about.name}`, 'followup');
+  b.type = 'button';
+  b.onclick = () => { if (!busy) choose(about.geo, about.name); };
+  box.append(b);
+  return box;
+}
+
 let followSeq = 0;
-function followUpGroup(questions) {
+// Next questions; for an answer about another district, a question switches the chat there before it is asked.
+function followUpGroup(questions, about) {
   if (!questions.length) return null;
   const box = node('div', '', 'followups'), title = node('p', 'Ask next', 'followups-title');
   title.id = `followups-${++followSeq}`;
@@ -1123,7 +1142,11 @@ function followUpGroup(questions) {
   for (const q of questions) {
     const b = says('button', q, 'followup');
     b.type = 'button';
-    b.onclick = () => askAgain(q);
+    b.onclick = () => {
+      if (busy) return;
+      if (about && about.geo !== district) choose(about.geo, about.name, true);
+      askAgain(q);
+    };
     box.append(b);
   }
   return box;
@@ -1169,7 +1192,7 @@ function districtExamples(p) {
 
 // Next questions, retries and district examples name a district, so they go when the chat switches to another.
 function dropDistrictActions() {
-  for (const n of document.querySelectorAll('#log .followups, #log .retry, #examples .local')) n.remove();
+  for (const n of document.querySelectorAll('#log .followups, #log .retry, #log .switch-offer, #examples .local')) n.remove();
 }
 document.addEventListener('klear:district', dropDistrictActions);
 
@@ -1324,6 +1347,7 @@ function tileValue(text) {
 }
 
 function renderAnswer(answer, name) {
+  name = answerAbout(answer, '', name).name;
   if (!answer.lead) return basicAnswer(answer, name);
   const article = document.createElement('article');
   article.className = 'answer';

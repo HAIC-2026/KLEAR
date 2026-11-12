@@ -182,6 +182,7 @@ article .answer-head h3{margin:0}
 /* Next questions under the newest answer, each written out in full. */
 .followups{display:grid;gap:8px;margin-top:20px;padding-top:16px;border-top:1px solid var(--line);white-space:normal}
 .followups-title{margin:0;font-size:var(--fs-sm);font-weight:700;line-height:1.4}
+.switch-offer{margin:16px 0 0}
 .followup{padding:10px 14px;border:1px solid var(--accent);border-radius:var(--r-ctl);background:#fff;color:var(--accent-dark);font-size:var(--fs-sm);font-weight:600;line-height:1.4;text-align:left;text-wrap:pretty}
 article p{line-height:1.7}
 details{white-space:normal;border-top:1px solid var(--line);margin-top:24px;padding-top:16px}

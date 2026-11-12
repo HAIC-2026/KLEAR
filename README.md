@@ -345,9 +345,12 @@ The assistant passes the address to its resolve_place tool, and the basic lookup
 question, and both use the same geocoder and block lookup as the search box, then answer for that
 district. A town can span districts, so when the geocoder is off, unreachable or finds no match, chat
 says so and asks for a place, ZIP code or district instead of guessing one from the town name.
-Questions about the people at an address, such as who lives there, are still declined. The note
-under the question box says the address goes to the Census Bureau and is not stored or logged. The
-agent and eval command lines take the same --no-address-lookup option.
+Questions about the people at an address, such as who lives there, are still declined. When the
+address is in another district than the one chosen, the answer is labeled with that district, its
+next questions name it, and a button switches the chat and profile to it. The matched address is shown
+in title case with Hawaiian spelling. The note under the question box says the address goes to the
+Census Bureau and is not stored or logged, and that assistant answers send the question to the AI
+model provider. The agent and eval command lines take the same --no-address-lookup option.
 Chat offers five example questions, a waiting state, explicit refusal labels,
 and figure cards with uncertainty, vintage, geography and official source
 links. Source names open the publisher's page about the dataset, never an API answer or a

@@ -322,10 +322,10 @@ def address_answer(con, question: str, address: str, geocoder) -> dict:
     words = set(WORDS.findall(rest.casefold()))
     chamber = "senate" if "senate" in words and "house" not in words else "house"
     q = rest.casefold()
+    picked = tuple(places[chamber][0].split(":"))
     asks = asks_fixed_income(q) or any(w in q for w in ("program", "benefit", "assistance", "support"))
     if not (asks or indicators(con, CHAMBER_WORDS.sub(" ", rest))):
-        return {"text": where, "refusal": "none", "facts": [], "programs": []}
-    picked = tuple(places[chamber][0].split(":"))
+        return {"text": where, "refusal": "none", "facts": [], "programs": [], "district": picked}
     result = ask(con, rest, picked)
     result["text"] = f"{where}\n\n{result['text']}"
     return result | {"where": where, "district": picked}
