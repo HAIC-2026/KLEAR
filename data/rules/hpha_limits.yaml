@@ -1,9 +1,19 @@
 rule_id: hpha_limits
 program: Hawaiʻi Public Housing Authority income limits
-status: needs_manual
+status: confirmed
 effective: '2026-01-01'
-url: https://www.hpha.hawaii.gov/
-values: {}
-verified_by: not read in this session
-retrieved: '2026-10-30'
-note: confirm HPHA income limits by hand
+url: https://www.hpha.hawaii.gov/programs-and-resources/public-housing
+values:
+  low_income_pct_of_median:
+    value: 50
+    quote: Low-income families are defined by HUD as earning 50% or less of the median income for a given county or metropolitan area
+  rent_pct_of_monthly_income:
+    value: 30
+    quote: Most families pay 30% of their monthly gross income, minus any deductions
+  rent_supplement_max_monthly:
+    value: 500
+    url: https://www.hpha.hawaii.gov/programs-and-resources/voucher-programs
+    quote: The RSP Program provides a shallow rent subsidy of up to $500 a month for eligible low-income families
+verified_by: read from the HPHA public housing and voucher program pages
+retrieved: '2026-11-09'
+note: HPHA uses the HUD income limits, so the dollar limits for each county are in rule hud_il_fy2026_hi. The pages carry no date, so effective is the start of the year they were read in.
