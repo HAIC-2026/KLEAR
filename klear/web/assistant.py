@@ -12,7 +12,6 @@ from klear.config import MissingSecretError
 from klear.eval.contract import VERSION, Answer, fill_value, geo_display, render
 from klear.eval.spend import load_prices, request_cost
 from klear.filelock import exclusive
-from klear.rules.registry import load_rules
 from klear.web import display
 from klear.web.answers import ask as lookup
 from klear.web.answers import asks_profile
@@ -97,12 +96,7 @@ def _payload(con, answer, mode: str) -> dict:
                 "uncertainty": status[0] if status else "unavailable",
             }
         )
-    rules = {r.rule_id: r for r in load_rules()}
-    programs = [
-        {"name": rules[p].program, "url": rules[p].url, "year": rules[p].effective}
-        for p in answer.programs
-        if p in rules
-    ]
+    programs = display.program_rows(answer.programs)
     return {
         "text": render(answer, con),
         "refusal": answer.refusal,

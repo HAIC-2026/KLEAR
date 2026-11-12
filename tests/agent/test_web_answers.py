@@ -4,7 +4,7 @@ import duckdb
 import pytest
 
 from klear.agent.config import FIXED_INCOME, FIXED_INCOME_COMPARED, FIXED_INCOME_PROGRAMS
-from klear.rules.registry import load_rules
+from klear.programs import by_rule
 from klear.web.answers import asks_fixed_income, indicators
 from klear.web.assistant import basic
 from klear.web.display import PROFILE_LABELS
@@ -72,8 +72,8 @@ def test_fixed_income_questions_are_recognized(question, fixed):
 
 
 def test_fixed_income_answer_for_every_district(real_con):
-    rules = {r.rule_id: r.program for r in load_rules()}
-    names = [rules[p] for p in FIXED_INCOME_PROGRAMS]
+    owners = by_rule()
+    names = [owners[p].name for p in FIXED_INCOME_PROGRAMS]
     districts = real_con.execute(
         "SELECT geo_type, geo_id FROM geography WHERE geo_type IN ('house', 'senate') ORDER BY 1, 2"
     ).fetchall()
@@ -88,7 +88,9 @@ def test_fixed_income_answer_for_every_district(real_con):
         }
         for i in FIXED_INCOME_COMPARED:
             assert " County (" in lines[i] and "Hawaiʻi (" in lines[i], (district, lines[i])
-        assert [p["name"] for p in answer["programs"]] == names and all(p["url"] for p in answer["programs"])
+        assert [p["name"] for p in answer["programs"]] == names and all(
+            p["url"] and p["phone"] for p in answer["programs"]
+        )
         assert any(c.startswith("Covers all households") for c in answer["caveats"]), district
         assert len(answer["charts"]) == len(FIXED_INCOME_COMPARED), district
         assert all(len(c["bars"]) == 3 for c in answer["charts"]), district

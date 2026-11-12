@@ -1,5 +1,6 @@
 # Deterministic tools the KLEAR agent calls, plus the session that numbers and remembers what they return.
 import json
+import math
 import re
 from typing import NamedTuple
 
@@ -9,6 +10,7 @@ from klear.agent import config
 from klear.etl.places_gazetteer import plain_name, search_plain
 from klear.eval.contract import FactRef, fill_value, geo_display, geo_key, short_name
 from klear.eval.scorers import CV_LIMIT, counties, cv
+from klear.programs import ELIGIBILITY_NOTE, NEEDS, Program, catalog
 from klear.rules.registry import load_rules
 from klear.store.db import MOE_STATUSES, SITE_KINDS, VALUE_STATUSES
 
@@ -879,30 +881,112 @@ class Session:
             **({"note": note} if note else {}),
         }
 
-    # list_programs, find_sites, explain_source
+    # list_programs, district_programs
+
+    def _program_entry(self, p: Program) -> dict:
+        if self._rules is None:
+            self._rules = {r.rule_id: r for r in load_rules()}
+        return {
+            "program_id": p.program_id,
+            "name": p.name,
+            "covers": p.description,
+            "serves": p.serves,
+            "agency": p.agency,
+            "url": p.url,
+            "phone": p.phone,
+            "verified": p.verified.isoformat(),
+            "rules": [
+                {
+                    "rule_id": r,
+                    "name": display_name(self._rules[r].program),
+                    "program": self._rules[r].program,
+                    "status": self._rules[r].status,
+                }
+                for r in p.rules
+            ],
+        }
 
     def _list_programs(self, args: dict) -> dict:
         words = _strs(args, "words", optional=True)
-        if self._rules is None:
-            self._rules = load_rules()
         query = {t for w in words or [] for t in _tokens(w)}
         out = []
-        for r in self._rules:
-            covers = config.COVERS.get(r.rule_id, "")
-            if query and not query & _tokens(f"{r.rule_id.replace('_', ' ')} {r.program} {covers}"):
+        for p in catalog():
+            entry = self._program_entry(p)
+            names = " ".join(f"{r['rule_id'].replace('_', ' ')} {r['program']}" for r in entry["rules"])
+            if query and not query & _tokens(
+                f"{p.program_id.replace('_', ' ')} {p.name} {p.description} {names}"
+            ):
                 continue
-            agency = config.AGENCIES.get(r.rule_id, "")
-            out.append(
-                {
-                    "rule_id": r.rule_id,
-                    "name": display_name(r.program),
-                    "program": r.program,
-                    "covers": covers,
-                    "agency": agency,
-                    "status": r.status,
-                }
-            )
+            out.append(entry)
         return {"programs": out}
+
+    def _need(self, need_id: str, geo: tuple[str, str]) -> dict | None:
+        """The district's need figure set against the state's, or None when either is missing."""
+        need = NEEDS[need_id]
+        state = ("state", "15")
+        refs = {}
+        for g in (geo, state):
+            got = {
+                f["indicator_id"]: f["ref"]
+                for f in reversed(self._facts_for(list(need.indicators), [g])["facts"])
+            }
+            if len(got) < len(need.indicators):
+                return None
+            refs[g] = [got[i] for i in need.indicators]
+        (x, mine), (y, theirs) = (self._need_interval(refs[g]) for g in (geo, state))
+        if x is None or y is None or not theirs:
+            direction, ratio = "not_comparable", 0.0
+        else:
+            direction = (
+                "within_margin" if x[0] <= y[1] and y[0] <= x[1] else "higher" if x[0] > y[1] else "lower"
+            )
+            ratio = mine / theirs
+        if len(need.indicators) == 1 and direction != "not_comparable":
+            self.directions.append((refs[geo][0], refs[state][0], direction))
+        return {
+            "need": need_id,
+            "refs": refs[geo],
+            "state_refs": refs[state],
+            "direction": direction,
+            "ratio": round(ratio, 3),
+        }
+
+    def _need_interval(self, refs: list[str]) -> tuple[tuple[float, float] | None, float | None]:
+        """Interval and value of a rate, or of a count's share of a total with conservative bounds."""
+        facts = [self.facts[r] for r in refs]
+        if any(f.value is None for f in facts):
+            return None, None
+        if len(facts) == 1:
+            return self._fact_interval(facts[0]), facts[0].value
+        part, whole = facts
+        p, w = self._fact_interval(part), self._fact_interval(whole)
+        if not whole.value or p is None or w is None or w[1] <= 0:
+            return None, None
+        return (p[0] / w[1], p[1] / w[0] if w[0] > 0 else math.inf), part.value / whole.value
+
+    def _district_programs(self, args: dict) -> dict:
+        geo = _geo_arg(args.get("district"))
+        if geo[0] not in ("house", "senate") or self._name(*geo) is None:
+            raise ToolError("district must be a stored House or Senate district, for example house:022")
+        self.resolved.add(geo)
+        programs = catalog()
+        needs = list(dict.fromkeys(n for p in programs for n in p.needs))
+        self._prefetch(
+            list(dict.fromkeys(i for n in needs for i in NEEDS[n].indicators)), [geo, ("state", "15")]
+        )
+        found = {n: self._need(n, geo) for n in needs}
+        out = []
+        for p in programs:
+            reasons = sorted((r for n in p.needs if (r := found[n])), key=lambda r: -r["ratio"])
+            higher = [r for r in reasons if r["direction"] == "higher"]
+            entry = self._program_entry(p)
+            entry["need"] = "higher" if higher else "not_higher" if reasons else "no_data"
+            entry["reasons"] = higher or reasons[:1]
+            out.append(entry)
+        out.sort(key=lambda e: (e["need"] != "higher", -max((r["ratio"] for r in e["reasons"]), default=0)))
+        return {"district": self._geo(*geo), "programs": out, "note": ELIGIBILITY_NOTE}
+
+    # find_sites, explain_source
 
     def _find_sites(self, args: dict) -> dict:
         geo = _geo_arg(args.get("geo"))
@@ -1015,10 +1099,22 @@ TOOL_SPECS = [
     ),
     _spec(
         "list_programs",
-        "List benefit programs with rule id, name to write in answers, full program title, what it covers, "
-        "agency and verification status, optionally filtered by words.",
+        "List benefit programs, one entry per program, optionally filtered by words: what it covers, who it "
+        "serves, the agency, the official page to apply or learn more, the agency phone, the date those details "
+        "were verified, and its rules. Each rule has the rule id to put in programs, the name to write in "
+        "answers, and its verification status.",
         {"words": {**_STRS, "description": "Optional words to filter programs."}},
         [],
+    ),
+    _spec(
+        "district_programs",
+        "Programs to explore in a House or Senate district, ranked by how far the district's need figures sit "
+        "above the state's. Each program has the list_programs fields, need (higher when a figure is above the "
+        "state outside the margins of error, not_higher, or no_data) and reasons: refs for the district and "
+        "state facts behind each need figure, the direction and the ratio of district to state. Also returns "
+        "the note that district data cannot establish any person's eligibility.",
+        {"district": {**_GEO, "description": "House or Senate district as TYPE:ID, for example house:022."}},
+        ["district"],
     ),
     _spec(
         "find_sites",

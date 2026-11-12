@@ -7,8 +7,7 @@ from klear.agent.answer import DIRECTION_TEXT, actual_direction, main_county
 from klear.agent.config import FIXED_INCOME, FIXED_INCOME_COMPARED, FIXED_INCOME_PROGRAMS, PROFILE_INDICATORS
 from klear.agent.tools import Session
 from klear.eval.contract import geo_display
-from klear.rules.registry import load_rules
-from klear.web.display import PROFILE_LABELS, _plain, build_month, program_rules, year_text
+from klear.web.display import PROFILE_LABELS, _plain, build_month, matched_programs, program_rows, year_text
 
 PERSONAL = re.compile(
     r"\b(?:a specific person|an individual|named resident|home address|phone number|personal information|who lives at|identify a resident|my neighbor|specific resident)\b",
@@ -146,6 +145,35 @@ def indicators(con, question):
     return [key for _, key in sorted(ranked, reverse=True)[:3]]
 
 
+def program_answer(con, district, shown: str) -> dict:
+    """Programs matched to the district's need figures, with the reason for each in words."""
+    session = Session(con)
+    raw = json.loads(session.run("district_programs", {"district": f"{district[0]}:{district[1]}"}))
+    if "error" in raw:
+        raise ValueError("Could not match programs to the district")
+    laid = matched_programs(con, raw, session)
+    names = [p["name"] for p in laid["programs"]]
+    if names:
+        listed = ", ".join(names[:-1]) + (" and " if len(names) > 1 else "") + names[-1]
+        lead = (
+            f"Programs to explore for residents of {shown}: {listed}. They are ranked by how far the district's "
+            "figures sit above the state's, and each one below gives its reason."
+        )
+    else:
+        lead = (
+            f"None of {shown}'s need figures sit clearly above the state's, so no program stands out here. "
+            "These programs serve residents statewide."
+        )
+    return {
+        "text": f"{lead}\n\n{laid['note']}",
+        "refusal": "none",
+        "facts": [],
+        "programs": [p | {"match": True} for p in laid["programs"]]
+        + [p | {"match": False} for p in laid["others"]],
+        "program_sources": laid["sources"],
+    }
+
+
 def _cards(con, facts: list[dict]) -> list[dict]:
     """Figure cards for get_facts entries: label, value, year, source, place and uncertainty."""
     month, out = build_month(con), []
@@ -234,11 +262,10 @@ def fixed_income(con, district: tuple[str, str], shown: str) -> dict:
         f"Kūpuna and fixed incomes in {shown}. Rates and medians are compared with "
         f"{_joined(list(dict.fromkeys(names)))}.\n" + "\n".join(lines)
     ]
-    rules = {r.rule_id: r for r in load_rules()}
-    chosen = [rules[p] for p in FIXED_INCOME_PROGRAMS if p in rules]
+    chosen = program_rows(list(FIXED_INCOME_PROGRAMS))
     lead.append(
         "Programs for kūpuna on fixed incomes, with official links below: "
-        f"{_joined([r.program for r in chosen])}. These district figures cannot establish any person's eligibility."
+        f"{_joined([p['name'] for p in chosen])}. These district figures cannot establish any person's eligibility."
     )
     caveats = [f"{note} Applies to: {', '.join(where)}." for note, where in notes.items()]
     if shaky:
@@ -252,7 +279,7 @@ def fixed_income(con, district: tuple[str, str], shown: str) -> dict:
         "text": "\n\n".join(lead + caveats),
         "refusal": "none",
         "facts": _cards(con, facts),
-        "programs": [{"name": r.program, "url": r.url, "year": r.effective} for r in chosen],
+        "programs": chosen,
         "fact_refs": [session.facts[f["ref"]] for f in facts],
         "lead": lead,
         "caveats": caveats,
@@ -282,13 +309,7 @@ def ask(con, question, district):
     if asks_fixed_income(q):
         return fixed_income(con, district, shown)
     if any(word in q for word in ("program", "benefit", "assistance", "support", "help available")):
-        chosen = program_rules()[:6]
-        return {
-            "text": f"These published programs may be worth exploring for residents of {shown}. This district-level view cannot establish any person's eligibility; consult each program's official guidance.",
-            "refusal": "none",
-            "facts": [],
-            "programs": [{"name": r.program, "url": r.url, "year": r.effective} for r in chosen],
-        }
+        return program_answer(con, district, shown)
     ids = indicators(con, question)
     if not ids:
         return {

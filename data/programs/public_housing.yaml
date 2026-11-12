@@ -1,0 +1,13 @@
+program_id: public_housing
+name: Public housing and housing choice vouchers
+description: Rental homes in state and federal public housing, and Section 8 vouchers that pay part of the rent.
+serves: Households with low income. HPHA vouchers are offered on Oʻahu.
+agency: Hawaiʻi Public Housing Authority
+url: https://hpha.hawaii.gov/how-to-apply
+phone: (808) 204-9042
+phone_label: Hawaiʻi Public Housing Authority
+phone_source: https://hpha.hawaii.gov/
+rules: [hpha_limits, hud_il_fy2026_hi]
+needs: [pct_rent_burden_35_plus, pct_severe_overcrowding]
+verified: '2026-11-09'
+verification: Fetched the How to Apply page (HTTP 200). It prints the phone
