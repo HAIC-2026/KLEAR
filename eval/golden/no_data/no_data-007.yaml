@@ -1,0 +1,9 @@
+id: no_data-007
+category: no_data
+question: What is the diabetes rate in Hawaiʻi Senate District 3?
+ideal: Say that chronic disease rates are a health subject KLEAR covers but holds no district data for yet.
+  Point to the Hawaiʻi State Department of Health and CDC PLACES without giving a rate.
+district: [senate, "003"]
+tags: [chronic_disease]
+must_say: ["Department of Health"]
+refusal: not_available

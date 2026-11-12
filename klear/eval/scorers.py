@@ -9,9 +9,20 @@ from pathlib import Path
 
 import yaml
 
-from klear.eval.contract import MARKER, Answer, ContractError, geo_key, render
+from klear.eval.contract import (
+    CHAMBERS,
+    MARKER,
+    PLACE_MARKERS,
+    Answer,
+    ContractError,
+    district_overlap,
+    geo_display,
+    geo_key,
+    render,
+    share_key,
+)
 from klear.eval.golden import RULES, Golden
-from klear.text import hawaiian, misspellings, strip_ignorable
+from klear.text import NAMES, PLACES, hawaiian, misspellings, strip_ignorable, unmarked
 
 TOL = 1e-9
 SIGN = "[-+\u2212\u00b1$%\u20ac]"
@@ -254,6 +265,22 @@ def counties(geo: tuple[str, str], con) -> set[tuple[str, str]]:
     return out
 
 
+def other_chamber(geo: tuple[str, str], con) -> set[tuple[str, str]]:
+    """Districts of the other chamber holding any 2020 population of a House or Senate district."""
+    return {(t, i) for t, i, _, _ in district_overlap(con, geo) if t in CHAMBERS}
+
+
+def hawaiian_names(con) -> list[str]:
+    """Island, town, area and county names as the store spells them, with ʻokina and kahakō."""
+    names = [*NAMES, *PLACES, *(r[0] for r in con.execute("SELECT name FROM place").fetchall())]
+    tables = {r[0] for r in con.execute("SELECT table_name FROM information_schema.tables").fetchall()}
+    for table in ("area", "area_alias"):
+        if table in tables:
+            names += [r[0] for r in con.execute(f"SELECT DISTINCT name FROM {table}").fetchall()]
+    rows = con.execute("SELECT geo_id, name FROM geography WHERE geo_type = 'county'").fetchall()
+    return names + [geo_display("county", i, n) for i, n in rows]
+
+
 def _allowed_geos(g: Golden, a: Answer, con) -> set[tuple[str, str]]:
     geos = {(t[1], t[2]) for t in g.facts} | set(g.allowed_geos)
     geos |= {
@@ -263,7 +290,7 @@ def _allowed_geos(g: Golden, a: Answer, con) -> set[tuple[str, str]]:
     for geo in (a.resolved, g.context):
         if geo is not None:
             geos.add(tuple(geo))
-            geos |= counties(tuple(geo), con)
+            geos |= counties(tuple(geo), con) | other_chamber(tuple(geo), con)
     return geos
 
 
@@ -279,13 +306,21 @@ def answer_problems(a: Answer, con, allowed: set[tuple[str, str]]) -> list[str]:
     problems += [f"duplicate fact ref {r}" for r in sorted({r for r in refs if refs.count(r) > 1})]
     cited = {(k, r) for text in texts for k, r in MARKER.findall(text)}
     problems += [
-        f"marker {{{k}:{r}}} has no fact ref" for k, r in sorted(cited) if k != "geo" and r not in refs
+        f"marker {{{k}:{r}}} has no fact ref"
+        for k, r in sorted(cited)
+        if k not in PLACE_MARKERS and r not in refs
     ]
     shown = _shown_facts(a)
     problems += [f"fact {f.ref} is never used by a marker" for f in a.facts if f.ref not in shown]
-    for _, r in sorted(c for c in cited if c[0] == "geo"):
-        if geo_key(r) not in allowed:
-            problems.append(f"geography {r.replace(':', ' ')} is not allowed here")
+    named = set()
+    for k, r in sorted(c for c in cited if c[0] in PLACE_MARKERS):
+        keys = [geo_key(r)] if k == "geo" else list(share_key(r) or [None])
+        if None in keys:
+            what = "is not allowed here" if k == "geo" else "needs a House or Senate district, then TYPE:ID"
+            problems.append(f"geography {r.replace(':', ' ')} {what}")
+        named |= {g for g in keys if g is not None}
+    for geo in sorted(named - allowed):
+        problems.append(f"geography {geo[0]} {geo[1]} is not allowed here")
     for f in a.facts:
         if (f.geo_type, f.geo_id) not in allowed:
             problems.append(
@@ -447,7 +482,8 @@ def score(g: Golden, a: Answer, con, programs: dict[str, str] | None = None) -> 
         _verdict("refusal", [] if a.refusal == g.refusal else [f"expected {g.refusal}, got {a.refusal}"])
     )
     spell = strip_ignorable(text)
-    wrong = misspellings(spell)
+    wrong = misspellings(spell) + [w for w, _ in unmarked(spell, hawaiian_names(con))]
+    wrong = list(dict.fromkeys(wrong))
     ok = not wrong and hawaiian(spell) == spell
     out.append(Outcome("spelling", ok, "" if ok else f"misspelled or unmarked: {wrong or 'not normalized'}"))
     out += [_reliability(a, low), _sourcing(a), _direction(g, a, low)]

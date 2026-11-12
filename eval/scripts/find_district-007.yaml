@@ -1,0 +1,15 @@
+# Scripted model turns for find_district-007: Resolve the selected House district, which lies entirely in one Senate district.
+- - type: tool_use
+    name: resolve_place
+    input:
+      text: "house:002"
+- - type: tool_use
+    name: submit_answer
+    input:
+      resolved: "house:002"
+      refusal: none
+      blocks:
+        - "{geo:house:002} lies entirely in {geo:senate:001}, which holds {share:house:002:senate:001}."
+      facts: []
+      programs: []
+      caveats: []

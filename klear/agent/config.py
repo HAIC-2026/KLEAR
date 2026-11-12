@@ -26,6 +26,20 @@ REQUEST_SETTINGS = {
 SEARCH_LIMIT = 12
 SITE_LIMIT = 20
 CHAMBER_TYPES = ("house", "senate")
+# Words that name a chamber's districts (house only before a district noun) or its members, words near them that
+# ask which of them hold a district, and words that ask where a measure is highest instead.
+LEGISLATOR_WORDS = ("senator", "senators", "representative", "representatives")
+CHAMBER_WORDS = {
+    "senate": ("senate", "senator", "senators"),
+    "house": ("house", "representative", "representatives"),
+}
+DISTRICT_NOUNS = ("district", "districts", "seat", "seats")
+OVERLAP_CUES = (
+    "which", "what", "whose", "contain", "contains", "cover", "covers", "include", "includes", "overlap",
+    "overlaps", "inside", "within", "part", "make", "made", "belong", "belongs", "fall", "falls", "lie", "lies",
+    "sit", "sits", "span", "spans", "for", "of", "in",
+)  # fmt: skip
+RANK_WORDS = ("most", "highest", "lowest", "least", "fewest", "rank", "ranking", "top", "largest", "smallest")
 # How rank_districts groups districts, as the tool reports it.
 RANK_NOTE = (
     "Districts are listed highest first. A tier starts at the highest district not yet placed and holds every "

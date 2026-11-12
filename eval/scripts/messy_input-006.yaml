@@ -1,0 +1,19 @@
+# Scripted model turns for messy_input-006: Use the selected Senate district, find no eviction indicator and decline as not available.
+- - type: tool_use
+    name: resolve_place
+    input:
+      text: "senate:012"
+- - type: tool_use
+    name: search_indicators
+    input:
+      words: ["evictions"]
+- - type: tool_use
+    name: submit_answer
+    input:
+      resolved: "senate:012"
+      refusal: not_available
+      blocks:
+        - "Eviction filings for {geo:senate:012} are not in KLEAR's district data yet, although KLEAR covers housing. The Hawaiʻi State Judiciary keeps landlord-tenant court records."
+      facts: []
+      programs: []
+      caveats: []

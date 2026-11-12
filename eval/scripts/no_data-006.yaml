@@ -1,0 +1,29 @@
+# Scripted model turns for no_data-006: Find no eviction indicator, first decline as out of scope, then follow the topic list to not_available and name the Judiciary.
+- - type: tool_use
+    name: resolve_place
+    input:
+      text: "Hawaiʻi House District 5"
+- - type: tool_use
+    name: search_indicators
+    input:
+      words: ["eviction", "filings"]
+- - type: tool_use
+    name: submit_answer
+    input:
+      resolved: "house:005"
+      refusal: out_of_scope
+      blocks:
+        - "Eviction filings are not in the KLEAR data for {geo:house:005}."
+      facts: []
+      programs: []
+      caveats: []
+- - type: tool_use
+    name: submit_answer
+    input:
+      resolved: "house:005"
+      refusal: not_available
+      blocks:
+        - "Eviction filings for {geo:house:005} are not in KLEAR's district data yet, although KLEAR covers housing. The Hawaiʻi State Judiciary keeps landlord-tenant court records."
+      facts: []
+      programs: []
+      caveats: []

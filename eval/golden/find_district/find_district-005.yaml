@@ -1,0 +1,12 @@
+id: find_district-005
+category: find_district
+question: Which Senate district is Hawaiʻi House District 22 in?
+ideal: Explain that the House district does not sit inside a single Senate district. Name both Senate
+  districts that hold its residents, each with its share of the district's population in the Hawaiʻi block data.
+district: [house, "022"]
+tags: [senate_overlap]
+allowed_geos:
+  - [senate, "010"]
+  - [senate, "011"]
+must_say: ["Senate District 11", "Senate District 10"]
+refusal: none

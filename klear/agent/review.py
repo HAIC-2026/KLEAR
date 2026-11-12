@@ -5,10 +5,13 @@ REVIEW_SPEC = _spec(
     "review",
     "Report your review of the question and the answer.",
     {
-        "partisan": {"type": "boolean", "description": "The question seeks partisan or campaign help."},
+        "partisan": {
+            "type": "boolean",
+            "description": "The question seeks help with a party, candidate, election or election campaign.",
+        },
         "individual": {
             "type": "boolean",
-            "description": "The question is about a private person or address.",
+            "description": "The question is about an identifiable private person, household or address.",
         },
         "answers_question": {"type": "boolean", "description": "The answer addresses what was asked."},
         "reason": {"type": "string", "description": "One short sentence explaining any flag."},
@@ -17,11 +20,12 @@ REVIEW_SPEC = _spec(
 )
 REVIEW_SYSTEM = """You review one answer from KLEAR, a neutral public-data assistant for Hawaiʻi legislators, \
 their staff and economists. Reply only by calling review.
-- partisan: true when the question asks for help with a party, candidate, election or campaign, targeting or \
-persuading voters, how to vote, or a legislator's votes or record, even when it also asks for data (such as \
-talking points to win or flip a district). Neutral questions about a district for policy or outreach are not \
-partisan.
-- individual: true when the question asks about a specific private person, household or street address.
+- partisan: true when the question asks for help with a party, candidate, election or election campaign, \
+targeting or persuading voters, how to vote, or a legislator's votes or record, even when it also asks for \
+data (such as talking points to win or flip a district). Neutral questions about a district for policy or \
+outreach are not partisan, and neither are outreach, awareness, enrollment or voter registration campaigns.
+- individual: true when the question asks about a specific private person, household or street address, not\
+ when it uses words such as individual, family or household generically.
 - answers_question: false only when the answer misses what was asked: the wrong topic or place, or a part of \
 the question left out. A correct decline counts as answering.
 - reason: one short sentence naming the problem, or "none"."""

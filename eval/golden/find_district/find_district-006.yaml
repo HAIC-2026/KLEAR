@@ -1,0 +1,13 @@
+id: find_district-006
+category: find_district
+question: Which House districts make up Hawaiʻi Senate District 7?
+ideal: Name every House district that holds residents of the Senate district, each with its share of the
+  Senate district's population. Make clear that Hawaiʻi House districts are smaller and do not nest neatly
+  inside Senate districts.
+district: [senate, "007"]
+tags: [senate_overlap]
+allowed_geos:
+  - [house, "012"]
+  - [house, "013"]
+must_say: ["House District 12", "House District 13"]
+refusal: none

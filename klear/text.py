@@ -41,6 +41,13 @@ IGNORABLE = re.compile(
     "\ufe00-\ufe0f\ufeff\uffa0\ufff0-\ufff8\U0001bca0-\U0001bca3\U0001d173-\U0001d17a\U000e0000-\U000e0fff]"
 )
 MACRON = {"ā": "a", "ē": "e", "ī": "i", "ō": "o", "ū": "u"}
+# Marks people type for the ʻokina: apostrophe, quotation marks, grave accent and modifier apostrophe.
+LOOKALIKES = "'‘’`ʼ"
+VOWELS = "aeiouāēīōūAEIOUĀĒĪŌŪ"
+# A word, with an ʻokina or a lookalike joined in only where it stands before a vowel, as an ʻokina does.
+WORD = re.compile(
+    f"(?:[{OKINA}{LOOKALIKES}](?=[{VOWELS}]))?[^\\W\\d_]+(?:[{OKINA}{LOOKALIKES}](?=[{VOWELS}])[^\\W\\d_]+)*"
+)
 
 
 def _pattern(name: str) -> str:
@@ -95,4 +102,46 @@ def misspellings(s: str) -> list[str]:
             continue
         for rx, name in _ANY_CASE:
             found += [m.group() for m in rx.finditer(chunk) if m.group().casefold() != name.casefold()]
+    return found
+
+
+def _plain_word(word: str) -> str:
+    word = unicodedata.normalize("NFD", word.casefold())
+    return "".join(c for c in word if not unicodedata.combining(c) and c not in OKINA + LOOKALIKES)
+
+
+def _marked(word: str) -> bool:
+    return OKINA in word or any(c in MACRON for c in word.casefold())
+
+
+def unmarked(s: str, names) -> list[tuple[str, str]]:
+    """(written, correct) for each known name that s writes without its ʻokina or kahakō, or with a lookalike
+    mark. A name counts only when each of its words starts with a capital letter, and organization names are
+    skipped."""
+    spellings: dict[tuple[str, ...], dict[tuple[str, ...], str]] = {}
+    for name in names:
+        name = unicodedata.normalize("NFC", name)
+        if words := tuple(m.group() for m in WORD.finditer(name)):
+            spellings.setdefault(tuple(map(_plain_word, words)), {})[words] = name
+    lengths = sorted({len(k) for k in spellings}, reverse=True)
+    found = []
+    s = unicodedata.normalize("NFC", EMPHASIS.sub("", strip_ignorable(s)))
+    for is_org, chunk in _plain_chunks(s):
+        if is_org:
+            continue
+        hits = list(WORD.finditer(chunk))
+        i = 0
+        while i < len(hits):
+            for n in lengths:
+                part = tuple(m.group() for m in hits[i : i + n])
+                known = spellings.get(tuple(map(_plain_word, part))) if len(part) == n else None
+                if not known or not all(w.lstrip(OKINA + LOOKALIKES)[:1].isupper() for w in part):
+                    continue
+                right = sorted(name for words, name in known.items() if any(map(_marked, words)))
+                folded = {tuple(w.casefold() for w in k) for k in known}
+                if tuple(w.casefold() for w in part) not in folded and right:
+                    found.append((chunk[hits[i].start() : hits[i + n - 1].end()], right[0]))
+                i += n - 1
+                break
+            i += 1
     return found

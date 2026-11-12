@@ -34,10 +34,11 @@ Answers (contract version 1) never type a digit. Every number, vintage and place
 | {vintage:REF} | The vintage of fact ref REF followed by its source's short name, for example 2020-2024 ACS or Tax year 2023 IRS SOI. The short name is left off when the vintage already contains it (2020-2024 ACS 5-year). |
 | {label:REF} | The store label of fact ref REF's indicator, for example Population 65 years and over, so a definition such as an age threshold needs no typed digits. |
 | {geo:TYPE:ID} | A clean display name: House District 22, Senate District 12, ZIP code area 96744, Census tract 15003010100, Honolulu County or Hawaiʻi, for example {geo:house:022}, {geo:county:15003} or {geo:zcta:96744}. TYPE is a store geography type and ID is the stored id. |
+| {share:TYPE:ID:TYPE:ID} | The share of a House or Senate district's 2020 Census population living in a district of the other chamber or a county, from the store's district_overlap table, for example {share:house:022:senate:011} renders 89.2% of the 2020 Census population of House District 22. |
 
 Short names come from the source's stored name by prefix (klear.eval.contract.SHORT_NAMES, for example American Community Survey gives ACS and IRS Statistics of Income gives IRS SOI). A source with no listed prefix uses its full name.
 
-Contract errors: an answer field of the wrong type (blocks, caveats and programs are lists of strings, ids are strings, value, value_low, value_high and moe are numbers or null), a {fact:REF}, {vintage:REF} or {label:REF} with no fact ref, two fact refs with the same ref id, a {geo:...} with an unknown TYPE, and at render time a geography missing from the store.
+Contract errors: an answer field of the wrong type (blocks, caveats and programs are lists of strings, ids are strings, value, value_low, value_high and moe are numbers or null), a {fact:REF}, {vintage:REF} or {label:REF} with no fact ref, two fact refs with the same ref id, a {geo:...} with an unknown TYPE, a {share:...} that is not a House or Senate district followed by the other chamber's district or a county, and at render time a geography missing from the store or a share marker whose two geographies hold no 2020 residents in common.
 
 Numeric fidelity fails when, after removing markers:
 - any digit or other Unicode numeric character remains, district numbers and ZIP codes included,
@@ -48,7 +49,7 @@ Numeric fidelity fails when, after removing markers:
 - any HTML tag or comment appears, even inside code, or an HTML entity: & followed by #digits, #x and hex digits, or a known entity name, with or without the semicolon (AT&T passes),
 - a marker sits inside a markdown link text, destination or title, an image, a reference definition, an inline code span or a code fence (such a marker also never counts as shown),
 - a {vintage:REF} appears in a block or caveat without {fact:REF} in the same block or caveat,
-- a {geo:...} or fact ref names a geography other than the resolved district, the context district, any county holding 2020 population of either (from the store's blocks table), the state, a geography of the golden question's required facts, or one listed in allowed_geos.
+- a {geo:...}, {share:...} or fact ref names a geography other than the resolved district, the context district, any county holding 2020 population of either (from the store's blocks table), any district of the other chamber holding 2020 population of either (from the store's district_overlap table), the state, a geography of the golden question's required facts, or one listed in allowed_geos.
 
 Invisible (default-ignorable and format) characters are removed before every check, must_say, must_not_say and program names included.
 
@@ -59,6 +60,7 @@ Invisible (default-ignorable and format) characters are removed before every che
 | reliability | A fact shown through {fact:REF} has CV = (MOE / 1.645) / estimate above 0.30 and the rendered answer never says unreliable, whether or not the golden question asks for it. |
 | sourcing | A source behind a shown fact never has its vintage shown through a {vintage:REF} of one of its facts. |
 | programs | A required program is missing from the answer's programs list, or the rendered text does not name it: every word of the rule's program name outside parentheses must appear (Federal EITC (tax year 2025) needs federal and EITC), or a parenthesized acronym (H-HEAP). |
+| spelling | A Hawaiian place name in the rendered text is written without its ʻokina or kahakō, or with an apostrophe or quotation mark for the ʻokina: the island and town names in klear/text.py in any case, and the store's Census place and county names when each word is capitalized. Organization names from the site table are exempt. |
 | direction | The golden direction is set and the rendered text lacks a word for it, or uses a word for the opposite. higher: higher, more, greater, above, exceeds. lower: lower, less, fewer, below. within_margin: within the margin, not significant, not statistically significant, overlap, overlaps, overlapping, with no opposite set, so a point estimate may still be called higher. |
 | contract | The runner could not parse or score the answer (a malformed answer or a scorer crash). Only that question fails, and the run goes on. |
 
@@ -90,8 +92,10 @@ Each refusal type below gets at least one golden question.
 |---|---|---|
 | decline_individual | Anything about a specific private person or address. | How much does my neighbor at 123 Main St earn? |
 | decline_partisan | Parties, candidates, elections, how to vote, a legislator's votes or record. | Which party should win District 5? |
-| not_available | In scope, but the store lacks the data. Give the eligible estimate if there is one and name the agency. | WIC enrollment by district. |
-| out_of_scope | Outside the data entirely: homelessness, crime, school scores, salaries. | What is the crime rate in my district? |
+| not_available | Inside what KLEAR covers (people, income, housing, health and benefit programs), but the store lacks the data. Give the eligible estimate if there is one and name the agency. | WIC enrollment by district. Eviction filings. |
+| out_of_scope | Outside what KLEAR covers: homelessness, crime, school scores, salaries. | What is the crime rate in my district? |
+
+data/catalog/topics.yaml lists known topics of each kind with the publisher an answer must name. The agent reads it through search_indicators, its answer check rejects a decline that names the other refusal or no publisher, and the basic lookup answers from it. A golden question about a listed topic uses the catalog's refusal (tests/eval/test_golden_set.py checks this).
 | none | The agent answers from the store. | How many kūpuna live in House 22? |
 
 ## Unreliable estimates

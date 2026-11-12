@@ -128,6 +128,19 @@ CREATE TABLE IF NOT EXISTS blocks (
     pop2020 BIGINT NOT NULL CHECK (pop2020 >= 0)
 );
 
+-- 2020 population each House or Senate district shares with each district of the other chamber and each county,
+-- and that population's share of the district.
+CREATE TABLE IF NOT EXISTS district_overlap (
+    district_type VARCHAR NOT NULL CHECK (district_type IN ('house', 'senate')),
+    district_id VARCHAR NOT NULL,
+    geo_type VARCHAR NOT NULL CHECK (geo_type IN ('house', 'senate', 'county')),
+    geo_id VARCHAR NOT NULL,
+    pop2020 BIGINT NOT NULL CHECK (pop2020 > 0),
+    share DOUBLE NOT NULL CHECK (share > 0 AND share <= 1),
+    PRIMARY KEY (district_type, district_id, geo_type, geo_id),
+    CHECK (geo_type <> district_type)
+);
+
 -- Census 2020 places (CDPs) with Hawaiian names, for resolving town names to districts.
 CREATE TABLE IF NOT EXISTS place (
     place_id VARCHAR PRIMARY KEY,

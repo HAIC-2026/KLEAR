@@ -30,6 +30,7 @@ from klear.agent.config import (
 from klear.agent.prompt import SYSTEM
 from klear.agent.review import REVIEW_FIX, REVIEW_SPEC, REVIEW_SYSTEM, review_flags, review_messages
 from klear.agent.tools import TOOL_SPECS, Session
+from klear.agent.topics import MEANING, asked_topic
 from klear.config import load_secret
 from klear.eval.agents import Usage
 from klear.eval.contract import Answer, geo_display, render
@@ -126,6 +127,9 @@ class KlearAgent:
         picked = stored_district(session, tried.get("resolved"))
         picked = picked if picked in session.resolved else None
         resolved = picked or context or (districts[0] if len(districts) == 1 else None)
+        topic = asked_topic(session.question)
+        if topic is not None and (tried.get("refusal") in MEANING or not session.facts):
+            return template_answer(session, resolved, topic.refusal, context)
         programs = tried.get("programs") if isinstance(tried.get("programs"), list) else []
         programs = [p for p in programs if isinstance(p, str)] + required_programs(session)
         if resolved is not None and (needed := required_facts(session, resolved)):

@@ -1,0 +1,12 @@
+id: find_district-007
+category: find_district
+question: What Senate district covers the district I picked?
+ideal: Use the selected House district and say it lies entirely in one Senate district, which holds all of
+  its residents. Name that Hawaiʻi Senate district.
+context: [house, "002"]
+district: [house, "002"]
+tags: [senate_overlap]
+allowed_geos:
+  - [senate, "001"]
+must_say: ["Senate District 1"]
+refusal: none

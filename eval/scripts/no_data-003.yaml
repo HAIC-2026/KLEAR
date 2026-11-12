@@ -13,7 +13,7 @@
       resolved: "house:029"
       refusal: out_of_scope
       blocks:
-        - "Crime data is not in the KLEAR data for {geo:house:029}. KLEAR covers population, income, housing, health and program facts for districts."
+        - "Crime data is not in the KLEAR data for {geo:house:029}. KLEAR covers population, income, housing, health and program facts for districts. The Hawaiʻi Department of the Attorney General publishes crime statistics."
       facts: []
       programs: []
       caveats: []

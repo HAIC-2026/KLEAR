@@ -13,7 +13,7 @@
       resolved: "senate:018"
       refusal: out_of_scope
       blocks:
-        - "School test scores and rankings are not in the KLEAR data for {geo:senate:018}. KLEAR covers population, income, housing, health and program facts for districts."
+        - "School test scores and rankings are not in the KLEAR data for {geo:senate:018}. KLEAR covers population, income, housing, health and program facts for districts. The Hawaiʻi State Department of Education reports school results."
       facts: []
       programs: []
       caveats: []

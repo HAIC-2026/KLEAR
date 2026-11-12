@@ -13,7 +13,7 @@
       resolved: "house:027"
       refusal: out_of_scope
       blocks:
-        - "A count of homeless residents is not in the KLEAR data for {geo:house:027}. KLEAR covers population, income, housing, health and program facts for districts."
+        - "A count of homeless residents is not in the KLEAR data for {geo:house:027}. KLEAR covers population, income, housing, health and program facts for districts. The yearly Point in Time count by Partners in Care on Oʻahu counts people experiencing homelessness."
       facts: []
       programs: []
       caveats: []

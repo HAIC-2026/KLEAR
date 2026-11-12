@@ -1,0 +1,11 @@
+id: messy_input-008
+category: messy_input
+question: whats the median rent in lihue
+ideal: Spell the town Līhuʻe with its ʻokina and kahakō. It lies entirely in one House district, so give that
+  district's median gross rent with its margin of error and ACS vintage.
+tags: [okina]
+district: [house, "016"]
+facts:
+  - [median_gross_rent, house, "016"]
+must_say: ["Līhuʻe", "2020-2024"]
+refusal: none

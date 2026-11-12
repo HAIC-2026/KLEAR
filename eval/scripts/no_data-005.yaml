@@ -13,7 +13,7 @@
       resolved: "senate:019"
       refusal: out_of_scope
       blocks:
-        - "Salary data for particular jobs such as teachers is not in the KLEAR data for {geo:senate:019}. KLEAR covers population, income, housing, health and program facts for districts."
+        - "Salary data for particular jobs such as teachers is not in the KLEAR data for {geo:senate:019}. KLEAR covers population, income, housing, health and program facts for districts. The Hawaiʻi Department of Labor and Industrial Relations publishes wages by occupation."
       facts: []
       programs: []
       caveats: []

@@ -18,7 +18,7 @@ from klear import config
 from klear.config import MissingSecretError
 from klear.etl import areas, chas, cms, hud, irs, manual, places, places_gazetteer, sites
 from klear.etl import fetch as fetch_mod
-from klear.etl.blocks import build_block_table, load_block_points
+from klear.etl.blocks import build_block_table, district_overlap, load_block_points
 from klear.etl.boundaries import ArcGISError, download_districts, export_web_geojson
 from klear.etl.census_api import get_acs, get_variable_labels
 from klear.etl.census_cache import CacheMissError, CensusCache
@@ -40,6 +40,7 @@ from klear.store.db import (
     add_blocks,
     add_coverage,
     add_coverage_exclusions,
+    add_district_overlap,
     add_facts,
     add_geographies,
     add_indicators,
@@ -55,6 +56,7 @@ from klear.validation.blocks import check_blocks
 from klear.validation.boundaries import check_boundaries
 from klear.validation.chas import check_chas
 from klear.validation.cms import check_cms, check_cms_districts
+from klear.validation.districts import check_district_overlap
 from klear.validation.eligible import check_admin_counts, check_district_sums
 from klear.validation.gazetteer import check_gazetteer
 from klear.validation.hud import check_hcv
@@ -113,7 +115,18 @@ CHAMBERS = {"house": True, "senate": True}
 KALAWAO_IRS = {("county", KALAWAO): "IRS publishes no Kalawao County row"}
 KALAWAO_CMS = {("county", KALAWAO): "CMS publishes no rows for Kalawao County"}
 # steps after the base build that need the fact store and the block table
-STORE_STEPS = ("geographies", "irs", "cms", "hud_vouchers", "sites", "places", "chas", "gazetteer", "areas")
+STORE_STEPS = (
+    "geographies",
+    "district_overlap",
+    "irs",
+    "cms",
+    "hud_vouchers",
+    "sites",
+    "places",
+    "chas",
+    "gazetteer",
+    "areas",
+)
 EXIT_MEANING = {
     0: "all gated checks ran and passed",
     1: "a gated check failed",
@@ -274,6 +287,10 @@ def _store_steps(con, blocks, house, senate, step, checks: list[CheckResult]) ->
     zip_county = cms.zip_county_map(geos)
     expected = geos.geo_type.value_counts().to_dict()
 
+    def overlap_step():
+        add_district_overlap(con, district_overlap(blocks))
+        checks.append(check_district_overlap(con))
+
     def irs_step():
         z = irs.parse_irs_zip(fetch(irs.ZIP_URL, "irs/23zpallnoagi.csv"))
         c = irs.parse_irs_county(fetch(irs.COUNTY_URL, "irs/23incyallnoagi.csv"))
@@ -363,6 +380,7 @@ def _store_steps(con, blocks, house, senate, step, checks: list[CheckResult]) ->
         checks.append(check_areas(built, names, census=census, boards=set(boards["geo_id"].astype(int))))
 
     for name, fn in (
+        ("district_overlap", overlap_step),
         ("irs", irs_step),
         ("cms", cms_step),
         ("hud_vouchers", hud_step),

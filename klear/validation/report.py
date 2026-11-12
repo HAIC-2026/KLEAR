@@ -25,6 +25,7 @@ TITLES = {
     "sites": "Public housing, LIHTC and health center sites",
     "places": "CDC PLACES modeled need by tract",
     "chas": "HUD CHAS housing cost burden",
+    "district_overlap": "House and Senate districts that share residents",
     "gazetteer": "Census places and their districts",
     "areas": "Islands, neighborhoods and county divisions for district search",
     "rules": "Program rules against their official sources",
@@ -145,6 +146,14 @@ PROVES = {
         "suppressed, and every tract and district value lies inside its range. District values are averages "
         "of the published tracts weighted by adult population. A suppressed tract widens the district range "
         "as if it held 0 (low) or 100 percent (high)."
+    ),
+    "district_overlap": (
+        "Hawaiʻi's 51 House districts do not nest inside its 25 Senate districts. For every House and Senate "
+        "district, the 2020 Census block populations are summed for each district of the other chamber and each "
+        "county it shares residents with, as a count and a share of the district. A pass means every district "
+        "has rows, each district's shares add up to 100% for the other chamber and for counties, and every "
+        "stored count equals the sum of its blocks. The assistant and the basic lookup name these districts "
+        "with their shares."
     ),
     "gazetteer": (
         "Every Census 2020 place (CDP) with population gets its 2020 population from the block assignment "
@@ -287,6 +296,8 @@ def summary(r: CheckResult) -> str:
         )
     if r.name == "apportionment":
         return f"{r.n_compared - r.n_mismatch:,} of {r.n_compared:,} indicator totals conserved"
+    if r.name == "district_overlap":
+        return f"{r.n_compared:,} districts, {r.n_mismatch:,} problems"
     if r.name == "gazetteer":
         return f"{r.n_compared:,} places, {r.n_mismatch:,} problems"
     if r.name == "areas":
