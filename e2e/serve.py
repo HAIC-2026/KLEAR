@@ -110,6 +110,10 @@ class _Messages:
         question = _question(messages)
         if any(word in question for word in PARTISAN):
             return turn(tool("submit_answer", _decline(), "tu_submit"))
+        if "1 test st" in question:
+            if len(messages) == 1:
+                return turn(tool("resolve_place", {"text": "1 Test St, Kāneʻohe"}))
+            return turn(tool("submit_answer", _address(messages), "tu_submit"))
         if len(messages) == 1:
             # f1 and f2 are the district's poverty rate and kūpuna count; the county and state follow.
             geos = [DISTRICT, "county:15003", "state:15"]
@@ -138,6 +142,21 @@ def _answer(refs: list[str]) -> dict:
         "facts": refs,
         "programs": [],
         "caveats": ["Survey estimates for small areas have wide margins of error."],
+    }
+
+
+def _address(messages: list[dict]) -> dict:
+    """Names the districts resolve_place found for the address, or asks for a place when it found none."""
+    found = json.loads(messages[-1]["content"][0]["content"])
+    geos = [o["geo"] for m in found["matches"] for o in m["overlaps"] if not o["geo"].startswith("county")]
+    blocks = [f"That address is in {{geo:{geos[0]}}} and {{geo:{geos[1]}}}."] if geos else [found["note"]]
+    return {
+        "resolved": geos[0] if geos else None,
+        "refusal": "none",
+        "blocks": blocks,
+        "facts": [],
+        "programs": [],
+        "caveats": [],
     }
 
 

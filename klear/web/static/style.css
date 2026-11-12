@@ -210,7 +210,7 @@ summary{font-weight:600;color:var(--accent);cursor:pointer}
 .error{width:fit-content;max-width:min(100%,46rem);padding:12px 16px;background:var(--error-bg);color:var(--error-ink);border:1px solid var(--error-line)}
 .error p{margin:0}
 .retry{margin-top:10px;padding:6px 18px;border:1px solid var(--error-ink);border-radius:var(--r-ctl);background:#fff;color:var(--error-ink);font-size:var(--fs-sm);font-weight:600;line-height:1.4}
-.send-hint{margin:6px 0 0;font-size:var(--fs-xs);color:var(--muted)}
+.send-hint,.chat-privacy{margin:6px 0 0;font-size:var(--fs-xs);color:var(--muted)}
 .chat-aside h3{font-size:var(--fs-base);margin:0 0 12px}
 .examples{display:grid;gap:8px}
 .examples button{border:1px solid var(--line);border-radius:var(--r-ctl);background:#fff;text-align:left;padding:12px 14px;color:var(--ink);font-size:var(--fs-base);line-height:1.4;text-wrap:pretty}

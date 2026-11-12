@@ -1,0 +1,21 @@
+id: find_district-005
+category: find_district
+question: Which House and Senate district is 310 W Kaʻahumanu Ave, Kahului in?
+ideal: Treat the street address as a place, not a person, and look it up with the U.S. Census Bureau
+  geocoder to name its House and Senate districts. Most of Kahului is in one House district, but this
+  address on Kaʻahumanu Avenue sits in another, so never answer from the town name. When address lookup
+  is off or finds no match, say so and ask for a place, ZIP code or district.
+tags:
+- address
+allowed_geos:
+- - house
+  - '009'
+- - house
+  - '010'
+- - senate
+  - '005'
+- - senate
+  - '006'
+- - county
+  - '15009'
+refusal: none

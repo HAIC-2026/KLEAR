@@ -1,6 +1,6 @@
 // District search beyond towns: neighborhoods, islands, street addresses and numbers out of range.
 import {test, expect} from '@playwright/test';
-import {expectAccessible, offline} from './helpers.js';
+import {ask, chooseDistrict, expectAccessible, offline} from './helpers.js';
 
 test.beforeEach(async ({context}) => offline(context));
 
@@ -28,6 +28,16 @@ test('a street address lists its districts, and the page says where the address 
   await expect(page.locator('#find .privacy')).toBeVisible();
   await matches.getByRole('button', {name: 'House 23'}).click();
   await expect(page.locator('#district-title')).toHaveText('House District 23');
+});
+
+test('a street address in a chat question gets its own district, and the question box says where it goes', async ({page}) => {
+  await page.goto('/');
+  await chooseDistrict(page);
+  await expect(page.locator('#question-form .chat-privacy')).toHaveText('A street address in a question goes to the U.S. Census Bureau only to find its district. KLEAR does not store or log it.');
+  await expect(page.locator('#question-form .chat-privacy')).toBeVisible();
+  const answer = await ask(page, 'Which House and Senate district is 1 Test St, Kāneʻohe in?');
+  await expect(answer).toContainText('That address is in House District 23 and Senate District 12.');
+  await expect(answer.locator('h3')).not.toContainText('declined');
 });
 
 test('a district number out of range says how many there are', async ({page}) => {

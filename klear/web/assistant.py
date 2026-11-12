@@ -120,36 +120,38 @@ class Assistant:
             self._client = KlearAgent(None, self.model).client
         return self._client
 
-    def ask(self, con, question: str, district: tuple[str, str]) -> dict:
+    def ask(self, con, question: str, district: tuple[str, str], geocoder=None) -> dict:
+        """geocoder finds the Census blocks of a street address, or is None when address lookup is off."""
         from klear.agent.loop import KlearAgent
 
         try:
-            agent = KlearAgent(con, self.model, client=self.client())
+            agent = KlearAgent(con, self.model, client=self.client(), geocoder=geocoder)
             rid = self.budget.reserve(agent.max_call_cost(self.model, question, self.prices))
         except (BudgetExceeded, MissingSecretError):
-            return self._basic(con, question, district)
+            return self._basic(con, question, district, geocoder)
         cost = None
         try:
             answer, usage = agent.answer("web", question, district)
             cost = request_cost(self.model, usage)
             return _payload(con, answer, "assistant")
         except Exception:  # noqa: BLE001 - any failure falls back to the free lookup
-            return self._basic(con, question, district)
+            return self._basic(con, question, district, geocoder)
         finally:
             self.budget.settle(rid, cost)
 
     @staticmethod
-    def _basic(con, question: str, district: tuple[str, str]) -> dict:
-        return basic(con, question, district, BASIC)
+    def _basic(con, question: str, district: tuple[str, str], geocoder=None) -> dict:
+        return basic(con, question, district, BASIC, geocoder)
 
 
-def basic(con, question: str, district: tuple[str, str], note: str = "") -> dict:
+def basic(con, question: str, district: tuple[str, str], note: str = "", geocoder=None) -> dict:
     """Free keyword lookup, laid out like an assistant answer when it found figures."""
-    result = lookup(con, question, district)
+    result = lookup(con, question, district, geocoder)
     refs = result.pop("fact_refs", [])
     written, caveats = result.pop("lead", []), result.pop("caveats", [])
+    where, answered = result.pop("where", None), result.pop("district", district)
     if refs:
-        answer = Answer(VERSION, district, result["refusal"], [], refs, [], [])
+        answer = Answer(VERSION, answered, result["refusal"], [], refs, [], [])
         result |= display.build(con, answer)
         profile = asks_profile(question)
         lead = "This is the standard profile for this district. The district profile on this page compares each figure with the county and the state."
@@ -159,6 +161,8 @@ def basic(con, question: str, district: tuple[str, str], note: str = "") -> dict
             result["lead"] = [
                 note or (lead if profile else "These are the closest published figures for this question.")
             ]
+        if where:
+            result["lead"].insert(1 if note else 0, where)
         result["caveats"] = caveats
     elif note and result["refusal"] in ("none", "not_available"):
         result["text"] = f"{note}\n\n{result['text']}"

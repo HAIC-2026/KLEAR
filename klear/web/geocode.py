@@ -1,4 +1,4 @@
-"""Finds the 2020 Census block of a street address with the U.S. Census Bureau geocoder, for district search.
+"""Finds the 2020 Census block of a street address with the U.S. Census Bureau geocoder, for district search and chat.
 
 The address goes to the Census Bureau and nowhere else. KLEAR uses it only to find the block, then looks the
 block up in its own store, so districts come from the same 2022 plan as everything else on the site. The address
@@ -29,6 +29,30 @@ ADDRESS = re.compile(
 )
 # Without a state the geocoder rarely finds an address, so Hawaiʻi is added unless one is given.
 STATE = re.compile(r"\b(?:hi|hawai" + _OKINA + r"?i|96[78]\d\d)\b", re.IGNORECASE)
+_SUFFIX = (
+    r"(?i:st|street|ave|avenue|rd|road|hwy|highway|blvd|boulevard|dr|drive|pl|place|ln|lane|way|loop|cir|circle"
+    r"|ct|court|pkwy|parkway|ter|terrace|mall|sq|square|trl|trail|walk|row|plz|plaza)\.?"
+)
+_WORD = _OKINA + r"?[^\W\d_][\w" + _OKINA[1:-1] + r".'-]*"
+_TOWN = r"(?!(?:House|Senate|District)\b)" + _OKINA + r"?[A-ZĀĒĪŌŪ][\w" + _OKINA[1:-1] + r"'-]*"
+# A street address inside a sentence: house number, street words up to a street type, then any town, state and ZIP.
+IN_TEXT = re.compile(
+    r"(?<![\w-])(?!96[78]\d\d\b)\d{1,6}(?:-\d{1,5})?[a-z]?(?:\s+"
+    + _WORD
+    + r"){0,5}?\s+"
+    + _SUFFIX
+    + r"(?!\w)"
+    r"(?:,?\s+" + _TOWN + r"(?:\s+" + _TOWN + r"){0,2})?"
+    r"(?:,?\s+(?i:hi|hawai" + _OKINA + r"?i)\b)?(?:,?\s+96[78]\d\d\b)?"
+)
+# A number after one of these words is a district or ZIP code, not a house number.
+NOT_HOUSE = re.compile(r"\b(?:district|house|senate|hd|sd|zip|code|no)\.?\s*$", re.IGNORECASE)
+NOTES = {
+    "off": "Street address lookup is turned off on this server. Try a place, ZIP code or district instead.",
+    "failed": "The address lookup is unavailable right now. Try a place, ZIP code or district instead.",
+    "none": "No Hawaiʻi address matched. Check the house number and street name, or try a place, ZIP code or "
+    "district.",
+}
 
 
 class GeocoderError(RuntimeError):
@@ -37,6 +61,14 @@ class GeocoderError(RuntimeError):
 
 def looks_like_address(text: str) -> bool:
     return bool(ADDRESS.match(text))
+
+
+def address_in(text: str) -> str | None:
+    """The street address a question names, or None; a question that starts with an address is taken whole."""
+    for m in IN_TEXT.finditer(text):
+        if not NOT_HOUSE.search(text[: m.start()]):
+            return m.group(0).strip()
+    return text.strip() if looks_like_address(text) else None
 
 
 def find_blocks(text: str, client: httpx.Client | None = None) -> list[tuple[str, str]]:

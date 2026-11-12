@@ -11,7 +11,7 @@ import pytest
 
 from klear.text import OKINA, OKINA_LOOKALIKES
 from klear.web import __main__ as web
-from klear.web.geocode import GeocoderError, find_blocks, looks_like_address
+from klear.web.geocode import NOTES, GeocoderError, find_blocks, looks_like_address
 
 CAPITOL = "415 S BERETANIA ST, HONOLULU, HI, 96813"
 
@@ -161,8 +161,8 @@ def test_address_search_finds_the_block_districts(server):
 def test_address_search_says_why_nothing_matched(server):
     start, calls = server
     port = start(_fake_geocoder(calls))
-    assert resolve(port, "2 Nowhere Rd")[1]["note"] == web.ADDRESS_NOTES["none"]
-    assert resolve(port, "3 Down St")[1]["note"] == web.ADDRESS_NOTES["failed"]
+    assert resolve(port, "2 Nowhere Rd")[1]["note"] == NOTES["none"]
+    assert resolve(port, "3 Down St")[1]["note"] == NOTES["failed"]
     assert resolve(port, "Kailua")[1]["matches"] and calls == ["2 Nowhere Rd", "3 Down St"]
 
 
@@ -170,7 +170,7 @@ def test_address_search_off_says_so(server):
     start, _ = server
     port = start(None)
     data = resolve(port, "1 Test St")[1]
-    assert data["matches"] == [] and data["note"] == web.ADDRESS_NOTES["off"]
+    assert data["matches"] == [] and data["note"] == NOTES["off"]
     assert resolve(port, "96744")[1]["matches"][0]["geo"] == "zcta:96744"
 
 
