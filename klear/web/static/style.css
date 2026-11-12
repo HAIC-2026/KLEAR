@@ -23,6 +23,12 @@
      A district under the mouse gets a darker fill, still 3:1 from a picked district, and a dark outline drawn over its
      neighbors, 4:1 or more against every map color, so hover never depends on telling two tints apart. */
   --map-sea:#eef3f4;--map-dim:#e7ecee;--bar-other:#7a8689;
+
+  /* A map shaded by a measure: five shades of the chamber color, lightest for the lowest figures. Neighboring shades
+     differ by delta E 10 or more with each color vision deficiency, and the darkest is light enough that ink borders,
+     stripes and outlines stay 3:1 against every shade. */
+  --house-q1:#d2f4fb;--house-q2:#aad3dd;--house-q3:#84b3c0;--house-q4:#5e95a3;--house-q5:#357788;
+  --senate-q1:#f5eafc;--senate-q2:#d7c6e6;--senate-q3:#b9a3d0;--senate-q4:#9b81bb;--senate-q5:#7c61a6;
   --error-bg:#fbeeea;--error-ink:#8a2f22;--error-line:#e3bfb4;
 
   /* Dark photo band and footer */
@@ -339,7 +345,7 @@ article .answer-programs summary+.program{margin-top:10px}
 .map-layout .section-head{margin-bottom:0}
 .map-card{background:#fff;border:1px solid var(--line);border-radius:var(--r-card);padding:var(--card-pad);min-width:0}
 .zip-form{margin-bottom:20px;padding-bottom:20px;border-bottom:1px solid var(--line)}.zip-form .status{margin:12px 0 8px}.zip-form .status:empty{margin:0;min-height:0}
-#map.zip-mode .district:not(.zip-hit){fill:var(--map-dim);stroke:var(--control)}#map.zip-mode .district.zip-hit:not(.picked){fill:var(--zip)}#map.zip-mode .labels{display:inline}#map.zip-mode:not(.zoomed) .label:not(.zip-hit){display:none}#map.zip-mode .label:not(.zip-hit){fill:var(--muted);opacity:1}.zip-form .match{padding:7px 12px;font-size:var(--fs-xs)}
+#map.zip-mode:not(.shaded) .district:not(.zip-hit){fill:var(--map-dim);stroke:var(--control)}#map.zip-mode:not(.shaded) .district.zip-hit:not(.picked){fill:var(--zip)}#map.zip-mode .labels{display:inline}#map.zip-mode:not(.zoomed) .label:not(.zip-hit){display:none}#map.zip-mode .label:not(.zip-hit){fill:var(--muted);opacity:1}.zip-form .match{padding:7px 12px;font-size:var(--fs-xs)}
 .map-controls{display:flex;flex-wrap:wrap;gap:12px;justify-content:space-between;align-items:center;margin-bottom:14px}
 .segmented{display:inline-flex;border:1px solid var(--control);border-radius:var(--r-ctl);overflow:hidden}.segmented button{border:0;background:transparent;padding:8px 16px;font-size:var(--fs-sm);font-weight:600}.segmented [data-chamber=house]{color:var(--house)}.segmented [data-chamber=senate]{color:var(--senate)}.segmented [data-chamber=house][aria-pressed=true]{background:var(--house);color:#fff}.segmented [data-chamber=senate][aria-pressed=true]{background:var(--senate);color:#fff}
 .island-tabs{display:flex;flex-wrap:wrap;gap:6px}.island-tabs button{border:1px solid var(--line);background:#fff;color:var(--ink);border-radius:var(--r-ctl);padding:6px 10px;font-size:var(--fs-xs);font-weight:600}.island-tabs button[aria-pressed=true]{background:var(--house-soft);border-color:var(--house);color:var(--house-dark)}
@@ -360,6 +366,32 @@ article .answer-programs summary+.program{margin-top:10px}
 .map-pick{min-width:0}.map-pick strong{display:block;font-size:var(--fs-xl);line-height:1.25;font-weight:700;color:var(--ink);text-wrap:balance}
 .map-go{white-space:nowrap}.map-go:disabled{opacity:.45;cursor:not-allowed}
 .map-list-label{margin:20px 0 8px}
+
+/* The map shaded by a measure. Each district takes the shade of its figure, q1 lightest to q5 darkest, with ink
+   borders; its fill no longer changes under the mouse or focus, which the outlines show. Stripes mark an unreliable
+   estimate and dots a district with no figure, so neither depends on color. A picked district keeps its shade and
+   gets a white line edged in ink, and a ZIP code's districts get a dashed outline. */
+.shade-row{margin-bottom:16px}.shade-row select{max-width:26rem}.shade-row .status{margin:8px 0 0}.shade-row .status:empty{margin:0;min-height:0}
+#map .district,.map-legend{--q1:var(--house-q1);--q2:var(--house-q2);--q3:var(--house-q3);--q4:var(--house-q4);--q5:var(--house-q5)}
+#map [data-geo^="senate:"],.map-legend[data-ramp=senate]{--q1:var(--senate-q1);--q2:var(--senate-q2);--q3:var(--senate-q3);--q4:var(--senate-q4);--q5:var(--senate-q5)}
+#map.shaded .district{stroke:var(--ink);forced-color-adjust:none}
+#map.shaded .district.q1{fill:var(--q1)}#map.shaded .district.q2{fill:var(--q2)}#map.shaded .district.q3{fill:var(--q3)}#map.shaded .district.q4{fill:var(--q4)}#map.shaded .district.q5{fill:var(--q5)}#map.shaded .district.none{fill:var(--map-dim)}
+#map .marks{pointer-events:none}#map .marks path{stroke:none}#map .marks .unreliable{fill:url(#map-stripes)}#map .marks .none{fill:url(#map-dots)}
+#map .stripe{stroke:var(--ink);stroke-width:1.25px}#map .dot{fill:var(--control)}
+#map .pick-casing{stroke:var(--ink);stroke-width:6px}#map .pick-line{stroke:#fff;stroke-width:2px}#map .zip-line{stroke:var(--ink);stroke-width:2.5px;stroke-dasharray:6 4}
+#map:not(.shaded) :is(.marks,.pick-casing,.pick-line,.zip-line){display:none}
+.map-legend{margin-top:12px;font-size:var(--fs-sm);line-height:1.45}
+.legend-title{margin:0 0 8px;color:var(--ink)}
+.legend-keys{display:flex;flex-wrap:wrap;gap:6px 16px;margin:0 0 8px;padding:0;list-style:none}
+.legend-keys li{display:flex;align-items:center;gap:6px;font-variant-numeric:tabular-nums}
+.swatch{flex:none;width:20px;height:14px;border:1px solid var(--ink);border-radius:2px;forced-color-adjust:none}
+.swatch.q1{background:var(--q1)}.swatch.q2{background:var(--q2)}.swatch.q3{background:var(--q3)}.swatch.q4{background:var(--q4)}.swatch.q5{background:var(--q5)}
+.swatch.unreliable{background:repeating-linear-gradient(-45deg,var(--ink) 0 1.25px,transparent 1.25px 5px),#fff}
+.swatch.none{background:radial-gradient(circle,var(--control) 0 1px,transparent 1.5px) 0 0/5px 5px,var(--map-dim)}
+.legend-note{margin:0 0 6px;color:var(--muted);max-width:var(--measure)}
+.legend-source{margin:0;color:var(--muted)}
+.pick-value{display:block;margin-top:6px;font-size:var(--fs-sm);line-height:1.45;color:var(--ink)}
+.map-table{margin-top:16px}.map-table tbody tr:first-child th{font-weight:400}.map-table td.note{color:var(--muted)}
 
 /* How it works */
 .steps{list-style:none;counter-reset:step;margin:0;padding:0;display:grid;gap:clamp(32px,5vw,56px)}

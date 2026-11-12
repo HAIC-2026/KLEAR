@@ -316,6 +316,23 @@ without a data build. After a build changes the boundaries, regenerate it with:
 
     uv run python -m klear.etl.mapshapes
 
+"Color the map by" shades the map by one of seven rates and medians listed in `MEASURES` in
+klear/web/shade.py: people and keiki below the poverty level, the share who are kūpuna, median
+household income, renters paying 35% or more of income, people without health insurance and
+households receiving SNAP. `GET /api/map?indicator=pct_people_poverty&chamber=house` reads the
+measure for every district of the chamber through the rank_districts tool, with no model call, and
+returns each district's figure and margin written as its profile writes them, its low and high
+ends, a status (ok, unreliable or not available), its shade, and a sentence comparing it with the
+state in the profile's words; plus the label, unit, source, year, state figure and each shade's
+range. The districts are split into five shades of about equal count, with breaks only where the
+written figure changes, so two shades never share a value. Shades run light to dark in the
+chamber's color (`--house-q1` to `--house-q5` and `--senate-q1` to `--senate-q5` in style.css)
+and are set by class, never by a style attribute. Stripes mark an unreliable estimate and dots a
+district with no figure, so neither depends on color. The legend gives each shade's range, the
+source and year, and says that districts whose margins of error overlap may not differ. The
+picked district's figure and state comparison show under the map, and "Show as a table" lists
+every district, highest first.
+
 The landing page resolves House/Senate numbers, towns, neighborhoods, islands, counties
 and ZIPs using the built store. Overlaps are shown as choices instead of guessing a district:
 each place is listed with its island and the share of its residents in each district, and a

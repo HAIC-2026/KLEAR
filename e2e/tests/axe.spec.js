@@ -94,3 +94,19 @@ test('glossary page', async ({page}, testInfo) => {
   await expect(page.getByRole('heading', {level: 1})).toHaveText('Glossary');
   await expectAccessible(page, testInfo, 'glossary page');
 });
+
+test('map colored by a measure, with a picked district and its table open', async ({page}, testInfo) => {
+  const map = page.locator('#district-map');
+  await map.scrollIntoViewIfNeeded();
+  await expect(page.locator('#map .district').first()).toBeAttached();
+  await map.getByLabel('Color the map by').selectOption({label: 'People below the poverty level'});
+  await expect(page.locator('#map-legend')).toBeVisible();
+  await map.getByLabel('Or choose from a list').selectOption({label: 'House District 22'});
+  await expect(page.locator('#pick-value')).toContainText('12.3%');
+  await openAll(page);
+  await expectAccessible(page, testInfo, 'shaded map');
+  // The Senate map, with an unreliable estimate in the legend.
+  await map.getByRole('button', {name: 'Senate'}).click();
+  await expect(page.locator('#map .marks .unreliable')).toHaveCount(1);
+  await expectAccessible(page, testInfo, 'shaded Senate map');
+});

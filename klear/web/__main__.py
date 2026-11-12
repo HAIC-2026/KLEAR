@@ -28,6 +28,7 @@ from klear.web.assistant import DAILY_CAP, Assistant, DailyBudget, basic
 from klear.web.cache import AnswerCache
 from klear.web.checks import checks_report
 from klear.web.geocode import GeocoderError, find_blocks, looks_like_address
+from klear.web.shade import CHAMBERS, MEASURES, NoMeasure, map_view
 
 STORE = ROOT / "data" / "build" / "klear.duckdb"
 STATIC = Path(__file__).with_name("static")
@@ -268,6 +269,9 @@ class Handler(SimpleHTTPRequestHandler):
                     503,
                     {"error": "No checked build yet. The results appear here once the data build has run."},
                 )
+        if path.path == "/api/map":
+            query = parse_qs(path.query)
+            return self.shading(query.get("indicator", [""])[0], query.get("chamber", [""])[0])
         if DISTRICT_PAGE.fullmatch(path.path):
             self.path = "/index.html"
             return super().do_GET()
@@ -275,6 +279,23 @@ class Handler(SimpleHTTPRequestHandler):
         if path.path not in PUBLIC:
             return self.reply(404, {"error": "Not found"})
         super().do_GET()
+
+    def shading(self, indicator: str, chamber: str):
+        """One measure for every district of a chamber, in five shades for the map, read from the store with no
+        model call."""
+        if indicator not in MEASURES or chamber not in CHAMBERS:
+            return self.reply(400, {"error": "Choose one of the listed measures, and House or Senate."})
+        try:
+            with self.connect() as con:
+                return self.reply(200, map_view(con, indicator, chamber))
+        except NoMeasure:
+            return self.reply(
+                503, {"error": "The data store has no figures for this measure yet. Try another one."}
+            )
+        except Exception:  # noqa: BLE001 - redact internal errors at the HTTP boundary
+            return self.reply(
+                503, {"error": "The map figures are unavailable right now. Please try again later."}
+            )
 
     def profile(self, text: str, as_csv: bool = False):
         """The standard district profile, read from the store with no model call, as JSON or as a CSV file."""

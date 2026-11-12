@@ -72,6 +72,8 @@ def build_store(path: Path) -> None:
     rows = [
         _fact("house", "022", "pct_people_poverty", 12.3, 2.1),
         _fact("house", "023", "pct_people_poverty", 7.9, 1.8),
+        # An unreliable estimate (margin of error over half the figure), so the shaded Senate map has stripes.
+        _fact("senate", "012", "pct_people_poverty", 3.0, 2.5),
         _fact("county", "15003", "pct_people_poverty", 8.9, 0.5),
         _fact("state", "15", "pct_people_poverty", 9.8, 0.4),
         _fact("house", "022", "median_age", 44.1, 1.2, **acs),
