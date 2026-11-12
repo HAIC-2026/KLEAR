@@ -175,6 +175,7 @@ function clearDistrict() {
   queued = null;
   district = null;
   profileSeq++;
+  profileGeo = null;
   setLookup(false);
   delete $('chat').dataset.chamber;
   $('district-title').textContent = 'No district chosen yet';
