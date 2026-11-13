@@ -557,6 +557,11 @@ function profileSources(sources, compared = []) {
   return box;
 }
 
+// When a person last checked the program, marked once that is so long ago that the official page comes first.
+function checkedNote(p) {
+  return p.stale ? node('span', p.checked, 'program-stale') : p.checked;
+}
+
 // One program: its name linked to the page to apply or learn more, the agency, why it is listed here, and how to call.
 function programRow(p, full) {
   const row = node('div', '', 'program');
@@ -571,7 +576,7 @@ function programRow(p, full) {
   }
   const contact = node('p', '', 'program-contact'), tel = node('a', p.phone);
   tel.href = 'tel:+' + (p.phone.startsWith('1-') ? '' : '1') + p.phone.replace(/\D/g, '');
-  contact.append('Call ', tel, p.phone_label ? `, ${p.phone_label}.` : '.', ` Details last verified ${p.verified}.`);
+  contact.append('Call ', tel, p.phone_label ? `, ${p.phone_label}.` : '.', ' ', checkedNote(p));
   row.append(contact);
   return row;
 }
