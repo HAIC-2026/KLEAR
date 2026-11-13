@@ -179,6 +179,27 @@ async function editProfile(page, edit) {
   });
 }
 
+test('the printout drops programs from the end until it fits on one page', async ({page}, testInfo) => {
+  // Long program text that would run the summary onto a second page at six programs.
+  await editProfile(page, p => {
+    for (const g of [...p.programs.programs, ...p.programs.others]) g.description = `${g.description} `.repeat(6).trim();
+  });
+  await page.goto('/district/house-22');
+  await expect(page.locator('#profile-live')).toHaveText(`Profile for ${DISTRICT} loaded.`);
+  await page.emulateMedia({media: 'print'});
+  const programs = page.locator('#print-sheet .sheet-programs');
+  const count = await programs.locator('li').count();
+  expect(count).toBeGreaterThan(0);
+  expect(count).toBeLessThan(6);
+  await expect(programs.locator('li').first()).toContainText(/\((State|Federal)\)/);
+  await expect(programs.locator('.sheet-note')).toContainText('The live profile lists every program.');
+  if (testInfo.project.name === 'desktop') {
+    const pdf = await page.pdf({preferCSSPageSize: true});
+    expect(pdf.toString('latin1').match(/\/Type\s*\/Page[^s]/g)).toHaveLength(1);
+  }
+  await page.emulateMedia({media: null});
+});
+
 test('the profile and its printout cope with missing or unexpected fields', async ({page}) => {
   // Without programs, a build date or comparison sources, the summary still prints every figure it has.
   await editProfile(page, p => {

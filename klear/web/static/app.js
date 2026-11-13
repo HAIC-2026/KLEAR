@@ -670,6 +670,8 @@ function programsOf(p) {
 }
 // Programs on the one-page summary, so it stays one page.
 const SHEET_PROGRAMS = 6;
+// The printable height of a US Letter page with half-inch margins, in CSS pixels.
+const SHEET_HEIGHT = 960;
 
 // Matched programs, then the rest of the catalog, each as a grid that shows two or more side by side when there is room.
 function profilePrograms(pr) {
@@ -883,11 +885,13 @@ const PRINT_GROUPS = [
 const longDate = d => d.toLocaleDateString('en-US', {month: 'long', day: 'numeric', year: 'numeric'});
 
 // A summary that cannot be drawn leaves the page to print as it is, and never stops the profile from showing.
+let sheetProfile = null;
 function setSheet(p) {
   const sheet = $('print-sheet');
+  sheetProfile = p;
   let parts = [];
   try {
-    if (p) parts = sheetParts(p);
+    if (p) parts = fitSheet(sheet, p);
   } catch (err) {
     console.warn('KLEAR could not lay out the printed summary.', err);
   }
@@ -895,13 +899,31 @@ function setSheet(p) {
   sheet.dataset.chamber = parts.length ? p.geo.split(':')[0] : '';
   document.body.classList.toggle('has-sheet', parts.length > 0);
 }
-// The print date is the day it is printed, even when the page has been open since an earlier day.
+// Lay out the summary off screen at the printed width, dropping programs from the end until it fits on the page.
+function fitSheet(sheet, p) {
+  sheet.dataset.chamber = p.geo.split(':')[0];
+  sheet.classList.add('sheet-measure');
+  try {
+    for (let n = SHEET_PROGRAMS; ; n--) {
+      const parts = sheetParts(p, n);
+      sheet.replaceChildren(...parts);
+      if (n === 0 || sheet.getBoundingClientRect().height <= SHEET_HEIGHT) return parts;
+    }
+  } finally {
+    sheet.classList.remove('sheet-measure');
+  }
+}
+// Refit once fonts finish loading, since they change how much fits.
+document.fonts.addEventListener('loadingdone', () => { if (sheetProfile) setSheet(sheetProfile); });
+// Refit with the fonts as they are now, and print the day it is printed, even when the page has been open since an
+// earlier day.
 window.addEventListener('beforeprint', () => {
+  if (sheetProfile) setSheet(sheetProfile);
   const printed = $('print-sheet').querySelector('.sheet-printed');
   if (printed) printed.textContent = `Printed ${longDate(new Date())}`;
 });
 
-function sheetParts(p) {
+function sheetParts(p, most = SHEET_PROGRAMS) {
   // Sources are numbered in the order the figures cite them; each row's Source cell lists every source it uses.
   const sources = [];
   const cite = s => {
@@ -988,12 +1010,13 @@ function sheetParts(p) {
 
   // The programs whose need figures here sit above the state's, or the statewide list when none does.
   const matched = programsOf(p), shown = matched ? (matched.programs.length ? matched.programs : matched.others) : [];
-  const programs = shown.filter(g => g && g.name).slice(0, SHEET_PROGRAMS);
+  const programs = shown.filter(g => g && g.name).slice(0, most);
   if (programs.length) {
     const list = node('ul', '', 'sheet-list');
     for (const g of programs) {
       const li = document.createElement('li');
-      li.append(node('b', g.name), ` (${g.level})`);
+      li.append(node('b', g.name));
+      if (g.level) li.append(` (${g.level})`);
       if (g.description) li.append(': ', says('span', g.description));
       if (g.agency) li.append(` (${g.agency})`);
       if (g.url) li.append(' ', url(g.url));
