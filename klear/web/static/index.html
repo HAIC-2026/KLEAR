@@ -39,11 +39,21 @@
 
     <section class="chat-section" id="chat" aria-labelledby="chat-title">
       <div class="wrap">
-        <div class="section-head">
+        <div class="section-head" id="chat-head">
           <h2 id="chat-title">Ask about a district</h2>
           <p>KLEAR answers only from its public data store. Each figure lists its source, survey years, and margin of error. Where it helps, KLEAR also shows the state value for comparison. Answers describe communities, not individuals. KLEAR declines personal and partisan requests.</p>
         </div>
         <div class="chat-layout">
+          <!-- On a district's address the page starts here, with the district's name as its heading. Below 1200 px the
+               profile and the chat take turns behind two tabs; wider, the chat sits beside the profile. -->
+          <div class="district-head" id="district-head" hidden>
+            <p class="small-label">District profile</p>
+            <h1 id="district-name" tabindex="-1"></h1>
+            <div id="district-about"></div>
+            <a class="skip-ask" id="skip-ask" href="#question">Skip to the question box</a>
+            <div class="view-tabs" id="view-tabs" role="tablist" aria-label="District page"><button type="button" role="tab" id="tab-profile" aria-controls="profile" aria-selected="true">Profile</button><button type="button" role="tab" id="tab-ask" aria-controls="chat-card" aria-selected="false" tabindex="-1">Ask <span class="tab-new" id="tab-new" hidden>New answer</span></button></div>
+          </div>
+          <section id="profile" class="profile" aria-label="District profile" hidden></section>
           <div class="chat-card" id="chat-card">
             <div class="district-bar" id="district-bar">
               <div class="district-now" id="district-now"><div><span class="small-label">Asking about</span><strong id="district-title">No district chosen yet</strong></div><button type="button" id="change" class="textbutton" aria-expanded="false" aria-controls="lookup">Choose a district</button></div>
@@ -52,18 +62,18 @@
             <div id="messages">
               <div class="bot-msg welcome"><p class="sender">KLEAR</p><p id="welcome-text">Ask about this district.</p></div>
               <div id="log"></div>
+              <div id="suggest" class="suggest" role="group" aria-label="Suggested questions" hidden></div>
             </div>
-            <div id="suggest" class="suggest" role="group" aria-label="Suggested questions" hidden></div>
-            <form id="question-form"><label for="question" class="visually-hidden">Your question</label><div class="question-row"><textarea id="question" rows="1" required maxlength="2000" placeholder="Type your question here" aria-describedby="send-hint"></textarea><button id="send" type="submit">Ask KLEAR</button></div><p id="send-hint" class="send-hint">Press Ctrl+Enter to send.</p><p class="chat-privacy">A street address in a question goes to the U.S. Census Bureau only to find its district. KLEAR does not store or log it. Assistant answers send the question to the AI model provider.</p></form>
+            <form id="question-form"><label for="question" class="visually-hidden">Your question</label><div class="question-row"><textarea id="question" rows="1" required maxlength="2000" placeholder="Type your question here" aria-describedby="send-hint"></textarea><button id="send" type="submit">Ask KLEAR</button></div><p class="chat-notes"><span id="send-hint" class="send-hint">Press Ctrl+Enter to send.</span> <span class="chat-privacy">A street address in a question goes to the U.S. Census Bureau only to find its district. KLEAR does not store or log it. Assistant answers send the question to the AI model provider.</span></p></form>
             <p id="chat-status" class="status" role="status"></p>
-            <p id="chat-live" class="visually-hidden" role="status"></p>
           </div>
-          <aside class="chat-aside" aria-label="Questions to try and district profile">
+          <aside class="chat-aside" aria-labelledby="examples-title">
             <div id="starter"><h3 id="examples-title">Questions to try</h3><div id="examples" class="examples"></div></div>
-            <section id="profile" class="profile" aria-labelledby="profile-title" hidden></section>
-            <p id="profile-live" class="visually-hidden" role="status"></p>
           </aside>
         </div>
+        <!-- Status lines outside both tabs, so they are read whichever tab shows. -->
+        <p id="chat-live" class="visually-hidden" role="status"></p>
+        <p id="profile-live" class="visually-hidden" role="status"></p>
       </div>
     </section>
 

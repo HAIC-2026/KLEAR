@@ -30,9 +30,11 @@ async function api(url, options) {
   throw new Error(r.ok ? 'KLEAR sent a reply it could not read. Please try again.' : `KLEAR ran into a server problem (error ${r.status}). Please try again.`);
 }
 
-// Bring the chat card into view, or its question box when the card is taller than the screen.
+// Bring the chat card into view, or its question box when the card is taller than the screen. A card already on
+// screen, such as the one that stays beside a district's profile on wide screens, stays where it is.
 function showChat() {
-  const card = $('chat-card');
+  const card = $('chat-card'), box = card.getBoundingClientRect();
+  if (box.top >= 0 && box.bottom <= window.innerHeight) return;
   (card.offsetHeight <= window.innerHeight ? card : $('question-form')).scrollIntoView({block: 'center'});
 }
 
@@ -100,6 +102,69 @@ function routeGeo() {
   return m && +m[2] >= 1 && +m[2] <= SEATS[m[1]] ? `${m[1]}:${m[2].padStart(3, '0')}` : null;
 }
 
+// A district's address shows the district's own page: its name as the page heading, then its profile with the chat
+// beside it. The home page's photo band and search give way to it.
+function districtView(on) {
+  document.body.classList.toggle('district-page', on);
+  $('district-head').hidden = !on;
+  $('chat').setAttribute('aria-labelledby', on ? 'district-name' : 'chat-title');
+  applyTabs();
+}
+
+// Below 1200 px the profile and the chat share one column, so they take turns behind two tabs under the district's
+// name: an ARIA tab list, with the arrow keys moving between the tabs. Wider, both show and the tabs are hidden.
+const ONE_COLUMN = window.matchMedia('(max-width: 1199px)');
+const PANELS = {profile: ['tab-profile', 'profile'], ask: ['tab-ask', 'chat-card']};
+const SAVED_TAB = 'klear-tab';
+let shownTab = 'profile';
+function applyTabs() {
+  const tabs = ONE_COLUMN.matches && document.body.classList.contains('district-page');
+  $('chat').dataset.tab = shownTab;
+  for (const [name, [tabId, panelId]] of Object.entries(PANELS)) {
+    const tab = $(tabId), panel = $(panelId), on = name === shownTab;
+    tab.setAttribute('aria-selected', String(on));
+    tab.tabIndex = on ? 0 : -1;
+    if (tabs) {
+      panel.setAttribute('role', 'tabpanel');
+      panel.setAttribute('aria-labelledby', tabId);
+    } else {
+      panel.removeAttribute('role');
+      panel.removeAttribute('aria-labelledby');
+    }
+  }
+  if (shownTab === 'ask' || !tabs) $('tab-new').hidden = true;
+}
+function showTab(name) {
+  shownTab = name;
+  applyTabs();
+  try { sessionStorage.setItem(SAVED_TAB, name); } catch { /* blocked */ }
+}
+for (const [name, [tabId]] of Object.entries(PANELS)) $(tabId).onclick = () => showTab(name);
+$('view-tabs').addEventListener('keydown', e => {
+  if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) return;
+  e.preventDefault();
+  const next = e.key === 'Home' ? 'profile' : e.key === 'End' ? 'ask' : shownTab === 'profile' ? 'ask' : 'profile';
+  showTab(next);
+  $(PANELS[next][0]).focus();
+});
+// A reader typing in the chat when the window narrows stays in it.
+ONE_COLUMN.addEventListener('change', () => {
+  if (ONE_COLUMN.matches && $('chat-card').contains(document.activeElement)) shownTab = 'ask';
+  applyTabs();
+});
+// On wide screens the profile comes first, so a link at the top skips past it to the question box.
+$('skip-ask').onclick = e => { e.preventDefault(); showTab('ask'); $('question').focus(); };
+districtView(Boolean(routeGeo()));
+
+// After a reader picks a district, the top of its page: focus on its name when they found it with the search at the
+// top of the home page, or in the question box when they picked it to ask about it. Below 1200 px the matching tab opens.
+function arrive(land) {
+  showTab(land);
+  if (land === 'ask' && ONE_COLUMN.matches) showChat();
+  else window.scrollTo({top: 0, behavior: 'instant'});
+  (land === 'ask' ? $('question') : $('district-name')).focus({preventScroll: true});
+}
+
 function setLookup(open) {
   $('lookup').hidden = !open;
   $('change').setAttribute('aria-expanded', String(open));
@@ -131,18 +196,18 @@ function switchLine(name) {
 }
 
 // Set the district the chat asks about, or queue the switch while an answer loads. A switch adds the district's
-// address to the browser history, unless it came from there (push false): Back, Forward or an opened link.
-function choose(geo, name, quiet, push = true) {
+// address to the browser history, unless it came from there (push false): Back, Forward or an opened link. Unless
+// quiet, the page then moves to the district (see arrive), landing on its profile or, by default, in the chat.
+function choose(geo, name, quiet, push = true, land = 'ask') {
   setLookup(false);
   $('place').value = '';
+  districtView(true);
   if (busy) {
     queued = geo === district ? null : {geo, name, push};
     $('chat-status').textContent = queued ? `Switching to ${name} after this answer.` : '';
     // The profile needs no model, so it shows the chosen district while the answer loads.
     loadProfile(geo, name);
-    if (quiet) return;
-    showChat();
-    $('question').focus({preventScroll: true});
+    if (!quiet) arrive(land);
     return;
   }
   const switched = geo !== district;
@@ -165,9 +230,7 @@ function choose(geo, name, quiet, push = true) {
   }
   const ready = $('question').value.trim() ? 'Your question is ready. Press Ask KLEAR.' : '';
   $('chat-status').textContent = quiet && switched ? `Now asking about ${name}. ${ready}`.trim() : ready;
-  if (quiet) return;
-  showChat();
-  $('question').focus({preventScroll: true});
+  if (!quiet) arrive(land);
 }
 
 // Back to the page with no district: the starter questions return in place of the profile. The conversation stays.
@@ -177,6 +240,8 @@ function clearDistrict() {
   profileSeq++;
   profileGeo = null;
   setLookup(false);
+  districtView(false);
+  districtHead('', null);
   delete $('chat').dataset.chamber;
   $('district-title').textContent = 'No district chosen yet';
   $('welcome-text').textContent = 'Ask about this district.';
@@ -426,8 +491,8 @@ $('change').onclick = () => {
   if (open) $('place').focus();
 };
 const resetLookup = lookupForm($('lookup'), $('place'), $('lookup-status'), $('matches'), choose);
-// The search at the top of the page sets the chat's district and moves to the chat.
-const resetFind = lookupForm($('find'), $('find-place'), $('find-status'), $('find-matches'), (geo, name) => { resetFind(); choose(geo, name); });
+// The search at the top of the home page opens the district's page at its profile.
+const resetFind = lookupForm($('find'), $('find-place'), $('find-status'), $('find-matches'), (geo, name) => { resetFind(); choose(geo, name, false, true, 'profile'); });
 // Each starter shows its full question. Once it moves into the chat it shows only its short label, and the rest of the
 // question stays in its spoken name after that label, so voice control can say what it sees.
 for (const [question, label] of examples) {
@@ -457,29 +522,39 @@ async function loadProfile(geo, name) {
     $('starter').hidden = true;
   }
   panel.hidden = false;
-  panel.replaceChildren(...profileTitle(name), node('p', 'Loading the district profile…', 'profile-status'));
+  districtHead(name, null);
+  panel.replaceChildren(node('p', 'Loading the district profile…', 'profile-status'));
   setSheet(null);
   try {
     const data = await api('/api/profile?district=' + encodeURIComponent(geo));
     if (seq !== profileSeq) return;
+    districtHead(data.district, data);
     panel.replaceChildren(...renderProfile(data));
     setSheet(data);
     districtExamples(data);
     live.textContent = `Profile for ${data.district} loaded.`;
+    // An address that names a section, such as one opened from a bookmark, opens it.
+    const target = location.hash.length > 1 && document.getElementById(location.hash.slice(1));
+    if (target && target.matches('#profile details')) { target.open = true; target.scrollIntoView(); }
   } catch (err) {
     if (seq !== profileSeq) return;
     profileGeo = null;
     const message = `The district profile could not load. ${err.message}`;
-    panel.replaceChildren(...profileTitle(name), node('p', message, 'profile-status'));
+    panel.replaceChildren(node('p', message, 'profile-status'));
     live.textContent = message;
   }
 }
 
-// The panel is labelled by its heading, so the heading is there while the profile loads too.
-function profileTitle(name) {
-  const title = node('h3', name);
-  title.id = 'profile-title';
-  return [node('p', 'District profile', 'small-label'), title];
+// The district's name, which heads its page, and where it is: its county and island, its largest places, and the
+// districts of the other chamber it overlaps.
+function districtHead(name, p) {
+  $('district-name').textContent = name;
+  const about = $('district-about');
+  about.replaceChildren();
+  if (!p) return;
+  if (p.where) about.append(node('p', p.where, 'district-where'));
+  const meta = [p.places.length ? `Includes ${placesList(p)}.` : '', p.overlaps.length ? `Overlaps ${overlapsList(p)}.` : ''];
+  if (meta.some(Boolean)) about.append(node('p', meta.filter(Boolean).join(' '), 'district-meta'));
 }
 
 // What a short label stands for, one tap away: a plain definition, then the official label and who the figure
@@ -591,11 +666,82 @@ function programsOf(p) {
 // Programs on the one-page summary, so it stays one page.
 const SHEET_PROGRAMS = 6;
 
+// Matched programs, then the rest of the catalog, each as a grid that shows two or more side by side when there is room.
 function profilePrograms(pr) {
-  const d = node('details', '', 'profile-section profile-programs');
-  d.append(node('summary', pr.title), node('p', pr.intro, 'program-intro'), ...programList(pr.programs, pr.others, pr.others_title), node('p', pr.note, 'program-note'));
-  if ((pr.sources || []).length) d.append(profileSources(pr.sources));
+  const grid = (list, full) => { const g = node('div', '', 'program-grid'); g.append(...list.map(p => programRow(p, full))); return g; };
+  const content = [node('p', pr.intro, 'program-intro')];
+  if (pr.programs.length) content.push(grid(pr.programs, true));
+  if (pr.others.length) content.push(node('p', pr.others_title, 'program-subhead'), grid(pr.others, false));
+  content.push(node('p', pr.note, 'program-note'));
+  if ((pr.sources || []).length) content.push(profileSources(pr.sources));
+  const d = profileSection('programs', pr.title, content);
+  d.classList.add('profile-programs');
   return d;
+}
+
+// Which profile sections the reader opened or closed in this tab, so the next profile opens the same ones.
+const OPENED = 'klear-open';
+function openedSections() {
+  try {
+    const saved = JSON.parse(sessionStorage.getItem(OPENED));
+    if (saved && typeof saved === 'object' && !Array.isArray(saved)) return saved;
+  } catch { /* blocked or unreadable */ }
+  return {};
+}
+function rememberOpen(key, open) {
+  const saved = openedSections();
+  saved[key] = open;
+  try { sessionStorage.setItem(OPENED, JSON.stringify(saved)); } catch { /* blocked or full */ }
+}
+
+// One section of the profile: a disclosure that the jump links at the top can open, ending with a link back up.
+function profileSection(key, title, content) {
+  const d = node('details', '', 'profile-section'), summary = node('summary', title);
+  d.id = `profile-${key}`;
+  d.dataset.key = key;
+  // The click comes before the disclosure changes, so the new state is the opposite of the current one.
+  summary.addEventListener('click', () => rememberOpen(key, !d.open));
+  const back = node('p', '', 'profile-back'), up = node('a', 'Back to top of profile');
+  up.href = '#district-head';
+  back.append(up);
+  d.append(summary, ...content, back);
+  return d;
+}
+
+function dataSection(sec) {
+  const rows = node('div', '', 'profile-rows'), content = [];
+  rows.append(...sec.rows.map(profileRow));
+  if (sec.caveat) content.push(node('p', sec.caveat, 'profile-caveat lead'));
+  content.push(rows, profileSources(sec.sources, sec.compared));
+  return profileSection(sec.title.toLowerCase().replace(/[^a-z0-9]+/g, '-'), sec.title, content);
+}
+
+// The sections in reading order: who lives here and what they earn, then the programs to explore, then the rest.
+// On wide screens these first three open unless the reader closed them earlier in this tab.
+const LEAD_SECTIONS = 2, OPEN_FIRST = 3;
+function profileSections(p) {
+  const data = p.sections.filter(s => s.rows.length).map(dataSection);
+  const programs = programsOf(p) ? [profilePrograms(p.programs)] : [];
+  const out = [...data.slice(0, LEAD_SECTIONS), ...programs, ...data.slice(LEAD_SECTIONS)];
+  const saved = openedSections();
+  out.forEach((d, i) => { d.open = typeof saved[d.dataset.key] === 'boolean' ? saved[d.dataset.key] : !ONE_COLUMN.matches && i < OPEN_FIRST; });
+  return out;
+}
+
+// Links to every section, so each is one click from the top. A link opens its section before the page moves to it.
+function profileJumps(sections) {
+  const nav = node('nav', '', 'profile-jumps'), title = node('p', 'In this profile', 'profile-jumps-title'), list = node('ul', '');
+  title.id = 'jumps-title';
+  nav.setAttribute('aria-labelledby', title.id);
+  for (const d of sections) {
+    const li = document.createElement('li'), a = node('a', d.querySelector('summary').textContent);
+    a.href = `#${d.id}`;
+    a.onclick = () => { if (!d.open) { d.open = true; rememberOpen(d.dataset.key, true); } };
+    li.append(a);
+    list.append(li);
+  }
+  nav.append(title, list);
+  return nav;
 }
 
 // The largest places in a district and the other chamber's districts it overlaps, with their shares of its residents.
@@ -648,20 +794,19 @@ async function copyLink(url, status) {
   requestAnimationFrame(() => { $('profile-live').textContent = text; });
 }
 
-// Print, link and download controls, in their own panel near the top of the profile. Printing shows the one-page
-// summary in place of the page.
+// Print, link and download buttons in one row under the profile's top. Printing shows the one-page summary in place of
+// the page.
 function profileActions(p) {
-  const box = node('div', '', 'profile-share'), title = node('p', 'Share this profile', 'profile-share-title');
-  title.id = 'share-title';
+  const box = node('div', '', 'profile-share');
   box.setAttribute('role', 'group');
-  box.setAttribute('aria-labelledby', title.id);
-  const control = (tag, text, name, primary) => {
-    const c = node(tag, '', primary ? 'action primary' : 'action');
+  box.setAttribute('aria-label', 'Share this profile');
+  const control = (tag, text, name) => {
+    const c = node(tag, '', 'action');
     c.append(icon(name), node('span', text));
     if (tag === 'button') c.type = 'button';
     return c;
   };
-  const print = control('button', 'Print or save as PDF', 'print', true), copy = control('button', 'Copy link', 'link');
+  const print = control('button', 'Print or save as PDF', 'print'), copy = control('button', 'Copy link', 'link');
   const csv = control('a', 'Download data (CSV)', 'download');
   print.onclick = () => window.print();
   csv.href = '/api/profile.csv?district=' + encodeURIComponent(p.geo);
@@ -669,29 +814,26 @@ function profileActions(p) {
   const actions = node('div', '', 'profile-actions'), status = node('p', '', 'profile-share-status');
   copy.onclick = () => copyLink(location.origin + districtPath(p.geo), status);
   actions.append(print, copy, csv);
-  box.append(title, node('p', 'A one-page summary with sources, a link to this district, or every figure as a spreadsheet.', 'profile-share-note'), actions, status);
+  box.append(actions, status);
   return box;
 }
 
+// The profile under the district's name: its four headline figures with their margins, links to each section, the
+// share buttons, then the sections.
 function renderProfile(p) {
-  const out = profileTitle(p.district);
-  if (p.where) out.push(node('p', p.where, 'profile-where'));
-  if (p.places.length) out.push(node('p', `Includes ${placesList(p)}`, 'profile-meta'));
-  if (p.overlaps.length) out.push(node('p', `Overlaps ${overlapsList(p)}`, 'profile-meta'));
-  out.push(profileActions(p));
+  const out = [];
   const stats = node('dl', '', 'profile-stats');
   // Each term comes before its value, as a description list needs; the CSS shows the value on top.
-  for (const h of p.headline) { const s = node('div', ''); s.append(says('dt', h.label), node('dd', h.value)); stats.append(s); }
-  out.push(stats);
-  if (programsOf(p)) out.push(profilePrograms(p.programs));
-  for (const sec of p.sections) {
-    if (!sec.rows.length) continue;
-    const d = node('details', '', 'profile-section');
-    d.append(node('summary', sec.title));
-    if (sec.caveat) d.append(node('p', sec.caveat, 'profile-caveat lead'));
-    d.append(...sec.rows.map(profileRow), profileSources(sec.sources, sec.compared));
-    out.push(d);
+  for (const h of p.headline) {
+    const s = node('div', ''), value = node('dd', '');
+    value.append(node('span', h.value, 'num'));
+    if (h.spread) value.append(' ', node('span', h.spread, 'moe'));
+    s.append(says('dt', h.label), value);
+    stats.append(s);
   }
+  out.push(stats);
+  const sections = profileSections(p);
+  out.push(profileJumps(sections), profileActions(p), ...sections);
   return out;
 }
 
@@ -889,18 +1031,20 @@ function restoreChat() {
   if (logScrolls()) $('messages').scrollTop = sent.offsetTop - 16;
 }
 
-// Restore the conversation and open the district the address names. This waits for the page's other scripts, so the
-// map hears which district opened too.
+// Restore the conversation and open the district the address names, at the top of its page. This waits for the page's
+// other scripts, so the map hears which district opened too.
 document.addEventListener('DOMContentLoaded', () => {
   restoreChat();
   const geo = routeGeo();
   if (geo) {
     // An address like /district/house-07 is shown the usual way, /district/house-7.
     if (location.pathname !== districtPath(geo)) setAddress(districtPath(geo) + location.search + location.hash, true);
-    choose(geo, districtName(geo), true, false);
-    // A link opened fresh moves to the district; a reload, Back or Forward keeps the reader's place.
+    // A link opened fresh starts on the profile; a reload, Back or Forward keeps the tab the reader was on.
     const nav = performance.getEntriesByType ? performance.getEntriesByType('navigation')[0] : null;
-    if ((!nav || nav.type === 'navigate') && !location.hash) $('chat').scrollIntoView({behavior: 'instant'});
+    let saved = null;
+    try { saved = sessionStorage.getItem(SAVED_TAB); } catch { /* blocked */ }
+    shownTab = nav && nav.type !== 'navigate' && Object.hasOwn(PANELS, saved || '') ? saved : 'profile';
+    choose(geo, districtName(geo), true, false);
   } else if (location.pathname.startsWith('/district/')) {
     setAddress('/', true);
     $('find-status').textContent = 'That link names a district that does not exist. Hawaiʻi has 51 House and 25 Senate districts.';
@@ -969,6 +1113,8 @@ $('question-form').onsubmit = async e => {
     saveChat();
     const {elsewhere, inChat} = reader || readerPlace();
     $('chat-live').textContent = done;
+    // A reader who moved to the Profile tab while waiting sees that the answer has come.
+    if (reply && ONE_COLUMN.matches && shownTab !== 'ask') $('tab-new').hidden = false;
     if (queued) { const next = queued; queued = null; choose(next.geo, next.name, true, next.push); }
     if (hold) hold();
     if (follow && (logScrolls() || (!elsewhere && !(hold && hold.field)))) reveal(sent);

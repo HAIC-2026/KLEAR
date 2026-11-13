@@ -40,6 +40,10 @@
   --gutter:clamp(16px,3vw,32px);--card-pad:clamp(16px,2.4vw,28px);--section-y:clamp(48px,7vw,80px);
   --head-gap:28px;--block-gap:24px;--measure:46rem;
 
+  /* A district's page on wide screens. --header-h is the site header's height and --stick how much of it stays on screen
+     as the page scrolls (none while the header scrolls away), so the chat beside the profile sticks just under it. */
+  --header-h:64px;--stick:0px;--chat-w:clamp(30rem,36vw,32.5rem);--district-top:16px;
+
   /* Printed district summary: one US Letter page */
   --pt-xs:7.5pt;--pt-sm:8.5pt;--pt-base:9.5pt;--pt-md:11pt;--pt-title:20pt;--pt-gap:8pt;
 
@@ -211,25 +215,50 @@ summary{font-weight:600;color:var(--accent);cursor:pointer}
 .error{width:fit-content;max-width:min(100%,46rem);padding:12px 16px;background:var(--error-bg);color:var(--error-ink);border:1px solid var(--error-line)}
 .error p{margin:0}
 .retry{margin-top:10px;padding:6px 18px;border:1px solid var(--error-ink);border-radius:var(--r-ctl);background:#fff;color:var(--error-ink);font-size:var(--fs-sm);font-weight:600;line-height:1.4}
-.send-hint,.chat-privacy{margin:6px 0 0;font-size:var(--fs-xs);color:var(--muted)}
+.chat-notes{margin:6px 0 0;font-size:var(--fs-xs);line-height:1.5;color:var(--muted)}
 .chat-aside h3{font-size:var(--fs-base);margin:0 0 12px}
 .examples{display:grid;gap:8px}
 .examples button{border:1px solid var(--line);border-radius:var(--r-ctl);background:#fff;text-align:left;padding:12px 14px;color:var(--ink);font-size:var(--fs-base);line-height:1.4;text-wrap:pretty}
-/* District profile beside the chat: big figures, plain labels, and comparisons written as sentences. */
-/* Side by side, the profile is as wide as the chat. It always takes the height its figures need and never scrolls inside
-   itself. The chat stays compact until a question is sent. */
-@media(min-width:1200px){.chat-layout:has(#profile:not([hidden])){grid-template-columns:repeat(2,minmax(0,1fr))}}
-.profile{background:#fff;border:1px solid var(--line);border-radius:var(--r-card);padding:20px 20px 4px}
-.chat-aside .profile h3{font-size:var(--fs-xl);line-height:1.25;margin:4px 0 8px}
-.profile-where{margin:0 0 4px;font-size:var(--fs-sm);line-height:1.5}
-.profile-meta{margin:0 0 2px;font-size:var(--fs-xs);color:var(--muted);line-height:1.5}
+/* A district's own page. The home page's photo band, the chat's introduction and the starter questions give way to the
+   district's name and where it is, then its profile: four headline figures, links to each section, the share buttons
+   and the sections, with big figures, plain labels, and comparisons written as sentences. On wide screens the chat
+   sits beside the profile, as tall as the window, and stays in view while the profile scrolls; below 1200 px the two
+   take turns behind tabs (see the end of this block). */
+.district-page .band,.district-page #chat-head,.district-page .chat-aside{display:none}
+.district-page .chat-section{padding:var(--district-top) 0 var(--section-y)}
+.district-page .chat-section>.wrap{max-width:1440px}
+.district-head{min-width:0;scroll-margin-top:calc(var(--stick) + var(--district-top))}
+.district-head h1{font-size:clamp(30px,2.6vw,36px);line-height:1.15;margin:2px 0 4px}
+.district-where{margin:0;font-size:var(--fs-md);line-height:1.45}
+.district-meta{margin:2px 0 0;font-size:var(--fs-sm);line-height:1.5;color:var(--muted)}
+/* Shown only while it has focus, as the page's own skip link is. */
+.skip-ask:not(:focus){position:absolute;width:1px;height:1px;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.skip-ask:focus{display:inline-block;margin-top:10px;padding:6px 12px;background:#fff;border-radius:var(--r-ctl);font-weight:600}
+.view-tabs{display:flex;margin:16px 0 0;border:1px solid var(--control);border-radius:var(--r-ctl);overflow:hidden;background:#fff}
+.view-tabs [role=tab]{flex:1 1 0;min-height:44px;padding:8px 12px;border:0;background:transparent;color:var(--accent-dark);font-size:var(--fs-base);font-weight:700}
+.view-tabs [role=tab]+[role=tab]{border-left:1px solid var(--control)}
+.view-tabs [role=tab][aria-selected=true]{background:var(--accent);color:#fff}
+.view-tabs [role=tab]:focus-visible{outline-offset:-6px}.view-tabs [role=tab][aria-selected=true]:focus-visible{outline-color:#fff}
+.tab-new{margin-left:8px;padding:1px 8px;border-radius:var(--r-pill);background:var(--accent-soft);color:var(--accent-dark);font-size:var(--fs-xs);font-weight:600}
+.profile{min-width:0;background:#fff;border:1px solid var(--line);border-radius:var(--r-card);padding:20px var(--card-pad) 4px}
 .profile-status{margin:0 0 16px;font-size:var(--fs-sm);color:var(--muted)}
-.profile-stats{display:grid;grid-template-columns:1fr 1fr;gap:0 20px;margin:16px 0 8px}
-.profile-stats div{display:flex;flex-direction:column-reverse;justify-content:flex-end;border-top:1px solid var(--line);padding:10px 0 12px;min-width:0}
-.profile-stats dd{margin:0;font-size:var(--fs-xl);line-height:1.15;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
-.profile-stats dt{margin-top:2px;font-size:var(--fs-xs);line-height:1.35;color:var(--muted)}
-.profile .profile-section{margin:0;padding:0}
-.profile-section summary{padding:12px 0}
+.profile-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px 20px;margin:0}
+.profile-stats div{display:flex;flex-direction:column-reverse;justify-content:flex-end;min-width:0}
+.profile-stats dd{margin:0;line-height:1.2;font-variant-numeric:tabular-nums}
+.profile-stats .num{font-size:var(--fs-xl);letter-spacing:-.02em;white-space:nowrap}
+.profile-stats .moe{font-size:var(--fs-xs);color:var(--muted);white-space:nowrap}
+.profile-stats dt{margin-top:4px;font-size:var(--fs-xs);line-height:1.35;color:var(--muted)}
+/* The title leads the first line of links. */
+.profile-jumps{display:flex;flex-wrap:wrap;align-items:baseline;gap:0 18px;margin:16px 0 0;padding-top:8px;border-top:1px solid var(--line)}
+.profile-jumps-title{margin:0;font-size:var(--fs-sm);color:var(--muted)}
+.profile-jumps ul{display:flex;flex:1 1 24rem;flex-wrap:wrap;gap:0 18px;margin:0;padding:0;list-style:none}
+.profile-jumps a,.profile-back a{display:inline-block;padding:4px 0;font-size:var(--fs-sm);font-weight:600}
+.profile .profile-section{margin:0;padding:0;scroll-margin-top:calc(var(--stick) + 12px)}
+.profile-section>summary{padding:10px 0;font-size:var(--fs-md);font-weight:700}
+/* Rows and programs side by side when there is room: three across beside the chat on a wide screen. */
+.profile-rows{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(14.5rem,100%),1fr));column-gap:24px}
+.program-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(18rem,100%),1fr));column-gap:24px}
+.profile-back{margin:0;padding:0 0 12px}
 .profile-row{padding:12px 0 14px;border-top:1px solid var(--line)}
 .profile-figure{margin:0;line-height:1.2;font-variant-numeric:tabular-nums}
 .profile-figure .num{font-size:var(--fs-lg);letter-spacing:-.015em}
@@ -245,7 +274,6 @@ summary{font-weight:600;color:var(--accent);cursor:pointer}
 .profile-sources ul,.profile-sources ol{margin:0;padding-left:18px}.profile-sources ul{list-style:none;padding-left:0}
 .profile-sources ul+.profile-sources-title,.profile-sources ol+.profile-sources-title{margin-top:8px}
 .profile-source-year{display:block}.profile-sources li+li{margin-top:4px}
-@media(min-width:641px) and (max-width:1199px){.profile-stats{grid-template-columns:repeat(4,minmax(0,1fr))}}
 /* Programs matched to a district: linked name, agency, reasons and a phone. */
 .program-intro{margin:0 0 6px;font-size:var(--fs-xs);line-height:1.5;color:var(--muted)}
 .program{padding:12px 0 14px;border-top:1px solid var(--line)}
@@ -267,28 +295,50 @@ article .answer-programs summary+.program{margin-top:10px}
 .profile-beside b{font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums}
 .profile-beside sup{margin-left:3px;line-height:0}
 .profile-caveat.lead{margin:0 0 4px}
-/* Print, link and download controls under the profile's heading */
-/* Print, link and download controls: a tinted panel near the top of the profile. */
-.profile-share{margin:16px 0 4px;padding:14px 16px 16px;background:var(--accent-soft);border-radius:var(--r-ctl)}
-.profile-share-title{margin:0;font-size:var(--fs-base);font-weight:700;color:var(--accent-dark)}
-.profile-share-note{margin:2px 0 12px;font-size:var(--fs-sm);line-height:1.45;color:var(--ink)}
-/* Print is the main action and takes the first row; Copy link and the download share the second. */
-.profile-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
-.profile-actions .action{display:flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:8px 14px;background:#fff;border:1px solid var(--accent);border-radius:var(--r-ctl);color:var(--accent-dark);font-size:var(--fs-sm);font-weight:700;line-height:1.3;text-align:center;text-decoration:none}
-.profile-actions .action.primary{grid-column:1/-1;background:var(--accent);color:#fff;font-size:var(--fs-base)}
+/* Print, link and download buttons in one row under the profile's top. */
+.profile-share{margin:4px 0 12px}
+.profile-actions{display:flex;flex-wrap:wrap;gap:8px}
+.profile-actions .action{display:inline-flex;align-items:center;gap:8px;min-height:40px;padding:6px 14px;background:#fff;border:1px solid var(--accent);border-radius:var(--r-ctl);color:var(--accent-dark);font-size:var(--fs-sm);font-weight:700;line-height:1.3;text-decoration:none}
 .icon{flex:none;width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .profile-share-status{display:flex;align-items:center;gap:6px;margin:10px 0 0;font-size:var(--fs-sm);font-weight:600;color:var(--accent-dark);overflow-wrap:anywhere}.profile-share-status:empty{display:none}
 /* Fixed and see-through: the selection Copy link falls back on when it cannot write to the clipboard directly. */
 .copy-buffer{position:fixed;top:0;left:0;width:1px;height:1px;padding:0;border:0;opacity:0;pointer-events:none}
-/* Suggested questions: short buttons between the conversation and the question box. */
-.suggest{padding:12px var(--card-pad) 0;border-top:1px solid var(--line)}
-.suggest:not([hidden])+#question-form{border-top:0;padding-top:12px}
+/* Suggested questions: short buttons at the end of the conversation, just above the question box when it is short. */
+#messages{display:flex;flex-direction:column}
+.suggest{margin-top:auto;padding:12px 0 4px;border-top:1px solid var(--line)}
 .suggest .examples{display:flex;flex-wrap:wrap;gap:8px}
 .suggest .examples button{border:1px solid var(--accent);border-radius:var(--r-pill);padding:6px 14px;color:var(--accent-dark);font-size:var(--fs-sm);font-weight:600;line-height:1.4;white-space:nowrap}
 /* Examples picked for the chosen district are tinted. */
 .suggest .examples button.local{background:var(--accent-soft)}
-/* The card is compact until the first question; then it grows and the conversation scrolls inside it. */
-@media(min-width:1024px) and (min-height:640px){.chat-card.started{min-height:min(680px,calc(100vh - 120px))}.district-bar,#suggest,#question-form,#chat-status{flex:none}.chat-card.started #messages{flex:1 1 0px;min-height:180px;overflow-y:auto;scroll-padding-block:12px}}
+/* On the home page the card is compact until the first question; then it grows and the conversation scrolls inside it. */
+@media(min-width:1024px) and (min-height:640px){body:not(.district-page) .chat-card.started{min-height:min(680px,calc(100vh - 120px))}.district-bar,#question-form,#chat-status{flex:none}body:not(.district-page) .chat-card.started #messages{flex:1 1 0px;min-height:180px;overflow-y:auto;scroll-padding-block:12px}}
+/* A district's page. The bar over the chat takes one line, since the page heading already names the district. */
+.district-page .district-bar{padding:10px var(--card-pad)}
+.district-page .district-now>div{display:flex;flex-wrap:wrap;align-items:baseline;column-gap:6px;min-width:0}
+.district-page .district-now strong{display:inline;font-size:var(--fs-base)}
+.district-page .district-now .textbutton{padding:2px 0}
+.district-page #messages{padding-top:16px}
+.district-page #question-form{padding-top:12px}
+.district-page #chat-status{padding-bottom:12px}
+/* Wide and tall enough: the profile on the left and the chat beside it, as tall as the window below the site header, so
+   it stays in view while the profile scrolls and the conversation scrolls inside it. */
+@media(min-width:1200px){
+  .view-tabs{display:none}
+  .district-page .chat-layout{grid-template-columns:minmax(0,1fr) var(--chat-w);grid-template-rows:auto 1fr;gap:20px 32px}
+  .district-page .district-head{grid-area:1/1}
+  .district-page #profile{grid-area:2/1}
+  .district-page .chat-card{grid-area:1/2/3/3}
+}
+@media(min-width:1200px) and (min-height:560px){
+  .district-page .chat-card{position:sticky;top:calc(var(--stick) + var(--district-top));height:calc(100vh - var(--header-h) - var(--district-top) - 12px)}
+  .district-page .district-bar{max-height:60%;overflow-y:auto}
+  .district-page #messages{flex:1 1 0px;min-height:120px;overflow-y:auto;scroll-padding-block:12px}
+}
+/* One column: the profile and the chat take turns behind the tabs under the district's name. */
+@media(max-width:1199px){
+  .district-page #chat[data-tab=profile] .chat-card,.district-page #chat[data-tab=ask] #profile,.district-page .skip-ask{display:none}
+  .district-page .chat-layout{row-gap:16px}
+}
 
 /* Answer tiles, charts, and sources */
 .answer .lead{font-size:var(--fs-lead);line-height:1.55;margin:0 0 16px}
@@ -435,7 +485,7 @@ footer a{color:#fff}
   .inputrow{position:relative}.combo{position:static}
   .examples{grid-template-columns:1fr}
   .send-hint{display:none}
-  .profile-actions{grid-template-columns:1fr}
+  .profile-stats{grid-template-columns:repeat(2,minmax(0,1fr))}
   .district-now{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;column-gap:12px}.district-now>div{display:contents}.district-now .small-label{grid-area:1/1;white-space:nowrap}.district-now strong{grid-area:2/1/3/3}.district-now .textbutton{grid-area:1/2;padding:10px 0;margin:-10px 0}
   #messages{padding:20px 16px 8px}#messages article{padding:14px 14px}
   .user{max-width:88%}
@@ -453,6 +503,7 @@ footer a{color:#fff}
 @media(max-width:480px){
   .site-header nav{justify-content:space-between;gap:0 12px}
   .chamber-cols{grid-template-columns:1fr}
+  .profile-stats .num{font-size:var(--fs-lg)}
   .chips{grid-template-columns:repeat(auto-fill,minmax(7.75rem,1fr))}.match,.zip-form .match{padding-left:8px;padding-right:8px;gap:6px;font-size:var(--fs-xs)}
 }
 
@@ -463,7 +514,7 @@ footer a{color:#fff}
 .island-tabs button[aria-pressed=false]:hover,.examples button:not(:disabled,[aria-disabled=true]):hover,.zoom-buttons button:hover{background:var(--accent-soft)}
 .suggest .examples button.local:not([aria-disabled=true]):hover{background:var(--accent-soft-hover)}
 .followup:not([aria-disabled=true]):hover,.pending .cancel:hover{background:var(--accent-soft)}.retry:not([aria-disabled=true]):hover{background:var(--error-bg)}
-.profile-actions .action:hover{background:var(--accent-soft-hover)}.profile-actions .action.primary:hover{background:var(--accent-dark);border-color:var(--accent-dark)}
+.profile-actions .action:hover{background:var(--accent-soft-hover)}.view-tabs [role=tab][aria-selected=false]:hover{background:var(--accent-soft)}
 .segmented [data-chamber=house][aria-pressed=false]:hover{background:var(--house-soft)}.segmented [data-chamber=senate][aria-pressed=false]:hover{background:var(--senate-soft)}
 }
 /* Touch screens: larger targets for controls and for links that stand alone in lists. */
