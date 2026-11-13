@@ -115,7 +115,7 @@ def test_example_script_passes_scoring():
         con.close()
 
 
-@pytest.mark.parametrize("golden_id", [f"rank-{n:03}" for n in range(1, 8)])
+@pytest.mark.parametrize("golden_id", [f"rank-{n:03}" for n in range(1, 9)])
 def test_rank_scripts_pass_scoring(golden_id):
     if not STORE.exists():
         pytest.skip("Build the store to replay the rank scripts")

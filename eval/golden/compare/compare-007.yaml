@@ -1,0 +1,13 @@
+id: compare-007
+category: compare
+question: What share of adults in House District 30 have a college degree, compared with the county?
+ideal: Gives the share of adults with a bachelor's degree or higher in this Hawaiʻi House district, with its age
+  definition, margin of error and the ACS vintage. Says it is lower than in Honolulu County.
+tags: [education]
+district: [house, "030"]
+facts:
+  - [pct_bachelors_plus, house, "030"]
+  - [pct_bachelors_plus, county, "15003"]
+must_say: ["2020-2024"]
+direction: lower
+refusal: none

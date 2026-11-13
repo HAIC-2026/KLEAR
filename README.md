@@ -396,8 +396,10 @@ Choosing a district also shows its district profile next to the chat. The profil
 straight from the store with no model call, through `GET /api/profile?district=house:022`.
 A district chosen while an answer is still loading shows its profile at once, and the chat switches to it after that answer.
 It names the district's counties, islands, Census places and the overlapping districts
-in the other chamber, shows four headline figures, then 37 figures in seven sections:
-People, Income, Housing, Health and access, Programs in use, Modeled needs and Help sites.
+in the other chamber, shows four headline figures, then 50 figures in nine sections:
+People, Income, Work and education, Housing, Health and access, Programs in use, Who may qualify,
+Modeled needs and Help sites. Work and education shows the district's three largest of 13 industry
+groups, each counting residents by the industry they work in, wherever the job is.
 Each figure shows its margin of error or range, is compared with the county that holds most
 of the district's population and with the state, flags an unreliable estimate, and is cited
 under its section. Rates are compared in plain sentences ("about 40 percent higher than the
