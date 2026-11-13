@@ -33,7 +33,8 @@ test('a chart label opens to its definition, official label and who it counts', 
 test('the disclosure opens from the keyboard', async ({page}) => {
   await chooseDistrict(page);
   const answer = await ask(page);
-  const about = answer.getByRole('figure', {name: 'Kūpuna (65 and over)'}).locator('details.meaning');
+  // Counts stay tiles, so the kūpuna count is the first tile.
+  const about = answer.locator('.tile').filter({hasText: 'Kūpuna (65 and over)'}).first().locator('details.meaning');
   await about.locator('summary').focus();
   await page.keyboard.press('Enter');
   await expect(about).toHaveAttribute('open');

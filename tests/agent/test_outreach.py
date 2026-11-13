@@ -154,7 +154,7 @@ def test_layout_names_the_top_tier_and_flags_unreliable_estimates(outreach_con):
         "use": {"value": "900", "spread": "± 120"},
     }
     assert (
-        second["caution"] == "Unreliable estimate: the margin of error is large"
+        second["caution"] == "The margin of error is large compared with the estimate."
         and second["reliable"] is False
     )
     assert (
