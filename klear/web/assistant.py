@@ -11,6 +11,7 @@ from klear.agent.config import DEFAULT_MODEL
 from klear.agent.earlier import INDICATORS_MAX
 from klear.config import MissingSecretError
 from klear.eval.contract import VERSION, Answer, fill_value, geo_display, render
+from klear.eval.scorers import reliability
 from klear.eval.spend import TOKEN_FIELDS, load_prices, request_cost
 from klear.filelock import exclusive
 from klear.web import display
@@ -151,6 +152,7 @@ def _payload(con, answer, mode: str, selected: tuple[str, str] | None = None) ->
                 "url": source[1] if source else "",
                 "geography": geo_display(f.geo_type, f.geo_id, place[0] if place else f.geo_id),
                 "uncertainty": status[0] if status else "unavailable",
+                "caution": display.CAUTION if reliability(f) is False else "",
             }
         )
     programs = display.program_rows(answer.programs)
