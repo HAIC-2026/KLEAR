@@ -42,7 +42,7 @@ test('three related questions, each asked with a next-question button', async ({
     expect(body.question).toBe(asked[i]);
     expect(body.district).toBe('house:022');
     expect((body.earlier || []).map(x => x.question)).toEqual(asked.slice(Math.max(0, i - 2), i));
-    for (const x of body.earlier || []) expect(x).toEqual({question: x.question, district: 'house:022', indicators: ['pct_people_poverty', 'pop_65_plus', 'sites_lihtc']});
+    for (const x of body.earlier || []) expect(x).toEqual({question: x.question, district: 'house:022', indicators: ['pct_people_poverty', 'pop_65_plus', 'sites_lihtc', 'irs_eitc_returns']});
   }
   // Next questions keep to the district's address, and only the newest answer offers them.
   await expect(page).toHaveURL(/\/district\/house-22$/);
@@ -87,7 +87,7 @@ test('with no district chosen, an answer about one district chooses it, and a fo
   await expect(page.locator('#log .followups')).toHaveCount(1);
   await expect(page.locator('#log .switch-offer')).toHaveCount(0);
   await ask(page, 'And how does that compare with the county?');
-  const subject = {question, district: 'house:022', indicators: ['pct_people_poverty', 'pop_65_plus', 'sites_lihtc']};
+  const subject = {question, district: 'house:022', indicators: ['pct_people_poverty', 'pop_65_plus', 'sites_lihtc', 'irs_eitc_returns']};
   expect(sent).toEqual([{question, district: null}, {question: 'And how does that compare with the county?', district: 'house:022', earlier: [subject]}]);
 });
 
