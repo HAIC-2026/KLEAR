@@ -57,8 +57,25 @@ test('search, choose, read the profile, ask, open a source, and come back', asyn
   const table = chart.getByRole('table', {name: 'People below the poverty level'});
   await expect(table.getByRole('columnheader')).toHaveText(['Place', 'Estimate', '90% margin of error']);
   await expect(table.getByRole('row', {name: /Hawaiʻi/})).toHaveText(/Hawaiʻi\s*9\.8%\s*± 0\.4 points/);
-  const kupuna = answer.getByRole('figure', {name: 'Kūpuna (65 and over)'});
-  await expect(kupuna.locator('.chart-summary')).toContainText('is 11.1% of the total for Hawaiʻi (9,000)');
+  await expect(chart.locator('.chart-note')).toHaveText('Bars show the estimate. Lines show the 90% margin of error.');
+
+  // Counts stay tiles, never bars against the county or state. An unreliable one carries a caution chip, an
+  // apportioned one says how it was estimated, and the district's caveat follows the answer with its sources.
+  await expect(answer.getByRole('figure', {name: 'Kūpuna (65 and over)'})).toHaveCount(0);
+  const kupuna = answer.locator('.tile').filter({hasText: 'Kūpuna (65 and over)'}).first();
+  await expect(kupuna.locator('.tile-meta')).toHaveText('± 600, 11.1% of the Hawaiʻi total');
+  await expect(kupuna.locator('.chip.caution')).toHaveText('Use with caution. The margin of error is large compared with the estimate.');
+  const eitc = answer.locator('.tile').filter({hasText: 'Tax returns claiming the EITC'});
+  await expect(eitc.locator('.method')).toContainText('How estimated: apportioned to the district from ZIP code or census tract data');
+  await expect(eitc.locator('.method a')).toHaveAttribute('href', /\/methods\.html#irs_soi_zip_2023$/);
+  await expect(answer.locator('.source-line')).toContainText('Use with caution marks an estimate with a large margin of error.');
+  const note = answer.locator('.answer-notes .place-note');
+  await expect(note.locator('.place-note-text')).toContainText('Kalawao County. Kalawao County (Kalaupapa) is very small');
+  await expect(note.getByRole('link', {name: /2020 Census, table P1, Kalawao County/})).toHaveCount(1);
+  // The profile flags the same estimate and states the caveat near its top.
+  await expect(profile.locator('.profile-notes')).toContainText('Kalawao County (Kalaupapa) is very small');
+  const row = profile.locator('.profile-row').filter({hasText: 'Kūpuna (65 and over)'}).first();
+  await expect(row.locator('.profile-caution')).toHaveText('Use with caution The margin of error is large compared with the estimate.');
 
   // Open a source: it opens in a new tab, says so, and the conversation is still here afterwards.
   await answer.getByText('Sources', {exact: true}).click();

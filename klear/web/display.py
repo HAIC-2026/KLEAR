@@ -5,10 +5,12 @@ import io
 import re
 from datetime import datetime
 
+from klear import caveats
 from klear.agent.answer import actual_direction
 from klear.agent.config import OUTREACH_NOTE_LIMIT, OUTREACH_PAIRS, PROFILE_HEADLINE
 from klear.config import CURRENT_LAYER
 from klear.eval.contract import MARKER, _has, _number, geo_display, geo_key, short_name
+from klear.eval.scorers import reliability
 from klear.labels import in_sentence, meaning, short_label
 from klear.programs import ELIGIBILITY_NOTE, NEEDS, Program, by_rule, catalog, is_stale
 from klear.store.methods import place_note
@@ -35,6 +37,15 @@ METHODS_PAGE = "/methods.html"
 METHOD_TIERS = {"A", "M"}
 METHODS_TEXT = "How KLEAR estimates district ranges"
 VINTAGE_NOTE = re.compile(r"\s*\(\{vintage:\w+\}\)")
+# Why an estimate carries a "Use with caution" chip.
+CAUTION = "The margin of error is large compared with the estimate."
+# The same flag where it stands alone without a chip: the map, its table and the CSV download.
+UNRELIABLE = "Unreliable estimate: the margin of error is large"
+# How apportioned and modeled figures are estimated, in plain words, by tier.
+HOW = {
+    "A": "apportioned to the district from ZIP code or census tract data",
+    "M": "a modeled estimate, not a direct count",
+}
 TAGS = {
     "higher": "Higher than {other}",
     "lower": "Lower than {other}",
@@ -69,8 +80,8 @@ class _Store:
     def unit(self, f) -> str:
         return self.units.get(f.indicator_id, "count")
 
-    def links(self, f) -> list[dict]:
-        """Where a fact can be checked: its ACS table for that place, or the methods page."""
+    def kind(self, f) -> tuple[str | None, str | None]:
+        """The fact's tier and ACS table."""
         key = (f.geo_type, f.geo_id, f.indicator_id, f.source_id)
         if key not in self._kinds:
             row = self.con.execute(
@@ -79,8 +90,21 @@ class _Store:
                 list(key),
             ).fetchone()
             self._kinds[key] = row or (None, None)
-        tier, table = self._kinds[key]
+        return self._kinds[key]
+
+    def links(self, f) -> list[dict]:
+        """Where a fact can be checked: its ACS table for that place, or the methods page."""
+        tier, table = self.kind(f)
         return figure_links(f.source_id, tier, table, f.geo_type, f.geo_id, self.place(f.geo_type, f.geo_id))
+
+    def caution(self, f) -> str:
+        """Why the fact is unreliable, or '' when it is not."""
+        return CAUTION if reliability(f) is False else ""
+
+    def method(self, f) -> dict | None:
+        """How an apportioned or modeled fact is estimated, linked to its source's section on the methods page."""
+        how = HOW.get(self.kind(f)[0])
+        return {"text": how, "url": f"{METHODS_PAGE}#{f.source_id}"} if how else None
 
     def vintage(self, f) -> str:
         name = self.sources.get(f.source_id, (f.source_id, ""))[0]
@@ -232,6 +256,7 @@ def _bar(f, store: _Store) -> dict:
         # The estimate and its margin or range apart, for the chart's data table.
         "number": _plain(f, unit),
         "spread": spread,
+        "caution": store.caution(f),
     }
 
 
@@ -245,17 +270,12 @@ def _said(bar: dict, inside: bool = False) -> str:
     return f"{number} {spread}"
 
 
-def _summary(facts, bars: list[dict], home, store: _Store) -> str:
+def _summary(facts, bars: list[dict]) -> str:
     """One sentence that says what a chart shows: the first place's figure, then how each other place compares."""
     here, first = facts[0], bars[0]
     clauses = []
     for f, bar in zip(facts[1:], bars[1:]):
         other = f"{bar['geography']} ({_said(bar, inside=True)})"
-        # A district's total is part of its county's and the state's, so only its share of the state says anything.
-        if f.indicator_id in store.additive and f.geo_type in ("county", "state"):
-            share = _share([here, f], home, store)
-            clauses.append(f"is {share} of the total for {other}" if share else f"compares with {other}")
-            continue
         way = actual_direction(here, f)
         verb = {
             "higher": "is higher than",
@@ -263,15 +283,39 @@ def _summary(facts, bars: list[dict], home, store: _Store) -> str:
             "within_margin": "is within the margin of error of",
         }
         clauses.append(f"{verb.get(way, 'compares with')} {other}")
-    joined = clauses[0] if len(clauses) == 1 else f"{', '.join(clauses[:-1])} and {clauses[-1]}"
-    return f"{first['geography']}, at {_said(first)}, {joined}."
+    out = f"{first['geography']}, at {_said(first)}, {_joined(clauses)}."
+    if shaky := [b["geography"] for b in bars if b["caution"]]:
+        which = "estimate" if len(shaky) == 1 else "estimates"
+        out += f" Use the {which} for {_joined(shaky)} with caution: the margin of error is large."
+    return out
+
+
+def _joined(parts: list[str]) -> str:
+    return parts[0] if len(parts) == 1 else f"{', '.join(parts[:-1])} and {parts[-1]}"
+
+
+def chart_note(bars: list[dict]) -> str:
+    """The line under a chart that says what its bars and lines show."""
+    spreads = [b["spread"] for b in bars if b["spread"]]
+    if not spreads:
+        return "Bars show the estimate. No margin of error is published for these figures."
+    ranges = sum(s.startswith("range") for s in spreads)
+    lines = (
+        "range"
+        if ranges == len(spreads)
+        else "90% margin of error"
+        if not ranges
+        else "90% margin of error or range"
+    )
+    return f"Bars show the estimate. Lines show the {lines}."
 
 
 def charts(answer, store: _Store) -> tuple[list[dict], set[str]]:
-    """One chart per indicator shown for two or more places, led by the answer's district."""
+    """One chart per rate, share or median shown for two or more places, led by the answer's district.
+    Counts and totals stay as tiles, since a district's total next to the county's or state's says little."""
     groups: dict[str, list] = {}
     for f in answer.facts:
-        if _has(f.value):
+        if _has(f.value) and f.indicator_id not in store.additive:
             groups.setdefault(f.indicator_id, []).append(f)
     home = answer.resolved
     out, used = [], set()
@@ -287,28 +331,31 @@ def charts(answer, store: _Store) -> tuple[list[dict], set[str]]:
             "bars": [_bar(f, store) for f in facts],
             "tag": "",
         }
-        # A district's total is always below the state's, so name its share instead of a direction.
-        if len(facts) == 2 and (share := _share(facts, home, store)):
-            chart["tag"] = f"{share} of {chart['bars'][1]['geography']}"
-            chart["lower"] = False
-        elif len(facts) == 2 and (way := actual_direction(facts[0], facts[1])):
+        if len(facts) == 2 and (way := actual_direction(facts[0], facts[1])):
             chart["tag"] = TAGS[way].format(other=chart["bars"][1]["geography"])
             chart["lower"] = way != "within_margin"
-        chart["summary"] = _summary(facts, chart["bars"], home, store)
+        chart["summary"] = _summary(facts, chart["bars"])
+        chart["note"] = chart_note(chart["bars"])
+        chart["method"] = next((m for f in facts if (m := store.method(f))), None)
         out.append(chart)
         used.update(f.ref for f in facts)
     return out, used
 
 
 def tiles(answer, store: _Store, skip: set[str]) -> tuple[list[dict], set[str]]:
-    """Up to MAX_TILES tiles for the facts no chart shows, and the refs they show."""
+    """Up to MAX_TILES tiles for the facts no chart shows, and the refs they show. Each tile has its margin or
+    range, how it was estimated and whether to use it with caution. A district total shown with the state's names
+    its share of it."""
     home = answer.resolved
+    states = {f.indicator_id: f for f in answer.facts if f.geo_type == "state"}
     out, used = [], set()
     for f in answer.facts:
         if f.ref in skip or len(out) == MAX_TILES:
             continue
         unit = store.unit(f)
         here = (f.geo_type, f.geo_id)
+        state = states.get(f.indicator_id)
+        share = _share([f, state], home, store) if state else ""
         used.add(f.ref)
         out.append(
             {
@@ -317,9 +364,25 @@ def tiles(answer, store: _Store, skip: set[str]) -> tuple[list[dict], set[str]]:
                 "spread": _spread(f, unit),
                 "geography": "" if here == home else store.place(*here),
                 "meaning": store.meaning(f.indicator_id),
+                "share": f"{share} of the {store.place('state', '15')} total" if share else "",
+                "caution": store.caution(f),
+                "method": store.method(f),
             }
         )
     return out, used
+
+
+def place_caveats(con, geos, home=None) -> list[dict]:
+    """Rule-based caveats for the districts and counties among geos. One for another place than home names it."""
+    store = None
+    out = []
+    for c in caveats.for_places(con, geos):
+        title = c["title"]
+        if home is not None and c["geo"] != f"{home[0]}:{home[1]}":
+            store = store or _Store(con)
+            title = f"{title}: {store.place(*geo_key(c['geo']))}"
+        out.append({"id": c["id"], "title": title, "text": c["text"], "sources": c["sources"]})
+    return out
 
 
 def sources(answer, store: _Store) -> list[dict]:
@@ -352,12 +415,15 @@ def build(con, answer) -> dict:
     }
     shown = shown_figures(answer, charted | tiled_refs | filled)
     cited = {(s["name"], s["year"]) for s in (_source(f, store) for f in shown)}
+    geos = [answer.resolved] if answer.resolved else []
+    geos += [(f.geo_type, f.geo_id) for f in answer.facts]
     return {
         "lead": plain_text(answer.blocks, answer, store),
         "tiles": tiled,
         "charts": drawn,
         "sources": sources(answer, store),
         "caveats": plain_text(answer.caveats, answer, store),
+        "place_caveats": place_caveats(con, geos, answer.resolved) if answer.facts else [],
     } | verified(len(shown), len(cited), answer.refusal)
 
 
@@ -391,7 +457,13 @@ def _source(f, store: _Store, name: str = "") -> dict:
 
 
 def _caution(fact: dict) -> str:
-    return "Unreliable estimate: the margin of error is large" if fact["reliable"] is False else ""
+    """Why a get_facts entry carries a caution chip, or ''."""
+    return CAUTION if fact["reliable"] is False else ""
+
+
+def _unreliable_note(fact: dict) -> str:
+    """The flag for a get_facts entry where no chip shows, or ''."""
+    return UNRELIABLE if fact["reliable"] is False else ""
 
 
 def _beside(item: dict | None, session, store: _Store) -> dict | None:
@@ -399,12 +471,13 @@ def _beside(item: dict | None, session, store: _Store) -> dict | None:
     if not item:
         return None
     if "fact" not in item:
-        return {"value": "", "spread": "", "text": item["text"], "source": None}
+        return {"value": "", "spread": "", "caution": "", "text": item["text"], "source": None}
     f = session.facts[item["fact"]["ref"]]
     unit = store.unit(f)
     return {
         "value": _plain(f, unit),
         "spread": _spread(f, unit),
+        "caution": store.caution(f),
         "text": item["text"],
         "source": _source(f, store, item["fact"]["source"]),
     }
@@ -431,6 +504,7 @@ def _profile_row(row: dict, session, store: _Store) -> dict:
             "value": value,
             "spread": _spread(theirs, unit),
             "source": _source(theirs, store, fact["source"]),
+            "caution": store.caution(theirs),
         }
         if "share" in a:
             against.append({"lead": a["share"], "rest": f"of the total in {a['geo_name']}: {value}"} | figure)
@@ -445,6 +519,7 @@ def _profile_row(row: dict, session, store: _Store) -> dict:
         "value": _plain(f, unit),
         "spread": _spread(f, unit),
         "caution": _caution(fact),
+        "method": store.method(f),
         "caveat": fact.get("note", ""),
         "source": _source(f, store, fact["source"]),
         "against": against,
@@ -459,8 +534,8 @@ def _public(row: dict) -> dict:
 
 def _section(title: str, rows: list[dict]) -> dict:
     """A profile section with its sources listed once; when there are several, each row notes which it uses.
-    Sources that only the county and state figures come from are listed after them. A caveat every row
-    shares is stated once for the section."""
+    Sources that only the county and state figures come from are listed after them. A caveat or method every
+    row shares is stated once for the section."""
     cited = [r["source"] for r in rows] + [
         r["beside"]["source"] for r in rows if (r["beside"] or {}).get("source")
     ]
@@ -477,12 +552,23 @@ def _section(title: str, rows: list[dict]) -> dict:
         | ({"beside": r["beside"] | {"note": number(r["beside"]["source"])}} if r["beside"] else {})
         for r in rows
     ]
-    caveats = {r["caveat"] for r in rows}
-    shared = caveats.pop() if len(caveats) == 1 else ""
+    notes = {r["caveat"] for r in rows}
+    shared = notes.pop() if len(notes) == 1 else ""
     if shared:
         rows = [r | {"caveat": ""} for r in rows]
+    methods = {(r["method"] or {}).get("text") for r in rows}
+    method = rows[0]["method"] if len(methods) == 1 and None not in methods else None
+    if method:
+        rows = [r | {"method": None} for r in rows]
     others = [c for k, c in compared.items() if k not in keys]
-    return {"title": title, "rows": rows, "sources": sources, "compared": others, "caveat": shared}
+    return {
+        "title": title,
+        "rows": rows,
+        "sources": sources,
+        "compared": others,
+        "caveat": shared,
+        "method": method,
+    }
 
 
 def profile(
@@ -519,6 +605,7 @@ def profile(
         "programs": matched_programs(con, matched, session) if matched else None,
         "outreach": outreach_note(raw["district"], tops, session, store) if tops and tops["ranked"] else None,
         "built": build_date(con),
+        "caveats": place_caveats(con, [geo_key(raw["district"]["geo"])]),
     }
 
 
@@ -594,6 +681,11 @@ TAILS = {
 }
 
 
+def _need_caution(reason: dict, session, store: _Store) -> str:
+    """Why the district's need figure is unreliable, or ''."""
+    return next((c for r in reason["refs"] if (c := store.caution(session.facts[r]))), "")
+
+
 def _need_figures(reason: dict, session, store: _Store) -> tuple[str, str, str]:
     """The district value, its margin or range, and the state value, as a reason sentence shows them."""
     mine = [session.facts[r] for r in reason["refs"]]
@@ -634,7 +726,7 @@ def checked_text(p: Program, stale: bool) -> str:
     return f"Checked against official pages on {when}."
 
 
-def _program_row(p: Program, reasons: list[str]) -> dict:
+def _program_row(p: Program, reasons: list[dict]) -> dict:
     stale = is_stale(p)
     return {
         "id": p.program_id,
@@ -664,7 +756,13 @@ def matched_programs(con, raw: dict, session) -> dict:
         # Each reason shows the district's figure and the state's.
         figures.update(key for r in reasons for key in (tuple(r["refs"]), tuple(r["state_refs"])))
         rows["higher" if e["need"] == "higher" else "other"].append(
-            _program_row(known[e["program_id"]], [need_text(r, session, store, place) for r in reasons])
+            _program_row(
+                known[e["program_id"]],
+                [
+                    {"text": need_text(r, session, store, place), "caution": _need_caution(r, session, store)}
+                    for r in reasons
+                ],
+            )
         )
         for f in (session.facts[ref] for r in reasons for ref in r["refs"] + r["state_refs"]):
             name, url = store.sources.get(f.source_id, (f.source_id, ""))
@@ -957,10 +1055,11 @@ def profile_csv(con, raw: dict, session) -> str:
     for section in raw["sections"]:
         for row in section["rows"]:
             fact = row["fact"]
-            places = [(session.facts[fact["ref"]], district, _caution(fact))]
-            places += [
-                (session.facts.get(a.get("ref")), a["geo_name"], a.get("missing", "")) for a in row["against"]
-            ]
+            places = [(session.facts[fact["ref"]], district, _unreliable_note(fact))]
+            for a in row["against"]:
+                theirs = session.facts.get(a.get("ref"))
+                shaky = theirs is not None and reliability(theirs) is False
+                places.append((theirs, a["geo_name"], a.get("missing") or (UNRELIABLE if shaky else "")))
             for f, place, note in places:
                 if f is None:
                     # a place with no figure keeps its row and says why

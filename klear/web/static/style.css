@@ -332,7 +332,9 @@ summary{font-weight:600;color:var(--accent);cursor:pointer}
 .profile-against{list-style:none;margin:6px 0 0;padding:0;font-size:var(--fs-xs);line-height:1.5;color:var(--muted)}
 .profile-against li+li{margin-top:2px}
 .profile-against b{font-weight:600;color:var(--ink)}
-.profile-caution{margin:4px 0 0;font-size:var(--fs-xs);color:var(--error-ink)}
+.profile-caution{margin:6px 0 0;font-size:var(--fs-xs);line-height:1.5;color:var(--muted)}
+.profile-against .chip.caution,.profile-beside .chip.caution,.program-reasons .chip.caution{padding:0 6px}
+.profile-stats dd .chip.caution{vertical-align:.2em;letter-spacing:0}
 .profile-sources{border-top:1px solid var(--line);padding:10px 0 14px;font-size:var(--fs-xs);line-height:1.5;color:var(--muted)}
 .profile-sources-title{margin:0 0 2px;font-weight:600;color:var(--ink)}
 .profile-sources ul,.profile-sources ol{margin:0;padding-left:18px}.profile-sources ul{list-style:none;padding-left:0}
@@ -424,6 +426,21 @@ article .answer-programs summary+.program{margin-top:10px}
 .chart-bars{display:grid;grid-template-columns:fit-content(150px) minmax(96px,1fr) fit-content(13em);align-items:center;gap:6px 12px}
 .chip{font-weight:400;font-size:var(--fs-xs);color:var(--muted);border:1px solid var(--line);border-radius:var(--r-pill);padding:1px 8px;background:#fff}
 .chip.strong{color:var(--accent-dark);border-color:var(--accent)}
+/* Uncertainty: a chip on unreliable estimates, and how apportioned and modeled figures are estimated. */
+.chip.caution{display:inline-block;font-weight:600;line-height:1.5;color:var(--error-ink);border-color:var(--error-line);background:var(--error-bg);white-space:nowrap}
+.method{margin:6px 0 0;font-size:var(--fs-xs);line-height:1.5;color:var(--muted)}
+.profile-section>.method{margin:0 0 10px}
+.bar-value .chip.caution{display:table;margin:2px 0 0 auto}
+.chart-note{margin:8px 0 0;font-size:var(--fs-xs);line-height:1.5;color:var(--muted)}
+.chart-data td .chip.caution{margin-top:2px}
+/* Notes for districts with a known caveat, such as the Maui wildfires. */
+.place-notes{display:grid;gap:10px;margin:0 0 12px;padding:12px 14px;border:1px solid var(--line);border-left:4px solid var(--accent);border-radius:var(--r-ctl);background:#fff;font-size:var(--fs-sm);line-height:1.5}
+.place-note-text{margin:0}
+.place-note-text b{font-weight:700}
+.place-note-sources{list-style:none;margin:4px 0 0;padding:0;font-size:var(--fs-xs);color:var(--muted)}
+.place-note-sources li+li{margin-top:2px}
+.profile-notes{margin:12px 0 4px;background:var(--subtle)}
+article .place-notes .place-note-sources{padding-left:0}
 .bar-row{display:contents}
 .bar-place{min-width:0;overflow-wrap:break-word}.bar-place.home{font-weight:700}
 .bar-track{position:relative;height:18px}
@@ -698,6 +715,8 @@ details.meaning{margin:6px 0 0;padding:0;border:0;font-size:var(--fs-xs);line-he
 .meaning-more a{display:inline-block;padding:4px 0;color:var(--accent);font-weight:600}
 .tile .meaning{margin-top:auto;padding-top:6px}
 .tile-meta+.meaning{margin-top:0}
+/* The lines under a tile's label sit together at its foot. */
+.tile>:nth-child(n+3){margin-top:0;padding-top:4px}.tile>:nth-child(3){margin-top:auto;padding-top:6px}
 .fact .meaning span:not(.visually-hidden){display:inline;margin:0;font-size:inherit;color:inherit}
 @media print{.meaning{display:none}}
 
@@ -748,6 +767,7 @@ details.meaning{margin:6px 0 0;padding:0;border:0;font-size:var(--fs-xs);line-he
 .outreach-result .moe{font-size:var(--fs-sm);color:var(--muted)}
 .outreach-caution{color:var(--error-ink);font-size:var(--fs-sm)}
 td .outreach-caution{display:block;margin-top:2px;font-size:var(--fs-xs)}
+td .outreach-flag{display:block;margin-top:4px;font-size:var(--fs-xs);line-height:1.5;color:var(--muted)}
 .outreach-result details.meaning{max-width:var(--measure)}
 .outreach-caveat{max-width:var(--measure);margin:16px 0 0;padding:12px 16px;background:var(--subtle);border-left:4px solid var(--accent);border-radius:var(--r-sm);font-size:var(--fs-sm);line-height:1.5}
 .outreach-caveat p{margin:0}.outreach-caveat p+p{margin-top:6px}
