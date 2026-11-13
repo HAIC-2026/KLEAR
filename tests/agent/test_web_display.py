@@ -218,3 +218,39 @@ def test_profile_download_keeps_a_place_with_no_figure_and_says_why(small_con):
     )
     assert rows[1].endswith("not published for county geographies")
     assert rows[2].endswith("not published for state geographies")
+
+
+def test_figure_line_counts_each_figure_the_answer_shows(small_con):
+    facts = [fact("f1", "022", 1000.0, 100.0), fact("f2", "023", 900.0, 80.0)]
+    facts.append(FactRef("f3", "pct_65_plus", "house", "022", "acs", 20.0, None, None, 1.0, "2020-2024"))
+    out = build(small_con, answer(facts, ["{fact:f1} kūpuna."]))
+    assert out["verified"] == {
+        "figures": 3,
+        "sources": 1,
+        "text": "All 3 figures in this answer come from the cited source below.",
+    }
+    one = build(small_con, answer([fact("f1", "022", 1000.0, 100.0)], ["Kūpuna."]))
+    assert one["verified"]["text"] == "The 1 figure in this answer comes from the cited source below."
+
+
+def test_figure_line_skips_missing_values_and_unshown_facts(small_con):
+    missing = fact("f0", "022", None, None)
+    tiled = [
+        FactRef(f"t{i}", f"ind_{i}", "house", "022", "acs", float(i), None, None, None, "2020-2024")
+        for i in range(8)
+    ]
+    out = build(small_con, answer([missing, *tiled], ["{fact:f0} kūpuna."]))
+    assert len(out["tiles"]) == 6 and out["verified"]["figures"] == 5
+    marked = build(small_con, answer([missing, *tiled], ["{fact:t7} is the last."]))
+    assert marked["verified"]["figures"] == 6
+
+
+def test_no_figure_line_without_figures_or_on_declines(small_con):
+    assert "verified" not in build(small_con, answer([], ["No data."]))
+    assert "verified" not in build(small_con, answer([fact("f0", "022", None, None)], ["{fact:f0}"]))
+    declined = Answer(
+        "1", ("house", "022"), "decline_individual", ["x"], [fact("f1", "022", 1.0, 1.0)], [], []
+    )
+    assert "verified" not in build(small_con, declined)
+    partial = Answer("1", ("house", "022"), "not_available", ["x"], [fact("f1", "022", 1.0, 1.0)], [], [])
+    assert build(small_con, partial)["verified"]["figures"] == 1

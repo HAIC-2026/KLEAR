@@ -36,7 +36,7 @@ test('skip link, search, ask, and read the answer with the keyboard', async ({pa
   await page.keyboard.press('Tab');
   await expect(page.getByRole('button', {name: 'Ask KLEAR'})).toBeFocused();
   await page.keyboard.press('Enter');
-  await expect(page.locator('#chat-live')).toHaveText(`Answer ready for ${DISTRICT}.`);
+  await expect(page.locator('#chat-live')).toContainText(`Answer ready for ${DISTRICT}.`);
   const answer = page.locator('#log article').last();
   await expect(answer.getByRole('heading', {level: 3})).toBeFocused();
 
@@ -99,7 +99,7 @@ test.describe('one column', () => {
     await page.getByRole('button', {name: 'Ask KLEAR'}).click();
     await profileTab.click();
     release();
-    await expect(page.locator('#chat-live')).toHaveText(`Answer ready for ${DISTRICT}.`);
+    await expect(page.locator('#chat-live')).toContainText(`Answer ready for ${DISTRICT}.`);
     await expect(tabs.getByRole('tab', {name: 'Ask New answer'})).toBeVisible();
     await askTab.click();
     await expect(page.locator('#tab-new')).toBeHidden();
