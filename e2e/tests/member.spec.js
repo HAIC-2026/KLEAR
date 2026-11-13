@@ -13,6 +13,9 @@ test('the profile and the printout name the member with where and when they were
   const member = page.locator('#district-about .profile-member');
   await expect(member.locator('.profile-member-name')).toHaveText('Representative KAʻAI, Leilani M. (opens in a new tab)');
   await expect(member.getByRole('link', {name: /KAʻAI, Leilani M\./})).toHaveAttribute('href', 'https://example.org/member/house022');
+  // The note on where and when the name was listed opens under the name.
+  await member.getByText('Where and when this was listed').click();
+  await expect(member.locator('.profile-member-note')).toBeVisible();
   await expect(member.locator('.profile-member-note')).toContainText(LISTED);
   await expect(member.locator('.profile-member-note')).toContainText(BEFORE);
   await expect(member).not.toContainText(/party|democrat|republican/i);

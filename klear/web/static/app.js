@@ -852,7 +852,8 @@ function profileOutreach(o) {
 }
 
 // The district's legislator as the Legislature lists them, linked to their official page, with where and when
-// the name was listed and whether that listing may predate the election results.
+// the name was listed and whether that listing may predate the election results. Under the district's name the
+// legislator takes one line, and the note opens beneath it, so the profile's first figures stay on the first screen.
 function memberNote(m) {
   return `${m.listed.charAt(0).toUpperCase()}${m.listed.slice(1)}. ${m.timing}`;
 }
@@ -863,7 +864,9 @@ function profileMembers(members) {
     who.append(node('span', m.title, 'profile-member-title'), ' ', link(m.name, m.url));
     box.append(who);
   }
-  box.append(node('p', memberNote(members[0]), 'profile-member-note'));
+  const about = node('details', '', 'profile-member-about');
+  about.append(node('summary', 'Where and when this was listed'), node('p', memberNote(members[0]), 'profile-member-note'));
+  box.append(about);
   return box;
 }
 
