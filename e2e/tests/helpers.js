@@ -27,7 +27,7 @@ export async function chooseDistrict(page, query = 'Kāneʻohe', button = /^Hous
 export async function ask(page, question = 'How does poverty here compare with the county and state?') {
   await page.getByLabel('Your question').fill(question);
   await page.getByRole('button', {name: 'Ask KLEAR'}).click();
-  await expect(page.locator('#chat-live')).toHaveText(`Answer ready for ${DISTRICT}.`);
+  await expect(page.locator('#chat-live')).toContainText(`Answer ready for ${DISTRICT}.`);
   return page.locator('#log article').last();
 }
 

@@ -21,6 +21,8 @@ ELSEWHERE = {
     "url": "https://datatrove.ai/",
 }
 NO_DATA = ("not_available", "out_of_scope")
+# Answers that may show figures; declines and out-of-scope replies get no figure line.
+ANSWERED = ("none", "not_available")
 # Where a profile's shares of residents in each place and overlapping district come from (klear/etl/blocks.py).
 SHARES_SOURCE = {
     "name": "2020 Census Redistricting Data (P.L. 94-171), population by block",
@@ -292,14 +294,16 @@ def charts(answer, store: _Store) -> tuple[list[dict], set[str]]:
     return out, used
 
 
-def tiles(answer, store: _Store, skip: set[str]) -> list[dict]:
+def tiles(answer, store: _Store, skip: set[str]) -> tuple[list[dict], set[str]]:
+    """Up to MAX_TILES tiles for the facts no chart shows, and the refs they show."""
     home = answer.resolved
-    out = []
+    out, used = [], set()
     for f in answer.facts:
         if f.ref in skip or len(out) == MAX_TILES:
             continue
         unit = store.unit(f)
         here = (f.geo_type, f.geo_id)
+        used.add(f.ref)
         out.append(
             {
                 "value": _plain(f, unit),
@@ -309,23 +313,46 @@ def tiles(answer, store: _Store, skip: set[str]) -> list[dict]:
                 "meaning": store.meaning(f.indicator_id),
             }
         )
-    return out
+    return out, used
 
 
 def sources(answer, store: _Store) -> list[dict]:
     return _cited([_source(f, store) | {"links": store.links(f)} for f in answer.facts])
 
 
+def verified(figures: int, sources: int, refusal: str = "none") -> dict:
+    """The line under an answer saying how many figures it shows and that each comes from a cited source."""
+    if not figures or refusal not in ANSWERED:
+        return {}
+    where = "the cited source below" if sources == 1 else "the cited sources below"
+    if figures == 1:
+        text = f"The 1 figure in this answer comes from {where}."
+    else:
+        text = f"All {figures} figures in this answer come from {where}."
+    return {"verified": {"figures": figures, "sources": sources, "text": text}}
+
+
+def shown_figures(answer, refs: set[str]) -> list:
+    """The facts with a value among those the answer shows, in answer order."""
+    return [f for f in answer.facts if f.ref in refs and _has(f.value)]
+
+
 def build(con, answer) -> dict:
     store = _Store(con)
-    drawn, used = charts(answer, store)
+    drawn, charted = charts(answer, store)
+    tiled, tiled_refs = tiles(answer, store, charted)
+    filled = {
+        ref for t in [*answer.blocks, *answer.caveats] for kind, ref in MARKER.findall(t) if kind == "fact"
+    }
+    shown = shown_figures(answer, charted | tiled_refs | filled)
+    cited = {(s["name"], s["year"]) for s in (_source(f, store) for f in shown)}
     return {
         "lead": plain_text(answer.blocks, answer, store),
-        "tiles": tiles(answer, store, used),
+        "tiles": tiled,
         "charts": drawn,
         "sources": sources(answer, store),
         "caveats": plain_text(answer.caveats, answer, store),
-    }
+    } | verified(len(shown), len(cited), answer.refusal)
 
 
 def elsewhere(refusal: str, has_figures: bool) -> dict:
@@ -571,9 +598,11 @@ def matched_programs(con, raw: dict, session) -> dict:
     place = raw["district"]["name"]
     known = {p.program_id: p for p in catalog()}
     rows = {"higher": [], "other": []}
-    cited = {}
+    cited, figures = {}, set()
     for e in raw["programs"]:
         reasons = e["reasons"][:2]
+        # Each reason shows the district's figure and the state's.
+        figures.update(key for r in reasons for key in (tuple(r["refs"]), tuple(r["state_refs"])))
         rows["higher" if e["need"] == "higher" else "other"].append(
             _program_row(known[e["program_id"]], [need_text(r, session, store, place) for r in reasons])
         )
@@ -599,6 +628,7 @@ def matched_programs(con, raw: dict, session) -> dict:
         "others": rows["other"],
         "note": ELIGIBILITY_NOTE,
         "sources": list(cited.values()),
+        "figures": len(figures),
     }
 
 

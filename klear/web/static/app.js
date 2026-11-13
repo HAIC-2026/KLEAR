@@ -979,7 +979,7 @@ $('question-form').onsubmit = async e => {
     if (next) reply.append(next);
     pending.replaceWith(reply);
     saved.answer = answer;
-    done = `Answer ready for ${name}.`;
+    done = [`Answer ready for ${name}.`, answer.verified && answer.verified.text].filter(Boolean).join(' ');
   } catch (err) {
     reader = reader || readerPlace();
     hold = holdPage(pending);
@@ -1252,6 +1252,7 @@ function basicAnswer(answer, name) {
   article.append(heading(answer, name));
   for (const p of answer.text.split('\n\n')) article.append(says('p', p));
   if (answer.elsewhere) article.append(elsewhereLine(answer.elsewhere));
+  if (answer.verified) article.append(node('p', answer.verified.text, 'verified'));
   if (answer.facts.length) {
     const details = document.createElement('details');
     details.open = true;
@@ -1417,6 +1418,7 @@ function renderAnswer(answer, name) {
     if (shown.includes('±')) notes.push('± is the 90% margin of error.');
     if (shown.includes('range ')) notes.push('A range shows the low and high bounds of the estimate.');
     article.append(node('p', notes.join(' '), 'source-line'));
+    if (answer.verified) article.append(node('p', answer.verified.text, 'verified'));
     const details = document.createElement('details');
     details.append(node('summary', 'Sources'));
     const list = document.createElement('ul');

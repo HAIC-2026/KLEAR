@@ -98,6 +98,8 @@ def test_fixed_income_answer_for_every_district(real_con):
         assert [p["name"] for p in answer["programs"]] == names and all(
             p["url"] and p["phone"] for p in answer["programs"]
         )
+        shown = sum(len(c["bars"]) for c in answer["charts"]) + len(answer["tiles"])
+        assert answer["verified"]["figures"] == shown, district
         assert any(c.startswith("Covers all households") for c in answer["caveats"]), district
         assert len(answer["charts"]) == len(FIXED_INCOME_COMPARED), district
         assert all(len(c["bars"]) == 3 for c in answer["charts"]), district

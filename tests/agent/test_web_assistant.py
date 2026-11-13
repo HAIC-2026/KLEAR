@@ -179,3 +179,20 @@ def test_datatrove_link_is_display_only():
         assert display.elsewhere(refusal, True) == {}
     for refusal in ("none", "decline_individual", "decline_partisan"):
         assert display.elsewhere(refusal, False) == {}
+
+
+def test_answers_with_figures_say_each_comes_from_a_cited_source(small_con, budget, tmp_path):
+    line = "The 1 figure in this answer comes from the cited source below."
+    assistant = Assistant(budget, client=FakeClient(SCRIPT)).ask(small_con, "Seniors?", DISTRICT)
+    assert assistant["verified"]["text"] == line
+    tiny = DailyBudget(0.0, tmp_path / "web_spend.json")
+    basic = Assistant(tiny, client=FakeClient()).ask(small_con, "How many kūpuna live here?", DISTRICT)
+    assert basic["mode"] == "basic" and basic["verified"]["figures"] == len(basic["tiles"]) + sum(
+        len(c["bars"]) for c in basic["charts"]
+    )
+    for question in ("Explain quantum mechanics", "Which party should win here?"):
+        assert "verified" not in Assistant(tiny, client=FakeClient()).ask(small_con, question, DISTRICT)
+    refused = Assistant(budget, client=FakeClient(_refused("out_of_scope", ["Not covered."]))).ask(
+        small_con, "Crime?", DISTRICT
+    )
+    assert "verified" not in refused

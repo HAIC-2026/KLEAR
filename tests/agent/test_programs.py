@@ -177,6 +177,8 @@ def test_need_above_the_state_ranks_first_with_its_reason(need_con):
     assert kupuna["verified"] and kupuna["agency"] and kupuna["url"].startswith("https://")
     assert laid["title"] == "Programs to explore here" and laid["note"] == ELIGIBILITY_NOTE
     assert {x["name"] for x in laid["sources"]} == {"American Community Survey 5-year", "Public Housing"}
+    # The kūpuna share and the EITC share, each for the district and the state, however many programs repeat them.
+    assert laid["figures"] == 4
 
 
 def test_gaps_within_the_margin_read_as_about_the_same(need_con):
@@ -251,6 +253,12 @@ def test_basic_mode_answers_with_matched_programs(real_con):
     assert len(names) == len(set(names)) == len(catalog())
     assert a["programs"][0]["match"] and a["programs"][0]["reasons"]
     assert a["programs"][0]["name"] in a["text"]
+    where = "source" if a["verified"]["sources"] == len(a["program_sources"]) == 1 else "sources"
+    assert a["verified"]["text"] == (
+        f"All {a['verified']['figures']} figures in this answer come from the cited {where} below."
+    )
+    shown = {r for p in a["programs"] for r in p["reasons"]}
+    assert 2 <= a["verified"]["figures"] <= 2 * len(shown)
     other = ask(real_con, "Which assistance programs fit this district?", ("house", "044"))
     assert [p["name"] for p in other["programs"] if p["match"]] != [
         p["name"] for p in a["programs"] if p["match"]

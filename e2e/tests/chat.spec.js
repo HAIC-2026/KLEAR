@@ -31,7 +31,7 @@ test('three related questions, each asked with a next-question button', async ({
     await button.click();
     await expect(page.locator('#log .user').last()).toHaveText(`You asked: ${question}`);
     await expect(page.locator('#log article')).toHaveCount(i + 2);
-    await expect(page.locator('#chat-live')).toHaveText(`Answer ready for ${DISTRICT}.`);
+    await expect(page.locator('#chat-live')).toContainText(`Answer ready for ${DISTRICT}.`);
     // A question already asked is not offered again, even when it said "this district".
     await expect(page.locator('#log .followup', {hasText: `How many kūpuna live in ${DISTRICT}?`})).toHaveCount(0);
   }
@@ -60,7 +60,7 @@ test('the examples include ones picked from the district profile, and they go wh
   await expect(local.nth(1)).toHaveAccessibleName(new RegExp(`^Poverty higher than countywide\\s*: Compare poverty in ${DISTRICT} with Honolulu County and the state\\.$`));
   await local.nth(1).click();
   await expect(page.locator('#log .user')).toHaveText(`You asked: Compare poverty in ${DISTRICT} with Honolulu County and the state.`);
-  await expect(page.locator('#chat-live')).toHaveText(`Answer ready for ${DISTRICT}.`);
+  await expect(page.locator('#chat-live')).toContainText(`Answer ready for ${DISTRICT}.`);
   await expect(page.locator('#log .followups')).toHaveCount(1);
 
   await page.getByRole('button', {name: 'Change district'}).click();
@@ -100,7 +100,7 @@ test('a slow question shows the seconds, can be cancelled, and Retry asks it aga
   await page.unroute('**/api/chat');
   release();
   await page.locator('#log').getByRole('button', {name: 'Retry'}).click();
-  await expect(page.locator('#chat-live')).toHaveText(`Answer ready for ${DISTRICT}.`);
+  await expect(page.locator('#chat-live')).toContainText(`Answer ready for ${DISTRICT}.`);
   await expect(page.locator('#log .user')).toHaveText(['You asked: How many kūpuna live here?', 'You asked: How many kūpuna live here?']);
   await expect(page.locator('#log .retry')).toHaveCount(0);
 });
@@ -152,7 +152,7 @@ test('Ctrl+Enter sends the question, and Enter alone starts a new line', async (
   await expect(box).toHaveValue('How many kūpuna\nlive here?');
   await expect(page.locator('#log .user')).toHaveCount(0);
   await box.press('Control+Enter');
-  await expect(page.locator('#chat-live')).toHaveText(`Answer ready for ${DISTRICT}.`);
+  await expect(page.locator('#chat-live')).toContainText(`Answer ready for ${DISTRICT}.`);
   await expect(page.locator('#log .user')).toHaveText('You asked: How many kūpuna\nlive here?');
   await box.fill('How does poverty here compare?');
   await box.press('Meta+Enter');

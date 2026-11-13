@@ -338,6 +338,8 @@ article .answer-programs summary+.program{margin-top:10px}
 .answer .caveat{font-size:var(--fs-sm);color:var(--muted);margin:0 0 10px}
 .source-line{font-size:var(--fs-xs);color:var(--muted);border-top:1px solid var(--line);padding-top:10px;margin:0}
 .answer .prepared{font-size:var(--fs-xs);color:var(--muted);margin:10px 0 0}
+/* How many figures an answer shows, each from a cited source. */
+article .verified{font-size:var(--fs-sm);color:var(--ink);margin:6px 0 0}
 /* The datatrove.ai pointer after an answer with no figures. */
 article .elsewhere{font-size:var(--fs-sm)}
 .answer .elsewhere{margin:0 0 10px}

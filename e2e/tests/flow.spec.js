@@ -108,7 +108,7 @@ test('focus stays put when the reader has moved on before the answer arrives', a
   await page.getByRole('button', {name: 'Ask KLEAR'}).click();
   await page.getByLabel('Highlight a ZIP code').focus();
   release();
-  await expect(page.locator('#chat-live')).toHaveText(`Answer ready for ${DISTRICT}.`);
+  await expect(page.locator('#chat-live')).toContainText(`Answer ready for ${DISTRICT}.`);
   await expect(page.getByLabel('Highlight a ZIP code')).toBeFocused();
 });
 
@@ -130,7 +130,7 @@ test('a district chosen while an answer loads shows its profile at once', async 
   await expect(page.locator('#chat-status')).toHaveText('Switching to House District 23 after this answer.');
   await expect(page.locator('#district-title')).toHaveText(DISTRICT);
   release();
-  await expect(page.locator('#chat-live')).toHaveText(`Answer ready for ${DISTRICT}.`);
+  await expect(page.locator('#chat-live')).toContainText(`Answer ready for ${DISTRICT}.`);
   await expect(page.locator('#district-title')).toHaveText('House District 23');
   // The switch keeps the profile already shown instead of loading it again.
   await expect(page.locator('#profile-live')).toHaveText('Profile for House District 23 loaded.');
