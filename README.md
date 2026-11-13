@@ -390,7 +390,7 @@ file download. Each ACS figure also links to its table for that place on data.ce
 can be read. Each figure moved to districts from ZIP codes or tracts, or modeled by CDC, links
 to its source's section of the methods page instead. Each comparison chart has a sentence saying what it shows (written in
 `_summary` in klear/web/display.py) and a data table under it. The examples are a list until a district is chosen, then short buttons
-above the question box. Program questions list official guidance without
+at the end of the conversation, above the question box. Program questions list official guidance without
 assessing individual eligibility. Questions outside the available measures
 receive a clear limit instead of a guessed answer. Questions are independent:
 previous messages are displayed locally but are not sent as conversation history.
@@ -398,8 +398,8 @@ After each answer the chat offers up to three next questions, each written out i
 district and county named, so the basic lookup can answer them too. A question that takes more
 than 45 seconds is stopped. A waiting question can be cancelled, and errors that may pass offer Retry.
 
-Choosing a district also shows its district profile next to the chat. The profile is read
-straight from the store with no model call, through `GET /api/profile?district=house:022`.
+Choosing a district opens its own page, such as /district/house-22, with its profile beside the chat. The
+profile is read straight from the store with no model call, through `GET /api/profile?district=house:022`.
 A district chosen while an answer is still loading shows its profile at once, and the chat switches to it after that answer.
 It names the district's counties, islands, Census places and the overlapping districts
 in the other chamber, shows four headline figures, then 37 figures in seven sections:
@@ -444,11 +444,18 @@ The assistant and the free lookup follow the same rules for a few kinds of quest
 - The answer builder spells Hawaiian place names with ʻokina and kahakō in the assistant's own words too, leaving
   web addresses and official organization names as written.
 
-On screens at least 1200 px wide the profile and the chat are equal-width columns; below that
-the profile sits under the chat at full width. The chat card stays compact until the first
-question is sent, then grows to a fixed height and scrolls its conversation inside it. The
-profile never scrolls inside itself: it takes the height its figures need, and each section
-opens and closes on its own.
+A district's page starts at the top with its name as the page heading, where it is, the four
+headline figures with their margins, a link to every section, and a row of three share buttons
+(print a one-page summary, copy the link, download the figures as CSV). The home page's photo band
+and search give way to it, and Back returns to them. The sections follow in reading order: People,
+Income, Programs to explore here, then the rest. Each is a disclosure that ends with a link back to
+the top. On screens at least 1200 px wide the first three start open, the profile is the main
+column, and the chat sits beside it, sticky and as tall as the window, so its conversation scrolls
+inside it while the profile scrolls beside it. Below 1200 px the profile and the chat are two tabs,
+Profile and Ask, under the district's name. Sections the reader opens or closes, and the tab, are
+remembered for the browser tab. A link to a section, such as /district/house-22#profile-housing,
+opens the page at that section. `--stick` in style.css is how much of the site header stays on
+screen as the page scrolls (none yet); the chat sticks just under it.
 
 Only the static web assets are served; the repository and store cannot be
 downloaded. The server rejects cross-origin browser requests. HTTP logs are disabled to avoid recording questions.
