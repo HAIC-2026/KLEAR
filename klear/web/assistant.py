@@ -167,7 +167,7 @@ def basic(con, question: str, district: tuple[str, str], note: str = "", geocode
     """Free keyword lookup, laid out like an assistant answer when it found figures."""
     result = lookup(con, question, district, geocoder)
     refs = result.pop("fact_refs", [])
-    written, caveats = result.pop("lead", []), result.pop("caveats", [])
+    written, caveats, notes = result.pop("lead", []), result.pop("caveats", []), result.pop("notes", [])
     where, answered = result.pop("where", None), result.pop("district", district)
     if refs:
         answer = Answer(VERSION, answered, result["refusal"], [], refs, [], [])
@@ -176,12 +176,15 @@ def basic(con, question: str, district: tuple[str, str], note: str = "", geocode
         lead = "This is the standard profile for this district. The district profile on this page compares each figure with the county and the state."
         if written:
             result["lead"] = ([note] if note else []) + written
+        elif notes and result["refusal"] == "not_available":
+            result["lead"] = [note] if note else []
         else:
             result["lead"] = [
                 note or (lead if profile else "These are the closest published figures for this question.")
             ]
         if where:
             result["lead"].insert(1 if note else 0, where)
+        result["lead"] += notes
         result["caveats"] = caveats
     elif note and result["refusal"] in ("none", "not_available"):
         result["text"] = f"{note}\n\n{result['text']}"

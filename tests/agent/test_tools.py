@@ -72,6 +72,73 @@ def test_state_name_alone_or_after_a_place(session):
     assert [m["name"] for m in out] == ["Kāneʻohe"]
 
 
+@pytest.mark.parametrize(
+    "text",
+    ["statewide", "Hawaii overall", "the whole state", "all of Hawaiʻi", "across the state", "entire state"],
+)
+def test_statewide_words_resolve_to_the_state(session, text):
+    assert [m["geo"] for m in call(session, "resolve_place", text=text)["matches"]] == ["state:15"]
+    assert ("state", "15") in session.resolved
+
+
+@pytest.mark.parametrize("text", ["Hawaii County", "Hawaii Kai", "all", "overall"])
+def test_statewide_check_leaves_places_alone(session, text):
+    assert "state:15" not in [m.get("geo") for m in call(session, "resolve_place", text=text)["matches"]]
+
+
+@pytest.mark.parametrize(
+    ("words", "first"),
+    [
+        (["housing", "insecurity"], "places_housing_insecurity"),
+        (["housing insecure"], "places_housing_insecurity"),
+        (["food", "insecure"], "places_food_insecurity"),
+        (["hunger"], "places_food_insecurity"),
+        (["utility", "shutoff"], "places_utility_shutoff_threat"),
+        (["lack", "reliable", "transportation"], "places_lack_transport"),
+        (["public", "housing", "units"], "units_public_housing"),
+    ],
+)
+def test_search_finds_the_measure_the_words_name(session, words, first):
+    found = call(session, "search_indicators", words=words)["indicators"]
+    assert found[0]["indicator_id"] == first
+    assert found[0]["meaning"]
+    modeled = {f["indicator_id"] for f in found if f.get("method") == "modeled estimate"}
+    assert {f["indicator_id"] for f in found if f["indicator_id"].startswith("places_")} == modeled
+
+
+def test_tied_facts_name_their_program(session):
+    facts = call(session, "get_facts", indicator_ids=["pct_hh_snap", "median_age"], geos=["house:005"])[
+        "facts"
+    ]
+    by_id = {f["indicator_id"]: f for f in facts}
+    assert by_id["pct_hh_snap"]["programs"] == [{"rule_id": "snap_fy2027", "name": "SNAP"}]
+    assert "programs" not in by_id["median_age"]
+
+
+def test_find_sites_gives_public_housing_units(session):
+    rows = session.con.execute(
+        "SELECT geo_id, value FROM fact WHERE indicator_id = 'units_public_housing' AND geo_type = 'house' "
+        "ORDER BY value DESC LIMIT 1"
+    ).fetchone()
+    out = call(session, "find_sites", geo=f"house:{rows[0]}", kind="public_housing")
+    got = {f["indicator_id"]: f for f in out["facts"]}
+    assert set(got) == {"sites_public_housing", "units_public_housing"}
+    assert session.facts[got["units_public_housing"]["ref"]].value == rows[1]
+    empty = session.con.execute(
+        "SELECT geo_id FROM fact WHERE indicator_id = 'sites_public_housing' AND geo_type = 'house' AND value = 0 "
+        "ORDER BY geo_id LIMIT 1"
+    ).fetchone()[0]
+    out = call(session, "find_sites", geo=f"house:{empty}", kind="public_housing")
+    assert out["missing"] == [
+        {
+            "indicator_id": "units_public_housing",
+            "geo": f"house:{empty}",
+            "reason": "none, the place has no site of this kind",
+        }
+    ]
+    assert "units" in next(t["description"] for t in TOOL_SPECS if t["name"] == "find_sites")
+
+
 def test_no_match_gives_a_hint(session):
     for text in ("Atlantis", "House District 99", "Hawaiʻi House District 99"):
         out = call(session, "resolve_place", text=text)
