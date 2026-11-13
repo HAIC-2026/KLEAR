@@ -15,7 +15,15 @@ from klear.agent.config import FIXED_INCOME, FIXED_INCOME_COMPARED, FIXED_INCOME
 from klear.agent.tools import Session
 from klear.eval.contract import geo_display
 from klear.labels import in_sentence, meaning, short_label
-from klear.web.display import _plain, build_month, matched_programs, program_rows, year_text
+from klear.web.display import (
+    CAUTION,
+    _plain,
+    build_month,
+    matched_programs,
+    place_caveats,
+    program_rows,
+    year_text,
+)
 from klear.web.geocode import address_in
 
 PERSONAL = re.compile(
@@ -193,6 +201,7 @@ def program_answer(con, district, shown: str) -> dict:
         "programs": [p | {"match": True} for p in laid["programs"]]
         + [p | {"match": False} for p in laid["others"]],
         "program_sources": laid["sources"],
+        "place_caveats": place_caveats(con, [district]),
     }
 
 
@@ -216,6 +225,7 @@ def _cards(con, facts: list[dict]) -> list[dict]:
                 "url": row[1],
                 "geography": fact["geo_name"],
                 "uncertainty": row[2],
+                "caution": CAUTION if fact["reliable"] is False else "",
             }
         )
     return out

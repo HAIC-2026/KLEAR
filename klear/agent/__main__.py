@@ -7,6 +7,7 @@ from pathlib import Path
 
 import duckdb
 
+from klear import caveats
 from klear.agent.config import DEFAULT_MODEL, REQUEST_SETTINGS
 from klear.agent.loop import KlearAgent
 from klear.config import MissingSecretError
@@ -97,6 +98,9 @@ def _ask(con, agent: KlearAgent, question: str, district) -> int:
         text = render(answer, con)
     except (ContractError, KeyError) as e:
         text = f"[render failed: {e}]\n\n" + "\n\n".join([*answer.blocks, *answer.caveats])
+    if answer.facts and answer.resolved:
+        notes = caveats.for_places(con, [answer.resolved, *((f.geo_type, f.geo_id) for f in answer.facts)])
+        text += "".join(f"\n\n{c['title']} ({c['geo']}): {c['text']}" for c in notes)
     print(f"\n{text}\n\nRefusal: {answer.refusal}")
     print(f"Cost: ${cost:.4f} ({usage.input_tokens} input, {usage.output_tokens} output tokens)")
     if cost > worst + EPS:

@@ -6,10 +6,11 @@ from typing import NamedTuple
 
 import duckdb
 
+from klear import caveats
 from klear.agent import config
 from klear.etl.places_gazetteer import plain_name, search_plain
 from klear.eval.contract import FactRef, fill_value, geo_display, geo_key, short_name
-from klear.eval.scorers import CV_LIMIT, counties, cv, program_names
+from klear.eval.scorers import counties, program_names, reliability
 from klear.labels import plain_labels
 from klear.programs import ELIGIBILITY_NOTE, NEEDS, Program, catalog
 from klear.rules.registry import load_rules
@@ -672,8 +673,7 @@ class Session:
             lambda r: FactRef(r, indicator_id, *geo, source_id, value, low, high, moe, vintage),
         )
         f = self.facts[ref]
-        c = cv(f)
-        reliable = None if moe is None else not (c > CV_LIMIT if c is not None else value == 0 and moe > 0)
+        reliable = reliability(f)
         self.tiers[ref] = tier
         if reliable is False:
             self.unreliable.add(ref)
@@ -738,7 +738,13 @@ class Session:
     def _get_facts(self, args: dict) -> dict:
         ids = _strs(args, "indicator_ids")
         geos = [_geo_arg(g) for g in _strs(args, "geos")]
-        return self._facts_for(ids, geos)
+        return self._noted(self._facts_for(ids, geos), geos)
+
+    def _noted(self, out: dict, geos) -> dict:
+        """The result with the caveats for its districts and counties, when any apply."""
+        if notes := [{k: c[k] for k in ("geo", "title", "text")} for c in caveats.for_places(self.con, geos)]:
+            out["place_caveats"] = notes
+        return out
 
     # compare
 
@@ -757,7 +763,7 @@ class Session:
         rows = self._rows(ind, geo)
         mine = self._interval(rows[0]) if rows else None
         if mine is None:
-            return out
+            return self._noted(out, [geo])
         extra = [_geo_arg(g) for g in _strs(args, "against", optional=True) or []]
         others = (
             sorted(counties(geo, self.con)) + ([("state", "15")] if geo != ("state", "15") else []) + extra
@@ -780,7 +786,7 @@ class Session:
             )
             if base["facts"] and direction != "not_comparable":
                 self.directions.append((base["facts"][0]["ref"], theirs["facts"][0]["ref"], direction))
-        return out
+        return self._noted(out, [geo, *others])
 
     # district_profile
 
@@ -861,7 +867,7 @@ class Session:
                         row["beside"] = extra
                     rows.append(row)
             out["sections"].append({"title": title, "rows": rows})
-        return out
+        return self._noted(out, [geo])
 
     def _beside(self, ind: str, geo: tuple[str, str]) -> dict | None:
         """The figure a profile row is shown next to, with how the two differ."""
@@ -941,6 +947,8 @@ class Session:
             self.resolved.add(g)
             self.geos.add(g)
         note = self._note(ind)
+        ranked = [geo_key(d["geo"]) for t in tiers for d in t["districts"]]
+        notes = caveats.grouped(self.con, ranked)
         return {
             "indicator_id": ind,
             "label": row[0],
@@ -954,6 +962,7 @@ class Session:
             "missing": got["missing"],
             "unreliable": sum(d["reliable"] is False for t in tiers for d in t["districts"]),
             **({"note": note} if note else {}),
+            **({"place_caveats": notes} if notes else {}),
         }
 
     # outreach: the website's outreach page and the outreach note on district profiles, not a model tool
@@ -1099,7 +1108,7 @@ class Session:
             entry["reasons"] = higher or reasons[:1]
             out.append(entry)
         out.sort(key=lambda e: (e["need"] != "higher", -max((r["ratio"] for r in e["reasons"]), default=0)))
-        return {"district": self._geo(*geo), "programs": out, "note": ELIGIBILITY_NOTE}
+        return self._noted({"district": self._geo(*geo), "programs": out, "note": ELIGIBILITY_NOTE}, [geo])
 
     # find_sites, explain_source
 
@@ -1129,7 +1138,7 @@ class Session:
         ).fetchall()
         out["site_total"] = len(rows)
         out["sites"] = [{"kind": k, "name": n} for k, n in rows[: config.SITE_LIMIT]]
-        return out
+        return self._noted(out, [geo])
 
     def _zero_sites(self, units: str, geo: tuple[str, str]) -> bool:
         """Whether the place has no site of the kind a units indicator counts."""
@@ -1197,7 +1206,8 @@ TOOL_SPECS = [
         "source, source_id, method and a reliability flag (false when the margin of error is large, null when "
         "the fact has no margin of error to judge). Facts that do not exist, are suppressed or do not apply are "
         "listed under missing with the reason. A fact tied to a benefit program lists it under programs: put its "
-        "rule_id in programs and write its name in the answer.",
+        "rule_id in programs and write its name in the answer. Districts and counties with a known caveat, such "
+        "as the Maui wildfires, are listed under place_caveats.",
         {"indicator_ids": _STRS, "geos": {**_STRS, "description": "Geographies as TYPE:ID."}},
         ["indicator_ids", "geos"],
     ),

@@ -90,7 +90,7 @@ No `source`, environment export, or `--env-file` option is needed. Restart the w
 - klear/agent: the agent, its data tools and the code that builds and checks each answer (python -m klear.agent).
 - klear/web: the local web server, landing page, district profile and chat interface (python -m klear.web).
 - klear/eval: the answer format, eval runner, answer checks, reports and spending cap (python -m klear.eval run).
-- data: the checked-in indicator catalog and the official program counts the validation report compares with (data/catalog), Hawaiian place names and district search names (data/places) and program rules (data/rules). The build also writes data/raw (download cache), data/manual (hand downloads) and data/build (the store), none of them tracked.
+- data: the checked-in indicator catalog and the official program counts the validation report compares with (data/catalog), Hawaiian place names, district search names and district caveats with their sources (data/places) and program rules (data/rules). The build also writes data/raw (download cache), data/manual (hand downloads) and data/build (the store), none of them tracked.
 - eval: test questions (eval/golden), saved model replies (eval/scripts), recorded live answers (eval/recordings) and model prices. Run reports go to eval/reports, which is not tracked.
 - tests: the pytest suite, laid out like the klear packages, with small fixtures in tests/fixtures.
 - e2e: browser and accessibility tests with Playwright and axe (see [Browser and accessibility tests](#browser-and-accessibility-tests)).

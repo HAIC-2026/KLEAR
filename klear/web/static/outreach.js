@@ -106,7 +106,11 @@ function tierTable(t, d) {
     const cell = node('td', '');
     cell.dataset.label = d.label;
     cell.append(figure(r.value, r.spread));
-    if (r.caution) cell.append(node('span', r.caution, 'outreach-caution'));
+    if (r.caution) {
+      const flag = node('span', '', 'outreach-flag');
+      flag.append(node('span', 'Use with caution', 'chip caution'), ` ${r.caution}`);
+      cell.append(flag);
+    }
     tr.append(name, cell);
     if (d.use) {
       const use = node('td', '', 'use');

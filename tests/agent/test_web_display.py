@@ -2,17 +2,35 @@
 
 import json
 
+import pandas as pd
+
 from klear.agent.config import PROFILE_BESIDE
 from klear.agent.tools import Session
 from klear.config import CURRENT_LAYER
 from klear.eval.contract import Answer, FactRef
 from klear.labels import plain_labels
-from klear.store.db import add_source
-from klear.web.display import build, profile, profile_csv
+from klear.store.db import add_facts, add_indicators, add_source
+from klear.web.display import CAUTION, METHODS_PAGE, build, profile, profile_csv
+from tests.fixtures.small_store import _fact
 
 
 def fact(ref, geo_id, value, moe, low=None, high=None):
     return FactRef(ref, "pop_65_plus", "house", geo_id, "acs", value, low, high, moe, "2020-2024")
+
+
+def add_rate(con):
+    """A percent indicator, so charts have a rate to draw."""
+    add_indicators(
+        con,
+        pd.DataFrame(
+            [("pct_65_plus", "Percent 65 years and over", "percent", "persons", None, False)],
+            columns=["indicator_id", "label", "unit", "universe", "acs_var", "additive"],
+        ),
+    )
+
+
+def rate(ref, geo_type, geo_id, value, moe, low=None, high=None):
+    return FactRef(ref, "pct_65_plus", geo_type, geo_id, "acs", value, low, high, moe, "2020-2024")
 
 
 def answer(facts, blocks, caveats=()):
@@ -35,6 +53,9 @@ def test_single_place_gets_plain_lead_and_tiles(small_con):
                 "official": "Population 65 years and over",
                 "universe": "persons",
             },
+            "share": "",
+            "caution": "",
+            "method": None,
         }
     ]
     assert out["charts"] == []
@@ -44,19 +65,77 @@ def test_single_place_gets_plain_lead_and_tiles(small_con):
 
 
 def test_two_places_become_a_chart_with_a_margin_tag(small_con):
-    facts = [fact("f2", "023", 100.0, 80.0), fact("f1", "022", 1000.0, 100.0)]
+    add_rate(small_con)
+    facts = [rate("f2", "house", "023", 10.0, 8.0), rate("f1", "house", "022", 30.0, 4.0)]
     out = build(small_con, answer(facts, ["{geo:house:022} has more than {geo:house:023}."]))
     (chart,) = out["charts"]
     assert [b["geography"] for b in chart["bars"]] == ["House District 22", "House District 23"]
     assert chart["tag"] == "Higher than House District 23" and chart["lower"] is True
-    assert chart["bars"][1]["low"] == 20.0 and chart["bars"][1]["high"] == 180.0
+    assert chart["bars"][1]["low"] == 2.0 and chart["bars"][1]["high"] == 18.0
+    assert chart["note"] == "Bars show the estimate. Lines show the 90% margin of error."
     assert out["tiles"] == []
 
 
 def test_overlapping_margins_tag_within_margin(small_con):
-    facts = [fact("f1", "022", 1000.0, 100.0), fact("f2", "023", 950.0, 80.0)]
+    add_rate(small_con)
+    facts = [rate("f1", "house", "022", 30.0, 4.0), rate("f2", "house", "023", 28.0, 3.0)]
     (chart,) = build(small_con, answer(facts, ["Close."]))["charts"]
     assert chart["tag"] == "Within the margin of error"
+
+
+def test_counts_stay_tiles_and_are_never_charted_against_the_county_or_state(small_con):
+    county = FactRef("f2", "pop_65_plus", "county", "15003", "acs", 5000.0, None, None, 50.0, "2020-2024")
+    state = FactRef("f3", "pop_65_plus", "state", "15", "acs", 50000.0, None, None, 500.0, "2020-2024")
+    others = fact("f4", "023", 100.0, 80.0)
+    out = build(small_con, answer([fact("f1", "022", 1000.0, 100.0), county, state, others], ["x"]))
+    assert out["charts"] == []
+    assert [t["geography"] for t in out["tiles"]] == ["", "Honolulu County", "Hawaiʻi", "House District 23"]
+    assert out["tiles"][0]["share"] == "2.0% of the Hawaiʻi total"
+    assert [t["share"] for t in out["tiles"][1:]] == ["", "", ""]
+
+
+def test_unreliable_estimates_carry_a_caution_on_tiles_bars_and_chart_sentences(small_con):
+    add_rate(small_con)
+    shaky = rate("f1", "house", "022", 4.0, 3.0)
+    out = build(small_con, answer([shaky, rate("f2", "state", "15", 9.8, 0.4)], ["x"]))
+    (chart,) = out["charts"]
+    assert [b["caution"] for b in chart["bars"]] == [CAUTION, ""]
+    assert chart["summary"].endswith(
+        "Use the estimate for House District 22 with caution: the margin of error is large."
+    )
+    # A zero with a margin of error is unreliable too; a figure without a margin cannot be judged.
+    zero, plain = fact("f3", "023", 0.0, 12.0), fact("f4", "022", 7.0, None)
+    tiles = build(small_con, answer([zero, plain, fact("f5", "022", 1000.0, 100.0)], ["x"]))["tiles"]
+    assert [t["caution"] for t in tiles] == [CAUTION, "", ""]
+
+
+def test_apportioned_and_modeled_figures_say_how_they_were_estimated(small_con):
+    add_rate(small_con)
+    rows = [
+        _fact("house", "022", "pct_65_plus", 30.0, None, tier="M", moe_status="range", value_low=20.0,
+              value_high=40.0),
+        _fact("state", "15", "pct_65_plus", 20.0, 1.0),
+        _fact("house", "023", "pop_65_plus", 100.0, None, tier="A", moe_status="range", value_low=80.0,
+              value_high=120.0),
+    ]  # fmt: skip
+    small_con.execute("DELETE FROM fact WHERE indicator_id = 'pop_65_plus' AND geo_id = '023'")
+    add_facts(small_con, pd.DataFrame(rows))
+    modeled = rate("f1", "house", "022", 30.0, None, 20.0, 40.0)
+    out = build(
+        small_con,
+        answer(
+            [modeled, rate("f2", "state", "15", 20.0, 1.0), fact("f3", "023", 100.0, None, 80.0, 120.0)],
+            ["x"],
+        ),
+    )
+    (chart,) = out["charts"]
+    assert chart["method"] == {"text": "a modeled estimate, not a direct count", "url": f"{METHODS_PAGE}#acs"}
+    assert chart["note"] == "Bars show the estimate. Lines show the 90% margin of error or range."
+    (tile,) = out["tiles"]
+    assert tile["method"] == {
+        "text": "apportioned to the district from ZIP code or census tract data",
+        "url": f"{METHODS_PAGE}#acs",
+    }
 
 
 def test_range_facts_read_as_about_and_caveats_fill_markers(small_con):
@@ -80,8 +159,8 @@ def test_lead_drops_inline_vintages(small_con):
 
 def test_district_total_against_the_state_reads_as_a_share(small_con):
     state = FactRef("f2", "pop_65_plus", "state", "15", "acs", 50000.0, None, None, 500.0, "2020-2024")
-    (chart,) = build(small_con, answer([fact("f1", "022", 1000.0, 100.0), state], ["Kūpuna here."]))["charts"]
-    assert chart["tag"] == "2.0% of Hawaiʻi" and chart["lower"] is False
+    out = build(small_con, answer([fact("f1", "022", 1000.0, 100.0), state], ["Kūpuna here."]))
+    assert out["charts"] == [] and out["tiles"][0]["share"] == "2.0% of the Hawaiʻi total"
 
 
 def test_layers_downloaded_by_the_build_read_as_a_current_list(small_con):
@@ -151,27 +230,34 @@ def test_profile_notes_a_state_value_derived_from_counties(small_con):
 
 
 def test_charts_say_what_they_show_in_a_sentence_and_keep_table_figures(small_con):
-    facts = [fact("f1", "022", 1000.0, 100.0), fact("f2", "023", 100.0, 80.0)]
+    add_rate(small_con)
+    facts = [rate("f1", "house", "022", 30.0, 4.0), rate("f2", "house", "023", 10.0, 3.0)]
     (chart,) = build(small_con, answer(facts, ["x"]))["charts"]
-    assert (
-        chart["summary"] == "House District 22, at 1,000 ± 100, is higher than House District 23 (100 ± 80)."
-    )
-    assert [(b["number"], b["spread"]) for b in chart["bars"]] == [("1,000", "± 100"), ("100", "± 80")]
-
-
-def test_chart_sentences_name_shares_ranges_and_overlapping_margins(small_con):
-    state = FactRef("f3", "pop_65_plus", "state", "15", "acs", 50000.0, None, None, None, "2020-2024")
-    county = FactRef("f4", "pop_65_plus", "county", "15003", "acs", 20000.0, None, None, 500.0, "2020-2024")
-    ranged = fact("f1", "022", 1000.0, None, 900.0, 1100.0)
-    (chart,) = build(small_con, answer([ranged, county, state], ["x"]))["charts"]
-    # A district's total is part of the county's and the state's, so it has no direction against them.
     assert chart["summary"] == (
-        "House District 22, at about 1,000 (range 900 to 1,100), compares with Honolulu County (20,000 ± 500)"
-        " and is 2.0% of the total for Hawaiʻi (50,000)."
+        "House District 22, at 30.0% ± 4.0 points, is higher than House District 23 (10.0% ± 3.0 points)."
     )
-    close = [fact("f1", "022", 1000.0, 100.0), fact("f2", "023", 950.0, 80.0)]
+    assert [(b["number"], b["spread"]) for b in chart["bars"]] == [
+        ("30.0%", "± 4.0 points"),
+        ("10.0%", "± 3.0 points"),
+    ]
+
+
+def test_chart_sentences_name_ranges_and_overlapping_margins(small_con):
+    add_rate(small_con)
+    state = rate("f3", "state", "15", 20.0, None)
+    county = rate("f4", "county", "15003", 22.0, 0.5)
+    ranged = rate("f1", "house", "022", 30.0, None, 25.0, 35.0)
+    (chart,) = build(small_con, answer([ranged, county, state], ["x"]))["charts"]
+    assert chart["summary"] == (
+        "House District 22, at about 30.0% (range 25.0% to 35.0%), is higher than Honolulu County (22.0% ± 0.5 points)"
+        " and is higher than Hawaiʻi (20.0%)."
+    )
+    assert chart["note"] == "Bars show the estimate. Lines show the 90% margin of error or range."
+    close = [rate("f1", "house", "022", 30.0, 4.0), rate("f2", "house", "023", 28.0, 3.0)]
     (chart,) = build(small_con, answer(close, ["x"]))["charts"]
-    assert chart["summary"].endswith("is within the margin of error of House District 23 (950 ± 80).")
+    assert chart["summary"].endswith(
+        "is within the margin of error of House District 23 (28.0% ± 3.0 points)."
+    )
 
 
 def test_who_may_qualify_section_states_its_caveat_once_and_shows_figures_beside(real_con):
@@ -218,3 +304,25 @@ def test_profile_download_keeps_a_place_with_no_figure_and_says_why(small_con):
     )
     assert rows[1].endswith("not published for county geographies")
     assert rows[2].endswith("not published for state geographies")
+
+
+def test_profile_rows_flag_unreliable_estimates_and_sections_share_their_method(real_con):
+    session = Session(real_con)
+    raw = json.loads(session.run("district_profile", {"district": "house:022"}))
+    out = profile(real_con, raw, session)
+    rows = [r for s in out["sections"] for r in s["rows"]]
+    shaky = {
+        r["fact"]["indicator_id"]
+        for s in raw["sections"]
+        for r in s["rows"]
+        if r["fact"]["reliable"] is False
+    }
+    assert shaky and {r["id"] for r in rows if r["caution"] == CAUTION} == shaky
+    modeled = next(s for s in out["sections"] if s["title"] == "Modeled needs")
+    assert modeled["method"] == {
+        "text": "a modeled estimate, not a direct count",
+        "url": f"{METHODS_PAGE}#cdc_places_2025",
+    }
+    assert all(r["method"] is None for r in modeled["rows"])
+    people = next(s for s in out["sections"] if s["title"] == "People")
+    assert people["method"] is None and all(r["method"] is None for r in people["rows"])

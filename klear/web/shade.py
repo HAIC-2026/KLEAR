@@ -9,7 +9,17 @@ from itertools import pairwise
 from klear.agent.tools import Session
 from klear.eval.contract import _has, _number, geo_key
 from klear.store.methods import place_note
-from klear.web.display import NOUNS, _caution, _cited, _compared, _plain, _said, _source, _spread, _Store
+from klear.web.display import (
+    NOUNS,
+    _cited,
+    _compared,
+    _plain,
+    _said,
+    _source,
+    _spread,
+    _Store,
+    _unreliable_note,
+)
 
 # Measures the map can be shaded by: rates and medians, which compare fairly across districts of any size.
 MEASURES = (
@@ -121,7 +131,7 @@ def map_view(con, indicator: str, chamber: str) -> dict:
         if state is not None:
             text += f" {_sentence(_versus(f, state, unit))}"
         if status == UNRELIABLE:
-            text += f" {_caution(entry)}."
+            text += f" {_unreliable_note(entry)}."
         shown.append(
             {
                 "geo": entry["geo"],
@@ -132,7 +142,7 @@ def map_view(con, indicator: str, chamber: str) -> dict:
                 "low": round(max(low, 0.0), 6),
                 "high": round(high, 6),
                 "status": status,
-                "caution": _caution(entry),
+                "caution": _unreliable_note(entry),
                 "text": text,
             }
         )
