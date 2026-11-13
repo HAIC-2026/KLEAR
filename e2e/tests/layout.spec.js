@@ -92,8 +92,8 @@ test('motion stops when the device asks for reduced motion', async ({page}) => {
   await page.emulateMedia({reducedMotion: 'reduce'});
   await page.goto('/');
   expect(await page.evaluate(() => getComputedStyle(document.documentElement).scrollBehavior)).toBe('auto');
-  await page.getByLabel('Your question').fill('How many kūpuna?');
-  await page.getByRole('button', {name: 'Ask KLEAR'}).click();
+  // A starter about this district asks for one first, with a nudge on the district bar.
+  await page.locator('#examples').getByRole('button', {name: /kūpuna live in this district/}).click();
   await expect(page.locator('#district-bar')).toHaveClass(/nudge/);
   expect(await page.locator('#district-bar').evaluate(el => getComputedStyle(el).animationName)).toBe('none');
 });

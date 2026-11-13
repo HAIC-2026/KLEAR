@@ -4,6 +4,8 @@ const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 const uncertaintyLabels = {ok: '90% margin of error shown above', controlled: 'Fixed to official totals; no sampling margin of error', range: 'Estimated range shown above', open_ended: 'Open-ended published value', not_computable: 'Margin of error unavailable; treat as uncertain', not_applicable: 'No margin of error applies', unavailable: 'Uncertainty information unavailable'};
 // Starter questions, with the short label each shows once it moves into the chat.
 const examples = [['Give me a socioeconomic profile of this district.', 'Profile'], ['How many kūpuna live in this district?', 'Kūpuna'], ['What does the data say about housing needs in this district?', 'Housing'], ['How does poverty here compare with the state?', 'Poverty vs. state'], ['What support programs could residents of this district explore?', 'Programs']];
+// A starter that asks about every district, so it needs no district chosen.
+const statewideExample = ['Which House districts have the highest share of kūpuna?', 'Kūpuna share by district'];
 const refusalLabels = {decline_partisan: 'Partisan request declined', decline_individual: 'Personal request declined', not_available: 'Data not available', out_of_scope: 'Outside KLEAR’s scope'};
 function node(tag, text, className) { const n = document.createElement(tag); n.textContent = text; if (className) n.className = className; return n; }
 // Hawaiian words for groups of people, marked so screen readers can pronounce them. Place names are left as they are.
@@ -107,6 +109,7 @@ function setLookup(open) {
   if (!open) resetLookup();
 }
 
+const NO_DISTRICT_WELCOME = 'Ask about a district, a town or ZIP code, or all of Hawaiʻi.';
 function needDistrict() {
   setLookup(true);
   $('lookup-status').textContent = 'Pick a district first. Your question will wait in the box below.';
@@ -179,7 +182,7 @@ function clearDistrict() {
   setLookup(false);
   delete $('chat').dataset.chamber;
   $('district-title').textContent = 'No district chosen yet';
-  $('welcome-text').textContent = 'Ask about this district.';
+  $('welcome-text').textContent = NO_DISTRICT_WELCOME;
   $('chat-status').textContent = '';
   $('profile').hidden = true;
   $('profile').replaceChildren();
@@ -430,7 +433,7 @@ const resetLookup = lookupForm($('lookup'), $('place'), $('lookup-status'), $('m
 const resetFind = lookupForm($('find'), $('find-place'), $('find-status'), $('find-matches'), (geo, name) => { resetFind(); choose(geo, name); });
 // Each starter shows its full question. Once it moves into the chat it shows only its short label, and the rest of the
 // question stays in its spoken name after that label, so voice control can say what it sees.
-for (const [question, label] of examples) {
+for (const [question, label] of [...examples, statewideExample]) {
   const b = node('button', '');
   b.type = 'button';
   const short = says('span', label, 'example-label'), rest = hidden(': '), full = says('span', question, 'example-full');
@@ -438,7 +441,7 @@ for (const [question, label] of examples) {
   rest.hidden = true;
   rest.append(says('span', question));
   b.append(short, rest, full);
-  b.onclick = () => { if (busy) return; $('question').value = question; fitQuestion(); if (district) $('question-form').requestSubmit(); else needDistrict(); };
+  b.onclick = () => { if (busy) return; $('question').value = question; fitQuestion(); if (district || question === statewideExample[0]) $('question-form').requestSubmit(); else needDistrict(); };
   $('examples').append(b);
 }
 
@@ -891,26 +894,27 @@ function restoreChat() {
   if (!Array.isArray(saved)) return;
   let last = null, sent = null;
   for (const x of saved) {
-    if (!x || typeof x.geo !== 'string' || typeof x.name !== 'string' || typeof x.question !== 'string') continue;
+    // geo is null for a question asked with no district chosen.
+    if (!x || (typeof x.geo !== 'string' && x.geo !== null) || typeof x.name !== 'string' || typeof x.question !== 'string') continue;
     // A question whose answer was still loading, or failed, waits in the box to ask again.
     if (!x.answer) {
       if (!$('question').value.trim()) { $('question').value = x.question; fitQuestion(); }
       continue;
     }
-    const chamber = x.geo.split(':')[0];
     let reply;
     try { reply = renderAnswer(x.answer, x.name); } catch { continue; }
-    reply.dataset.chamber = answerAbout(x.answer, x.geo).geo.split(':')[0];
+    const about = answerAbout(x.answer, x.geo, x.name);
+    if (about.geo) reply.dataset.chamber = about.geo.split(':')[0];
     showMode(reply, x.answer.mode);
     askedQuestions.add(sameQuestion(x.question, x.name));
-    if (last && x.geo !== last) $('log').append(switchLine(x.name));
-    sent = sentLine(x.question, chamber);
+    if (last && x.geo && x.geo !== last) $('log').append(switchLine(x.name));
+    sent = sentLine(x.question, x.geo ? x.geo.split(':')[0] : '');
     $('log').append(sent, reply);
     exchanges.push(x);
-    last = x.geo;
+    last = x.geo || last;
   }
   saveChat();
-  if (!last) return;
+  if (!sent) return;
   asked = last;
   $('chat-card').classList.add('started');
   if (logScrolls()) $('messages').scrollTop = sent.offsetTop - 16;
@@ -939,47 +943,52 @@ $('question-form').onsubmit = async e => {
   if (busy) return;
   const question = $('question').value.trim();
   if (!question) return;
-  if (!district) { needDistrict(); return; }
   // The card stays compact until the first question, then grows to hold the conversation.
   const card = $('chat-card');
   if (!card.classList.contains('started')) { card.classList.add('started'); showChat(); }
   setBusy(true);
   asked = district;
-  const name = $('district-title').textContent, geo = district;
+  // With no district chosen, the question names its own place or asks about the whole state.
+  const geo = district, name = geo ? $('district-title').textContent : '';
   askedQuestions.add(sameQuestion(question, name));
   // The conversation is not a live region, since answers are long. A short status line says what is happening,
   // and the new answer's heading takes focus.
   // Each exchange keeps the color of the chamber it was about, even after the chat switches district.
-  const chamber = district.split(':')[0];
+  const chamber = geo ? geo.split(':')[0] : '';
   const sent = sentLine(question, chamber), wait = waiting(name), pending = wait.box;
   pending.dataset.chamber = chamber;
   $('log').append(sent, pending);
-  const saved = {geo: district, name, question};
+  const earlier = earlierExchanges(), saved = {geo, name, question};
   exchanges.push(saved);
   saveChat();
   reveal(sent);
   $('question').value = '';
   fitQuestion();
   $('chat-status').textContent = '';
-  $('chat-live').textContent = `Checking district data and sources for ${name}…`;
-  let follow = true, hold = null, reply = null, done, reader = null;
+  $('chat-live').textContent = name ? `Checking district data and sources for ${name}…` : 'Checking district data and sources…';
+  let follow = true, hold = null, reply = null, done, reader = null, adopt = null, next = null;
   try {
-    const answer = await askKlear(question, saved.geo, wait);
+    const answer = await askKlear(question, geo, earlier, wait);
     reader = readerPlace();
     hold = holdPage(pending);
     follow = onScreen(pending);
     reply = renderAnswer(answer, name);
     const about = answerAbout(answer, geo, name);
-    reply.dataset.chamber = about.geo.split(':')[0];
+    if (about.geo) reply.dataset.chamber = about.geo.split(':')[0];
     showMode(reply, answer.mode);
     // Only the newest answer offers next questions, and an earlier failure's Retry goes once this one is answered.
-    for (const n of $('log').querySelectorAll('.followups, .retry, .switch-offer')) n.remove();
-    if (about.geo !== geo) reply.append(switchOffer(about));
-    const next = followUpGroup(followUps(question, answer, about.name, counties.get(about.geo)), about);
-    if (next) reply.append(next);
+    for (const n of $('log').querySelectorAll('.followups, .retry, .switch-offer, .answer-choices')) n.remove();
+    const choices = Array.isArray(answer.choices) ? choicesBox(answer.choices, question) : null;
+    if (choices) reply.append(choices);
+    // An answer about one district, asked with none chosen, chooses it so its profile loads.
+    if (!geo && about.geo) adopt = about;
+    else if (about.geo !== geo) reply.append(switchOffer(about));
+    next = about.geo ? followUpGroup(followUps(question, answer, about.name, counties.get(about.geo)), about) : null;
+    if (next && !adopt) reply.append(next);
     pending.replaceWith(reply);
     saved.answer = answer;
-    done = `Answer ready for ${name}.`;
+    const shown = name || about.name || (answer.subject && answer.subject.name);
+    done = shown ? `Answer ready for ${shown}.` : 'Answer ready.';
   } catch (err) {
     reader = reader || readerPlace();
     hold = holdPage(pending);
@@ -997,6 +1006,8 @@ $('question-form').onsubmit = async e => {
     const {elsewhere, inChat} = reader || readerPlace();
     $('chat-live').textContent = done;
     if (queued) { const next = queued; queued = null; choose(next.geo, next.name, true, next.push); }
+    // Choosing the district drops next questions that name another, so they are added once it is chosen.
+    else if (adopt && !district) { choose(adopt.geo, adopt.name, true); if (next) reply.append(next); }
     if (hold) hold();
     if (follow && (logScrolls() || (!elsewhere && !(hold && hold.field)))) reveal(sent);
     // A reader still in the chat moves to the new answer; after an error, back to the question to retry.
@@ -1067,13 +1078,28 @@ function statusProblem(status) {
 }
 
 // Send a question. Replies that are not JSON, such as a proxy's error page, get a plain message instead of a parse error.
-async function askKlear(question, geo, wait) {
+// The last answered questions in this tab go with the next one, so a follow-up such as "how does that compare with
+// the county?" keeps its subject: each question, the place its answer was about and the measures it showed. Never
+// answer text, which the server could not check.
+const EARLIER = 2, EARLIER_QUESTION = 500, EARLIER_IDS = 40;
+function earlierExchanges() {
+  return exchanges.filter(x => x.answer && x.answer.subject).slice(-EARLIER).map(x => {
+    const s = x.answer.subject;
+    return {
+      question: Array.from(x.question).slice(0, EARLIER_QUESTION).join(''),
+      district: typeof s.geo === 'string' ? s.geo : null,
+      indicators: (Array.isArray(s.indicators) ? s.indicators : []).filter(i => typeof i === 'string').slice(0, EARLIER_IDS),
+    };
+  });
+}
+
+async function askKlear(question, geo, earlier, wait) {
   const stopped = () => problem(wait.why === 'timeout'
     ? `KLEAR did not answer within ${ASK_LIMIT} seconds, so the question was stopped. Press Retry to ask again.`
     : 'You cancelled this question. Press Retry to ask it again.');
   let r, data = null;
   try {
-    r = await fetch('/api/chat', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({question, district: geo}), signal: wait.signal});
+    r = await fetch('/api/chat', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({question, district: geo, ...(earlier.length ? {earlier} : {})}), signal: wait.signal});
   } catch {
     throw wait.why ? stopped() : problem('KLEAR could not be reached. Check your internet connection, then press Retry.');
   }
@@ -1154,6 +1180,16 @@ function switchOffer(about) {
   b.type = 'button';
   b.onclick = () => { if (!busy) choose(about.geo, about.name); };
   box.append(b);
+  return box;
+}
+
+// District buttons for a question whose place spans several districts, as the search shows them. Picking one chooses
+// it and asks the question again.
+function choicesBox(matches, question) {
+  const groups = matchGroups(matches);
+  if (!groups.length) return null;
+  const box = node('div', '', 'answer-choices');
+  showMatches(groups, box, (geo, name) => { if (busy) return; choose(geo, name, true); askAgain(question); });
   return box;
 }
 
@@ -1382,7 +1418,7 @@ function tileValue(text) {
 }
 
 function renderAnswer(answer, name) {
-  name = answerAbout(answer, '', name).name;
+  name = answerAbout(answer, '', name).name || (answer.subject && answer.subject.name) || '';
   if (!answer.lead) return basicAnswer(answer, name);
   const article = document.createElement('article');
   article.className = 'answer';
