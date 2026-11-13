@@ -588,8 +588,11 @@ function programsOf(p) {
   const pr = p.programs;
   return pr && Array.isArray(pr.programs) && Array.isArray(pr.others) ? pr : null;
 }
-// Programs on the one-page summary, so it stays one page.
-const SHEET_PROGRAMS = 6;
+// Programs on the one-page summary: up to six, and at least three when the page runs long.
+const SHEET_PROGRAMS = 6, SHEET_MIN_PROGRAMS = 3;
+// The height a summary is fitted to: a US Letter page inside half-inch margins is 10 inches, 960 CSS pixels, less a
+// little room for how the printer breaks the page.
+const SHEET_HEIGHT = 930;
 
 function profilePrograms(pr) {
   const d = node('details', '', 'profile-section profile-programs');
@@ -604,6 +607,26 @@ function placesList(p) {
   return p.places.slice(0, 4).map(x => `${x.name} (${x.share})`).join(', ') + (more > 0 ? `, and ${more} more places` : '');
 }
 const overlapsList = p => p.overlaps.map(o => `${o.name} (${o.share})`).join(', ');
+
+// The district's official area description and the permanent residents the Reapportionment Commission drew it on,
+// each with the report page it comes from, then how that count differs from the ACS total, and the report.
+function profilePlan(plan) {
+  const box = node('div', '', 'profile-plan');
+  const line = (label, text, cite) => {
+    const l = node('p', '', 'profile-meta');
+    l.append(node('span', label, 'profile-plan-label'), ` ${text} `, node('span', `(${cite})`, 'profile-plan-cite'));
+    return l;
+  };
+  if (plan.description) box.append(line('Official description:', plan.description.text, plan.description.cite));
+  if (plan.population) {
+    box.append(line('Permanent residents in the 2022 plan:', plan.population.value, plan.population.cite));
+    box.append(node('p', plan.population.note, 'profile-meta'));
+  }
+  const source = node('p', 'Source: ', 'profile-meta');
+  source.append(link(plan.source.name, plan.source.url), `, ${plan.source.year}`);
+  box.append(source);
+  return box;
+}
 
 // Line icons for the share controls, on a 24-unit grid in the text color. Screen readers skip them.
 const ICONS = {
@@ -704,6 +727,7 @@ function renderProfile(p) {
   if (p.where) out.push(node('p', p.where, 'profile-where'));
   if (p.places.length) out.push(node('p', `Includes ${placesList(p)}`, 'profile-meta'));
   if (p.overlaps.length) out.push(node('p', `Overlaps ${overlapsList(p)}`, 'profile-meta'));
+  if (p.plan) out.push(profilePlan(p.plan));
   out.push(profileActions(p));
   const stats = node('dl', '', 'profile-stats');
   // Each term comes before its value, as a description list needs; the CSS shows the value on top.
@@ -730,9 +754,12 @@ const PRINT_GROUPS = [
   ['Housing', ['pct_renter_occupied', 'median_gross_rent', 'pct_rent_burden_35_plus']],
   ['Health and assistance', ['pct_uninsured', 'pct_hh_snap']],
 ];
+// Paper has less room than the profile for how the Commission's count differs from the ACS total.
+const PLAN_SHEET_NOTE = 'It leaves out military members, families and students from other states, so it differs from the total population.';
 const longDate = d => d.toLocaleDateString('en-US', {month: 'long', day: 'numeric', year: 'numeric'});
 
 // A summary that cannot be drawn leaves the page to print as it is, and never stops the profile from showing.
+let sheetProfile = null;
 function setSheet(p) {
   const sheet = $('print-sheet');
   let parts = [];
@@ -741,17 +768,42 @@ function setSheet(p) {
   } catch (err) {
     console.warn('KLEAR could not lay out the printed summary.', err);
   }
+  sheetProfile = parts.length ? p : null;
   sheet.replaceChildren(...parts);
   sheet.dataset.chamber = parts.length ? p.geo.split(':')[0] : '';
   document.body.classList.toggle('has-sheet', parts.length > 0);
+  fitSheet();
 }
+// Lay the summary out unseen at its printed width and keep it to one page: list fewer programs, down to three, then
+// scale the whole page down.
+function fitSheet() {
+  const sheet = $('print-sheet'), p = sheetProfile;
+  if (!p) return;
+  sheet.classList.add('measure');
+  sheet.style.zoom = '';
+  try {
+    for (let n = SHEET_PROGRAMS; ; n--) {
+      sheet.replaceChildren(...sheetParts(p, n));
+      if (sheet.getBoundingClientRect().height <= SHEET_HEIGHT || n <= SHEET_MIN_PROGRAMS) break;
+    }
+    const height = sheet.getBoundingClientRect().height;
+    if (height > SHEET_HEIGHT) sheet.style.zoom = String(Math.floor((SHEET_HEIGHT / height) * 1000) / 1000);
+  } catch (err) {
+    console.warn('KLEAR could not fit the printed summary to one page.', err);
+  } finally {
+    sheet.classList.remove('measure');
+  }
+}
+// Fonts change the summary's height, so fit it again once they load.
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitSheet);
 // The print date is the day it is printed, even when the page has been open since an earlier day.
 window.addEventListener('beforeprint', () => {
+  fitSheet();
   const printed = $('print-sheet').querySelector('.sheet-printed');
   if (printed) printed.textContent = `Printed ${longDate(new Date())}`;
 });
 
-function sheetParts(p) {
+function sheetParts(p, limit = SHEET_PROGRAMS) {
   // Sources are numbered in the order the figures cite them; each row's Source cell lists every source it uses.
   const sources = [];
   const cite = s => {
@@ -832,13 +884,19 @@ function sheetParts(p) {
   if (about.lastChild) {
     const n = cite(p.shares_source);
     about.lastChild.append(`. Shares of 2020 Census residents${n ? ` (source ${n})` : ''}.`);
-    parts.push(about);
   }
+  if (p.plan) {
+    const n = cite(p.plan.source), at = c => `(${n ? `source ${n}, ` : ''}${c})`;
+    const small = l => { l.className = 'sheet-plan'; return l; };
+    if (p.plan.description) about.append(small(line('Official description', `${p.plan.description.text} ${at(p.plan.description.cite)}`)));
+    if (p.plan.population) about.append(small(line('Permanent residents in the 2022 plan', `${p.plan.population.value} ${at(p.plan.population.cite)}. ${PLAN_SHEET_NOTE}`)));
+  }
+  if (about.lastChild) parts.push(about);
   parts.push(section('Key figures', 'sheet-key', table, node('p', margins.join(' '), 'sheet-note')));
 
   // The programs whose need figures here sit above the state's, or the statewide list when none does.
   const matched = programsOf(p), shown = matched ? (matched.programs.length ? matched.programs : matched.others) : [];
-  const programs = shown.filter(g => g && g.name).slice(0, SHEET_PROGRAMS);
+  const programs = shown.filter(g => g && g.name).slice(0, limit);
   if (programs.length) {
     const list = node('ul', '', 'sheet-list');
     for (const g of programs) {

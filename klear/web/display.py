@@ -482,10 +482,53 @@ def profile(
         "headline": headline,
         "sections": sections,
         "shares_source": SHARES_SOURCE,
+        "plan": plan(con, raw["district"]["geo"]),
         "programs": matched_programs(con, matched, session) if matched else None,
         "outreach": outreach_note(raw["district"], tops, session, store) if tops and tops["ranked"] else None,
         "built": build_date(con),
     }
+
+
+# How the Commission's permanent-resident count differs from the ACS total population in the profile.
+PLAN_NOTE = (
+    "The Reapportionment Commission drew the district lines on this count. It is the 2020 Census count without "
+    "military members, their families and students who live in another state. So it is not the same as the "
+    "total population above, a 2020-2024 survey estimate of everyone who lives here."
+)
+
+
+def _cite(page: str, pdf_page: int) -> str:
+    return f"report page {page}, PDF page {pdf_page}"
+
+
+def plan(con, geo: str) -> dict | None:
+    """The district's official area description and permanent residents from the Reapportionment Commission's
+    final report, each with the report page it was read from, or None when the store has neither."""
+    has = con.execute(
+        "SELECT count(*) FROM information_schema.tables WHERE table_name = 'district_plan'"
+    ).fetchone()[0]
+    if not has:
+        return None
+    geo_type, geo_id = geo.split(":", 1)
+    row = con.execute(
+        "SELECT p.description, p.description_page, p.description_pdf_page, p.permanent, p.permanent_page, "
+        "p.permanent_pdf_page, s.name, s.page_url, s.vintage FROM district_plan p JOIN source s USING (source_id) "
+        "WHERE p.geo_type = ? AND p.geo_id = ?",
+        [geo_type, geo_id],
+    ).fetchone()
+    if row is None or (row[0] is None and row[3] is None):
+        return None
+    text, text_page, text_pdf, permanent, count_page, count_pdf, name, url, vintage = row
+    out = {"source": {"name": name, "url": url, "year": vintage}}
+    if text is not None:
+        out["description"] = {"text": text, "cite": _cite(text_page, text_pdf)}
+    if permanent is not None:
+        out["population"] = {
+            "value": f"{permanent:,}",
+            "cite": _cite(count_page, count_pdf),
+            "note": PLAN_NOTE,
+        }
+    return out
 
 
 def _linked(section: dict, raw_rows: list[dict], session, store: _Store) -> dict:

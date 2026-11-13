@@ -230,6 +230,9 @@ summary{font-weight:600;color:var(--accent);cursor:pointer}
 .chat-aside .profile h3{font-size:var(--fs-xl);line-height:1.25;margin:4px 0 8px}
 .profile-where{margin:0 0 4px;font-size:var(--fs-sm);line-height:1.5}
 .profile-meta{margin:0 0 2px;font-size:var(--fs-xs);color:var(--muted);line-height:1.5}
+/* The Commission's official description and permanent residents, set off from the lines above. */
+.profile-plan{margin:8px 0 0;padding-top:8px;border-top:1px solid var(--line)}
+.profile-plan-label{font-weight:600;color:var(--ink)}
 .profile-status{margin:0 0 16px;font-size:var(--fs-sm);color:var(--muted)}
 .profile-stats{display:grid;grid-template-columns:1fr 1fr;gap:0 20px;margin:16px 0 8px}
 .profile-stats div{display:flex;flex-direction:column-reverse;justify-content:flex-end;border-top:1px solid var(--line);padding:10px 0 12px;min-width:0}
@@ -530,46 +533,51 @@ footer a{color:#fff}
   body.has-sheet{background:#fff}
   body.has-sheet>:not(.print-sheet){display:none!important}
   body.has-sheet .print-sheet{display:block}
-  .print-sheet{font-family:var(--sans);font-size:var(--pt-base);line-height:1.35;color:var(--ink);-webkit-print-color-adjust:exact;print-color-adjust:exact}
-  .print-sheet p{margin:0}
-  .print-sheet h1{margin:1pt 0 0;font-size:var(--pt-title);line-height:1.1}
-  .print-sheet h2{margin:0 0 3pt;padding-bottom:2pt;border-bottom:1pt solid var(--ink);font-size:var(--pt-sm);letter-spacing:.06em;text-transform:uppercase}
-
-  /* Heading: the district on the left; where to find it online, and how current it is, on the right */
-  .sheet-head{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6pt 18pt;align-items:end;padding-bottom:6pt;border-bottom:2.5pt solid var(--rule)}
-  .sheet-kicker{font-size:var(--pt-xs);font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
-  .sheet-where{margin-top:2pt;font-size:var(--pt-md)}
-  .sheet-live{max-width:3.2in;padding:4pt 8pt;border:1pt solid var(--rule);border-radius:4pt;font-size:var(--pt-xs);color:var(--muted)}
-  .print-sheet .sheet-live .sheet-url{font-size:var(--pt-sm);font-weight:700;color:var(--ink)}
-  .sheet-dates{margin-top:2pt}
-  .sheet-about{margin-top:5pt;font-size:var(--pt-sm);color:var(--muted)}
-  .sheet-about b{font-weight:600;color:var(--ink)}
-  .sheet-section{margin-top:var(--pt-gap);break-inside:avoid}
-
-  /* Key figures: an estimate column and a margin column for each place, the district's tinted, sources last */
-  .sheet-figures{width:100%;border-collapse:collapse;font-size:var(--pt-base);font-variant-numeric:tabular-nums}
-  /* Two classes, to win over the page's own table rules. */
-  .print-sheet .sheet-figures th,.print-sheet .sheet-figures td{padding:2pt 0;border-bottom:1px solid var(--line);vertical-align:baseline;background:none;font-weight:400;text-align:left;white-space:nowrap}
-  .print-sheet .sheet-figures thead th{padding-top:0;border-bottom:1pt solid var(--ink);font-size:var(--pt-xs);font-weight:700;color:var(--muted)}
-  .print-sheet .sheet-figures thead .place{padding:2pt 8pt;text-align:center}
-  .print-sheet .sheet-figures thead .place.home{color:var(--ink)}
-  .print-sheet .sheet-figures tbody th{padding-right:8pt;white-space:normal}
-  .print-sheet .sheet-figures .home{background:var(--tint)}
-  .print-sheet .sheet-figures .num{width:1%;padding:2pt 3pt 2pt 7pt;text-align:right}
-  .print-sheet .sheet-figures .num.home{font-weight:700}
-  .print-sheet .sheet-figures .moe{width:1%;padding-right:7pt;font-size:var(--pt-xs);color:var(--muted)}
-  .print-sheet .sheet-figures .src{width:1%;padding-left:4pt;font-size:var(--pt-xs);color:var(--muted);text-align:center}
-  .print-sheet .sheet-figures .sheet-none{padding:2pt 10pt;font-size:var(--pt-xs);color:var(--muted);text-align:center}
-  .print-sheet .sheet-figures .sheet-group{padding:5pt 0 1pt;font-size:var(--pt-xs);line-height:1.2;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--rule)}
-  .sheet-note{margin-top:3pt;font-size:var(--pt-xs);color:var(--muted)}
-
-  /* Programs and sources: one entry each, its address on a line of its own */
-  .sheet-list{margin:0;padding:0;list-style:none;font-size:var(--pt-sm)}
-  ol.sheet-list{padding-left:12pt;list-style:decimal}
-  .sheet-list li{margin:0 0 3pt;break-inside:avoid}
-  .sheet-url{display:block;font-size:var(--pt-xs);color:var(--muted);overflow-wrap:anywhere}
-  .sheet-foot{margin-top:var(--pt-gap);padding-top:4pt;border-top:1px solid var(--line);font-size:var(--pt-xs);color:var(--muted)}
 }
+/* The summary's own layout holds on screen too, so the page can lay it out unseen at the printed width (7.5in, a
+   Letter page inside its margins) and fit it to one page before it prints. */
+.print-sheet.measure{display:block;position:absolute;top:0;left:-9999px;width:7.5in;visibility:hidden}
+.print-sheet{font-family:var(--sans);font-size:var(--pt-base);line-height:1.35;color:var(--ink);-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.print-sheet p{margin:0}
+.print-sheet h1{margin:1pt 0 0;font-size:var(--pt-title);line-height:1.1}
+.print-sheet h2{margin:0 0 3pt;padding-bottom:2pt;border-bottom:1pt solid var(--ink);font-size:var(--pt-sm);letter-spacing:.06em;text-transform:uppercase}
+
+/* Heading: the district on the left; where to find it online, and how current it is, on the right */
+.sheet-head{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6pt 18pt;align-items:end;padding-bottom:6pt;border-bottom:2.5pt solid var(--rule)}
+.sheet-kicker{font-size:var(--pt-xs);font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.sheet-where{margin-top:2pt;font-size:var(--pt-md)}
+.sheet-live{max-width:3.2in;padding:4pt 8pt;border:1pt solid var(--rule);border-radius:4pt;font-size:var(--pt-xs);color:var(--muted)}
+.print-sheet .sheet-live .sheet-url{font-size:var(--pt-sm);font-weight:700;color:var(--ink)}
+.sheet-dates{margin-top:2pt}
+.sheet-about{margin-top:5pt;font-size:var(--pt-sm);color:var(--muted)}
+.sheet-about b{font-weight:600;color:var(--ink)}
+/* The Commission's description can run long, so it takes the smallest print size. */
+.sheet-about .sheet-plan{font-size:var(--pt-xs)}
+.sheet-section{margin-top:var(--pt-gap);break-inside:avoid}
+
+/* Key figures: an estimate column and a margin column for each place, the district's tinted, sources last */
+.sheet-figures{width:100%;border-collapse:collapse;font-size:var(--pt-base);font-variant-numeric:tabular-nums}
+/* Two classes, to win over the page's own table rules. */
+.print-sheet .sheet-figures th,.print-sheet .sheet-figures td{padding:2pt 0;border-bottom:1px solid var(--line);vertical-align:baseline;background:none;font-weight:400;text-align:left;white-space:nowrap}
+.print-sheet .sheet-figures thead th{padding-top:0;border-bottom:1pt solid var(--ink);font-size:var(--pt-xs);font-weight:700;color:var(--muted)}
+.print-sheet .sheet-figures thead .place{padding:2pt 8pt;text-align:center}
+.print-sheet .sheet-figures thead .place.home{color:var(--ink)}
+.print-sheet .sheet-figures tbody th{padding-right:8pt;white-space:normal}
+.print-sheet .sheet-figures .home{background:var(--tint)}
+.print-sheet .sheet-figures .num{width:1%;padding:2pt 3pt 2pt 7pt;text-align:right}
+.print-sheet .sheet-figures .num.home{font-weight:700}
+.print-sheet .sheet-figures .moe{width:1%;padding-right:7pt;font-size:var(--pt-xs);color:var(--muted)}
+.print-sheet .sheet-figures .src{width:1%;padding-left:4pt;font-size:var(--pt-xs);color:var(--muted);text-align:center}
+.print-sheet .sheet-figures .sheet-none{padding:2pt 10pt;font-size:var(--pt-xs);color:var(--muted);text-align:center}
+.print-sheet .sheet-figures .sheet-group{padding:5pt 0 1pt;font-size:var(--pt-xs);line-height:1.2;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--rule)}
+.sheet-note{margin-top:3pt;font-size:var(--pt-xs);color:var(--muted)}
+
+/* Programs and sources: one entry each, its address on a line of its own */
+.sheet-list{margin:0;padding:0;list-style:none;font-size:var(--pt-sm)}
+ol.sheet-list{padding-left:12pt;list-style:decimal}
+.sheet-list li{margin:0 0 3pt;break-inside:avoid}
+.sheet-url{display:block;font-size:var(--pt-xs);color:var(--muted);overflow-wrap:anywhere}
+.sheet-foot{margin-top:var(--pt-gap);padding-top:4pt;border-top:1px solid var(--line);font-size:var(--pt-xs);color:var(--muted)}
 
 /* What a short label stands for: a disclosure under each tile, chart, profile row and figure card with a plain
    definition, the official label, who the figure counts and a link to the glossary. Summary and link are at least
