@@ -1,0 +1,18 @@
+program_id: honolulu_aging
+name: Honolulu Elderly Affairs Division
+description: Help finding care, local services and government benefits for kūpuna.
+serves: Kūpuna, people with disabilities and family caregivers.
+agency: City and County of Honolulu Elderly Affairs Division
+level: county
+counties:
+- '15003'
+url: https://www.honolulu.gov/dcs/ead/
+phone: (808) 768-7700
+phone_label: Senior Helpline
+phone_source: https://www.honolulu.gov/dcs/ead/
+rules: []
+needs:
+- pct_65_plus
+verified: '2026-11-12'
+verification: Fetched the city Elderly Affairs Division page (HTTP 200). It lists its services and prints the
+  Senior Helpline. Information-only entry; no numeric eligibility rules are modeled.

@@ -9,7 +9,9 @@ district:
 programs:
 - hawaii_aging
 programs_forbidden:
-- honolulu_home_exemption
+- honolulu_aging
+- maui_aging
+- kauai_aging
 must_say:
 - Hawaiʻi County Office of Aging
 refusal: none

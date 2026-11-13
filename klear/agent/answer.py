@@ -13,6 +13,7 @@ from klear.eval.scorers import (
     answer_problems,
     counties,
     direction_claims,
+    known_programs,
     program_named,
     program_names,
 )
@@ -189,7 +190,7 @@ def build_answer(session, args: dict, context=None) -> tuple[Answer | None, list
             problems.append(
                 f"fact {r} was not returned by any tool; cite only refs from get_facts or compare"
             )
-    known = program_names()
+    known = known_programs()
     problems += [
         f"unknown program id {x!r}, expected one of {sorted(known)}" for x in programs if x not in known
     ]
@@ -287,7 +288,7 @@ def finish(session, answer: Answer) -> Answer:
         resolved = ("state", "15")
     if refusal not in ("none", "not_available"):
         return replace(answer, blocks=blocks, caveats=caveats, resolved=resolved)
-    names = program_names()
+    names = known_programs()
     ids = list(dict.fromkeys(f.indicator_id for f in answer.facts))
     labels = [
         r[0]
@@ -369,7 +370,7 @@ def _missing_required(session, answer: Answer) -> list[str]:
     """Required facts, comparisons and programs the answer leaves out."""
     if answer.refusal != "none":
         return []
-    names = program_names()
+    names = known_programs()
     out = [
         f"this question asks about {p}; list it in programs and write it as {display_name(names[p])!r}"
         for p in required_programs(session)
@@ -482,7 +483,7 @@ def template_answer(
     ]
     if compared:
         blocks.append("\n".join(compared))
-    names = program_names()
+    names = known_programs()
     programs = [p for p in dict.fromkeys(programs) if p in names]
     programs += tied_programs(dict.fromkeys(f.indicator_id for f in facts), programs)
     if programs:

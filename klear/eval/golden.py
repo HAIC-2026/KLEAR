@@ -67,9 +67,12 @@ def _geo_type(name: str, geo_type: str) -> None:
 
 
 def rule_ids(rules: Path = RULES) -> set[str]:
-    return {yaml.safe_load(p.read_text(encoding="utf-8"))["rule_id"] for p in Path(rules).glob("*.yaml")} | {
-        p.program_id for p in catalog() if not p.rules
-    }
+    return {yaml.safe_load(p.read_text(encoding="utf-8"))["rule_id"] for p in Path(rules).glob("*.yaml")}
+
+
+def program_ids(rules: Path = RULES) -> set[str]:
+    """Ids a golden question may name: rule ids plus information-only catalog program ids."""
+    return rule_ids(rules) | {p.program_id for p in catalog() if not p.rules}
 
 
 def _parse(path: Path, rules: set[str]) -> Golden:
@@ -130,7 +133,7 @@ def load_golden(root: Path = ROOT / "eval" / "golden", rules: Path = RULES) -> l
         rel = path.relative_to(root)
         if path.suffix != ".yaml" or len(rel.parts) != 2:
             raise GoldenError(f"{rel}: golden files must be <category>/<id>.yaml")
-    out, seen, known = [], {}, rule_ids(rules)
+    out, seen, known = [], {}, program_ids(rules)
     for path in sorted(root.glob("*/*.yaml")):
         try:
             g = _parse(path, known)

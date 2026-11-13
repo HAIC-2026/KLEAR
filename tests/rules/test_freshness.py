@@ -9,7 +9,7 @@ import openpyxl
 import pytest
 
 from klear.etl.fetch import USER_AGENT
-from klear.programs import Program
+from klear.programs import Program, catalog
 from klear.rules import __main__ as cli
 from klear.rules.freshness import (
     CHANGED,
@@ -254,7 +254,8 @@ def test_command_prints_the_list_writes_the_issue_and_exits_on_change(tmp_path, 
     assert cli.main(["check", "--report", str(report)]) == 1
     out = capsys.readouterr().out
     assert (
-        out.startswith("Checked 15 rules and 12 programs") and "1 changed, 0 due for review, 1 could" in out
+        out.startswith(f"Checked 15 rules and {len(catalog())} programs")
+        and "1 changed, 0 due for review, 1 could" in out
     )
     assert '- Rule snap_test: the quote is gone. Expected "4 $1,655". Page: https://example.org/snap' in out
     assert "Program Med-QUEST" in report.read_text(encoding="utf-8")

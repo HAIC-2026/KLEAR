@@ -1,0 +1,17 @@
+program_id: honolulu_section8
+name: Honolulu housing choice vouchers
+description: Federal rent aid run by the county. Check the county page for waitlist details.
+serves: Households with low income. The county checks who can get help.
+agency: City and County of Honolulu Department of Community Services
+level: county
+counties:
+- '15003'
+url: https://www.honolulu.gov/dcs/dcs-cad-section-8-housing-choice-voucher/
+phone: (808) 768-7077
+phone_source: https://www.honolulu.gov/dcs/dcs-cad-section-8-housing-choice-voucher/
+rules: []
+needs:
+- pct_rent_burden_35_plus
+verified: '2026-11-12'
+verification: Fetched the city Section 8 page (HTTP 200). It gives the waitlist status and prints the phone
+  for questions. Information-only entry; no numeric eligibility rules are modeled.

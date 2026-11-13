@@ -327,6 +327,11 @@ def test_all_entries_have_levels_and_county_entries_are_verified():
     assert all(p.counties and p.verified and p.verification and p.phone_source for p in county)
 
 
+def test_every_county_has_its_office_on_aging():
+    for county in ("15001", "15003", "15007", "15009"):
+        assert any(p.counties == (county,) and p.program_id.endswith("_aging") for p in catalog()), county
+
+
 @pytest.mark.parametrize(("number", "district", "county"), [("007", "002", "15001"), ("008", "010", "15009")])
 def test_neighbor_island_golden_scripts_replay(small_con, number, district, county):
     from klear.config import ROOT
