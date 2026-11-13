@@ -20,7 +20,7 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from klear.store.db import add_coverage, add_facts, add_indicators, add_source
+from klear.store.db import add_blocks, add_coverage, add_facts, add_indicators, add_source
 from klear.web import __main__ as web
 from klear.web.assistant import Assistant, DailyBudget
 from tests.agent.fake_client import tool, turn
@@ -34,7 +34,9 @@ def build_store(path: Path) -> None:
     """The pytest small store plus a poverty rate, so answers can compare a percent with the county and state.
     The profile also gets a median age from an ACS data profile table, which links to that table for each place on
     data.census.gov, and an EITC count moved to the district from ZIP codes, which links to the methods page, plus
-    a county-level unemployment rate and DBEDT match marks, so pages show those notes."""
+    a county-level unemployment rate and DBEDT match marks, so pages show those notes. A kūpuna count with a large
+    margin of error and a Kalawao block in House 22 make answers and the profile show a caution chip and a district
+    caveat."""
     con = add_county_context(build_small_store(path))
     add_source(
         con, "acs2024_5yr_profile", "ACS 5-year Data Profiles", "Census", "https://example.org/api",
@@ -69,6 +71,9 @@ def build_store(path: Path) -> None:
             columns=["indicator_id", "geo_type"],
         ),
     )
+    con.execute(
+        "UPDATE fact SET moe = 600 WHERE indicator_id = 'pop_65_plus' AND geo_type = 'house' AND geo_id = '022'"
+    )
     acs = {"source_id": "acs2024_5yr_profile", "table_id": "DP05"}
     rows = [
         _fact("house", "022", "pct_people_poverty", 12.3, 2.1),
@@ -88,6 +93,9 @@ def build_store(path: Path) -> None:
     add_facts(con, pd.DataFrame(rows))
     # The SNAP outreach pair, so the outreach page and the profile's outreach note have figures.
     add_outreach(con)
+    block = {"block": "150050001001000", "county": "15005", "tract": "15005000100", "zcta": "96744",
+             "house": "022", "senate": "012", "pop2020": 2}  # fmt: skip
+    add_blocks(con, pd.DataFrame([block]))
     con.close()
 
 
@@ -132,7 +140,13 @@ class _Messages:
             )
         if len(messages) == 3:
             # A count shown for one place only becomes a tile beside the charts.
-            return turn(tool("get_facts", {"indicator_ids": ["sites_lihtc"], "geos": [DISTRICT]}, "tu_sites"))
+            return turn(
+                tool(
+                    "get_facts",
+                    {"indicator_ids": ["sites_lihtc", "irs_eitc_returns"], "geos": [DISTRICT]},
+                    "tu_sites",
+                )
+            )
         return turn(tool("submit_answer", _answer(_refs(messages)), "tu_submit"))
 
 
@@ -146,7 +160,8 @@ def _answer(refs: list[str]) -> dict:
             (
                 "- Poverty rate: {fact:f1} here, {fact:f3} in the county, and {fact:f5} statewide.\n"
                 "- Kūpuna: {fact:f2} here, {fact:f4} in the county, and {fact:f6} statewide.\n"
-                "- Low-income housing tax credit projects: {fact:f7}."
+                "- Low-income housing tax credit projects: {fact:f7}.\n"
+                "- Returns with the earned income tax credit: {fact:f8}."
             ),
         ],
         "facts": refs,
