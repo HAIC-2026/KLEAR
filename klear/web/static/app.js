@@ -818,9 +818,9 @@ function profileActions(p) {
   return box;
 }
 
-// The profile under the district's name: its four headline figures with their margins, links to each section, the
-// share buttons, then the sections.
 function renderProfile(p) {
+  // Under the district's name: its headline figures with their margins, links to each section, the share buttons,
+  // then the sections.
   const out = [];
   const stats = node('dl', '', 'profile-stats');
   // Each term comes before its value, as a description list needs; the CSS shows the value on top.

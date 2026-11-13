@@ -64,6 +64,48 @@ test('skip link, search, ask, and read the answer with the keyboard', async ({pa
   await expect(page.locator('#log article').last().getByRole('heading', {level: 3})).toBeFocused();
 });
 
+// One column: the profile and the chat are two tabs. The arrow keys move between them, and Tab moves into the one shown.
+test.describe('one column', () => {
+  test.use({viewport: {width: 900, height: 800}});
+  test('Profile and Ask are tabs that the arrow keys switch', async ({page}) => {
+    await page.goto('/district/house-22');
+    await expect(page.locator('#profile-live')).toHaveText(`Profile for ${DISTRICT} loaded.`);
+    const tabs = page.getByRole('tablist', {name: 'District page'});
+    const profileTab = tabs.getByRole('tab', {name: 'Profile'}), askTab = tabs.getByRole('tab', {name: 'Ask'});
+    await expect(profileTab).toHaveAttribute('aria-selected', 'true');
+    await expect(page.getByRole('tabpanel', {name: 'Profile'})).toBeVisible();
+    await expect(page.getByLabel('Your question')).toBeHidden();
+
+    await profileTab.focus();
+    await page.keyboard.press('ArrowRight');
+    await expect(askTab).toBeFocused();
+    await expect(askTab).toHaveAttribute('aria-selected', 'true');
+    await expect(page.getByRole('tabpanel', {name: 'Ask'})).toBeVisible();
+    await expect(page.locator('#profile')).toBeHidden();
+    // Only the chosen tab is a Tab stop; the next stop is in its panel.
+    await page.keyboard.press('Tab');
+    await expect(page.getByRole('button', {name: 'Change district'})).toBeFocused();
+    await askTab.focus();
+    await page.keyboard.press('Home');
+    await expect(profileTab).toBeFocused();
+    await expect(page.locator('#profile')).toBeVisible();
+
+    // An answer that arrives while the profile shows is marked on the Ask tab until it is opened.
+    let release;
+    const held = new Promise(resolve => { release = resolve; });
+    await page.route('**/api/chat', async route => { await held; await route.continue(); });
+    await askTab.click();
+    await page.getByLabel('Your question').fill('How does poverty here compare?');
+    await page.getByRole('button', {name: 'Ask KLEAR'}).click();
+    await profileTab.click();
+    release();
+    await expect(page.locator('#chat-live')).toHaveText(`Answer ready for ${DISTRICT}.`);
+    await expect(tabs.getByRole('tab', {name: 'Ask New answer'})).toBeVisible();
+    await askTab.click();
+    await expect(page.locator('#tab-new')).toBeHidden();
+  });
+});
+
 test('the map: Tab in, arrows to move, Enter to pick, Enter again to ask', async ({page}) => {
   await expect(page.locator('#map .district').first()).toBeAttached();
   await page.locator('#island-tabs button').last().focus();
@@ -143,46 +185,4 @@ test('the Ask button keeps focus while the answer loads, then focus moves to the
   release();
   await expect(page.locator('#log article h3')).toBeFocused();
   await expect(send).not.toHaveAttribute('aria-disabled');
-});
-
-// One column: the profile and the chat are two tabs. The arrow keys move between them, and Tab moves into the one shown.
-test.describe('one column', () => {
-  test.use({viewport: {width: 900, height: 800}});
-  test('Profile and Ask are tabs that the arrow keys switch', async ({page}) => {
-    await page.goto('/district/house-22');
-    await expect(page.locator('#profile-live')).toHaveText(`Profile for ${DISTRICT} loaded.`);
-    const tabs = page.getByRole('tablist', {name: 'District page'});
-    const profileTab = tabs.getByRole('tab', {name: 'Profile'}), askTab = tabs.getByRole('tab', {name: 'Ask'});
-    await expect(profileTab).toHaveAttribute('aria-selected', 'true');
-    await expect(page.getByRole('tabpanel', {name: 'Profile'})).toBeVisible();
-    await expect(page.getByLabel('Your question')).toBeHidden();
-
-    await profileTab.focus();
-    await page.keyboard.press('ArrowRight');
-    await expect(askTab).toBeFocused();
-    await expect(askTab).toHaveAttribute('aria-selected', 'true');
-    await expect(page.getByRole('tabpanel', {name: 'Ask'})).toBeVisible();
-    await expect(page.locator('#profile')).toBeHidden();
-    // Only the chosen tab is a Tab stop; the next stop is in its panel.
-    await page.keyboard.press('Tab');
-    await expect(page.getByRole('button', {name: 'Change district'})).toBeFocused();
-    await askTab.focus();
-    await page.keyboard.press('Home');
-    await expect(profileTab).toBeFocused();
-    await expect(page.locator('#profile')).toBeVisible();
-
-    // An answer that arrives while the profile shows is marked on the Ask tab until it is opened.
-    let release;
-    const held = new Promise(resolve => { release = resolve; });
-    await page.route('**/api/chat', async route => { await held; await route.continue(); });
-    await askTab.click();
-    await page.getByLabel('Your question').fill('How does poverty here compare?');
-    await page.getByRole('button', {name: 'Ask KLEAR'}).click();
-    await profileTab.click();
-    release();
-    await expect(page.locator('#chat-live')).toHaveText(`Answer ready for ${DISTRICT}.`);
-    await expect(tabs.getByRole('tab', {name: 'Ask New answer'})).toBeVisible();
-    await askTab.click();
-    await expect(page.locator('#tab-new')).toBeHidden();
-  });
 });

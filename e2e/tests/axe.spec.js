@@ -33,6 +33,23 @@ test('district profile', async ({page}, testInfo) => {
   await expectAccessible(page, testInfo, 'district profile');
 });
 
+test.describe('district page at one column', () => {
+  test.use({viewport: {width: 900, height: 800}});
+  test('both tabs, with a new answer marked', async ({page}, testInfo) => {
+    await page.goto('/district/house-22');
+    await expect(page.locator('#profile-live')).toHaveText(`Profile for ${DISTRICT} loaded.`);
+    await openAll(page);
+    await expectAccessible(page, testInfo, 'district page, Profile tab');
+    await ask(page);
+    await page.getByRole('tab', {name: 'Profile'}).click();
+    await page.locator('#tab-new').evaluate(n => { n.hidden = false; });
+    await expectAccessible(page, testInfo, 'district page, new answer');
+    await page.getByRole('tab', {name: 'Ask'}).click();
+    await openAll(page);
+    await expectAccessible(page, testInfo, 'district page, Ask tab');
+  });
+});
+
 test('chat answer with charts and sources', async ({page}, testInfo) => {
   await chooseDistrict(page);
   await ask(page);
@@ -90,23 +107,6 @@ test('map with a ZIP code and a picked district', async ({page}, testInfo) => {
   await map.getByLabel('Or choose from a list').selectOption({label: 'House District 22'});
   await expect(page.locator('#pick-name')).toHaveText('House District 22');
   await expectAccessible(page, testInfo, 'map');
-});
-
-test.describe('district page at one column', () => {
-  test.use({viewport: {width: 900, height: 800}});
-  test('both tabs, with a new answer marked', async ({page}, testInfo) => {
-    await page.goto('/district/house-22');
-    await expect(page.locator('#profile-live')).toHaveText(`Profile for ${DISTRICT} loaded.`);
-    await openAll(page);
-    await expectAccessible(page, testInfo, 'district page, Profile tab');
-    await ask(page);
-    await page.getByRole('tab', {name: 'Profile'}).click();
-    await page.locator('#tab-new').evaluate(n => { n.hidden = false; });
-    await expectAccessible(page, testInfo, 'district page, new answer');
-    await page.getByRole('tab', {name: 'Ask'}).click();
-    await openAll(page);
-    await expectAccessible(page, testInfo, 'district page, Ask tab');
-  });
 });
 
 test('glossary page', async ({page}, testInfo) => {
