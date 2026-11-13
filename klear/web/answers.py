@@ -16,9 +16,10 @@ from klear.agent.tools import Session
 from klear.eval.contract import geo_display
 from klear.labels import in_sentence, meaning, short_label
 from klear.web.display import _plain, build_month, matched_programs, program_rows, year_text
+from klear.web.geocode import address_in
 
 PERSONAL = re.compile(
-    r"\b(?:a specific person|an individual|named resident|home address|phone number|personal information|who lives at|identify a resident|my neighbor|specific resident)\b",
+    r"\b(?:a specific person|an individual|named resident|home address|phone number|personal information|who lives at|identify a resident|my neighbor|specific resident|(?:household|family|owner|tenant|occupant)s? (?:at|of|living at))\b",
     re.IGNORECASE,
 )
 PARTISAN = re.compile(
@@ -310,7 +311,49 @@ def fixed_income(con, district: tuple[str, str], shown: str) -> dict:
     }
 
 
-def ask(con, question, district):
+CHAMBER_WORDS = re.compile(r"\b(?:house|senate|districts?)\b", re.IGNORECASE)
+
+
+def _same_districts(matches: list[dict]) -> bool:
+    return len({tuple(o["geo"] for o in m["overlaps"]) for m in matches}) == 1
+
+
+def address_answer(con, question: str, address: str, geocoder) -> dict:
+    """The districts of a street address from the Census geocoder, then the question's figures for its House
+    district (its Senate district when only the Senate is asked about). Never a district guessed from a town."""
+    found = Session(con, geocoder).find_address(address)
+    matches = found["matches"]
+    if not matches:
+        text = f"{found['note']} KLEAR does not guess a district from a town name, because a town can span more than one district."
+        return {"text": text, "refusal": "none", "facts": [], "programs": []}
+    if not _same_districts(matches):
+        lines = [f"- {m['name']}: " + _joined([o["name"] for o in m["overlaps"]]) for m in matches]
+        text = (
+            "The U.S. Census Bureau matched more than one address. Check which one you mean:\n"
+            + "\n".join(lines)
+        )
+        return {"text": text, "refusal": "none", "facts": [], "programs": []}
+    places = {o["geo"].split(":")[0]: (o["geo"], o["name"]) for o in matches[0]["overlaps"]}
+    where = (
+        f"The U.S. Census Bureau matched this address to {matches[0]['name']}. It is in {places['house'][1]} "
+        f"and {places['senate'][1]}, in {places['county'][1]}. District lines are the 2022 boundaries in use today."
+    )
+    rest = question.replace(address, " ")
+    words = set(WORDS.findall(rest.casefold()))
+    chamber = "senate" if "senate" in words and "house" not in words else "house"
+    q = rest.casefold()
+    picked = tuple(places[chamber][0].split(":"))
+    asks = asks_fixed_income(q) or any(w in q for w in ("program", "benefit", "assistance", "support"))
+    if not (asks or indicators(con, CHAMBER_WORDS.sub(" ", rest))):
+        return {"text": where, "refusal": "none", "facts": [], "programs": [], "district": picked}
+    result = ask(con, rest, picked)
+    result["text"] = f"{where}\n\n{result['text']}"
+    return result | {"where": where, "district": picked}
+
+
+def ask(con, question, district, geocoder=None):
+    """Free answer for the selected district, or for the district of a street address the question names;
+    geocoder finds that address's Census blocks, or is None when address lookup is off."""
     if PERSONAL.search(question):
         return {
             "text": "I can describe districts from public data, but I cannot find or judge any one person.",
@@ -325,6 +368,8 @@ def ask(con, question, district):
             "facts": [],
             "programs": [],
         }
+    if address := address_in(question):
+        return address_answer(con, question, address, geocoder)
     name = con.execute("SELECT name FROM geography WHERE geo_type=? AND geo_id=?", list(district)).fetchone()[
         0
     ]

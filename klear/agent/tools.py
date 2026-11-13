@@ -15,6 +15,8 @@ from klear.programs import ELIGIBILITY_NOTE, NEEDS, Program, catalog
 from klear.rules.registry import load_rules
 from klear.store.db import MOE_STATUSES, SITE_KINDS, VALUE_STATUSES
 from klear.store.methods import fact_method
+from klear.web.geocode import NOTES as ADDRESS_NOTES
+from klear.web.geocode import GeocoderError, looks_like_address, readable
 
 CHAMBERS = {
     "house": ("h", "hd", "hse", "house"),
@@ -72,6 +74,14 @@ STATE_WORDS = frozenset((
 ))  # fmt: skip
 NO_MATCH_HINT = (
     "No match. Give a district like House District 22 or Senate District 12, a place name, or a ZIP code."
+)
+ADDRESS_FOUND = (
+    "The Census geocoder placed this street address in these districts. A street address is a place, not a "
+    "person: answer for its district with refusal none."
+)
+ADDRESS_HINT = (
+    "Say this plainly with refusal none, write please give a place, ZIP code or district, and never pick a "
+    "district from the town name."
 )
 NO_ZIP_NOTE = (
     "ZIP code {} has no area with residents in Hawaiʻi. Home ZIP codes there start with 967 or 968, "
@@ -174,8 +184,9 @@ def _tokens(text: str) -> set[str]:
 
 
 class Session:
-    def __init__(self, con):
-        self.con = con
+    def __init__(self, con, geocoder=None):
+        # geocoder finds the Census blocks of a street address, or is None when address lookup is off
+        self.con, self.geocoder = con, geocoder
         self.facts: dict[str, FactRef] = {}
         self.places: set[str] = set()
         self.geos: set[tuple[str, str]] = set()
@@ -239,6 +250,12 @@ class Session:
             if self._name("zcta", zipm.group(1)):
                 return {"matches": [self._zcta_match(zipm.group(1))]}
             return {"matches": [], "note": NO_ZIP_NOTE.format(zipm.group(1)), "hint": NO_MATCH_HINT}
+        if looks_like_address(text):
+            return self.find_address(text)
+        return self.resolve_name(text)
+
+    def resolve_name(self, text: str) -> dict:
+        """Census places, areas, counties or the state by name."""
         key = search_plain(text)
         if found := self._exact(key):
             return {"matches": self._name_matches(found)}
@@ -320,6 +337,28 @@ class Session:
         pop, overlaps = self._block_overlaps("county", county)
         overlaps = [o for o in overlaps if not o["geo"].startswith("county:")]
         return {"kind": "county", **self._geo("county", county), "pop2020": pop, "overlaps": overlaps}
+
+    def find_address(self, text: str) -> dict:
+        """Districts of a street address through the geocoder, or no matches with a note on why."""
+        outcome = "off" if self.geocoder is None else "none"
+        found = []
+        if self.geocoder is not None:
+            try:
+                found = self.geocoder(text)
+            except GeocoderError:
+                outcome = "failed"
+        matches = [m for block, label in found if (m := self.block_match(block, readable(label, text)))]
+        self._places_named(" ".join([text, *(m["name"] for m in matches)]))
+        if matches:
+            return {"matches": matches, "note": ADDRESS_FOUND}
+        return {"matches": [], "address": outcome, "note": ADDRESS_NOTES[outcome], "hint": ADDRESS_HINT}
+
+    def _places_named(self, text: str) -> None:
+        """Remember the Census places an address names, so an answer may name its town."""
+        words = f" {search_plain(text)} "
+        for name, plain in self.con.execute("SELECT name, plain FROM place").fetchall():
+            if plain and f" {plain} " in words:
+                self.places.add(name)
 
     def block_match(self, block: str, label: str) -> dict | None:
         """Districts and county of one 2020 Census block, for a street address the website geocoded to it."""
@@ -1083,11 +1122,17 @@ _GEO = {
 TOOL_SPECS = [
     _spec(
         "resolve_place",
-        "Resolve a district, ZIP code, island, county, neighborhood or town to geographies. Returns every "
+        "Resolve a district, ZIP code, street address, island, county, neighborhood or town to geographies. "
+        "A street address goes to the Census geocoder. Returns every "
         "candidate with its island and the districts and counties it overlaps, or no matches with a note on why. "
         "Islands, neighborhood board areas and county divisions have no facts of their own: use their districts, "
         "or their county when of_county is close to 1. Never guess between candidates.",
-        {"text": {"type": "string", "description": "District, ZIP code or place name as the user wrote it."}},
+        {
+            "text": {
+                "type": "string",
+                "description": "District, ZIP code, whole street address or place name as the user wrote it.",
+            }
+        },
         ["text"],
     ),
     _spec(
