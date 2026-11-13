@@ -86,7 +86,7 @@ No `source`, environment export, or `--env-file` option is needed. Restart the w
 - klear/etl: downloads the sources and builds the store (python -m klear.etl build).
 - klear/store: the DuckDB schema and the writer that rejects unsourced facts.
 - klear/validation: the build's validation checks and the docs/VALIDATION.md report.
-- klear/rules: loads the program rules and checks each value against its official source quote.
+- klear/rules: loads the program rules and checks each value against its official source quote. python -m klear.rules check rechecks the rules and program contacts against the live pages.
 - klear/agent: the agent, its data tools and the code that builds and checks each answer (python -m klear.agent).
 - klear/web: the local web server, landing page, district profile and chat interface (python -m klear.web).
 - klear/eval: the answer format, eval runner, answer checks, reports and spending cap (python -m klear.eval run).
@@ -139,6 +139,10 @@ Outputs in data/build:
 - house.geojson and senate.geojson: simplified district polygons for the web.
 
 The build also rewrites docs/VALIDATION.md, the public validation report. After the checks it rescores the newest recorded live run in eval/recordings against the new store (free, no model calls) and adds the published held-out totals from eval/heldout_summary.yaml. The website's How we check KLEAR page (/checks.html, linked from the footer) reads validation.json through /api/checks, so it always shows the latest build.
+
+### Keeping rules and programs current
+
+Every Monday at 8:00 HST, and by hand from the Actions tab, the freshness workflow (.github/workflows/freshness.yml) runs uv run python -m klear.rules check. It fetches each rule's pages and checks its quotes again, fetches each program's page and phone source and confirms the phone number still appears, and warns 30 days before a rule's review_by date. It exits 1 on any change or due date and then opens or updates one issue, "Program information needs review". Sites that block scripts are listed as needing a person and do not fail the run. The site shows when a person last checked each program and asks readers to check the official page once that is more than 90 days ago. docs/KEEPING-CURRENT.md explains how to update a rule or add a program, with a calendar of when each program's figures change.
 
 ## Tests and evaluation
 
@@ -251,7 +255,9 @@ See [Run the site locally](#run-the-site-locally) for startup instructions.
 With an Anthropic key configured, questions go to the same KLEAR assistant that
 `python -m klear.agent` runs. Without the key, the site uses free basic lookups.
 
-Website spending has its own cap of 5 dollars per HST day, kept in ~/.config/klear/web_spend.json and separate from the 60 dollar eval cap. Each question reserves its worst-case cost first and then records the actual cost. When the day's cap is reached or the API fails, the site falls back to a basic keyword lookup from the store and says so. Each visitor can ask 6 questions a minute, and the server answers 3 at a time.
+When an answer says the data is not available or is outside KLEAR's scope and shows no figures, the site adds one line linking to datatrove.ai (https://datatrove.ai/), a HAIC 2026 sponsor with its own chat over Hawaiʻi public datasets that are not published by district. The line is added where the page lays out the answer, not by the model, so the answer contract and the eval are unchanged. KLEAR only links to datatrove.ai and does not copy its data. The Data and sources and About sections of the page link to it too.
+
+Website spending has its own cap of 5 dollars per HST day, kept in ~/.config/klear/web_spend.json and separate from the 60 dollar eval cap. Each question reserves its worst-case cost first and then records the actual cost, and the file also keeps the day's input, output, cache write and cache read tokens. The assistant marks its tool definitions and system prompt for the prompt cache, so a question asked within 5 minutes of another reads them at the cache price. When the day's cap is reached or the API fails, the site falls back to a basic keyword lookup from the store and says so. Each visitor can ask 6 questions a minute, and the server answers 3 at a time.
 
 | Option | Purpose |
 | --- | --- |
@@ -262,7 +268,13 @@ Website spending has its own cap of 5 dollars per HST day, kept in ~/.config/kle
 | `--store PATH` | Use a different DuckDB store. |
 | `--daily-cap 5` | Set the website's model budget in dollars per HST day. |
 | `--model MODEL` | Choose the model used by the assistant. |
-| `--no-address-lookup` | Turn off street address search, so the server never contacts the Census geocoder. |
+| `--no-address-lookup` | Turn off street address lookup in search and chat, so the server never contacts the Census geocoder. |
+
+Health checks. GET /healthz always answers 200 with {"status": "ok"} while the server runs. GET /readyz answers 200 when the store is built and current, else 503, with ready, store (ok, missing, outdated or unreadable), built (the build day), prepared_answers (prepared starter answers for this build) and assistant (on or off). Neither calls the model or shows keys, file paths or questions. Cloud Run reserves some paths that end in z, so the same checks also answer at /api/health and /api/ready.
+
+### Outreach page
+
+/outreach.html ("Outreach" in the site menu) compares districts for five pairs of a group and the programs it may qualify for, set in `OUTREACH_PAIRS` in klear/agent/config.py: households in poverty without SNAP (SNAP), uninsured people under 138% of poverty (Med-QUEST), uninsured people from 138% to 399% of poverty (Marketplace premium tax credits), kūpuna under 200% of poverty (SSI, Kūpuna Care and Medicare Savings Programs) and working families and people below poverty (Federal EITC). The reader picks a pair and House or Senate. `GET /api/outreach?pair=ID&chamber=house|senate` ranks the group's direct ACS count with the same tiers as the assistant's rank_districts tool, so districts whose ranges overlap share a group and are listed by number, never in an order the data cannot support. Each district also shows its program-use figure from `PROFILE_BESIDE` (SNAP households, SSI households, EITC returns or Marketplace enrollees with premium tax credits) for comparison only. Figures moved from ZIP codes are too wide to rank. The page opens with a sentence naming the top tier, flags unreliable estimates, and lists each program's page and phone with the income-test caveat. Each district profile has an "Outreach opportunities" note naming up to two pairs whose top tier holds the district, the smallest tier first.
 
 ### Prepared answers to the starter questions
 
@@ -316,6 +328,25 @@ without a data build. After a build changes the boundaries, regenerate it with:
 
     uv run python -m klear.etl.mapshapes
 
+"Color the map by" shades the map by one of seven rates and medians listed in `MEASURES` in
+klear/web/shade.py: people and keiki below the poverty level, the share who are kūpuna, median
+household income, renters paying 35% or more of income, people without health insurance and
+households receiving SNAP. `GET /api/map?indicator=pct_people_poverty&chamber=house` reads the
+measure for every district of the chamber through the rank_districts tool, with no model call, and
+returns each district's figure and margin written as its profile writes them, its low and high
+ends, a status (ok, unreliable or not available), its shade, and a sentence comparing it with the
+state in the profile's words; plus the label, unit, source, year, state figure and each shade's
+range. The districts are split into five shades of about equal count, with breaks only where the
+written figure changes, so two shades never share a value. Shades run from pale yellow to a dark
+shade of the chamber's color (`--house-q1` to `--house-q5` and `--senate-q1` to `--senate-q5` in
+style.css), each clearly darker than the last, so the five can be told apart in grayscale and with
+any common color vision deficiency. They are set by class, never by a style attribute. Borders and
+stripes are ink on the three light shades and white on the two dark ones. Stripes mark an unreliable estimate and dots a
+district with no figure, so neither depends on color. The legend gives each shade's range, the
+source and year, and says that districts whose margins of error overlap may not differ. The
+picked district's figure and state comparison show under the map, and "Show as a table" lists
+every district, highest first.
+
 The landing page resolves House/Senate numbers, towns, neighborhoods, islands, counties
 and ZIPs using the built store. Overlaps are shown as choices instead of guessing a district:
 each place is listed with its island and the share of its residents in each district, and a
@@ -337,7 +368,20 @@ Search also takes a street address. The server sends it to the U.S. Census Burea
 store, so the districts come from the same 2022 plan as the rest of the site. The address is
 used only for that request: it is not stored, the server keeps no request log, and the page
 says so beside the search box. If the geocoder is unreachable, search falls back to names and
-says so. Start the site with `--no-address-lookup` to keep every request local.
+says so. Start the site with --no-address-lookup to keep every request local.
+
+Chat takes a street address too, as in "Which House and Senate district is 310 W Kaʻahumanu Ave,
+Kahului in?". A street address on its own is a place, not a person, so it is answered, not declined.
+The assistant passes the address to its resolve_place tool, and the basic lookup finds it in the
+question, and both use the same geocoder and block lookup as the search box, then answer for that
+district. A town can span districts, so when the geocoder is off, unreachable or finds no match, chat
+says so and asks for a place, ZIP code or district instead of guessing one from the town name.
+Questions about the people at an address, such as who lives there, are still declined. When the
+address is in another district than the one chosen, the answer is labeled with that district, its
+next questions name it, and a button switches the chat and profile to it. The matched address is shown
+in title case with Hawaiian spelling. The note under the question box says the address goes to the
+Census Bureau and is not stored or logged, and that assistant answers send the question to the AI
+model provider. The agent and eval command lines take the same --no-address-lookup option.
 Chat offers five example questions, a waiting state, explicit refusal labels,
 and figure cards with uncertainty, vintage, geography and official source
 links. Source names open the publisher's page about the dataset, never an API answer or a
@@ -346,7 +390,7 @@ file download. Each ACS figure also links to its table for that place on data.ce
 can be read. Each figure moved to districts from ZIP codes or tracts, or modeled by CDC, links
 to its source's section of the methods page instead. Each comparison chart has a sentence saying what it shows (written in
 `_summary` in klear/web/display.py) and a data table under it. The examples are a list until a district is chosen, then short buttons
-above the question box. Program questions list official guidance without
+at the end of the conversation, above the question box. Program questions list official guidance without
 assessing individual eligibility. Questions outside the available measures
 receive a clear limit instead of a guessed answer. Questions are independent:
 previous messages are displayed locally but are not sent as conversation history.
@@ -354,8 +398,8 @@ After each answer the chat offers up to three next questions, each written out i
 district and county named, so the basic lookup can answer them too. A question that takes more
 than 45 seconds is stopped. A waiting question can be cancelled, and errors that may pass offer Retry.
 
-Choosing a district also shows its district profile next to the chat. The profile is read
-straight from the store with no model call, through `GET /api/profile?district=house:022`.
+Choosing a district opens its own page, such as /district/house-22, with its profile beside the chat. The
+profile is read straight from the store with no model call, through `GET /api/profile?district=house:022`.
 A district chosen while an answer is still loading shows its profile at once, and the chat switches to it after that answer.
 It names the district's counties, islands, Census places and the overlapping districts
 in the other chamber, shows four headline figures, then 37 figures in seven sections:
@@ -385,11 +429,33 @@ The rates and the median are compared with the county holding most of the distri
 and the answer lists SSI, Kūpuna Care, SNAP and Med-QUEST with official links. The assistant's answer is rejected
 until it cites each figure, comparison and program, as listed in FIXED_INCOME in klear/agent/config.py.
 
-On screens at least 1200 px wide the profile and the chat are equal-width columns; below that
-the profile sits under the chat at full width. The chat card stays compact until the first
-question is sent, then grows to a fixed height and scrolls its conversation inside it. The
-profile never scrolls inside itself: it takes the height its figures need, and each section
-opens and closes on its own.
+The assistant and the free lookup follow the same rules for a few kinds of question:
+
+- Housing insecurity, food insecurity, lack of reliable transportation and utility shut-off threats get the CDC
+  PLACES measure held for the district, called a modeled estimate, not rent burden.
+- Public housing units get the count of units as well as the count of developments.
+- A figure tied to a program, such as households receiving SNAP or renters paying 35 percent or more of income on
+  rent, names that program (SNAP, HUD income limits) and lists it with its official link. The pairs are in
+  TIED_PROGRAMS in klear/agent/config.py.
+- A statewide question (statewide, the whole state, Hawaiʻi overall) is answered for the state.
+- A question for a year the store does not publish, such as 2025 when the latest survey covers 2020-2024, says
+  plainly that the year is not published, gives the latest figures with their years, and is marked as data not
+  available.
+- The answer builder spells Hawaiian place names with ʻokina and kahakō in the assistant's own words too, leaving
+  web addresses and official organization names as written.
+
+A district's page starts at the top with its name as the page heading, where it is, the four
+headline figures with their margins, a link to every section, and a row of three share buttons
+(print a one-page summary, copy the link, download the figures as CSV). The home page's photo band
+and search give way to it, and Back returns to them. The sections follow in reading order: People,
+Income, Programs to explore here, then the rest. Each is a disclosure that ends with a link back to
+the top. On screens at least 1200 px wide the first three start open, the profile is the main
+column, and the chat sits beside it, sticky and as tall as the window, so its conversation scrolls
+inside it while the profile scrolls beside it. Below 1200 px the profile and the chat are two tabs,
+Profile and Ask, under the district's name. Sections the reader opens or closes, and the tab, are
+remembered for the browser tab. A link to a section, such as /district/house-22#profile-housing,
+opens the page at that section. `--stick` in style.css is how much of the site header stays on
+screen as the page scrolls (none yet); the chat sticks just under it.
 
 Only the static web assets are served; the repository and store cannot be
 downloaded. The server rejects cross-origin browser requests. HTTP logs are disabled to avoid recording questions.

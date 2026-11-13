@@ -1,6 +1,6 @@
 // Sharing a district: its own address with Back, Forward and refresh, Copy link, a one-page printout and a CSV download.
 import {test, expect} from '@playwright/test';
-import {DISTRICT, ask, chooseDistrict, offline} from './helpers.js';
+import {DISTRICT, ask, chooseDistrict, offline, showTab} from './helpers.js';
 
 test.beforeEach(async ({context}) => offline(context));
 
@@ -12,9 +12,12 @@ test('each district has its own address, which Back, Forward and a pasted link f
   await expect(page).toHaveURL(/\/district\/house-22$/);
   await expect(page).toHaveTitle(`${DISTRICT} – KLEAR`);
 
-  // Another district adds another address; a section link within the same district changes nothing.
-  await page.getByLabel('District, place, ZIP code, or street address').first().fill('House 23');
-  await page.getByRole('button', {name: 'Find district'}).first().click();
+  // Another district, chosen from the chat's own search, adds another address; a section link within the same
+  // district changes nothing.
+  await showTab(page, 'Ask');
+  await page.getByRole('button', {name: 'Change district'}).click();
+  await page.locator('#place').fill('House 23');
+  await page.locator('#lookup').getByRole('button', {name: 'Find district'}).click();
   await expect(page).toHaveURL(/\/district\/house-23$/);
   await page.getByRole('navigation', {name: 'Main navigation'}).getByRole('link', {name: 'Map'}).click();
   await expect(page).toHaveURL(/\/district\/house-23#district-map$/);
@@ -24,10 +27,12 @@ test('each district has its own address, which Back, Forward and a pasted link f
   await expect(page.locator('#district-title')).toHaveText(DISTRICT);
   await expect(page.locator('#profile-live')).toHaveText(`Profile for ${DISTRICT} loaded.`);
 
-  // Back to the page with no district: the starter questions return in place of the profile.
+  // Back to the home page: its photo band, heading and starter questions return in place of the district's page.
   await page.goBack();
   await expect(page).toHaveURL(/:\d+\/$/);
   await expect(page.locator('#district-title')).toHaveText('No district chosen yet');
+  await expect(page.locator('.band')).toBeVisible();
+  await expect(page.getByRole('heading', {level: 1})).toHaveText('Hawaiʻi legislative district data');
   await expect(page.locator('#profile')).toBeHidden();
   await expect(page.locator('#starter').getByRole('button', {name: 'Give me a socioeconomic profile of this district.'})).toBeVisible();
   await expect(page).toHaveTitle('KLEAR: Hawaiʻi legislative district data');
@@ -36,11 +41,15 @@ test('each district has its own address, which Back, Forward and a pasted link f
   await expect(page.locator('#district-title')).toHaveText(DISTRICT);
   await expect(page.locator('#starter')).toBeHidden();
 
-  // A pasted link opens the same district in a new tab.
+  // A pasted link opens the same district in a new tab, at the top of its page, with its name as the page heading.
   const pasted = await context.newPage();
   await pasted.goto('/district/house-22');
   await expect(pasted.locator('#district-title')).toHaveText(DISTRICT);
   await expect(pasted.locator('#profile-live')).toHaveText(`Profile for ${DISTRICT} loaded.`);
+  await expect(pasted.getByRole('heading', {level: 1})).toHaveText(DISTRICT);
+  await expect(pasted.locator('.band')).toBeHidden();
+  await expect(pasted.locator('#profile .profile-stats')).toBeInViewport();
+  expect(await pasted.evaluate(() => scrollY)).toBe(0);
 
   // A link to a district that does not exist lands on the page with no district and says why.
   await pasted.goto('/district/house-99');
@@ -67,8 +76,9 @@ test('a refresh keeps the district and its answers', async ({page}) => {
 test('a question still loading, or failed, when the page reloads waits in the box', async ({page}) => {
   await page.goto('/district/house-22');
   await expect(page.locator('#profile-live')).toHaveText(`Profile for ${DISTRICT} loaded.`);
-  // The answer never arrives; the reload cancels the request.
+  // The answer never arrives; the reload cancels the request. A reload keeps the Ask tab open.
   await page.route('**/api/chat', () => {});
+  await showTab(page, 'Ask');
   await page.getByLabel('Your question').fill('How many kūpuna live here?');
   await page.getByRole('button', {name: 'Ask KLEAR'}).click();
   await expect(page.locator('#log .pending')).toBeVisible();

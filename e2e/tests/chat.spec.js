@@ -1,6 +1,6 @@
 // The chat around each answer: next-question buttons, the waiting line with Cancel, errors with Retry, and shortcuts.
 import {test, expect} from '@playwright/test';
-import {DISTRICT, ask, chooseDistrict, offline} from './helpers.js';
+import {DISTRICT, ask, chooseDistrict, offline, showTab} from './helpers.js';
 
 test.beforeEach(async ({context}) => offline(context));
 
@@ -15,6 +15,7 @@ async function holdQuestions(page) {
 test('three related questions, each asked with a next-question button', async ({page}) => {
   await page.goto('/');
   await chooseDistrict(page);
+  await showTab(page, 'Ask');
   const sent = [];
   page.on('request', r => { if (r.url().endsWith('/api/chat')) sent.push(r.postDataJSON()); });
   const first = await ask(page, 'How many kūpuna live in this district?');
@@ -53,6 +54,7 @@ test('the examples include ones picked from the district profile, and they go wh
   });
   await page.goto('/');
   await chooseDistrict(page);
+  await showTab(page, 'Ask');
   const local = page.locator('#examples .local');
   // House 22's poverty rate is about 40 percent above Honolulu County's in the test store.
   await expect(local).toHaveCount(2);
@@ -84,6 +86,7 @@ test('the examples include ones picked from the district profile, and they go wh
 test('a slow question shows the seconds, can be cancelled, and Retry asks it again', async ({page}) => {
   await page.goto('/');
   await chooseDistrict(page);
+  await showTab(page, 'Ask');
   const release = await holdQuestions(page);
   await page.getByLabel('Your question').fill('How many kūpuna live here?');
   await page.getByRole('button', {name: 'Ask KLEAR'}).click();
@@ -109,6 +112,7 @@ test('a question with no answer after 45 seconds is stopped and says what to do'
   await page.clock.install();
   await page.goto('/');
   await chooseDistrict(page);
+  await showTab(page, 'Ask');
   const release = await holdQuestions(page);
   await page.getByLabel('Your question').fill('How many kūpuna live here?');
   await page.getByRole('button', {name: 'Ask KLEAR'}).click();
@@ -123,6 +127,7 @@ test('a question with no answer after 45 seconds is stopped and says what to do'
 test('error pages that are not JSON get plain messages that say what to do next', async ({page}) => {
   await page.goto('/');
   await chooseDistrict(page);
+  await showTab(page, 'Ask');
   const replies = [
     [502, '<!doctype html><title>502 Bad Gateway</title><h1>Bad Gateway</h1>', 'KLEAR’s server is not responding right now (error 502). Wait a moment, then press Retry.', true],
     [200, '<!doctype html><title>Sign in</title><h1>Sign in to the network</h1>', 'KLEAR sent a reply it could not read. Press Retry to ask again.', true],
@@ -144,6 +149,7 @@ test('error pages that are not JSON get plain messages that say what to do next'
 test('Ctrl+Enter sends the question, and Enter alone starts a new line', async ({page}) => {
   await page.goto('/');
   await chooseDistrict(page);
+  await showTab(page, 'Ask');
   const box = page.getByLabel('Your question');
   await expect(box).toHaveAccessibleDescription(/^Press (Ctrl|⌘)\+Enter to send\.$/);
   await box.fill('How many kūpuna');
@@ -157,4 +163,31 @@ test('Ctrl+Enter sends the question, and Enter alone starts a new line', async (
   await box.fill('How does poverty here compare?');
   await box.press('Meta+Enter');
   await expect(page.locator('#log article')).toHaveCount(2);
+});
+
+test('an answer with no data points to datatrove.ai, and an answer with figures does not', async ({page}) => {
+  await page.goto('/');
+  await chooseDistrict(page);
+  const missing = await ask(page, 'How many people are enrolled in WIC here?');
+  await expect(missing.locator('h3')).toContainText('Data not available');
+  const line = missing.locator('p.elsewhere');
+  await expect(line).toHaveText('For other Hawaiʻi public data on this topic, try datatrove.ai (opens in a new tab).');
+  const link = line.getByRole('link', {name: 'datatrove.ai (opens in a new tab)'});
+  await expect(link).toHaveAttribute('href', 'https://datatrove.ai/');
+  await expect(link).toHaveClass('ext');
+  await expect(link).toHaveAttribute('target', '_blank');
+  await expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+  const found = await ask(page);
+  await expect(found.locator('.tile').first()).toBeVisible();
+  await expect(found.locator('.elsewhere')).toHaveCount(0);
+  await expect(found.getByRole('link', {name: /datatrove/})).toHaveCount(0);
+});
+
+test('Data and sources and About name datatrove.ai as a site that leaves KLEAR', async ({page}) => {
+  await page.goto('/');
+  for (const section of ['#sources', '#about']) {
+    const link = page.locator(`${section} a[href="https://datatrove.ai/"]`);
+    await expect(link).toHaveText('datatrove.ai (external site)');
+    await expect(link).toHaveClass('ext');
+  }
 });

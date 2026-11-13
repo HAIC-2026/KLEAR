@@ -36,6 +36,8 @@ COUNTIES = {
     "15009": "Maui County",
 }
 PHONE = re.compile(r"^(?:\(\d{3}\) |1-\d{3}-)\d{3}-\d{4}$")
+# A program last checked by a person longer ago than this sends readers to its official page.
+STALE_AFTER_DAYS = 90
 ELIGIBILITY_NOTE = (
     "This district-level view cannot establish any person's eligibility. "
     "Consult each program's official guidance."
@@ -208,3 +210,8 @@ def catalog() -> tuple[Program, ...]:
 def by_rule() -> dict[str, Program]:
     """Each rule id mapped to the program whose thresholds it holds."""
     return {r: p for p in catalog() for r in p.rules}
+
+
+def is_stale(p: Program, today: date | None = None) -> bool:
+    """True when a person last checked the program's details more than STALE_AFTER_DAYS ago."""
+    return ((today or date.today()) - p.verified).days > STALE_AFTER_DAYS

@@ -1,0 +1,40 @@
+# Scripted model turns for rank-007: find the indicator and program, rank the districts, then submit.
+- - type: tool_use
+    name: search_indicators
+    input:
+      words:
+      - kupuna
+      - poverty
+  - type: tool_use
+    name: list_programs
+    input:
+      words:
+      - SSI
+      - kupuna
+- - type: tool_use
+    name: rank_districts
+    input:
+      indicator: kupuna_under_200pct_poverty
+      chamber: house
+- - type: tool_use
+    name: submit_answer
+    input:
+      resolved: null
+      refusal: none
+      blocks:
+      - 'Outreach about the SSI federal payment and Kūpuna Care could reach the most kūpuna in these House districts, counted
+        as {label:f4}. Their ranges overlap, so the data cannot put them in order ({vintage:f4}):
+
+        * {geo:house:004}: {fact:f4}
+
+        * {geo:house:028}: {fact:f28}'
+      facts:
+      - f4
+      - f28
+      programs:
+      - ssi_federal_2026
+      - kupuna_care
+      caveats:
+      - These count people or households who meet the income test only. Assets, age, immigration status and household rules
+        also apply, and the Census Bureau's national poverty thresholds sit below the state's poverty guidelines, so counts
+        near a program limit may run low.

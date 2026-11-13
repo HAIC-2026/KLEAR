@@ -21,6 +21,7 @@ import pytest
 from klear import config
 from klear.web import __main__ as web
 from klear.web import display
+from klear.web.assistant import Assistant
 from tests.eval.conftest import _home  # noqa: F401
 
 
@@ -294,12 +295,16 @@ def test_startup_reports_mode_and_missing_store(tmp_path, monkeypatch, capsys, h
         raise KeyboardInterrupt
 
     monkeypatch.setattr(ThreadingHTTPServer, "serve_forever", stop)
+    warmed = threading.Event()
+    monkeypatch.setattr(Assistant, "warm", staticmethod(warmed.set))
     args = ["--port", "0", "--store", str(tmp_path / "missing.duckdb")]
     if basic_only:
         args.append("--basic-only")
     web.main(args)
     out = capsys.readouterr().out
     assert expected in out
+    # With the assistant on, its code loads at startup instead of on the first question.
+    assert warmed.wait(5) if has_key and not basic_only else not warmed.is_set()
     assert "Landing page preview only" in out
     assert "uv run python -m klear.etl build" in out
     assert "Ctrl+C" in out

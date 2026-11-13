@@ -1,0 +1,41 @@
+id: rank-006
+category: rank
+question: Which Senate districts have the most working families below poverty who could be told about the EITC?
+ideal: Ranks Hawaiʻi Senate districts by working families and working people below poverty and names the first tier together,
+  saying their ranges overlap. Names the Federal EITC and says the count meets the income test only.
+tags:
+- outreach
+facts:
+- - working_below_poverty
+  - senate
+  - '001'
+- - working_below_poverty
+  - senate
+  - '002'
+- - working_below_poverty
+  - senate
+  - '003'
+- - working_below_poverty
+  - senate
+  - '008'
+- - working_below_poverty
+  - senate
+  - '010'
+- - working_below_poverty
+  - senate
+  - '011'
+- - working_below_poverty
+  - senate
+  - '012'
+- - working_below_poverty
+  - senate
+  - '013'
+- - working_below_poverty
+  - senate
+  - '015'
+must_say:
+- overlap
+- income test
+programs:
+- eitc_federal_ty2026
+refusal: none

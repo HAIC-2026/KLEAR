@@ -1,5 +1,4 @@
 # Bounded Claude tool loop behind KlearAgent: tools fill facts, one submit_answer ends the question.
-import math
 import time
 from pathlib import Path
 
@@ -8,6 +7,7 @@ import anthropic
 from klear.agent.answer import (
     SUBMIT_SPEC,
     build_answer,
+    finish,
     required_comparisons,
     required_facts,
     required_programs,
@@ -33,11 +33,13 @@ from klear.agent.tools import TOOL_SPECS, Session
 from klear.config import load_secret
 from klear.eval.agents import Usage
 from klear.eval.contract import Answer, geo_display, render
-from klear.eval.spend import _model, load_prices
+from klear.eval.spend import load_prices, rates
 
 SUBMIT = SUBMIT_SPEC["name"]
-TOOLS = [*TOOL_SPECS, SUBMIT_SPEC]
 EPHEMERAL = {"type": "ephemeral"}
+# Cache breakpoints after the tool definitions and after the system prompt, which render in that order and never
+# change, so every later call and question reads them at the cache price.
+TOOLS = [*TOOL_SPECS, SUBMIT_SPEC | {"cache_control": EPHEMERAL}]
 SYSTEM_BLOCKS = [{"type": "text", "text": SYSTEM, "cache_control": EPHEMERAL}]
 NUDGE = "Use the tools, then call submit_answer with your answer. Do not reply with plain text."
 CUT = "Your reply hit the output limit before this call finished, so it was not run."
@@ -65,9 +67,12 @@ def _marked(messages: list[dict]) -> list[dict]:
     return [*head, {**last, "content": content}]
 
 
-def _input_tokens(u) -> int:
-    write = getattr(u, "cache_creation_input_tokens", None) or 0
-    return u.input_tokens + math.ceil(1.25 * write) + (getattr(u, "cache_read_input_tokens", None) or 0)
+def _count(totals: list[int], u) -> None:
+    """Add one response's input, output, cache write and cache read tokens to the question's totals."""
+    totals[0] += u.input_tokens
+    totals[1] += u.output_tokens
+    totals[2] += getattr(u, "cache_creation_input_tokens", None) or 0
+    totals[3] += getattr(u, "cache_read_input_tokens", None) or 0
 
 
 def _call_record(block) -> dict:
@@ -80,10 +85,20 @@ def _call_record(block) -> dict:
 class KlearAgent:
     name = "klear"
 
-    def __init__(self, con, model: str = DEFAULT_MODEL, client=None, sleep=time.sleep, review: bool = False):
+    def __init__(
+        self,
+        con,
+        model: str = DEFAULT_MODEL,
+        client=None,
+        sleep=time.sleep,
+        review: bool = False,
+        geocoder=None,
+    ):
         if model not in REQUEST_SETTINGS:
             raise ValueError(f"unsupported model {model!r}, expected one of {sorted(REQUEST_SETTINGS)}")
         self.con, self.model, self._client, self._sleep = con, model, client, sleep
+        # geocoder finds the Census blocks of a street address, or is None when address lookup is off
+        self.geocoder = geocoder
         self.reviews = REVIEW_CALLS if review else 0
         if review:
             self.name = "klear-review"
@@ -106,8 +121,11 @@ class KlearAgent:
     def max_call_cost(self, model, question, prices: Path | dict) -> float:
         if model != self.model:
             raise ValueError(f"agent runs {self.model!r} but the cost bound was asked for {model!r}")
-        rate = _model(prices if isinstance(prices, dict) else load_prices(prices), model)
-        answer = MAX_CALLS * (INPUT_CAP * 1.25 * rate["input"] + MAX_TOKENS * rate["output"])
+        rate = rates(prices if isinstance(prices, dict) else load_prices(prices), model)
+        # Worst case: every input token of every call is written to the cache.
+        answer = MAX_CALLS * (
+            INPUT_CAP * max(rate["input"], rate["cache_write"]) + MAX_TOKENS * rate["output"]
+        )
         review = self.reviews * (REVIEW_INPUT_CAP * rate["input"] + REVIEW_MAX_TOKENS * rate["output"])
         return (answer + review) / 1e6
 
@@ -134,7 +152,7 @@ class KlearAgent:
             for place in dict.fromkeys(p for _, p in pairs):
                 ids = [i for i, p in pairs if p == place]
                 session.run("get_facts", {"indicator_ids": ids, "geos": [":".join(place)]})
-        return template_answer(session, resolved, "none", context, programs)
+        return finish(session, template_answer(session, resolved, "none", context, programs))
 
     def _review(self, session: Session, answer: Answer, totals: list[int]) -> list[tuple[str, str]]:
         """Flags from one reviewer call on the rendered answer; none when the call fails or runs too long."""
@@ -155,8 +173,7 @@ class KlearAgent:
         except anthropic.APIError as e:
             self.trace.append({"review_error": type(e).__name__})
             return []
-        totals[0] += _input_tokens(resp.usage)
-        totals[1] += resp.usage.output_tokens
+        _count(totals, resp.usage)
         call = next((b for b in resp.content or [] if b.type == "tool_use"), None)
         flags = review_flags(call.input if call else None, answer.refusal)
         self.trace.append({"stop": "review", "flags": [f for f, _ in flags]})
@@ -178,7 +195,7 @@ class KlearAgent:
 
     def _run(self, session: Session, question: str, context) -> tuple[Answer, list[int]]:
         messages = [{"role": "user", "content": _text(self._prompt(question, context))}]
-        totals = [0, 0]
+        totals = [0, 0, 0, 0]
         tried: dict = {}
         settings = REQUEST_SETTINGS[self.model]
         used = strikes = reviews = 0
@@ -207,8 +224,7 @@ class KlearAgent:
                 strikes += 1
                 continue
             strikes = 0
-            totals[0] += _input_tokens(resp.usage)
-            totals[1] += resp.usage.output_tokens
+            _count(totals, resp.usage)
             step = {"stop": resp.stop_reason, "calls": [_call_record(b) for b in resp.content or []]}
             self.trace.append(step)
             if resp.stop_reason == "refusal":
@@ -254,8 +270,8 @@ class KlearAgent:
     def answer(self, golden_id: str, question: str, context: tuple[str, str] | None) -> tuple[Answer, Usage]:
         start = time.monotonic()
         self.trace: list[dict] = []
-        session = Session(self.con)
+        session = Session(self.con, self.geocoder)
         session.context = context
         session.question = question
-        answer, (inp, out) = self._run(session, question, context)
-        return answer, Usage(inp, out, time.monotonic() - start)
+        answer, (inp, out, write, read) = self._run(session, question, context)
+        return answer, Usage(inp, out, time.monotonic() - start, write, read)

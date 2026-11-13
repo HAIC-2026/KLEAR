@@ -1,5 +1,6 @@
 # Tests for the answer builder, its self-check and the template answers.
 import json
+from dataclasses import replace
 
 import pytest
 
@@ -7,13 +8,19 @@ from klear.agent import config
 from klear.agent.answer import (
     NUMBER_HINT,
     SUBMIT_SPEC,
+    UNPUBLISHED_TEXT,
     _method_text,
     allowed_geos,
     build_answer,
+    spelled,
     template_answer,
+    tied_programs,
+    unpublished_years,
 )
-from klear.eval.contract import REFUSALS, FactRef
-from klear.eval.scorers import answer_problems
+from klear.eval.contract import REFUSALS, FactRef, render
+from klear.eval.golden import Golden
+from klear.eval.scorers import answer_problems, score
+from klear.text import hawaiian, misspellings
 
 GOOD = "{geo:house:022} has {fact:f1} {label:f1} ({vintage:f1})."
 
@@ -97,7 +104,8 @@ def test_geos_alone_do_not_allow(s1):
         "house:22",
         "house:999",
         "house:a:b",
-        "state:15",
+        "state:99",
+        "county:15003",
     ],
 )
 def test_malformed_resolved(s1, resolved):
@@ -438,3 +446,178 @@ def test_template_writes_the_group_word(s1):
     a = template_answer(s1, ("house", "022"), "none")
     assert a.blocks[0] == "Figures on kūpuna and keiki:"
     assert answer_problems(a, s1.con, allowed_geos(s1, ("house", "022"))) == []
+
+
+def test_state_resolves_for_a_statewide_answer(s1):
+    s1.run("get_facts", {"indicator_ids": ["pop_65_plus"], "geos": ["state:15"]})
+    a, problems = build_answer(
+        s1, args(resolved="state:15", blocks=["{geo:state:15} {fact:f2} {vintage:f2}"], facts=["f2"])
+    )
+    assert problems == [] and a.resolved == ("state", "15")
+
+
+@pytest.mark.parametrize(
+    "question",
+    [
+        "How many kūpuna live in Hawaiʻi statewide?",
+        "What is the state-wide count of kupuna?",
+        "How many kupuna are there in Hawaii overall?",
+        "How many kupuna live across the state?",
+        "How many kupuna live in the whole state?",
+    ],
+)
+def test_statewide_question_resolves_to_the_state(s1, question):
+    s1.question = question
+    s1.run("get_facts", {"indicator_ids": ["pop_65_plus"], "geos": ["state:15"]})
+    a, problems = build_answer(
+        s1, args(resolved=None, blocks=["{geo:state:15}: {fact:f2} kūpuna ({vintage:f2})."], facts=["f2"])
+    )
+    assert problems == [] and a.resolved == ("state", "15")
+
+
+def test_statewide_answer_with_only_state_facts_overrides_the_selected_district(s1):
+    s1.question = "How many seniors live in Hawaiʻi overall?"
+    s1.run("get_facts", {"indicator_ids": ["pop_65_plus"], "geos": ["state:15"]})
+    blocks = ["{geo:state:15}: {fact:f2} ({vintage:f2})."]
+    a, problems = build_answer(s1, args(blocks=blocks, facts=["f2"]), context=("house", "022"))
+    assert problems == [] and a.resolved == ("state", "15")
+    a, _ = build_answer(s1, args(blocks=[GOOD, *blocks], facts=["f1", "f2"]), context=("house", "022"))
+    assert a.resolved == ("house", "022")
+
+
+def test_district_question_keeps_a_null_resolved(s1):
+    s1.question = "How many seniors live in the state senate districts I picked?"
+    s1.run("get_facts", {"indicator_ids": ["pop_65_plus"], "geos": ["state:15"]})
+    a, problems = build_answer(s1, args(resolved=None, blocks=["{fact:f2} {vintage:f2}"], facts=["f2"]))
+    assert problems == [] and a.resolved is None
+
+
+@pytest.mark.parametrize(("raw", "want"), [
+    ("Most people in Hawaii rent.", "Most people in Hawaiʻi rent."),
+    ("Kauai and Oahu differ from {geo:state:15}.", "Kauaʻi and Oʻahu differ from {geo:state:15}."),
+    ("Apply at https://medquest.Hawaii.gov/Hawaii or www.Hawaii.gov.", "Apply at https://medquest.Hawaii.gov/Hawaii or www.Hawaii.gov."),
+    ("Email Hawaii.help@Hawaii.gov in Hawaii.", "Email Hawaii.help@Hawaii.gov in Hawaiʻi."),
+    ("See [Hawaii Med-QUEST](https://medquest.Hawaii.gov).", "See [Hawaiʻi Med-QUEST](https://medquest.Hawaii.gov)."),
+    ("Call WAIANAE COAST COMPREHENSIVE HEALTH CTR in Waianae.", "Call WAIANAE COAST COMPREHENSIVE HEALTH CTR in Waiʻanae."),
+    ("Hawaii's keiki", "Hawaiʻi's keiki"),
+])  # fmt: skip
+def test_spelled_adds_okina_outside_web_addresses_and_names(raw, want):
+    assert spelled(raw) == want
+
+
+def test_accepted_answer_spells_place_names(s1):
+    a, problems = build_answer(
+        s1, args(blocks=[GOOD + " Kupuna in Hawaii and on Oahu, see https://Hawaii.gov."])
+    )
+    assert problems == []
+    assert "Hawaiʻi and on Oʻahu, see https://Hawaii.gov." in a.blocks[0]
+    text = render(a, s1.con)
+    assert misspellings(text.replace("https://Hawaii.gov", "")) == [] and "Hawaii " not in text
+
+
+@pytest.mark.parametrize(("question", "vintages", "labels", "programs", "want"), [
+    ("Poverty rate for 2025?", ["2020-2024 ACS 5-year"], [], [], [2025]),
+    ("Poverty rate in 2022?", ["2020-2024 ACS 5-year"], [], [], []),
+    ("Housing insecurity in 2025?", ["PLACES 2025 release, BRFSS 2023 model"], [], [], [2025]),
+    ("Housing insecurity in 2023?", ["PLACES 2025 release, BRFSS 2023 model"], [], [], []),
+    ("Vouchers in 2025?", ["Through December 2025"], [], [], []),
+    ("Sites in 2025?", ["Current layer as retrieved by this build"], [], [], []),
+    ("Homes built before 1980", ["2020-2024 ACS 5-year"], ["Housing units built 1979 or earlier"], [], [1980]),
+    ("Homes built 1979 or earlier", ["2020-2024 ACS 5-year"], ["Housing units built 1979 or earlier"], [], []),
+    ("EITC claims for tax year 2025", ["Tax year 2023"], [], ["eitc_federal_ty2025 Federal EITC (tax year 2025)"], []),
+    ("Poverty in ZIP 96720 and House 20", ["2020-2024 ACS 5-year"], [], [], []),
+    ("Poverty for 2025?", [], [], [], []),
+])  # fmt: skip
+def test_unpublished_years(question, vintages, labels, programs, want):
+    assert unpublished_years(question, vintages, labels, programs) == want
+
+
+def test_year_not_published_is_not_available_with_the_latest_figure(session):
+    session.question = "What share of residents were in poverty in House District 5 for 2025?"
+    session.run("get_facts", {"indicator_ids": ["pct_people_poverty"], "geos": ["house:005"]})
+    block = "In {geo:house:005}, {fact:f1} of residents ({vintage:f1})."
+    a, problems = build_answer(session, args(resolved="house:005", blocks=[block]))
+    assert problems == [] and a.refusal == "not_available"
+    assert a.blocks[0] == UNPUBLISHED_TEXT and a.facts[0].indicator_id == "pct_people_poverty"
+    said = "The year you asked about is not published yet. " + block
+    a, _ = build_answer(session, args(resolved="house:005", blocks=[said]))
+    assert a.refusal == "not_available" and a.blocks == [said]
+    session.question = "What share of residents were in poverty in House District 5?"
+    a, _ = build_answer(session, args(resolved="house:005", blocks=[block]))
+    assert a.refusal == "none" and a.blocks == [block]
+
+
+def test_tied_programs():
+    assert tied_programs(["pct_hh_snap", "hh_snap", "median_age"], []) == ["snap_fy2027"]
+    assert tied_programs(["pct_rent_burden_35_plus", "hud_vouchers"], []) == ["hud_il_fy2026_hi"]
+    assert tied_programs(["units_public_housing"], ["hud_il_fy2026_hi"]) == []
+    assert tied_programs(["irs_eitc_returns"], ["eitc_federal_ty2026"]) == []
+    assert tied_programs(["places_utility_shutoff_threat"], []) == ["h_heap_fy2026"]
+
+
+@pytest.mark.parametrize(("indicator", "rule", "name"), [
+    ("pct_hh_snap", "snap_fy2027", "SNAP"),
+    ("pct_rent_burden_35_plus", "hud_il_fy2026_hi", "HUD income limits"),
+    ("units_public_housing", "hpha_limits", "Hawaiʻi Public Housing Authority income limits"),
+])  # fmt: skip
+def test_figures_tied_to_a_program_name_it(session, indicator, rule, name):
+    session.question = "What does the data show for House District 29?"
+    session.run("get_facts", {"indicator_ids": [indicator], "geos": ["house:029"]})
+    a, problems = build_answer(
+        session, args(resolved="house:029", blocks=["{label:f1}: {fact:f1} ({vintage:f1})."])
+    )
+    assert problems == [] and rule in a.programs
+    labelled = name in render(replace(a, blocks=a.blocks[:1]), session.con)
+    assert a.blocks[-1] == (a.blocks[0] if labelled else f"Related programs: {name}.")
+    g = Golden(id="x", category="profile", question=session.question, ideal="", programs=[rule])
+    assert next(o for o in score(g, a, session.con) if o.check == "programs").passed
+
+
+def test_named_program_is_not_repeated(session):
+    session.question = "How many households get SNAP in House District 29?"
+    session.run("get_facts", {"indicator_ids": ["pct_hh_snap"], "geos": ["house:029"]})
+    block = "{label:f1}: {fact:f1} ({vintage:f1}), from SNAP."
+    a, problems = build_answer(session, args(resolved="house:029", blocks=[block]))
+    assert problems == [] and a.programs == ["snap_fy2027"] and a.blocks == [block]
+
+
+def test_modeled_figure_is_called_a_modeled_estimate(session):
+    session.question = "How common is housing insecurity in House District 29?"
+    session.run("get_facts", {"indicator_ids": ["places_housing_insecurity"], "geos": ["house:029"]})
+    block = "{label:f1}: {fact:f1} ({vintage:f1})."
+    a, problems = build_answer(session, args(resolved="house:029", blocks=[block]))
+    assert problems == [] and a.caveats == ["{label:f1} is a modeled estimate."]
+    a, _ = build_answer(session, args(resolved="house:029", blocks=[block + " This is a modeled estimate."]))
+    assert a.caveats == []
+
+
+def test_housing_insecurity_question_requires_the_places_measure(session):
+    session.question = "How common is housing insecurity in House District 29?"
+    session.run("get_facts", {"indicator_ids": ["pct_rent_burden_35_plus"], "geos": ["house:029"]})
+    _, problems = build_answer(
+        session, args(resolved="house:029", blocks=["{label:f1}: {fact:f1} ({vintage:f1})."])
+    )
+    assert problems == [
+        "this question asks for places_housing_insecurity at house:029; call get_facts for it and cite it"
+    ]
+
+
+def test_public_housing_units_question_requires_units(session):
+    session.question = "How many public housing units are in House District 29?"
+    session.run("find_sites", {"geo": "house:029", "kind": "public_housing"})
+    _, problems = build_answer(
+        session, args(resolved="house:029", blocks=["{label:f1}: {fact:f1} ({vintage:f1})."])
+    )
+    assert problems == [
+        "this question asks for units_public_housing at house:029; call get_facts for it and cite it"
+    ]
+    blocks = ["{label:f2}: {fact:f2} ({vintage:f2}), at {fact:f1} {label:f1}."]
+    a, problems = build_answer(session, args(resolved="house:029", blocks=blocks, facts=["f1", "f2"]))
+    assert problems == [] and "hpha_limits" in a.programs
+
+
+def test_template_lists_tied_programs(session):
+    session.run("get_facts", {"indicator_ids": ["pct_hh_snap"], "geos": ["house:029"]})
+    a = template_answer(session, ("house", "029"), "none")
+    assert a.programs == ["snap_fy2027"] and a.blocks[-1] == "Related programs: SNAP."
+    assert hawaiian(render(a, session.con)) == render(a, session.con)

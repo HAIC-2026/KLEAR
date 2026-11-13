@@ -2,6 +2,7 @@ rule_id: eitc_federal_ty2026
 program: Federal EITC (tax year 2026)
 status: confirmed
 effective: '2026-01-01'
+review_by: '2028-01-01'
 info_url: https://www.irs.gov/credits-deductions/individuals/earned-income-tax-credit-eitc
 source_url: https://www.irs.gov/newsroom/irs-releases-tax-inflation-adjustments-for-tax-year-2026-including-amendments-from-the-one-big-beautiful-bill
 fetch_url: https://www.irs.gov/pub/irs-drop/rp-25-32.pdf

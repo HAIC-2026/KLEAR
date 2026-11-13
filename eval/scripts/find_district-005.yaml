@@ -1,0 +1,17 @@
+# Scripted model turns for find_district-005: replays run with address lookup off, so ask for a place, ZIP code or district.
+- - type: tool_use
+    name: resolve_place
+    input:
+      text: 310 W Kaʻahumanu Ave, Kahului
+- - type: tool_use
+    name: submit_answer
+    input:
+      resolved: null
+      refusal: none
+      blocks:
+      - Street address lookup is turned off here, so I cannot place that address in a
+        district. A town such as Kahului can span more than one district, so please give
+        a place, ZIP code or district.
+      facts: []
+      programs: []
+      caveats: []

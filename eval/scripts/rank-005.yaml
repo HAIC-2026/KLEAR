@@ -1,0 +1,65 @@
+# Scripted model turns for rank-005: find the indicator and program, rank the districts, then submit.
+- - type: tool_use
+    name: search_indicators
+    input:
+      words:
+      - uninsured
+      - poverty
+  - type: tool_use
+    name: list_programs
+    input:
+      words:
+      - Marketplace
+- - type: tool_use
+    name: rank_districts
+    input:
+      indicator: uninsured_138_399pct_poverty
+      chamber: senate
+- - type: tool_use
+    name: submit_answer
+    input:
+      resolved: null
+      refusal: none
+      blocks:
+      - 'Outreach about the ACA premium tax credit could reach the most {label:f2} in these Senate districts. Their ranges
+        overlap, so the data cannot put them in order ({vintage:f2}):
+
+        * {geo:senate:002}: {fact:f2}
+
+        * {geo:senate:003}: {fact:f3}
+
+        * {geo:senate:005}: {fact:f5}
+
+        * {geo:senate:006}: {fact:f6}
+
+        * {geo:senate:007}: {fact:f7}
+
+        * {geo:senate:008}: {fact:f8}
+
+        * {geo:senate:014}: {fact:f14}
+
+        * {geo:senate:019}: {fact:f19}
+
+        * {geo:senate:020}: {fact:f20}
+
+        * {geo:senate:021}: {fact:f21}
+
+        * {geo:senate:022}: {fact:f22}'
+      facts:
+      - f2
+      - f3
+      - f5
+      - f6
+      - f7
+      - f8
+      - f14
+      - f19
+      - f20
+      - f21
+      - f22
+      programs:
+      - aca_ptc_2026
+      caveats:
+      - These count people or households who meet the income test only. Assets, age, immigration status and household rules
+        also apply, and the Census Bureau's national poverty thresholds sit below the state's poverty guidelines, so counts
+        near a program limit may run low.

@@ -14,7 +14,7 @@ export async function offline(context) {
     route.fulfill({status: 200, contentType: 'text/html', body: '<!doctype html><title>Source</title><h1>Source page</h1>'}));
 }
 
-// Search from the top of the page and pick a district from the matches.
+// Search from the top of the home page and pick a district from the matches. The district's page opens at its profile.
 export async function chooseDistrict(page, query = 'Kāneʻohe', button = /^House 22\b/) {
   await page.getByLabel('District, place, ZIP code, or street address').first().fill(query);
   await page.getByRole('button', {name: 'Find district'}).first().click();
@@ -23,21 +23,33 @@ export async function chooseDistrict(page, query = 'Kāneʻohe', button = /^Hous
   await expect(page.locator('#profile-live')).toHaveText(`Profile for ${DISTRICT} loaded.`);
 }
 
+// Below 1200 px a district's page shows its profile or the chat behind two tabs, Profile and Ask. Open one; wider, both
+// show and there is nothing to do.
+export async function showTab(page, name) {
+  const tab = page.getByRole('tab', {name: new RegExp(`^${name}\\b`)});
+  if (await tab.isVisible()) await tab.click();
+}
+
 // Ask a question by typing it, and wait for the answer to arrive.
 export async function ask(page, question = 'How does poverty here compare with the county and state?') {
+  await showTab(page, 'Ask');
   await page.getByLabel('Your question').fill(question);
   await page.getByRole('button', {name: 'Ask KLEAR'}).click();
   await expect(page.locator('#chat-live')).toHaveText(`Answer ready for ${DISTRICT}.`);
   return page.locator('#log article').last();
 }
 
-// Open every disclosure, so axe checks what is inside them too.
+// Open every disclosure, so axe checks what is inside them too. The header's menu stays shut: open, it would cover the
+// page under it (axe.spec.js checks it open on its own).
 export async function openAll(page) {
-  await page.locator('details').evaluateAll(all => all.forEach(d => { d.open = true; }));
+  await page.locator('details:not(.nav-menu)').evaluateAll(all => all.forEach(d => { d.open = true; }));
 }
 
-// Run axe for WCAG A and AA. Serious and critical problems fail the test; the rest are attached as notes.
+// Run axe for WCAG A and AA. Serious and critical problems fail the test; the rest are attached as notes. It runs from
+// the top of the page: further down, the header that stays on screen covers whatever has scrolled under it, and axe
+// would count that against a button half under it, as if the button were too small.
 export async function expectAccessible(page, testInfo, view) {
+  await page.evaluate(() => window.scrollTo({top: 0, behavior: 'instant'}));
   const results = await new AxeBuilder({page}).withTags(WCAG).analyze();
   const describe = v => `${v.impact} ${v.id}: ${v.help}\n${v.nodes.map(n => `  ${n.target.join(' ')}`).join('\n')}`;
   const minor = results.violations.filter(v => !FAILING.has(v.impact));

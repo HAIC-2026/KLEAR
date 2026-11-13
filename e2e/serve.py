@@ -24,7 +24,7 @@ from klear.store.db import add_coverage, add_facts, add_indicators, add_source
 from klear.web import __main__ as web
 from klear.web.assistant import Assistant, DailyBudget
 from tests.agent.fake_client import tool, turn
-from tests.fixtures.small_store import _fact, build_small_store
+from tests.fixtures.small_store import _fact, add_outreach, build_small_store
 
 DISTRICT = "house:022"
 PARTISAN = ("vote", "candidate", "campaign", "party")
@@ -72,6 +72,8 @@ def build_store(path: Path) -> None:
     rows = [
         _fact("house", "022", "pct_people_poverty", 12.3, 2.1),
         _fact("house", "023", "pct_people_poverty", 7.9, 1.8),
+        # An unreliable estimate (margin of error over half the figure), so the shaded Senate map has stripes.
+        _fact("senate", "012", "pct_people_poverty", 3.0, 2.5),
         _fact("county", "15003", "pct_people_poverty", 8.9, 0.5),
         _fact("state", "15", "pct_people_poverty", 9.8, 0.4),
         _fact("house", "022", "median_age", 44.1, 1.2, **acs),
@@ -83,6 +85,8 @@ def build_store(path: Path) -> None:
         ),
     ]  # fmt: skip
     add_facts(con, pd.DataFrame(rows))
+    # The SNAP outreach pair, so the outreach page and the profile's outreach note have figures.
+    add_outreach(con)
     con.close()
 
 
@@ -110,6 +114,12 @@ class _Messages:
         question = _question(messages)
         if any(word in question for word in PARTISAN):
             return turn(tool("submit_answer", _decline(), "tu_submit"))
+        if "wic" in question:
+            return turn(tool("submit_answer", _not_available(), "tu_submit"))
+        if "1 test st" in question:
+            if len(messages) == 1:
+                return turn(tool("resolve_place", {"text": "1 Test St, Kāneʻohe"}))
+            return turn(tool("submit_answer", _address(messages), "tu_submit"))
         if len(messages) == 1:
             # f1 and f2 are the district's poverty rate and kūpuna count; the county and state follow.
             geos = [DISTRICT, "county:15003", "state:15"]
@@ -138,6 +148,32 @@ def _answer(refs: list[str]) -> dict:
         "facts": refs,
         "programs": [],
         "caveats": ["Survey estimates for small areas have wide margins of error."],
+    }
+
+
+def _address(messages: list[dict]) -> dict:
+    """Names the districts resolve_place found for the address, or asks for a place when it found none."""
+    found = json.loads(messages[-1]["content"][0]["content"])
+    geos = [o["geo"] for m in found["matches"] for o in m["overlaps"] if not o["geo"].startswith("county")]
+    blocks = [f"That address is in {{geo:{geos[0]}}} and {{geo:{geos[1]}}}."] if geos else [found["note"]]
+    return {
+        "resolved": geos[0] if geos else None,
+        "refusal": "none",
+        "blocks": blocks,
+        "facts": [],
+        "programs": [],
+        "caveats": [],
+    }
+
+
+def _not_available() -> dict:
+    return {
+        "resolved": DISTRICT,
+        "refusal": "not_available",
+        "blocks": ["WIC enrollment is not published by district, so KLEAR does not have it."],
+        "facts": [],
+        "programs": [],
+        "caveats": [],
     }
 
 
@@ -184,6 +220,8 @@ def main(argv: list[str] | None = None) -> None:
     web.PER_MINUTE = 10_000
     web.BUSY = threading.BoundedSemaphore(64)
     assistant = Assistant(DailyBudget(1_000.0, work / "spend.json"), client=ScriptedClient())
+    # Load the agent code before serving, so the first test's question is not slowed by the import.
+    assistant.warm()
     server = Server(
         ("127.0.0.1", args.port), partial(web.Handler, store=store, assistant=assistant, geocoder=geocoder)
     )

@@ -11,6 +11,7 @@
   <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=2">
   <link rel="preload" href="/fonts/public-sans.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/style.css">
+  <script src="/nav.js" defer></script>
   <script src="/app.js" defer></script>
   <script src="/map.js" defer></script>
 </head>
@@ -18,7 +19,21 @@
   <a class="skip" href="#main">Skip to content</a>
   <header class="site-header">
     <a class="brand" href="/"><img class="brand-logo" src="/logo.svg" width="36" height="36" alt=""><span class="brand-text"><strong>KLEAR</strong><span class="brand-sub">Hawaiʻi district data</span></span></a>
-    <nav aria-label="Main navigation"><a href="#district-map">Map</a><a href="#how">How it works</a><a href="#sources">Sources</a><a href="#about">About</a></nav>
+    <nav aria-label="Main navigation">
+      <ul class="nav-links">
+        <li><a href="/#find">Find<span class="nav-long"> a district</span></a></li>
+        <li><a href="#chat">Ask</a></li>
+        <li><a href="#district-map">Map</a></li>
+        <li><a href="/outreach.html">Outreach</a></li>
+        <li><details class="nav-menu"><summary>Data<span class="nav-long"> and methods</span></summary><ul>
+          <li><a href="#sources">Sources</a></li>
+          <li><a href="/methods.html">Methods</a></li>
+          <li><a href="/glossary.html">Glossary</a></li>
+          <li><a href="/checks.html">How we check KLEAR</a></li>
+        </ul></details></li>
+        <li><a href="#about">About</a></li>
+      </ul>
+    </nav>
   </header>
   <main id="main">
     <section class="band" aria-labelledby="page-title">
@@ -39,11 +54,21 @@
 
     <section class="chat-section" id="chat" aria-labelledby="chat-title">
       <div class="wrap">
-        <div class="section-head">
+        <div class="section-head" id="chat-head">
           <h2 id="chat-title">Ask about a district</h2>
           <p>KLEAR answers only from its public data store. Each figure lists its source, survey years, and margin of error. Where it helps, KLEAR also shows the state value for comparison. Answers describe communities, not individuals. KLEAR declines personal and partisan requests.</p>
         </div>
         <div class="chat-layout">
+          <!-- On a district's address the page starts here, with the district's name as its heading. Below 1200 px the
+               profile and the chat take turns behind two tabs; wider, the chat sits beside the profile. -->
+          <div class="district-head" id="district-head" hidden>
+            <p class="small-label">District profile</p>
+            <h1 id="district-name" tabindex="-1"></h1>
+            <div id="district-about"></div>
+            <a class="skip-ask" id="skip-ask" href="#question">Skip to the question box</a>
+            <div class="view-tabs" id="view-tabs" role="tablist" aria-label="District page"><button type="button" role="tab" id="tab-profile" aria-controls="profile" aria-selected="true">Profile</button><button type="button" role="tab" id="tab-ask" aria-controls="chat-card" aria-selected="false" tabindex="-1">Ask <span class="tab-new" id="tab-new" hidden>New answer</span></button></div>
+          </div>
+          <section id="profile" class="profile" aria-label="District profile" hidden></section>
           <div class="chat-card" id="chat-card">
             <div class="district-bar" id="district-bar">
               <div class="district-now" id="district-now"><div><span class="small-label">Asking about</span><strong id="district-title">No district chosen yet</strong></div><button type="button" id="change" class="textbutton" aria-expanded="false" aria-controls="lookup">Choose a district</button></div>
@@ -52,18 +77,18 @@
             <div id="messages">
               <div class="bot-msg welcome"><p class="sender">KLEAR</p><p id="welcome-text">Ask about this district.</p></div>
               <div id="log"></div>
+              <div id="suggest" class="suggest" role="group" aria-label="Suggested questions" hidden></div>
             </div>
-            <div id="suggest" class="suggest" role="group" aria-label="Suggested questions" hidden></div>
-            <form id="question-form"><label for="question" class="visually-hidden">Your question</label><div class="question-row"><textarea id="question" rows="1" required maxlength="2000" placeholder="Type your question here" aria-describedby="send-hint"></textarea><button id="send" type="submit">Ask KLEAR</button></div><p id="send-hint" class="send-hint">Press Ctrl+Enter to send.</p></form>
+            <form id="question-form"><label for="question" class="visually-hidden">Your question</label><div class="question-row"><textarea id="question" rows="1" required maxlength="2000" placeholder="Type your question here" aria-describedby="send-hint"></textarea><button id="send" type="submit">Ask KLEAR</button></div><p class="chat-notes"><span id="send-hint" class="send-hint">Press Ctrl+Enter to send.</span> <span class="chat-privacy">A street address in a question goes to the U.S. Census Bureau only to find its district. KLEAR does not store or log it. Assistant answers send the question to the AI model provider.</span></p></form>
             <p id="chat-status" class="status" role="status"></p>
-            <p id="chat-live" class="visually-hidden" role="status"></p>
           </div>
-          <aside class="chat-aside" aria-label="Questions to try and district profile">
+          <aside class="chat-aside" aria-labelledby="examples-title">
             <div id="starter"><h3 id="examples-title">Questions to try</h3><div id="examples" class="examples"></div></div>
-            <section id="profile" class="profile" aria-labelledby="profile-title" hidden></section>
-            <p id="profile-live" class="visually-hidden" role="status"></p>
           </aside>
         </div>
+        <!-- Status lines outside both tabs, so they are read whichever tab shows. -->
+        <p id="chat-live" class="visually-hidden" role="status"></p>
+        <p id="profile-live" class="visually-hidden" role="status"></p>
       </div>
     </section>
 
@@ -72,18 +97,22 @@
         <div class="section-head">
           <h2 id="map-title">Find your district</h2>
           <p>Choose House or Senate. Pick an island, or zoom in to the area you know. Then tap a district and ask about it. District lines are the 2022 boundaries in use today.</p>
+          <p>To compare districts, color the map by a measure such as poverty or income. The figures are also shown as a table under the map.</p>
         </div>
         <div class="map-card">
           <form class="zip-form" id="zip-form" novalidate><label for="zip">Highlight a ZIP code</label><div class="inputrow"><input id="zip" inputmode="numeric" maxlength="5" placeholder="e.g. 96744" autocomplete="postal-code"><button type="submit">Show on map</button></div><p id="zip-status" class="status" role="status"></p><div id="zip-matches" class="chips"></div></form>
+          <div class="shade-row"><label for="map-shade">Color the map by</label><select id="map-shade"><option value="">Nothing (plain map)</option><option value="pct_people_poverty">People below the poverty level</option><option value="pct_children_poverty">Keiki below the poverty level</option><option value="pct_65_plus">Share who are kūpuna (65 and over)</option><option value="median_household_income">Median household income</option><option value="pct_rent_burden_35_plus">Renters paying 35% or more of income</option><option value="pct_uninsured">People without health insurance</option><option value="pct_hh_snap">Households receiving SNAP</option></select><p id="shade-status" class="status" role="status"></p><p id="shade-live" class="visually-hidden" role="status"></p></div>
           <div class="map-controls">
             <div class="segmented" role="group" aria-label="Chamber"><button type="button" data-chamber="house" aria-pressed="true">House</button><button type="button" data-chamber="senate" aria-pressed="false">Senate</button></div>
             <div class="island-tabs" id="island-tabs" role="group" aria-label="Zoom to island"></div>
           </div>
           <div class="map-frame"><svg id="map" role="group" tabindex="-1" aria-labelledby="map-title" aria-describedby="map-keys" preserveAspectRatio="xMidYMid meet"></svg><p id="map-keys" hidden>Arrow keys move between districts. Enter picks one, and Enter again asks about it.</p><p id="map-loading" class="map-loading">Loading map…</p><div class="zoom-buttons"><button type="button" id="zoom-in" aria-label="Zoom in">+</button><button type="button" id="zoom-out" aria-label="Zoom out">−</button></div><p id="map-hint" class="map-hint" hidden>Pinch, or hold Ctrl while scrolling, to zoom</p></div>
+          <div id="map-legend" class="map-legend" hidden></div>
           <div class="map-footer">
-            <div class="map-pick" aria-live="polite"><span class="small-label" id="pick-island">No district picked yet</span><strong id="pick-name">Tap an area on the map</strong></div>
+            <div class="map-pick" aria-live="polite"><span class="small-label" id="pick-island">No district picked yet</span><strong id="pick-name">Tap an area on the map</strong><span id="pick-value" class="pick-value" hidden></span></div>
             <button type="button" id="pick-go" class="map-go" disabled>Ask about this district</button>
           </div>
+          <details id="map-table" class="chart-data map-table" hidden><summary>Show as a table</summary><div class="table-scroll" tabindex="0" role="region" aria-labelledby="map-table-caption"><table><caption id="map-table-caption"></caption><thead><tr><th scope="col">District</th><th scope="col">Estimate</th><th scope="col">90% margin of error</th><th scope="col" id="map-table-note">Note</th></tr></thead><tbody id="map-table-body"></tbody></table></div></details>
           <label for="map-list" class="map-list-label">Or choose from a list</label>
           <select id="map-list"><option value="">Choose a district…</option></select>
         </div>
@@ -119,6 +148,7 @@
           <li>Modeled health and needs estimates from CDC PLACES are shown as ranges too. <a href="/methods.html">How KLEAR estimates these ranges</a>.</li>
           <li>Missing data stays missing. KLEAR does not fill gaps with guesses.</li>
           <li>Program links go to each program’s official page. KLEAR does not decide anyone’s eligibility.</li>
+          <li>For Hawaiʻi public data that is not published by district, such as crime, schools, energy or state budgets, try <a class="ext" href="https://datatrove.ai/">datatrove.ai<span class="visually-hidden"> (external site)</span></a>, a HAIC 2026 sponsor.</li>
         </ul>
         <p class="validation-link">Every check, the build date, and the checks still waiting on files are listed in the <a class="ext" href="https://github.com/HAIC-2026/KLEAR/blob/main/docs/VALIDATION.md">validation report<span class="visually-hidden"> (external site)</span></a>.</p>
       </div>
@@ -138,6 +168,8 @@
           <li>[Name], [role], [GitHub profile]</li>
           <li>[Name], [role], [GitHub profile]</li>
         </ul>
+        <h3>Partner resource</h3>
+        <p class="partner">For Hawaiʻi data beyond district figures, <a class="ext" href="https://datatrove.ai/">datatrove.ai<span class="visually-hidden"> (external site)</span></a>, a HAIC 2026 sponsor, has its own chat over thousands of public datasets.</p>
       </div>
     </section>
   </main>
@@ -148,10 +180,11 @@
         <div class="footer-col">
           <h2 class="footer-title">Reports</h2>
           <ul>
+            <li><a href="/methods.html">Methods</a></li>
             <li><a href="/glossary.html">Glossary</a></li>
             <li><a href="/checks.html">How we check KLEAR</a></li>
             <li><a class="ext" href="https://github.com/HAIC-2026/KLEAR/blob/main/docs/VALIDATION.md">Validation report<span class="visually-hidden"> (external site)</span></a></li>
-            <li><a class="ext" href="https://github.com/HAIC-2026/KLEAR/blob/main/docs/ACCESSIBILITY.md">Accessibility statement<span class="visually-hidden"> (external site)</span></a></li>
+            <li><a href="/accessibility.html">Accessibility statement</a></li>
           </ul>
         </div>
         <div class="footer-col">

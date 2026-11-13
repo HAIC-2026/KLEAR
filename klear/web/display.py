@@ -6,14 +6,21 @@ import re
 from datetime import datetime
 
 from klear.agent.answer import actual_direction
-from klear.agent.config import PROFILE_HEADLINE
+from klear.agent.config import OUTREACH_NOTE_LIMIT, OUTREACH_PAIRS, PROFILE_HEADLINE
 from klear.config import CURRENT_LAYER
 from klear.eval.contract import MARKER, _has, _number, geo_display, geo_key, short_name
 from klear.labels import in_sentence, meaning, short_label
-from klear.programs import ELIGIBILITY_NOTE, NEEDS, Program, by_rule, catalog
+from klear.programs import ELIGIBILITY_NOTE, NEEDS, Program, by_rule, catalog, is_stale
 from klear.store.methods import place_note
 
 MAX_TILES = 6
+# Pointer to datatrove.ai, a HAIC sponsor with Hawaiʻi public data not published by district. KLEAR only links to it.
+ELSEWHERE = {
+    "text": "For other Hawaiʻi public data on this topic, try",
+    "name": "datatrove.ai",
+    "url": "https://datatrove.ai/",
+}
+NO_DATA = ("not_available", "out_of_scope")
 # Where a profile's shares of residents in each place and overlapping district come from (klear/etl/blocks.py).
 SHARES_SOURCE = {
     "name": "2020 Census Redistricting Data (P.L. 94-171), population by block",
@@ -96,6 +103,12 @@ def _built_day(con) -> datetime | None:
         return datetime.strptime(row[0][:10], "%Y-%m-%d") if row and row[0] else None
     except ValueError:
         return None
+
+
+def build_day(con) -> str | None:
+    """Day the store was built in HST, like '2026-10-09', or None when the store does not record it."""
+    day = _built_day(con)
+    return f"{day:%Y-%m-%d}" if day else None
 
 
 def build_month(con) -> str:
@@ -321,6 +334,11 @@ def build(con, answer) -> dict:
     }
 
 
+def elsewhere(refusal: str, has_figures: bool) -> dict:
+    """The datatrove.ai pointer for an answer with no figures because the data is missing or out of scope."""
+    return {"elsewhere": dict(ELSEWHERE)} if refusal in NO_DATA and not has_figures else {}
+
+
 NOUNS = {"percent": "rate", "dollars": "amount"}
 
 
@@ -440,9 +458,11 @@ def _section(title: str, rows: list[dict]) -> dict:
     return {"title": title, "rows": rows, "sources": sources, "compared": others, "caveat": shared}
 
 
-def profile(con, raw: dict, session, islands: str = "", matched: dict | None = None) -> dict:
-    """The district profile tool's result laid out for the website, with figures written like the tiles, and
-    the district programs tool's result when given."""
+def profile(
+    con, raw: dict, session, islands: str = "", matched: dict | None = None, tops: dict | None = None
+) -> dict:
+    """The district profile tool's result laid out for the website, with figures written like the tiles, the
+    district programs tool's result when given, and the outreach pairs whose top tier holds the district."""
     store = _Store(con)
     rows = {
         r["fact"]["indicator_id"]: _profile_row(r, session, store) for s in raw["sections"] for r in s["rows"]
@@ -469,6 +489,7 @@ def profile(con, raw: dict, session, islands: str = "", matched: dict | None = N
         "sections": sections,
         "shares_source": SHARES_SOURCE,
         "programs": matched_programs(con, matched, session) if matched else None,
+        "outreach": outreach_note(raw["district"], tops, session, store) if tops and tops["ranked"] else None,
         "built": build_date(con),
     }
 
@@ -535,7 +556,16 @@ def need_text(reason: dict, session, store: _Store, place: str) -> str:
     return f"{clause}, {TAILS[reason['direction']].format(state=state)}."
 
 
+def checked_text(p: Program, stale: bool) -> str:
+    """When a person last checked the program, or a nudge to the official page once that is too long ago."""
+    when = f"{p.verified:%B} {p.verified.day}, {p.verified.year}"
+    if stale:
+        return f"Check the official page. These details were last checked on {when}."
+    return f"Checked against official pages on {when}."
+
+
 def _program_row(p: Program, reasons: list[str]) -> dict:
+    stale = is_stale(p)
     return {
         "id": p.program_id,
         "name": p.name,
@@ -546,6 +576,8 @@ def _program_row(p: Program, reasons: list[str]) -> dict:
         "phone": p.phone,
         "phone_label": p.phone_label,
         "verified": f"{p.verified:%B} {p.verified.day}, {p.verified.year}",
+        "checked": checked_text(p, stale),
+        "stale": stale,
         "reasons": reasons,
     }
 
@@ -593,6 +625,230 @@ def program_rows(rule_ids: list[str]) -> list[dict]:
     owners = by_rule() | {p.program_id: p for p in catalog()}
     found = [owners[r] for r in rule_ids if r in owners]
     return [_program_row(p, []) for p in dict.fromkeys(found)]
+
+
+# The outreach page: a chamber's districts in tiers by a group that meets a program's income test.
+OUTREACH_PAGE = "/outreach.html"
+CHAMBER_WORDS = {"house": "House", "senate": "Senate"}
+ORDINALS = ("Top", "Second", "Third", "Fourth", "Fifth", "Sixth", "Seventh", "Eighth", "Ninth", "Tenth")
+UNRANKED = "no margin of error, so it is not placed in a group"
+# The page's opening sentence names each district of a top tier this small, with its figure, and counts a larger one.
+NAMED_MAX = 4
+
+
+def _figure(f, unit: str, inside: bool = False) -> str:
+    """A fact's figure for a sentence, like '1,755 ± 268' or 'about 900 (range 800 to 1,000)'."""
+    return _said({"number": _plain(f, unit), "spread": _spread(f, unit)}, inside)
+
+
+def _district_path(geo: str) -> str:
+    chamber, number = geo.split(":")
+    return f"/district/{chamber}-{int(number)}"
+
+
+def _join(items: list[str]) -> str:
+    return items[0] if len(items) == 1 else f"{', '.join(items[:-1])} and {items[-1]}"
+
+
+def _outreach_row(entry: dict, raw: dict, session, store: _Store) -> dict:
+    """One district on the outreach page: its count as its profile shows it, a caution when the estimate is
+    unreliable, and its program-use figure."""
+    f = session.facts[entry["ref"]]
+    unit = store.unit(f)
+    row = {
+        "geo": entry["geo"],
+        "name": entry["geo_name"],
+        "path": _district_path(entry["geo"]),
+        "value": _plain(f, unit),
+        "spread": _spread(f, unit),
+        # True or False from the margin of error, or None when the figure has none to judge.
+        "reliable": entry["reliable"],
+        "caution": _caution(entry),
+        "use": None,
+    }
+    if use := raw["beside"].get(entry["geo"]):
+        u = session.facts[use["ref"]]
+        row["use"] = {"value": _plain(u, store.unit(u)), "spread": _spread(u, store.unit(u))}
+    return row
+
+
+def _tier_note(index: int, size: int) -> str:
+    """What a tier lets a reader say. Districts in a tier overlap, and every one of them is clearly below the
+    highest district of the tier above, but may overlap the others there."""
+    if index == 0:
+        if size == 1:
+            return "Its range sits above the range of every other district."
+        return "Their ranges overlap, so the data cannot say which of these districts is highest."
+    below = "clearly below the highest district in the group above"
+    if size == 1:
+        return f"It is {below}."
+    return f"Their ranges overlap, so the data cannot put them in order. Each is {below}."
+
+
+def _outreach_lead(top: list, store: _Store, who: str, chamber: str, total: int) -> str:
+    """The page's opening sentence: the top tier and its figures."""
+    word = CHAMBER_WORDS[chamber]
+    if not top:
+        return f"No {word} district has a figure for {who}."
+    top = sorted(top, key=lambda f: f.geo_id)  # district order, since the data cannot order them
+    names = [store.place(f.geo_type, f.geo_id) for f in top]
+    unit = store.unit(top[0])
+    if len(top) == 1:
+        return f"{names[0]} has the most {who} of any {word} district: {_figure(top[0], unit)}."
+    if len(top) <= NAMED_MAX:
+        named = _join([f"{n} ({_figure(f, unit, inside=True)})" for n, f in zip(names, top, strict=True)])
+        return f"{named} have the most {who}. Their ranges overlap, so the data cannot say which is highest."
+    values = [f.value for f in top]
+    low, high = _number(unit, min(values)), _number(unit, max(values))
+    return (
+        f"{len(top)} of {total} {word} districts share the top group for {who}, from {low} to {high} each. "
+        "Their ranges overlap, so no one district stands out."
+    )
+
+
+def _page_sources(facts, session, store: _Store) -> list[dict]:
+    """Each source behind the page's figures once, linked to the methods page when KLEAR moved its figures to
+    districts or CDC modeled them. ACS tables are not linked, since each table page shows one place."""
+    return _cited(
+        [
+            _source(f, store)
+            | (
+                {"links": [{"text": METHODS_TEXT, "url": f"{METHODS_PAGE}#{f.source_id}"}]}
+                if session.tiers.get(f.ref) in METHOD_TIERS
+                else {}
+            )
+            for f in facts
+        ]
+    )
+
+
+def _unreliable_text(shaky: int, total: int) -> str:
+    if not shaky:
+        return ""
+    if shaky == 1:
+        return (
+            f"1 of these {total} estimates is unreliable because its margin of error is large. It is marked."
+        )
+    return f"{shaky} of these {total} estimates are unreliable because their margins of error are large. Each is marked."
+
+
+def _state_figure(f, store: _Store) -> dict | None:
+    if f is None:
+        return None
+    unit = store.unit(f)
+    return {"name": store.place(f.geo_type, f.geo_id), "value": _plain(f, unit), "spread": _spread(f, unit)}
+
+
+def outreach(con, raw: dict, session) -> dict:
+    """The outreach tool's result laid out for the outreach page: a sentence on the top tier, then each tier's
+    districts in district order, since the data cannot order them, and the programs that serve the group."""
+    store = _Store(con)
+    spec = OUTREACH_PAIRS[raw["pair"]]
+    chamber, ind = raw["chamber"], raw["indicator_id"]
+    tiers = []
+    for i, t in enumerate(raw["tiers"]):
+        rows = sorted((_outreach_row(d, raw, session, store) for d in t["districts"]), key=lambda r: r["geo"])
+        title = f"{ORDINALS[i]} group" if i < len(ORDINALS) else f"Group {i + 1}"
+        tiers.append({"title": title, "note": _tier_note(i, len(rows)), "districts": rows})
+    # A figure with no margin of error has no range, so the tiers cannot place it.
+    unranked = [_outreach_row(d, raw, session, store) | {"reason": UNRANKED} for d in raw["unranked"]]
+    missing = [
+        {
+            "geo": m["geo"],
+            "name": store.place(*geo_key(m["geo"])),
+            "path": _district_path(m["geo"]),
+            "reason": m["reason"],
+        }
+        for m in raw["missing"]
+    ]
+    ranked = [session.facts[d["ref"]] for t in raw["tiers"] for d in t["districts"]]
+    top = [session.facts[d["ref"]] for d in raw["tiers"][0]["districts"]] if raw["tiers"] else []
+    total = len(ranked) + len(unranked) + len(missing)
+    # Districts with no figure have no estimate to judge, so they are left out of the count.
+    estimates = [r for t in tiers for r in t["districts"]] + unranked
+    shaky = sum(r["reliable"] is False for r in estimates)
+    state = session.facts[raw["state"]["ref"]] if raw["state"] else None
+    use_facts = [session.facts[b["ref"]] for b in raw["beside"].values()]
+    use = None
+    if raw["use"]:
+        about = store.meaning(raw["use"])["plain"]
+        ranged = any(session.tiers.get(f.ref) in METHOD_TIERS for f in use_facts)
+        use = {
+            "label": store.short(raw["use"]),
+            "note": " ".join(
+                [
+                    "This column is for comparison only. It does not set the groups.",
+                    about,
+                    "KLEAR estimates it for districts from ZIP code data, so it shows a range."
+                    if ranged
+                    else "",
+                ]
+            ).strip(),
+        }
+    known = {p.program_id: p for p in catalog()}
+    return {
+        "pair": raw["pair"],
+        "chamber": chamber,
+        "chamber_name": CHAMBER_WORDS[chamber],
+        "title": spec["title"],
+        "label": store.short(ind),
+        "meaning": store.meaning(ind),
+        "heading": f"{store.short(ind)}, by {CHAMBER_WORDS[chamber]} district",
+        "lead": _outreach_lead(top, store, spec["who"], chamber, total),
+        "year": store.vintage(top[0]) if top else "",
+        "state": _state_figure(state, store),
+        "unreliable": _unreliable_text(shaky, len(estimates)),
+        "caveat": raw.get("note", ""),
+        "use": use,
+        "tiers": tiers,
+        "unranked": unranked,
+        "missing": missing,
+        "programs": [_program_row(known[p], []) for p in spec["programs"] if p in known],
+        "note": ELIGIBILITY_NOTE,
+        "sources": _page_sources([*ranked, *([state] if state else []), *use_facts], session, store),
+        "pairs": [{"id": k, "title": v["title"], "who": v["who"]} for k, v in OUTREACH_PAIRS.items()],
+    }
+
+
+def outreach_note(district: dict, tops: dict, session, store: _Store) -> dict:
+    """The profile's short note on outreach: up to OUTREACH_NOTE_LIMIT pairs whose top tier holds the district,
+    the smallest tier first, each linked to its outreach page, or a line saying the district is in none."""
+    name = district["name"]
+    chamber = geo_key(district["geo"])[0]
+    word = CHAMBER_WORDS[chamber]
+    items = []
+    for t in tops["tops"][:OUTREACH_NOTE_LIMIT]:
+        spec = OUTREACH_PAIRS[t["pair"]]
+        f = session.facts[t["fact"]["ref"]]
+        figure = _figure(f, store.unit(f))
+        if t["shared"] == 1:
+            text = f"{name} has the most {spec['who']} of any {word} district: {figure}."
+        else:
+            text = (
+                f"{name} is one of {t['shared']} {word} districts in the top group for {spec['who']}, with "
+                f"{figure}. Their ranges overlap."
+            )
+        items.append(
+            {
+                "text": text,
+                "caution": _caution(t["fact"]),
+                "link": f"Compare {word} districts for {spec['title']}",
+                "url": f"{OUTREACH_PAGE}?pair={t['pair']}&chamber={chamber}",
+            }
+        )
+    more = len(tops["tops"]) - len(items)
+    return {
+        "title": "Outreach opportunities",
+        "items": items,
+        "none": ""
+        if items
+        else f"{name} is not in the top group of {word} districts for any outreach measure.",
+        "more": f"It is in the top group for {more} more {'measure' if more == 1 else 'measures'}."
+        if more
+        else "",
+        "link": {"text": "Where outreach could help most", "url": f"{OUTREACH_PAGE}?chamber={chamber}"},
+        "note": "Groups meet a program's income test only.",
+    }
 
 
 CSV_COLUMNS = (
