@@ -95,3 +95,31 @@ def test_decline_messages():
     assert grade(texts) <= TARGET
     hard = {t: round(grade([t]), 1) for t in texts if grade([t]) > 10}
     assert not hard, hard
+
+
+def test_map_shading_messages():
+    """The shaded map's messages in map.js, and the sentences the server writes for its legend and readout."""
+    from klear.web import shade
+
+    js = (STATIC / "map.js").read_text(encoding="utf-8")
+    found = []
+    for single, template in re.findall(r"'((?:[^'\\\n]|\\.)*)'|`((?:[^`\\]|\\.)*)`", js):
+        text = re.sub(r"\$\{[^}]*\}", "it", single or template)
+        if re.match(r"[A-Z]", text) and re.search(r"[.?!]$", text) and len(text.split()) >= 4:
+            found.append(text)
+    texts = [
+        *found,
+        shade.HOW,
+        shade.OVERLAP_NOTE,
+        shade._unreliable(1, 25),
+        shade._unreliable(20, 51),
+        "People below the poverty level: 23.4% ± 3.1 points. About 2.3 times the rate in Hawaiʻi: 10.0%.",
+        (
+            "Keiki below the poverty level: 34.1% ± 11.9 points. About 2.8 times the rate in Hawaiʻi: 12.1%. "
+            "Unreliable estimate: the margin of error is large."
+        ),
+        "People below the poverty level: no figure. Too few cases for the source to publish.",
+    ]
+    assert len(found) >= 4 and grade(texts) <= TARGET
+    hard = {t: round(grade([t]), 1) for t in texts if grade([t]) > CEILING}
+    assert not hard, hard

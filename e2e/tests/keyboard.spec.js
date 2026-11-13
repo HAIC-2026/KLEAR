@@ -130,3 +130,35 @@ test('the Ask button keeps focus while the answer loads, then focus moves to the
   await expect(page.locator('#log article h3')).toBeFocused();
   await expect(send).not.toHaveAttribute('aria-disabled');
 });
+
+test('the shaded map: choose a measure, move between districts, hear each figure and open the table', async ({page}) => {
+  await expect(page.locator('#map .district').first()).toBeAttached();
+  const select = page.getByLabel('Color the map by');
+  await select.focus();
+  await expect(select).toBeFocused();
+  await page.keyboard.press('ArrowDown');
+  await expect(select).toHaveValue('pct_people_poverty');
+  await expect(page.locator('#map')).toHaveClass(/\bshaded\b/);
+
+  // Each district's name carries its figure, and Enter shows it with the state comparison under the map.
+  await page.locator('#island-tabs button').last().focus();
+  await page.keyboard.press('Tab');
+  const focused = page.locator('#map .district:focus');
+  await page.keyboard.press('Home');
+  await expect(focused).toHaveAccessibleName('House District 1, Hawaiʻi: no figure');
+  for (let i = 1; i < 22; i++) await page.keyboard.press('ArrowRight');
+  await expect(focused).toHaveAccessibleName('House District 22, Oʻahu: 12.3% ± 2.1 points');
+  await expect(page.locator('#map .ring-line')).toHaveAttribute('d', /\S/);
+  await page.keyboard.press('Enter');
+  await expect(focused).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('#pick-name')).toHaveText('House District 22');
+  await expect(page.locator('#pick-value')).toContainText('People below the poverty level: 12.3% ± 2.1 points.');
+
+  // Tab on to the table and open it.
+  const summary = page.locator('#map-table summary');
+  for (let i = 0; i < 8 && !(await summary.evaluate(el => el === document.activeElement)); i++) await page.keyboard.press('Tab');
+  await expect(summary).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(page.locator('#map-table')).toHaveAttribute('open', '');
+  await expect(page.locator('#map-table tbody tr').first().locator('th')).toHaveText('House District 22');
+});
