@@ -1251,6 +1251,7 @@ function basicAnswer(answer, name) {
   const article = document.createElement('article');
   article.append(heading(answer, name));
   for (const p of answer.text.split('\n\n')) article.append(says('p', p));
+  if (answer.elsewhere) article.append(elsewhereLine(answer.elsewhere));
   if (answer.facts.length) {
     const details = document.createElement('details');
     details.open = true;
@@ -1259,6 +1260,13 @@ function basicAnswer(answer, name) {
   }
   if (answer.programs && answer.programs.length) article.append(answerPrograms(answer.programs, answer.program_sources));
   return article;
+}
+
+// Where to look for Hawaiʻi data KLEAR does not hold, after an answer with no figures.
+function elsewhereLine(e) {
+  const p = node('p', `${e.text} `, 'elsewhere');
+  p.append(link(e.name, e.url), '.');
+  return p;
 }
 
 // A link that opens in a new tab and says so, or plain text when the address is not a web page.
@@ -1401,6 +1409,7 @@ function renderAnswer(answer, name) {
   }
   for (const c of answer.charts) article.append(chartFigure(c));
   for (const c of answer.caveats) article.append(says('p', c, 'caveat'));
+  if (answer.elsewhere) article.append(elsewhereLine(answer.elsewhere));
   if (answer.sources.length) {
     const years = [...new Set(answer.sources.map(s => s.year))].join(', ');
     const shown = [...answer.tiles.map(t => t.spread), ...answer.charts.flatMap(c => c.bars.map(b => b.text))].join(' ');

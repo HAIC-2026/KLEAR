@@ -14,6 +14,13 @@ from klear.programs import ELIGIBILITY_NOTE, NEEDS, Program, by_rule, catalog
 from klear.store.methods import place_note
 
 MAX_TILES = 6
+# Pointer to datatrove.ai, a HAIC sponsor with Hawaiʻi public data not published by district. KLEAR only links to it.
+ELSEWHERE = {
+    "text": "For other Hawaiʻi public data on this topic, try",
+    "name": "datatrove.ai",
+    "url": "https://datatrove.ai/",
+}
+NO_DATA = ("not_available", "out_of_scope")
 # Where a profile's shares of residents in each place and overlapping district come from (klear/etl/blocks.py).
 SHARES_SOURCE = {
     "name": "2020 Census Redistricting Data (P.L. 94-171), population by block",
@@ -319,6 +326,11 @@ def build(con, answer) -> dict:
         "sources": sources(answer, store),
         "caveats": plain_text(answer.caveats, answer, store),
     }
+
+
+def elsewhere(refusal: str, has_figures: bool) -> dict:
+    """The datatrove.ai pointer for an answer with no figures because the data is missing or out of scope."""
+    return {"elsewhere": dict(ELSEWHERE)} if refusal in NO_DATA and not has_figures else {}
 
 
 NOUNS = {"percent": "rate", "dollars": "amount"}

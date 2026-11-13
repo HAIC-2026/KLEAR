@@ -10,6 +10,7 @@ import anthropic
 import pytest
 
 from klear.web import __main__ as web
+from klear.web import display
 from klear.web.assistant import BASIC, Assistant, BudgetExceeded, DailyBudget
 from tests.agent.fake_client import FakeClient, api_error, tool
 from tests.eval.conftest import _home  # noqa: F401
@@ -118,3 +119,63 @@ def test_chat_profile_cites_the_same_figures_as_the_profile(real_con):
         r["fact"]["label"] for s in profile["sections"] for r in s["rows"]
     }
     assert answer["lead"][0].startswith("This is the standard profile")
+
+
+def _refused(refusal: str, blocks: list[str], facts: list[str] | None = None) -> list:
+    answer = {"resolved": "house:022", "refusal": refusal, "blocks": blocks, "facts": facts or []}
+    return [tool("submit_answer", answer | {"programs": [], "caveats": []}, "tu_submit")]
+
+
+@pytest.mark.parametrize(
+    ("refusal", "blocks", "linked"),
+    [
+        ("not_available", ["WIC enrollment is not published by district."], True),
+        ("out_of_scope", ["KLEAR covers population, income, housing, work and health, not crime."], True),
+        ("decline_partisan", ["KLEAR does not help with campaigns or voting choices."], False),
+        ("decline_individual", ["KLEAR does not answer questions about one person."], False),
+    ],
+)
+def test_assistant_links_datatrove_only_when_data_is_missing(small_con, budget, refusal, blocks, linked):
+    result = Assistant(budget, client=FakeClient(_refused(refusal, blocks))).ask(
+        small_con, "Question?", DISTRICT
+    )
+    assert result["mode"] == "assistant" and result["refusal"] == refusal
+    assert result.get("elsewhere") == (display.ELSEWHERE if linked else None)
+    assert "datatrove" not in result["text"]
+
+
+def test_assistant_answer_with_figures_has_no_datatrove_link(small_con, budget):
+    assert "elsewhere" not in Assistant(budget, client=FakeClient(SCRIPT)).ask(
+        small_con, "Seniors?", DISTRICT
+    )
+    partial_answer = [
+        SCRIPT[0],
+        *_refused("not_available", ["{geo:house:022} has {fact:f1} {label:f1} ({vintage:f1})."], ["f1"]),
+    ]
+    result = Assistant(budget, client=FakeClient(partial_answer)).ask(small_con, "Seniors?", DISTRICT)
+    assert result["refusal"] == "not_available" and result["facts"] and "elsewhere" not in result
+
+
+@pytest.mark.parametrize(
+    ("question", "refusal", "linked"),
+    [
+        ("Explain quantum mechanics", "not_available", True),
+        ("Which party should win here?", "decline_partisan", False),
+        ("How many kūpuna live here?", "none", False),
+    ],
+)
+def test_basic_links_datatrove_only_when_data_is_missing(small_con, tmp_path, question, refusal, linked):
+    tiny = DailyBudget(0.0, tmp_path / "web_spend.json")
+    result = Assistant(tiny, client=FakeClient()).ask(small_con, question, DISTRICT)
+    assert result["mode"] == "basic" and result["refusal"] == refusal
+    assert result.get("elsewhere") == (display.ELSEWHERE if linked else None)
+
+
+def test_datatrove_link_is_display_only():
+    link = display.ELSEWHERE
+    assert link["url"] == "https://datatrove.ai/" and not any(c.isdigit() for c in link["text"])
+    for refusal in ("not_available", "out_of_scope"):
+        assert display.elsewhere(refusal, False) == {"elsewhere": link}
+        assert display.elsewhere(refusal, True) == {}
+    for refusal in ("none", "decline_individual", "decline_partisan"):
+        assert display.elsewhere(refusal, False) == {}

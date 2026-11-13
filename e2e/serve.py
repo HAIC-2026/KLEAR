@@ -112,6 +112,8 @@ class _Messages:
         question = _question(messages)
         if any(word in question for word in PARTISAN):
             return turn(tool("submit_answer", _decline(), "tu_submit"))
+        if "wic" in question:
+            return turn(tool("submit_answer", _not_available(), "tu_submit"))
         if "1 test st" in question:
             if len(messages) == 1:
                 return turn(tool("resolve_place", {"text": "1 Test St, Kāneʻohe"}))
@@ -156,6 +158,17 @@ def _address(messages: list[dict]) -> dict:
         "resolved": geos[0] if geos else None,
         "refusal": "none",
         "blocks": blocks,
+        "facts": [],
+        "programs": [],
+        "caveats": [],
+    }
+
+
+def _not_available() -> dict:
+    return {
+        "resolved": DISTRICT,
+        "refusal": "not_available",
+        "blocks": ["WIC enrollment is not published by district, so KLEAR does not have it."],
         "facts": [],
         "programs": [],
         "caveats": [],

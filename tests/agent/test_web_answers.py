@@ -154,7 +154,7 @@ def test_basic_snap_figures_name_snap(real_con):
 
 def test_basic_unpublished_year_is_not_available(real_con):
     answer = _basic(real_con, "What is the poverty rate for 2025?")
-    assert answer["refusal"] == "not_available" and answer["tiles"]
+    assert answer["refusal"] == "not_available" and answer["tiles"] and "elsewhere" not in answer
     assert answer["lead"][0] == "Basic lookup." and answer["lead"][1] == (
         "Figures for 2025 are not published for House District 29 yet. These are the latest available, for "
         "2020-2024 ACS 5-year."

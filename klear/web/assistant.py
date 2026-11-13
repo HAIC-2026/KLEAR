@@ -116,6 +116,7 @@ def _payload(con, answer, mode: str, selected: tuple[str, str] | None = None) ->
             "mode": mode,
         }
         | display.build(con, answer)
+        | display.elsewhere(answer.refusal, bool(answer.facts))
         | answered_district(con, answer.resolved, selected)
     )
 
@@ -188,4 +189,9 @@ def basic(con, question: str, district: tuple[str, str], note: str = "", geocode
         result["caveats"] = caveats
     elif note and result["refusal"] in ("none", "not_available"):
         result["text"] = f"{note}\n\n{result['text']}"
-    return result | {"mode": "basic"} | answered_district(con, answered, district)
+    return (
+        result
+        | {"mode": "basic"}
+        | display.elsewhere(result["refusal"], bool(refs))
+        | answered_district(con, answered, district)
+    )
