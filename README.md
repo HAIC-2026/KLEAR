@@ -86,7 +86,7 @@ No `source`, environment export, or `--env-file` option is needed. Restart the w
 - klear/etl: downloads the sources and builds the store (python -m klear.etl build).
 - klear/store: the DuckDB schema and the writer that rejects unsourced facts.
 - klear/validation: the build's validation checks and the docs/VALIDATION.md report.
-- klear/rules: loads the program rules and checks each value against its official source quote.
+- klear/rules: loads the program rules and checks each value against its official source quote. python -m klear.rules check rechecks the rules and program contacts against the live pages.
 - klear/agent: the agent, its data tools and the code that builds and checks each answer (python -m klear.agent).
 - klear/web: the local web server, landing page, district profile and chat interface (python -m klear.web).
 - klear/eval: the answer format, eval runner, answer checks, reports and spending cap (python -m klear.eval run).
@@ -139,6 +139,10 @@ Outputs in data/build:
 - house.geojson and senate.geojson: simplified district polygons for the web.
 
 The build also rewrites docs/VALIDATION.md, the public validation report. After the checks it rescores the newest recorded live run in eval/recordings against the new store (free, no model calls) and adds the published held-out totals from eval/heldout_summary.yaml. The website's How we check KLEAR page (/checks.html, linked from the footer) reads validation.json through /api/checks, so it always shows the latest build.
+
+### Keeping rules and programs current
+
+Every Monday at 8:00 HST, and by hand from the Actions tab, the freshness workflow (.github/workflows/freshness.yml) runs uv run python -m klear.rules check. It fetches each rule's pages and checks its quotes again, fetches each program's page and phone source and confirms the phone number still appears, and warns 30 days before a rule's review_by date. It exits 1 on any change or due date and then opens or updates one issue, "Program information needs review". Sites that block scripts are listed as needing a person and do not fail the run. The site shows when a person last checked each program and asks readers to check the official page once that is more than 90 days ago. docs/KEEPING-CURRENT.md explains how to update a rule or add a program, with a calendar of when each program's figures change.
 
 ## Tests and evaluation
 
