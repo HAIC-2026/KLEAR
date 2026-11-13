@@ -922,10 +922,10 @@ function memberLinks(members) {
 }
 
 function renderProfile(p) {
-  // Under the district's name: any notes on its figures, such as the Maui wildfires, then its headline figures with
-  // their margins, links to each section, the share buttons, then the sections.
+  // Under the district's name: its headline figures with their margins, any notes on its figures, such as the Maui
+  // wildfires, links to each section, the share buttons, then the sections. The figures come first so they stay on
+  // a phone's first screen below the legislator's line.
   const out = [];
-  if (p.caveats && p.caveats.length) out.push(placeNotes(p.caveats, 'profile-notes'));
   const stats = node('dl', '', 'profile-stats');
   // Each term comes before its value, as a description list needs; the CSS shows the value on top.
   for (const h of p.headline) {
@@ -937,6 +937,7 @@ function renderProfile(p) {
     stats.append(s);
   }
   out.push(stats);
+  if (p.caveats && p.caveats.length) out.push(placeNotes(p.caveats, 'profile-notes'));
   const sections = profileSections(p);
   out.push(profileJumps(sections), profileActions(p));
   // The outreach groups this district leads come just before the sections.
