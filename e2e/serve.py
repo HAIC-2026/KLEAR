@@ -37,7 +37,12 @@ def build_store(path: Path) -> None:
     a county-level unemployment rate and DBEDT match marks, so pages show those notes. A kūpuna count with a large
     margin of error and a Kalawao block in House 22 make answers and the profile show a caution chip and a district
     caveat."""
-    con = add_county_context(build_small_store(path))
+    con = build_small_store(path)
+    # Before the DBEDT match marks, which refer to this fact and so stop it changing.
+    con.execute(
+        "UPDATE fact SET moe = 600 WHERE indicator_id = 'pop_65_plus' AND geo_type = 'house' AND geo_id = '022'"
+    )
+    add_county_context(con)
     add_source(
         con, "acs2024_5yr_profile", "ACS 5-year Data Profiles", "Census", "https://example.org/api",
         "2020-2024 ACS 5-year", "pd", page_url="https://example.org/profiles",
@@ -70,9 +75,6 @@ def build_store(path: Path) -> None:
             [("pct_people_poverty", "house"), ("median_age", "house"), ("irs_eitc_returns", "house")],
             columns=["indicator_id", "geo_type"],
         ),
-    )
-    con.execute(
-        "UPDATE fact SET moe = 600 WHERE indicator_id = 'pop_65_plus' AND geo_type = 'house' AND geo_id = '022'"
     )
     acs = {"source_id": "acs2024_5yr_profile", "table_id": "DP05"}
     rows = [
