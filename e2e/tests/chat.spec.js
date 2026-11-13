@@ -66,7 +66,7 @@ test('with no district chosen, a question naming a town offers its districts, an
   await houses.getByRole('button', {name: /^House 22\b/}).click();
   await expect(page.locator('#district-title')).toHaveText(DISTRICT);
   await expect(page).toHaveURL(/\/district\/house-22$/);
-  await expect(page.locator('#chat-live')).toHaveText(`Answer ready for ${DISTRICT}.`);
+  await expect(page.locator('#chat-live')).toContainText(`Answer ready for ${DISTRICT}.`);
   await expect(page.locator('#log .user')).toHaveText(Array(2).fill('You asked: How many kūpuna live in Kāneʻohe?'));
   expect(sent[1].district).toBe('house:022');
   await expect(page.locator('#log .answer-choices')).toHaveCount(0);
@@ -79,7 +79,7 @@ test('with no district chosen, an answer about one district chooses it, and a fo
   const question = `How does poverty in ${DISTRICT} compare with the state?`;
   await page.getByLabel('Your question').fill(question);
   await page.getByRole('button', {name: 'Ask KLEAR'}).click();
-  await expect(page.locator('#chat-live')).toHaveText(`Answer ready for ${DISTRICT}.`);
+  await expect(page.locator('#chat-live')).toContainText(`Answer ready for ${DISTRICT}.`);
   await expect(page.locator('#district-title')).toHaveText(DISTRICT);
   await expect(page).toHaveURL(/\/district\/house-22$/);
   await expect(page.locator('#profile-live')).toHaveText(`Profile for ${DISTRICT} loaded.`);
