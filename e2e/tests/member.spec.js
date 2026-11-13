@@ -10,7 +10,7 @@ const BEFORE = 'dated October 5, 2026, before the November 3, 2026 general elect
 test('the profile and the printout name the member with where and when they were listed', async ({page}, testInfo) => {
   await page.goto('/');
   await chooseDistrict(page);
-  const member = page.locator('#profile .profile-member');
+  const member = page.locator('#district-about .profile-member');
   await expect(member.locator('.profile-member-name')).toHaveText('Representative KAʻAI, Leilani M. (opens in a new tab)');
   await expect(member.getByRole('link', {name: /KAʻAI, Leilani M\./})).toHaveAttribute('href', 'https://example.org/member/house022');
   await expect(member.locator('.profile-member-note')).toContainText(LISTED);

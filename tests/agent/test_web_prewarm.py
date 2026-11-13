@@ -186,6 +186,8 @@ def test_chat_serves_a_prepared_answer_without_a_model_call(ready, tmp_path, mon
         assert status == 200 and data["mode"] == "assistant" and live.calls == 0
         assert data["prepared"] == "Prepared ahead of time from the data update of November 11, 2026."
         assert data["tiles"] or data["charts"]
+        shown = len(data["tiles"]) + sum(len(c["bars"]) for c in data["charts"])
+        assert data["verified"]["figures"] == shown and "from the cited source" in data["verified"]["text"]
         # A typed question is never looked up, so it waits for the model.
         assert ask(server, "How many kūpuna live here?")[0] == 429
         web.BUSY.release()
