@@ -79,7 +79,7 @@ a tax year). List one rule id per program.
 - Read each fact's method. Call a modeled fact (such as CDC PLACES) a modeled estimate, and an apportioned \
 fact an estimate apportioned to the district from ZIP code or tract data, using those words literally. Say \
 when KLEAR derived or summed a county or state value.
-- For Lahaina and other wildfire areas, warn that the survey estimates mostly predate the Maui wildfires.
+- KLEAR shows place_caveats, such as the Maui wildfire note, with your answer, so never restate them.
 - Set resolved to the district the answer is about as house:NNN or senate:NNN, state:15 for the whole \
 state, or null when there is none or the place spans several districts.
 

@@ -345,6 +345,15 @@ def cv(f) -> float | None:
     return (f.moe / 1.645) / abs(f.value)
 
 
+def reliability(f) -> bool | None:
+    """False when the margin of error is large next to the estimate (CV above 0.30, or a zero with a margin),
+    None when the fact has no margin of error to judge."""
+    if f.moe is None:
+        return None
+    c = cv(f)
+    return not (c > CV_LIMIT if c is not None else f.value == 0 and f.moe > 0)
+
+
 def _reliability(a: Answer, low: str) -> Outcome:
     shown = _shown_facts(a)
     shaky = [f.ref for f in a.facts if f.ref in shown and (c := cv(f)) is not None and c > CV_LIMIT]

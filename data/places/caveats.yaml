@@ -1,0 +1,64 @@
+# Notes shown with the figures for the districts and counties each rule picks from the store's 2020 Census blocks.
+# A rule picks:
+#   places, min_share: districts where the named Census places hold at least min_share of 2020 residents
+#   above_median: districts whose 2020 Census count is more than this share above the median district of the same
+#     chamber and basic island unit, since districts are drawn to hold about the same number of permanent residents
+#     (units with fewer than three districts of a chamber are skipped)
+#   counties: those counties, and every district with residents in them
+# Text fills in figures from the store: {places} (the named places in the district, largest first), {count} (the
+# district's 2020 Census count), {typical} and {group} (the median district it is compared with), {county_count}
+# (the county's 2020 Census count). A detail line is added only when its rule picked the district.
+
+# Basic island units of the Hawaiʻi Constitution, Article IV, Section 4, by the county holding most of a district.
+island_units:
+  "15001": Hawaiʻi Island
+  "15003": Oʻahu
+  "15005": Maui County
+  "15007": Kauaʻi
+  "15009": Maui County
+
+caveats:
+  - id: maui_wildfires
+    title: Maui wildfires
+    places: [Lahaina, Kula]
+    min_share: 0.1
+    text: >-
+      Most American Community Survey answers behind the Census figures here were collected before the August 2023
+      wildfires in Lahaina and Kula. The fires displaced many residents, so these figures may not match
+      conditions here now.
+    sources:
+      - name: "U.S. Census Bureau: Using 1-year or 5-year American Community Survey data (5-year estimates use 60 months of answers)"
+        url: https://www.census.gov/programs-surveys/acs/guidance/estimates.html
+      - name: "University of Hawaiʻi News: Maui wildfire survey finds sharp, persistent increases in poverty, housing instability (October 8, 2024)"
+        url: https://www.hawaii.edu/news/2024/10/08/maui-wildfire-survey-report/
+
+  - id: population_base
+    title: Military and student population
+    places: [Schofield Barracks, Kāneʻohe Base, Hickam Housing, Iroquois Point, Wheeler AFB]
+    min_share: 0.1
+    above_median: 0.1
+    text: >-
+      Hawaiʻi draws district lines on the permanent-resident population, which leaves out non-resident military
+      members, their families and non-resident students. Census and survey counts include everyone living here, so
+      counts for this district run higher than its reapportionment population. Rates and shares compare more fairly
+      than counts.
+    places_detail: Military housing areas here include {places}.
+    above_median_detail: >-
+      The 2020 Census counted {count} people here, against about {typical} in a typical {group} district.
+    sources:
+      - name: "The Constitution of the State of Hawaii, Article IV, Sections 4 and 6 (permanent residents)"
+        url: https://lrb.hawaii.gov/constitution
+      - name: "Hawaii Tribune-Herald: Shrinking military, students could affect reapportionment (July 21, 2021)"
+        url: https://www.hawaiitribune-herald.com/2021/07/21/hawaii-news/shrinking-military-students-could-affect-reapportionment/
+
+  - id: kalawao
+    title: Kalawao County
+    counties: ["15005"]
+    text: >-
+      Kalawao County (Kalaupapa) is very small: the 2020 Census counted {county_count} people there. Survey
+      figures for Kalawao County alone are very uncertain, and some sources publish none for it.
+    sources:
+      - name: "U.S. Census Bureau: 2020 Census, table P1, Kalawao County"
+        url: https://data.census.gov/table/DECENNIALPL2020.P1?g=0500000US15005
+      - name: "U.S. Census Bureau: Using 1-year or 5-year American Community Survey data (sample sizes and reliability)"
+        url: https://www.census.gov/programs-surveys/acs/guidance/estimates.html

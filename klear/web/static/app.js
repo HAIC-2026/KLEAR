@@ -21,6 +21,38 @@ function says(tag, text, className) {
   return n;
 }
 const hidden = text => node('span', text, 'visually-hidden');
+// A chip that flags an unreliable estimate. Its spoken name gives the reason.
+function cautionChip(why) {
+  const chip = node('span', 'Use with caution', 'chip caution');
+  if (why) chip.append(hidden(`. ${why}`));
+  return chip;
+}
+// A caution chip with its reason written out beside it.
+function cautionLine(why) {
+  const p = node('p', '', 'profile-caution');
+  p.append(cautionChip(''), ` ${why}`);
+  return p;
+}
+// How an apportioned or modeled figure was estimated, linked to its source's section on the methods page.
+function methodLine(m) {
+  const line = node('p', 'How estimated: ', 'method');
+  line.append(link(m.text, m.url));
+  return line;
+}
+// Notes for districts and counties with a known caveat, such as the Maui wildfires, each with its sources.
+function placeNotes(notes, className) {
+  const box = node('div', '', `place-notes ${className}`);
+  for (const c of notes) {
+    const note = node('div', '', 'place-note'), text = node('p', '', 'place-note-text');
+    text.append(says('b', `${c.title}.`), ' ', says('span', c.text));
+    const list = node('ul', '', 'place-note-sources');
+    for (const s of c.sources) { const li = document.createElement('li'); li.append(link(s.name, s.url)); list.append(li); }
+    list.setAttribute('aria-label', c.sources.length > 1 ? `Sources for ${c.title}` : `Source for ${c.title}`);
+    note.append(text, list);
+    box.append(note);
+  }
+  return box;
+}
 async function api(url, options) {
   let r, data = null;
   try { r = await fetch(url, options); } catch { throw new Error('KLEAR could not be reached. Check your connection and try again.'); }
@@ -589,10 +621,16 @@ function profileRow(r) {
   const label = says('p', r.label, 'profile-label');
   if (r.note) { const sup = node('sup', ''); sup.append(hidden(' source '), String(r.note)); label.append(sup); }
   row.append(figure, label);
-  if (r.caution) row.append(node('p', r.caution, 'profile-caution'));
+  if (r.caution) row.append(cautionLine(r.caution));
+  if (r.method) row.append(methodLine(r.method));
   if (r.against.length) {
     const list = node('ul', '', 'profile-against');
-    for (const a of r.against) { const li = document.createElement('li'); li.append(node('b', a.lead), ` ${a.rest}`); list.append(li); }
+    for (const a of r.against) {
+      const li = document.createElement('li');
+      li.append(node('b', a.lead), ` ${a.rest}`);
+      if (a.caution) li.append(' ', cautionChip(a.caution));
+      list.append(li);
+    }
     row.append(list);
   }
   if (r.beside) row.append(besideLine(r.beside));
@@ -608,6 +646,7 @@ function besideLine(b) {
   if (!b.value) { p.append(b.text); return p; }
   p.append('For comparison, ', node('b', b.value));
   if (b.spread) p.append(' ', node('span', b.spread.startsWith('range') ? `(${b.spread})` : b.spread, 'moe'));
+  if (b.caution) p.append(' ', cautionChip(b.caution));
   p.append(` ${b.text}`);
   if (b.note) { const sup = node('sup', String(b.note)); sup.setAttribute('aria-label', `source ${b.note}`); p.append(sup); }
   return p;
@@ -647,7 +686,7 @@ function programRow(p, full) {
   if (full && p.description) row.append(node('p', p.description, 'program-about'));
   if (p.reasons && p.reasons.length) {
     const list = node('ul', '', 'program-reasons');
-    for (const r of p.reasons) list.append(node('li', r));
+    for (const r of p.reasons) { const li = says('li', r.text); if (r.caution) li.append(' ', cautionChip(r.caution)); list.append(li); }
     row.append(list);
   }
   const contact = node('p', '', 'program-contact'), tel = node('a', p.phone);
@@ -718,6 +757,7 @@ function dataSection(sec) {
   const rows = node('div', '', 'profile-rows'), content = [];
   rows.append(...sec.rows.map(profileRow));
   if (sec.caveat) content.push(node('p', sec.caveat, 'profile-caveat lead'));
+  if (sec.method) content.push(methodLine(sec.method));
   content.push(rows, profileSources(sec.sources, sec.compared));
   return profileSection(sec.title.toLowerCase().replace(/[^a-z0-9]+/g, '-'), sec.title, content);
 }
@@ -835,7 +875,7 @@ function profileOutreach(o) {
     for (const item of o.items) {
       const li = document.createElement('li');
       li.append(says('p', item.text));
-      if (item.caution) li.append(node('p', item.caution, 'profile-caution'));
+      if (item.caution) li.append(cautionLine(item.caution));
       const more = node('p', '');
       more.append(link(item.link, item.url));
       li.append(more);
@@ -882,15 +922,17 @@ function memberLinks(members) {
 }
 
 function renderProfile(p) {
-  // Under the district's name: its headline figures with their margins, links to each section, the share buttons,
-  // then the sections.
+  // Under the district's name: any notes on its figures, such as the Maui wildfires, then its headline figures with
+  // their margins, links to each section, the share buttons, then the sections.
   const out = [];
+  if (p.caveats && p.caveats.length) out.push(placeNotes(p.caveats, 'profile-notes'));
   const stats = node('dl', '', 'profile-stats');
   // Each term comes before its value, as a description list needs; the CSS shows the value on top.
   for (const h of p.headline) {
     const s = node('div', ''), value = node('dd', '');
     value.append(node('span', h.value, 'num'));
     if (h.spread) value.append(' ', node('span', h.spread, 'moe'));
+    if (h.caution) value.append(' ', cautionChip(h.caution));
     s.append(says('dt', h.label), value);
     stats.append(s);
   }
@@ -984,7 +1026,7 @@ function sheetParts(p) {
           continue;
         }
         const value = node('td', f.value, `num ${kind}`);
-        if (kind === 'home' && r.caution) { value.append('†'); unreliable = true; }
+        if (f.caution) { value.append('†'); unreliable = true; }
         ranged ||= String(f.spread || '').startsWith('range');
         cited.push(cite(f.source));
         tr.append(value, node('td', f.spread || '', `moe ${kind}`));
@@ -1022,6 +1064,11 @@ function sheetParts(p) {
   if ((p.members || []).length) about.append(node('p', memberNote(p.members[0]), 'sheet-member-note'));
   if (about.lastChild) parts.push(about);
   parts.push(section('Key figures', 'sheet-key', table, node('p', margins.join(' '), 'sheet-note')));
+  if (p.caveats && p.caveats.length) {
+    const list = node('ul', '', 'sheet-list');
+    for (const c of p.caveats) { const li = document.createElement('li'); li.append(node('b', `${c.title}.`), ' ', says('span', c.text)); list.append(li); }
+    parts.push(section('About this district’s figures', 'sheet-notes', list));
+  }
 
   // The programs whose need figures here sit above the state's, or the statewide list when none does.
   const matched = programsOf(p), shown = matched ? (matched.programs.length ? matched.programs : matched.others) : [];
@@ -1426,7 +1473,9 @@ function heading(answer, name) {
 function factCard(f) {
   const card = node('div', '', 'fact');
   const uncertainty = uncertaintyLabels[f.uncertainty] || uncertaintyLabels.unavailable;
-  card.append(says('b', f.label), node('p', f.value), node('small', `${f.year}, ${f.geography}. Uncertainty: ${uncertainty}`), link(f.source, f.url));
+  const value = node('p', f.value);
+  if (f.caution) value.append(' ', cautionChip(f.caution));
+  card.append(says('b', f.label), value, node('small', `${f.year}, ${f.geography}. Uncertainty: ${uncertainty}`), link(f.source, f.url));
   if (f.links && f.links.length) card.append(sourceLinks(f.links));
   return card;
 }
@@ -1459,6 +1508,7 @@ function basicAnswer(answer, name) {
     details.append(node('summary', 'Figures & sources'), ...answer.facts.map(explainedCard));
     article.append(details);
   }
+  if (answer.place_caveats && answer.place_caveats.length) article.append(placeNotes(answer.place_caveats, 'answer-notes'));
   if (answer.programs && answer.programs.length) article.append(answerPrograms(answer.programs, answer.program_sources));
   return article;
 }
@@ -1534,10 +1584,14 @@ function chartFigure(c) {
     }
     const [num, ...spread] = b.text.split(' '), value = node('span', num, 'bar-value');
     if (spread.length) value.append(' ', node('span', spread.join(' '), 'bar-spread'));
+    if (b.caution) value.append(cautionChip(b.caution));
     row.append(track, value);
     bars.append(row);
   });
-  fig.append(bars, chartTable(c));
+  fig.append(bars);
+  if (c.note) fig.append(node('p', c.note, 'chart-note'));
+  if (c.method) fig.append(methodLine(c.method));
+  fig.append(chartTable(c));
   return fig;
 }
 
@@ -1554,7 +1608,9 @@ function chartTable(c) {
   for (const b of c.bars) {
     const row = document.createElement('tr'), place = node('th', b.geography);
     place.scope = 'row';
-    row.append(place, node('td', b.number ?? b.text));
+    const estimate = node('td', b.number ?? b.text);
+    if (b.caution) estimate.append(' ', cautionChip(b.caution));
+    row.append(place, estimate);
     if (spreadHead) row.append(node('td', b.spread || 'None published'));
     body.append(row);
   }
@@ -1600,8 +1656,10 @@ function renderAnswer(answer, name) {
     for (const t of answer.tiles) {
       const tile = node('div', '', 'tile');
       tile.append(tileValue(t.value), says('div', t.label, 'tile-label'));
-      const meta = [t.geography, t.spread].filter(Boolean).join(', ');
+      const meta = [t.geography, t.spread, t.share].filter(Boolean).join(', ');
       if (meta) tile.append(node('div', meta, 'tile-meta'));
+      if (t.caution) { const flag = node('div', '', 'tile-caution'); flag.append(cautionChip(t.caution)); tile.append(flag); }
+      if (t.method) tile.append(methodLine(t.method));
       const about = meaning(t.label, t.meaning);
       if (about) tile.append(about);
       grid.append(tile);
@@ -1611,6 +1669,7 @@ function renderAnswer(answer, name) {
   for (const c of answer.charts) article.append(chartFigure(c));
   for (const c of answer.caveats) article.append(says('p', c, 'caveat'));
   if ((answer.members || []).length) article.append(memberLinks(answer.members));
+  if (answer.place_caveats && answer.place_caveats.length) article.append(placeNotes(answer.place_caveats, 'answer-notes'));
   if (answer.elsewhere) article.append(elsewhereLine(answer.elsewhere));
   if (answer.sources.length) {
     const years = [...new Set(answer.sources.map(s => s.year))].join(', ');
@@ -1618,6 +1677,7 @@ function renderAnswer(answer, name) {
     const notes = [`${years}.`];
     if (shown.includes('±')) notes.push('± is the 90% margin of error.');
     if (shown.includes('range ')) notes.push('A range shows the low and high bounds of the estimate.');
+    if (answer.tiles.some(t => t.caution) || answer.charts.some(c => c.bars.some(b => b.caution))) notes.push('Use with caution marks an estimate with a large margin of error.');
     article.append(node('p', notes.join(' '), 'source-line'));
     if (answer.verified) article.append(node('p', answer.verified.text, 'verified'));
     const details = document.createElement('details');

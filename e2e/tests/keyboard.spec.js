@@ -48,10 +48,16 @@ test('skip link, search, ask, and read the answer with the keyboard', async ({pa
   await expect(about).toHaveAttribute('open', '');
   await expect(about.getByRole('link', {name: 'Glossary of terms (opens in a new tab)'})).toBeVisible();
 
-  // Tab goes on, past the glossary link and the next labels' meanings, to the first chart's data table.
+  // Tab goes on, past the glossary link, the next labels' meanings and the apportioned tile's method link, to the
+  // first chart's data table.
   const table = answer.locator('.chart-data').first();
   const onTable = () => table.locator('summary').evaluate(s => s === document.activeElement);
-  for (let i = 0; i < 6 && !(await onTable()); i++) await page.keyboard.press('Tab');
+  let method = false;
+  for (let i = 0; i < 12 && !(await onTable()); i++) {
+    await page.keyboard.press('Tab');
+    method ||= await answer.locator('.tile .method a').evaluate(a => a === document.activeElement);
+  }
+  expect(method).toBe(true);
   await expect(table.locator('summary')).toBeFocused();
   await page.keyboard.press('Enter');
   await expect(table).toHaveAttribute('open', '');

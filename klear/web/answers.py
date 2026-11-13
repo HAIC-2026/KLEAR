@@ -17,10 +17,12 @@ from klear.eval.contract import geo_display
 from klear.labels import in_sentence, meaning, short_label
 from klear.members import as_listed, members_of, named_in, timing
 from klear.web.display import (
+    CAUTION,
     _plain,
     build_month,
     matched_programs,
     member_cards,
+    place_caveats,
     program_rows,
     verified,
     year_text,
@@ -202,6 +204,7 @@ def program_answer(con, district, shown: str) -> dict:
         "programs": [p | {"match": True} for p in laid["programs"]]
         + [p | {"match": False} for p in laid["others"]],
         "program_sources": laid["sources"],
+        "place_caveats": place_caveats(con, [district]),
     } | verified(laid["figures"], len(laid["sources"]))
 
 
@@ -225,6 +228,7 @@ def _cards(con, facts: list[dict]) -> list[dict]:
                 "url": row[1],
                 "geography": fact["geo_name"],
                 "uncertainty": row[2],
+                "caution": CAUTION if fact["reliable"] is False else "",
             }
         )
     return out

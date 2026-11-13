@@ -262,7 +262,13 @@ def test_free_answer_adds_the_main_county_when_asked(endpoint, monkeypatch):
     assert status == 200 and data["mode"] == "basic" and data["refusal"] == "none"
     kupuna = [f["geography"] for f in data["facts"] if f["label"] == "Kūpuna (65 and over)"]
     assert kupuna == ["House District 22", "Honolulu County", "Hawaiʻi"]
-    assert [b["geography"] for b in data["charts"][0]["bars"]] == kupuna
+    # Counts stay tiles, and the district's names its share of the state's.
+    assert not data["charts"] and [t["geography"] for t in data["tiles"]] == [
+        "",
+        "Honolulu County",
+        "Hawaiʻi",
+    ]
+    assert data["tiles"][0]["share"] == "11.1% of the Hawaiʻi total"
     assert "District, county and state figures" in data["text"]
     county_only = chat(endpoint, "How many kūpuna live in House District 22 and in its county?")[1]
     assert [f["geography"] for f in county_only["facts"]] == ["House District 22", "Honolulu County"]
