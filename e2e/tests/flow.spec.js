@@ -33,7 +33,7 @@ test('search, choose, read the profile, ask, open a source, and come back', asyn
   await expect(headline.locator('dt')).toHaveText('People below the poverty level');
   // A link at the top leads to each section, and opens it.
   const jumps = profile.getByRole('navigation', {name: 'In this profile'});
-  await expect(jumps.getByRole('link')).toHaveText(['People', 'Income', 'Programs to explore here', 'Programs in use', 'Help sites']);
+  await expect(jumps.getByRole('link')).toHaveText(['People', 'Income', 'Programs to explore here', 'Programs in use', 'Who may qualify', 'Help sites']);
   await jumps.getByRole('link', {name: 'People'}).click();
   // The row's label, not its "What this means" summary, which names the label to screen readers.
   await expect(profile.locator('.profile-label', {hasText: 'Kūpuna (65 and over)'})).toBeVisible();

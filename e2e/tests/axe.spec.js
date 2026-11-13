@@ -109,6 +109,14 @@ test('map with a ZIP code and a picked district', async ({page}, testInfo) => {
   await expectAccessible(page, testInfo, 'map');
 });
 
+test('outreach page with every group open', async ({page}, testInfo) => {
+  await page.goto('/outreach.html');
+  await expect(page.getByRole('heading', {level: 1})).toHaveText('Where outreach could help most');
+  await expect(page.locator('#result')).toBeVisible();
+  await openAll(page);
+  await expectAccessible(page, testInfo, 'outreach page');
+});
+
 test('glossary page', async ({page}, testInfo) => {
   await page.goto('/glossary.html');
   await expect(page.getByRole('heading', {level: 1})).toHaveText('Glossary');

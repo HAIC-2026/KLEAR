@@ -1,0 +1,49 @@
+id: rank-005
+category: rank
+question: Where could Marketplace outreach reach the most uninsured people with income from 138% to 399% of poverty, by
+  Senate district?
+ideal: Ranks Hawaiʻi Senate districts by uninsured people with income between the Med-QUEST limit and four
+  times the poverty level and names the first tier together, saying their ranges overlap. Names the ACA premium
+  tax credit and says the count meets the income test only.
+tags:
+- outreach
+facts:
+- - uninsured_138_399pct_poverty
+  - senate
+  - '002'
+- - uninsured_138_399pct_poverty
+  - senate
+  - '003'
+- - uninsured_138_399pct_poverty
+  - senate
+  - '005'
+- - uninsured_138_399pct_poverty
+  - senate
+  - '006'
+- - uninsured_138_399pct_poverty
+  - senate
+  - '007'
+- - uninsured_138_399pct_poverty
+  - senate
+  - '008'
+- - uninsured_138_399pct_poverty
+  - senate
+  - '014'
+- - uninsured_138_399pct_poverty
+  - senate
+  - '019'
+- - uninsured_138_399pct_poverty
+  - senate
+  - '020'
+- - uninsured_138_399pct_poverty
+  - senate
+  - '021'
+- - uninsured_138_399pct_poverty
+  - senate
+  - '022'
+must_say:
+- overlap
+- income test
+programs:
+- aca_ptc_2026
+refusal: none

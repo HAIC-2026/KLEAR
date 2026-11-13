@@ -17,8 +17,8 @@ from urllib.parse import parse_qs, urlsplit
 
 import duckdb
 
-from klear.agent.config import DEFAULT_MODEL
-from klear.agent.tools import Session
+from klear.agent.config import CHAMBER_TYPES, DEFAULT_MODEL, OUTREACH_DEFAULT, OUTREACH_PAIRS
+from klear.agent.tools import Session, ToolError
 from klear.config import ROOT, MissingSecretError, load_secret
 from klear.eval.contract import geo_key
 from klear.store.db import missing_columns
@@ -36,6 +36,8 @@ PUBLIC = (
     "/index.html",
     "/checks.html",
     "/glossary.html",
+    "/outreach.html",
+    "/outreach.js",
     "/checks.js",
     "/checks.css",
     "/app.js",
@@ -223,6 +225,10 @@ class Handler(SimpleHTTPRequestHandler):
         if path.path in ("/api/profile", "/api/profile.csv"):
             district = parse_qs(path.query).get("district", [""])[0]
             return self.profile(district, as_csv=path.path.endswith(".csv"))
+        if path.path == "/api/outreach":
+            query = parse_qs(path.query)
+            pair = query.get("pair", [""])[0] or OUTREACH_DEFAULT
+            return self.outreach(pair, query.get("chamber", [""])[0] or "house")
         if path.path == "/api/about":
             if not self.store.is_file():
                 return self.reply(
@@ -283,10 +289,36 @@ class Handler(SimpleHTTPRequestHandler):
                 # A program catalog that cannot be read or matched leaves the profile without programs.
                 if "error" in matched:
                     matched = None
+                # Outreach pairs that cannot be ranked leave the profile without its outreach note.
+                try:
+                    tops = session.outreach_tops(geo)
+                except Exception:  # noqa: BLE001 - the profile stands without the note
+                    tops = None
                 islands = _islands().get(":".join(geo), "")
-                return self.reply(200, display.profile(con, raw, session, islands, matched))
+                return self.reply(200, display.profile(con, raw, session, islands, matched, tops))
         except Exception:  # noqa: BLE001 - redact internal errors at the HTTP boundary
             return self.reply(503, {"error": "The district profile is unavailable right now."})
+
+    def outreach(self, pair: str, chamber: str):
+        """A chamber's districts in tiers by a group that meets a program's income test, read from the store with
+        no model call."""
+        if pair not in OUTREACH_PAIRS or chamber not in CHAMBER_TYPES:
+            return self.reply(400, {"error": "Choose one of the listed programs, and House or Senate."})
+        try:
+            with self.connect() as con:
+                session = Session(con)
+                try:
+                    raw = session.outreach(pair, chamber)
+                except ToolError:
+                    return self.reply(
+                        503,
+                        {"error": "The data store has no figures for this group yet. Try another program."},
+                    )
+                return self.reply(200, display.outreach(con, raw, session))
+        except Exception:  # noqa: BLE001 - redact internal errors at the HTTP boundary
+            return self.reply(
+                503, {"error": "The outreach figures are unavailable right now. Please try again later."}
+            )
 
     def do_POST(self):
         if self.path != "/api/chat":

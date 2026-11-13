@@ -818,6 +818,33 @@ function profileActions(p) {
   return box;
 }
 
+// The groups where this district is in the top tier across its chamber, each linked to the outreach page that
+// compares every district, or a line saying it is in none. A new tab, so a chat in progress stays where it is.
+function profileOutreach(o) {
+  const box = node('div', '', 'profile-outreach');
+  // A level-two heading: the district's name is the page's only heading above it.
+  box.append(node('h2', o.title));
+  if (o.items.length) {
+    const list = node('ul', '');
+    for (const item of o.items) {
+      const li = document.createElement('li');
+      li.append(says('p', item.text));
+      if (item.caution) li.append(node('p', item.caution, 'profile-caution'));
+      const more = node('p', '');
+      more.append(link(item.link, item.url));
+      li.append(more);
+      list.append(li);
+    }
+    box.append(list);
+  } else {
+    box.append(node('p', o.none));
+  }
+  const foot = node('p', [o.more, o.note].filter(Boolean).join(' '), 'profile-outreach-more');
+  if (!o.items.length) { foot.append(' '); foot.append(link(o.link.text, o.link.url)); }
+  box.append(foot);
+  return box;
+}
+
 function renderProfile(p) {
   // Under the district's name: its headline figures with their margins, links to each section, the share buttons,
   // then the sections.
@@ -833,7 +860,10 @@ function renderProfile(p) {
   }
   out.push(stats);
   const sections = profileSections(p);
-  out.push(profileJumps(sections), profileActions(p), ...sections);
+  out.push(profileJumps(sections), profileActions(p));
+  // The outreach groups this district leads come just before the sections.
+  if (p.outreach && Array.isArray(p.outreach.items)) out.push(profileOutreach(p.outreach));
+  out.push(...sections);
   return out;
 }
 

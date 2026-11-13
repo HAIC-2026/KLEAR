@@ -264,6 +264,10 @@ Website spending has its own cap of 5 dollars per HST day, kept in ~/.config/kle
 | `--model MODEL` | Choose the model used by the assistant. |
 | `--no-address-lookup` | Turn off street address lookup in search and chat, so the server never contacts the Census geocoder. |
 
+### Outreach page
+
+/outreach.html ("Outreach" in the site menu) compares districts for five pairs of a group and the programs it may qualify for, set in `OUTREACH_PAIRS` in klear/agent/config.py: households in poverty without SNAP (SNAP), uninsured people under 138% of poverty (Med-QUEST), uninsured people from 138% to 399% of poverty (Marketplace premium tax credits), kūpuna under 200% of poverty (SSI, Kūpuna Care and Medicare Savings Programs) and working families and people below poverty (Federal EITC). The reader picks a pair and House or Senate. `GET /api/outreach?pair=ID&chamber=house|senate` ranks the group's direct ACS count with the same tiers as the assistant's rank_districts tool, so districts whose ranges overlap share a group and are listed by number, never in an order the data cannot support. Each district also shows its program-use figure from `PROFILE_BESIDE` (SNAP households, SSI households, EITC returns or Marketplace enrollees with premium tax credits) for comparison only. Figures moved from ZIP codes are too wide to rank. The page opens with a sentence naming the top tier, flags unreliable estimates, and lists each program's page and phone with the income-test caveat. Each district profile has an "Outreach opportunities" note naming up to two pairs whose top tier holds the district, the smallest tier first.
+
 ### Prepared answers to the starter questions
 
 The five starter questions ask the same thing for every district, so their answers can be prepared once after each
@@ -397,6 +401,21 @@ with Social Security, retirement income and SSI. Those shares cover households o
 The rates and the median are compared with the county holding most of the district's people and with the state,
 and the answer lists SSI, Kūpuna Care, SNAP and Med-QUEST with official links. The assistant's answer is rejected
 until it cites each figure, comparison and program, as listed in FIXED_INCOME in klear/agent/config.py.
+
+The assistant and the free lookup follow the same rules for a few kinds of question:
+
+- Housing insecurity, food insecurity, lack of reliable transportation and utility shut-off threats get the CDC
+  PLACES measure held for the district, called a modeled estimate, not rent burden.
+- Public housing units get the count of units as well as the count of developments.
+- A figure tied to a program, such as households receiving SNAP or renters paying 35 percent or more of income on
+  rent, names that program (SNAP, HUD income limits) and lists it with its official link. The pairs are in
+  TIED_PROGRAMS in klear/agent/config.py.
+- A statewide question (statewide, the whole state, Hawaiʻi overall) is answered for the state.
+- A question for a year the store does not publish, such as 2025 when the latest survey covers 2020-2024, says
+  plainly that the year is not published, gives the latest figures with their years, and is marked as data not
+  available.
+- The answer builder spells Hawaiian place names with ʻokina and kahakō in the assistant's own words too, leaving
+  web addresses and official organization names as written.
 
 A district's page starts at the top with its name as the page heading, where it is, the four
 headline figures with their margins, a link to every section, and a row of three share buttons

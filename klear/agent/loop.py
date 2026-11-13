@@ -8,6 +8,7 @@ import anthropic
 from klear.agent.answer import (
     SUBMIT_SPEC,
     build_answer,
+    finish,
     required_comparisons,
     required_facts,
     required_programs,
@@ -144,7 +145,7 @@ class KlearAgent:
             for place in dict.fromkeys(p for _, p in pairs):
                 ids = [i for i, p in pairs if p == place]
                 session.run("get_facts", {"indicator_ids": ids, "geos": [":".join(place)]})
-        return template_answer(session, resolved, "none", context, programs)
+        return finish(session, template_answer(session, resolved, "none", context, programs))
 
     def _review(self, session: Session, answer: Answer, totals: list[int]) -> list[tuple[str, str]]:
         """Flags from one reviewer call on the rendered answer; none when the call fails or runs too long."""
