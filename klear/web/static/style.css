@@ -474,6 +474,8 @@ td:last-child{white-space:nowrap}
 .notes,.team{margin:var(--block-gap) 0 0;padding-left:20px;max-width:var(--measure)}
 .notes li,.team li{margin:0 0 8px}
 .validation-link{margin:var(--block-gap) 0 0;max-width:var(--measure)}
+.terms-title{margin:var(--block-gap) 0 0}
+.terms{margin:12px 0 0;max-width:var(--measure)}
 /* The methods page, linked from every figure KLEAR moved to districts or CDC modeled. */
 .methods{padding:var(--section-y) 0;background:var(--surface)}
 .methods h1{font-size:var(--fs-h1);line-height:1.1;margin:4px 0 16px}
@@ -487,7 +489,7 @@ td:last-child{white-space:nowrap}
 /* About */
 .about h3{margin:0}
 .about .team{margin-top:12px}
-.about .team+h3{margin-top:var(--block-gap)}
+.about .team-block+h3{margin-top:var(--block-gap)}
 .about .partner{margin:12px 0 0;max-width:var(--measure)}
 
 /* Footer */

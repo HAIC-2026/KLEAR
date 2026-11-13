@@ -1,6 +1,69 @@
 # KLEAR
 
+Live site: https://klear-1036571590730.us-west1.run.app/ (no setup needed; it asks for a password until the finals demo)
+
 KLEAR answers questions about Hawaiʻi's 51 House and 25 Senate legislative districts for the HAIC 2026 Know Your District challenge. A data pipeline builds a district-level fact base from Census, ACS, federal and state sources into DuckDB, with every fact tied to a source. Program eligibility rules live in YAML files. An agent built on Claude answers questions using only the store, and an eval checks its answers against a set of test questions.
+
+## For judges
+
+- Team: [team name as registered with HAIC]
+- The quickest way to try KLEAR is the live site above: no setup, keys or download. Until the finals demo it asks for a password.
+- Security and privacy: [docs/SECURITY-PRIVACY.md](docs/SECURITY-PRIVACY.md). How the numbers are checked: [docs/VALIDATION.md](docs/VALIDATION.md).
+
+One-minute tour:
+
+1. Type a town, such as Kāneʻohe, in the search box. KLEAR lists the House and Senate districts that hold it and the share of its residents in each.
+2. Pick a district. Its own page opens with four headline figures, then the full profile, each figure with its margin of error or range and its county and state values. The chat sits beside it (on a phone, under the Ask tab).
+3. Ask one of the suggested questions, or your own. Each answer shows its figures as cards and charts with their sources. Open a source to see the publisher's page.
+4. Open Outreach in the menu to see which districts have the most people who meet a program's income test.
+5. Open How we check KLEAR in the footer to see every check the last data build ran.
+
+Results, from the data build of November 12, 2026 HST and the tests run on it:
+
+| What | Result |
+| --- | --- |
+| Districts covered | 76 of 76 (51 House, 25 Senate) |
+| Data checks in the build ([docs/VALIDATION.md](docs/VALIDATION.md)) | 23 of 23 pass |
+| DBEDT workbook values compared with the Census Data API | 177,776 values, 0 mismatches |
+| Stored figures compared with DBEDT's district profiles | 3,854 figures, 0 differ |
+| Program rule values checked against official pages | 260 values in 15 rule files, 0 mismatches |
+| Programs in the catalog (data/programs) | 12 state and federal programs |
+| Scripted replay of the 59 practice questions (saved model replies, no API calls) | 59 of 59 pass |
+| Recorded live run on the practice set (Claude Haiku 5.5, rescored on this build) | 48 of 50 scored answers correct, every number from the store |
+| Python tests (pytest) | 2,080 passed, 0 failed (61 tests that call live servers run separately) |
+| Browser tests at desktop and phone sizes (Playwright), including 26 axe accessibility scans for WCAG 2.2 A and AA | 138 passed, 0 failed (10 desktop-only checks skipped at phone size) |
+
+To run KLEAR on your own computer instead, you first build the data store from public sources. That needs Python 3.12 or later, [uv](https://docs.astral.sh/uv/getting-started/installation/), internet access and a free Census API key ([sign up here](https://api.census.gov/data/key_signup.html)) saved in a .env file as in [Local keys](#local-keys). No paid key is needed.
+
+```sh
+git clone https://github.com/HAIC-2026/KLEAR.git
+cd KLEAR
+uv sync --locked
+uv run python -m klear.etl build
+uv run python -m klear.web --basic-only --open
+```
+
+The build takes several minutes the first time. Two HUD files must be downloaded by hand (see [Build the data store](#build-the-data-store)). Without them the build ends with exit code 2 and leaves out HUD's housing cost figures and its income limit check, but search, profiles and chat still work. --basic-only makes no AI model calls: answers come from free lookups in the store. Without a built store, the landing page and map still open, but search and chat stay off.
+
+## How answers stay grounded
+
+1. The model never types a figure. It writes sentences with markers such as {fact:f3}, each naming a fact that a data tool returned, and the server fills in the value, margin of error, survey years and source from the store (klear/eval/contract.py, klear/agent/answer.py).
+2. Code checks every answer before it is shown (build_answer in klear/agent/answer.py, answer_problems in klear/eval/scorers.py): one of five answer types (an answer, a declined personal request, a declined partisan request, data not available, or out of scope), no number outside a marker, every cited fact used, only the places the question is about, every figure the question type requires, and comparison words that match the numbers. A failing answer goes back to the model with the problems. If it still fails after 6 calls, code writes a plain answer from the facts already looked up.
+3. Each figure on the page shows its survey years, its margin of error or range and a link to its source, and an estimate whose margin of error is large is marked unreliable (klear/web/display.py).
+4. Basic mode needs no model. With --basic-only, without an Anthropic key, or once the daily cap is reached, a keyword lookup answers from the same store with the same layout (klear/web/answers.py).
+5. Answers to the five starter questions can be prepared ahead with python -m klear.web.prewarm. They pass the same checks, and the site uses one only for the same question, district, store build and model, and says it was prepared ahead.
+6. Every data build checks the store before the site uses it (docs/VALIDATION.md): DBEDT's ACS workbooks against the Census Data API cell by cell, stored figures against DBEDT, program rule values against quotes on official pages, and sums and ranges against their parts. If a gated check fails, the previous store is kept.
+
+```mermaid
+flowchart LR
+  S["Public sources: Census, IRS, CMS, HUD, HRSA, CDC"] --> B["Data build and validation (klear/etl, klear/validation)"]
+  B --> D[("DuckDB store, read-only at run time")]
+  D --> T["Agent data tools (klear/agent/tools.py)"]
+  T <--> C["Claude (optional)"]
+  T --> W["Web server (klear/web)"]
+  D --> W
+  W <--> U["Browser"]
+```
 
 ## Run the site locally
 
@@ -81,6 +144,56 @@ No `source`, environment export, or `--env-file` option is needed. Restart the w
   and leave off `--basic-only`. The site also falls back to basic lookups if the daily cap
   is reached or the API is unavailable.
 
+## Known limitations
+
+- The ACS figures cover survey years 2020 to 2024, so most of the responses behind them predate the August 2023 Maui wildfires.
+- Figures moved to districts from ZIP codes (IRS and CMS) are wide ranges, too wide to rank districts by.
+- Income-eligible counts, such as people under 138 percent of poverty, meet the income test only. KLEAR does not decide anyone's eligibility.
+- No DBEDT, Department of Taxation or BLS figures yet (issue #31). DBEDT's ACS workbooks are used only to check the Census figures.
+- The program catalog has 12 state and federal programs and no county programs.
+- Each question stands alone. The chat shows earlier messages but does not send them with a new question.
+- The free fallback lookup, used without an AI key or when the daily cap is reached, matches keywords. It answers fewer kinds of questions than the assistant.
+- No person has tested the site with a screen reader yet (see [docs/ACCESSIBILITY.md](docs/ACCESSIBILITY.md)).
+- English only.
+- The included Python server is a demo server, not a hardened public host. See [docs/SECURITY-PRIVACY.md](docs/SECURITY-PRIVACY.md) for what production would add.
+
+## Services and data KLEAR depends on
+
+Two outside services can be called while the site runs. Both are optional.
+
+| Service | Publisher | What KLEAR sends and why | Terms |
+| --- | --- | --- | --- |
+| Anthropic API, model claude-haiku-5-5 | Anthropic | The question and the public figures the assistant looks up, to write the answer. Used only when ANTHROPIC_API_KEY is set; --basic-only or no key uses the free lookup instead. | [Commercial Terms](https://www.anthropic.com/legal/commercial-terms), [Usage Policy](https://www.anthropic.com/legal/aup), [Privacy Policy](https://www.anthropic.com/legal/privacy) |
+| Census Geocoder | U.S. Census Bureau | A street address typed in search or chat, to find its 2020 Census block. --no-address-lookup turns it off. | [Policies and notices](https://www.census.gov/about/policies.html), [privacy policy](https://www.census.gov/about/policies/privacy.html) |
+
+The data build (python -m klear.etl build) downloads everything else. It runs ahead of time, not when someone uses the site. The store holds facts from these 11 sources:
+
+| Source | Publisher | How the build gets it | Terms |
+| --- | --- | --- | --- |
+| [ACS 5-year Data Profiles, 2020-2024](https://www.census.gov/acs/www/data/data-tables-and-tools/data-profiles/2024/) | U.S. Census Bureau | Census Data API, with a free key | [Census Data API terms of service](https://www.census.gov/data/developers/about/terms-of-service.html) |
+| [ACS 5-year Detailed Tables, 2020-2024](https://www.census.gov/programs-surveys/acs/data/data-tables.html) | U.S. Census Bureau | Census Data API, with a free key | [Census Data API terms of service](https://www.census.gov/data/developers/about/terms-of-service.html) |
+| [IRS Statistics of Income ZIP code data, tax year 2023](https://www.irs.gov/statistics/soi-tax-stats-individual-income-tax-statistics-2023-zip-code-data-soi) | Internal Revenue Service | CSV download | [U.S. government work, no copyright](https://www.usa.gov/government-copyright) |
+| [Marketplace 2026 open enrollment public use files](https://www.cms.gov/data-research/statistics-trends-reports/marketplace-products/2026-marketplace-open-enrollment-period-public-use-files) | Centers for Medicare & Medicaid Services | ZIP download | [U.S. government work, no copyright](https://www.usa.gov/government-copyright) |
+| [Housing Choice Vouchers by Tract](https://hudgis-hud.opendata.arcgis.com/datasets/HUD::housing-choice-vouchers-by-tract) | U.S. Department of Housing and Urban Development | HUD's ArcGIS map service | [U.S. government work, no copyright](https://www.usa.gov/government-copyright) |
+| [Public Housing Developments](https://hudgis-hud.opendata.arcgis.com/datasets/HUD::public-housing-developments) | U.S. Department of Housing and Urban Development | HUD's ArcGIS map service | [U.S. government work, no copyright](https://www.usa.gov/government-copyright) |
+| [Low-Income Housing Tax Credit projects](https://hudgis-hud.opendata.arcgis.com/datasets/HUD::low-income-housing-tax-credit-properties-1) | U.S. Department of Housing and Urban Development | HUD's ArcGIS map service | [U.S. government work, no copyright](https://www.usa.gov/government-copyright) |
+| [CHAS 2018-2022, Table 8](https://www.huduser.gov/portal/datasets/cp.html) | U.S. Department of Housing and Urban Development | Saved by hand in data/manual (the site blocks scripts) | [U.S. government work, no copyright](https://www.usa.gov/government-copyright) |
+| [Health center service delivery and look-alike sites](https://data.hrsa.gov/data/download?data=HCC) | Health Resources and Services Administration | CSV download | [U.S. government work, no copyright](https://www.usa.gov/government-copyright) |
+| [PLACES 2025, census tract data](https://data.cdc.gov/500-Cities-Places/PLACES-Local-Data-for-Better-Health-Census-Tract-D/cwsq-ngmh) | Centers for Disease Control and Prevention | data.cdc.gov CSV download | [Use of CDC materials](https://www.cdc.gov/other/agencymaterials.html) |
+| [PLACES 2025, county data](https://data.cdc.gov/500-Cities-Places/PLACES-Local-Data-for-Better-Health-County-Data-20/swc5-untb) | Centers for Disease Control and Prevention | data.cdc.gov CSV download | [Use of CDC materials](https://www.cdc.gov/other/agencymaterials.html) |
+
+The build and its helper scripts also read these, to draw districts, place people in them, spell place names and check the figures. None of them adds a figure of its own:
+
+- U.S. Census Bureau: 2020 Census redistricting data (P.L. 94-171) through the Census Data API, and TIGER/Line 2020 blocks and county subdivisions, the 2020 ZIP code area relationship file, block assignment file and place gazetteer from www2.census.gov ([Census Data API terms of service](https://www.census.gov/data/developers/about/terms-of-service.html)).
+- Hawaiʻi Statewide GIS Program: the official 2022 House and Senate district boundaries ([program page](https://planning.hawaii.gov/gis/)).
+- Hawaiʻi Office of Elections: the 2022 Reapportionment Commission's final district population files ([commission page](https://elections.hawaii.gov/about-us/boards-and-commissions/reapportionment/)).
+- DBEDT Research and Economic Analysis Division: the 2020-2024 ACS profile workbooks, compared cell by cell with the Census Data API ([DBEDT census page](https://census.hawaii.gov/)).
+- City and County of Honolulu: neighborhood board areas, for search on Oʻahu ([Honolulu Open Geospatial Data](https://honolulu-cchnl.opendata.arcgis.com/)).
+- U.S. Geological Survey: Geographic Names Information System names, read by klear/etl/gazetteer_names.py to write the Hawaiian spellings in data/places/hawaiian_names.yaml ([GNIS](https://edits.nationalmap.gov/apps/gaz-domestic/public/search/names), [U.S. government work, no copyright](https://www.usa.gov/government-copyright)).
+- State and federal program pages: each rule in data/rules is checked against a quote on the page named in its source_url, and each program in data/programs links to its official page.
+
+This product uses the Census Bureau Data API but is not endorsed or certified by the Census Bureau.
+
 ## Layout
 
 - klear/etl: downloads the sources and builds the store (python -m klear.etl build).
@@ -90,7 +203,7 @@ No `source`, environment export, or `--env-file` option is needed. Restart the w
 - klear/agent: the agent, its data tools and the code that builds and checks each answer (python -m klear.agent).
 - klear/web: the local web server, landing page, district profile and chat interface (python -m klear.web).
 - klear/eval: the answer format, eval runner, answer checks, reports and spending cap (python -m klear.eval run).
-- data: the checked-in indicator catalog and the official program counts the validation report compares with (data/catalog), Hawaiian place names and district search names (data/places) and program rules (data/rules). The build also writes data/raw (download cache), data/manual (hand downloads) and data/build (the store), none of them tracked.
+- data: the checked-in indicator catalog and the official program counts the validation report compares with (data/catalog), Hawaiian place names and district search names (data/places), the program catalog the site and the assistant list programs from, with each program's agency, official page and phone (data/programs), and program rules (data/rules). The build also writes data/raw (download cache), data/manual (hand downloads) and data/build (the store), none of them tracked.
 - eval: test questions (eval/golden), saved model replies (eval/scripts), recorded live answers (eval/recordings) and model prices. Run reports go to eval/reports, which is not tracked.
 - tests: the pytest suite, laid out like the klear packages, with small fixtures in tests/fixtures.
 - e2e: browser and accessibility tests with Playwright and axe (see [Browser and accessibility tests](#browser-and-accessibility-tests)).
@@ -379,9 +492,10 @@ says so and asks for a place, ZIP code or district instead of guessing one from 
 Questions about the people at an address, such as who lives there, are still declined. When the
 address is in another district than the one chosen, the answer is labeled with that district, its
 next questions name it, and a button switches the chat and profile to it. The matched address is shown
-in title case with Hawaiian spelling. The note under the question box says the address goes to the
-Census Bureau and is not stored or logged, and that assistant answers send the question to the AI
-model provider. The agent and eval command lines take the same --no-address-lookup option.
+in title case with Hawaiian spelling. The note under the question box says that an AI model answers
+from KLEAR's data, that questions go to its provider, Anthropic, so people should leave out personal
+details, and that addresses go to the Census Bureau only to find a district. The note under the
+district search adds that KLEAR does not store or log an address. The agent and eval command lines take the same --no-address-lookup option.
 Chat offers five example questions, a waiting state, explicit refusal labels,
 and figure cards with uncertainty, vintage, geography and official source
 links. Source names open the publisher's page about the dataset, never an API answer or a
@@ -402,8 +516,8 @@ Choosing a district opens its own page, such as /district/house-22, with its pro
 profile is read straight from the store with no model call, through `GET /api/profile?district=house:022`.
 A district chosen while an answer is still loading shows its profile at once, and the chat switches to it after that answer.
 It names the district's counties, islands, Census places and the overlapping districts
-in the other chamber, shows four headline figures, then 37 figures in seven sections:
-People, Income, Housing, Health and access, Programs in use, Modeled needs and Help sites.
+in the other chamber, shows four headline figures, then up to 44 figures in eight sections:
+People, Income, Housing, Health and access, Programs in use, Who may qualify, Modeled needs and Help sites.
 Each figure shows its margin of error or range, is compared with the county that holds most
 of the district's population and with the state, flags an unreliable estimate, and is cited
 under its section. Rates are compared in plain sentences ("about 40 percent higher than the

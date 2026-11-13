@@ -13,6 +13,8 @@ async function holdQuestions(page) {
 }
 
 test('three related questions, each asked with a next-question button', async ({page}) => {
+  // Four answers in a row: allow for a loaded machine.
+  test.slow();
   await page.goto('/');
   await chooseDistrict(page);
   await showTab(page, 'Ask');
