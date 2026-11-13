@@ -21,6 +21,7 @@ def write(path, **over):
         "program": "SNAP",
         "status": "confirmed",
         "effective": "2026-10-01",
+        "review_by": "2027-10-01",
         "source_url": "https://example.org/snap",
         "info_url": "https://example.org/apply",
         "values": {"max_hh4": dict(ENTRY)},
@@ -383,3 +384,22 @@ def test_saved_copy_is_read_when_the_page_blocks_scripts(tmp_rules, tmp_path, mo
     assert res.passed and "saved copy snap.html" in res.notes[0]
     assert (d / "snap.html.meta.json").exists()
     assert not check_rules(tmp_rules(), fetch_text=blocked).passed
+
+
+def test_review_by_is_a_date_after_effective(tmp_rules, tmp_path):
+    (rule,) = tmp_rules()
+    assert rule.review_by == "2027-10-01"
+    with pytest.raises(ValueError, match="review_by must be a date"):
+        tmp_rules(review_by="next fall")
+    with pytest.raises(ValueError, match="must come after effective"):
+        tmp_rules(review_by="2026-09-30")
+    write(tmp_path / "r.yaml")
+    d = yaml.safe_load((tmp_path / "r.yaml").read_text(encoding="utf-8"))
+    del d["review_by"]
+    (tmp_path / "r.yaml").write_text(yaml.safe_dump(d), encoding="utf-8")
+    with pytest.raises(ValueError, match="missing field review_by"):
+        load_rules(tmp_path, required=())
+
+
+def test_every_rule_has_a_review_date():
+    assert all(r.review_by > r.effective for r in load_rules())

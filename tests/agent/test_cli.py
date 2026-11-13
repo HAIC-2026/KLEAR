@@ -69,11 +69,12 @@ def test_prints_cost_asks_then_answers_and_settles(store_path, fake, monkeypatch
     assert f"${_bound():.4f}" in out and "House District 22" in out and "Refusal: none" in out
     reserve, settle = _ledger()
     assert reserve["type"] == "reserve" and reserve["estimate"] == pytest.approx(_bound())
-    used = Usage(2 * (1000 + 500), 2 * 200, 0.0)
+    used = Usage(2 * 1000, 2 * 200, 0.0, 2 * 400, 0)
     cost = spend.request_cost(MODEL, used)
     assert settle["id"] == reserve["id"] and settle["cost"] == pytest.approx(cost)
-    assert (settle["input_tokens"], settle["output_tokens"]) == (used.input_tokens, used.output_tokens)
-    assert f"${cost:.4f}" in out
+    tokens = ("input_tokens", "output_tokens", "cache_write_tokens", "cache_read_tokens")
+    assert [settle[k] for k in tokens] == [2000, 400, 800, 0]
+    assert f"${cost:.4f}" in out and "2000 input, 800 cache write, 0 cache read, 400 output tokens" in out
 
 
 def test_selected_district_reaches_the_model(store_path, fake, monkeypatch):

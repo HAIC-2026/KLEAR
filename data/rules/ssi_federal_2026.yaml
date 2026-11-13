@@ -2,6 +2,7 @@ rule_id: ssi_federal_2026
 program: SSI federal payment
 status: confirmed
 effective: '2026-01-01'
+review_by: '2027-01-01'
 info_url: https://www.ssa.gov/ssi
 source_url: https://www.federalregister.gov/documents/full_text/text/2025/11/03/2025-19763.txt
 effective_source:

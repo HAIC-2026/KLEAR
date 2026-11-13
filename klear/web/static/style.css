@@ -43,9 +43,16 @@
   /* Shape */
   --r-sm:4px;--r-ctl:8px;--r-card:12px;--r-bubble:16px;--r-pill:999px;--control-h:48px;
 
+  /* Site header: its height, and how much of it stays on screen as the page scrolls. The header rules set --stick. */
+  --header-h:64px;--stick:0px;
+
   /* Spacing */
   --gutter:clamp(16px,3vw,32px);--card-pad:clamp(16px,2.4vw,28px);--section-y:clamp(48px,7vw,80px);
   --head-gap:28px;--block-gap:24px;--measure:46rem;
+
+  /* A district's page on wide screens. --header-h is the site header's height and --stick how much of it stays on screen
+     as the page scrolls (none while the header scrolls away), so the chat beside the profile sticks just under it. */
+  --header-h:64px;--stick:0px;--chat-w:clamp(30rem,36vw,32.5rem);--district-top:16px;
 
   /* Printed district summary: one US Letter page */
   --pt-xs:7.5pt;--pt-sm:8.5pt;--pt-base:9.5pt;--pt-md:11pt;--pt-title:20pt;--pt-gap:8pt;
@@ -68,20 +75,65 @@ h3{font-size:var(--fs-lg);line-height:1.3;margin:0 0 8px}
 .wrap{max-width:1280px;margin:0 auto;padding:0 var(--gutter)}
 .visually-hidden{position:absolute;width:1px;height:1px;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 .muted{color:var(--muted)}
-.skip{position:absolute;top:-100px;left:12px;background:#fff;color:var(--ink);padding:10px;border-radius:var(--r-ctl);z-index:20}
+.skip{position:absolute;top:-100px;left:12px;background:#fff;color:var(--ink);padding:10px;border-radius:var(--r-ctl);z-index:40}
 .skip:focus{top:12px}
 /* Links that leave the site get a drawn arrow, so it looks the same on every system. */
 a.ext::after{content:"";display:inline-block;width:.5em;height:.5em;margin-left:.35em;vertical-align:.12em;border-top:.13em solid currentColor;border-right:.13em solid currentColor;background:linear-gradient(to bottom right,transparent 42%,currentColor 42%,currentColor 58%,transparent 58%)}
 
-/* Header */
-.site-header{height:64px;padding:0 var(--gutter);display:flex;align-items:center;justify-content:space-between;gap:24px;background:var(--bg);border-bottom:1px solid var(--line)}
+/* Header: the same on every page (tests/agent/test_web_pages.py checks this). Its links lead to each part of KLEAR, and
+   "Data and methods" is a details element, so its menu opens with no script; nav.js closes it the way a menu is
+   expected to close. When the screen is tall enough the header stays at the top as the page scrolls: all of it on wide
+   screens, and only its row of links on phones. --stick is how much of it stays, so whatever the page scrolls to (a
+   section, a link's target, the next stop for the keyboard) stops below it. */
+.site-header{position:relative;z-index:30;height:var(--header-h);padding:0 var(--gutter);display:flex;align-items:center;justify-content:space-between;gap:24px;background:var(--bg);border-bottom:1px solid var(--line)}
 .brand{display:inline-flex;align-items:center;gap:10px;color:var(--ink);text-decoration:none;white-space:nowrap}
 .brand-logo{display:block;flex:none;width:36px;height:36px}
 .brand-text{display:inline-flex;align-items:baseline;gap:10px}
 .brand strong{font-size:var(--fs-xl);font-weight:800;letter-spacing:.02em}
 .brand-sub{font-size:var(--fs-sm);color:var(--muted)}
-.site-header nav{display:flex;align-items:center;gap:24px;font-size:var(--fs-base);font-weight:600}
-.site-header nav a{color:var(--ink);text-decoration:none}
+.site-header nav{font-size:var(--fs-base);font-weight:600}
+.nav-links{display:flex;align-items:center;gap:24px;margin:0;padding:0;list-style:none}
+.nav-links>li{position:relative}
+/* Block, not flex, so the space before a label's longer part stays. 44 px tall. */
+.nav-links a,.nav-menu summary{display:block;padding:10px 0;line-height:24px;color:var(--ink);text-decoration:none;white-space:nowrap}
+.nav-menu{margin:0;padding:0;border:0}
+.nav-menu summary{list-style:none}
+.nav-menu summary::-webkit-details-marker{display:none}
+/* A drawn chevron that turns over when the menu opens. */
+.nav-menu summary::after{content:"";display:inline-block;width:7px;height:7px;margin:0 2px 0 10px;vertical-align:.3em;border-right:2px solid currentColor;border-bottom:2px solid currentColor;transform:rotate(45deg)}
+.nav-menu[open] summary::after{vertical-align:0;transform:rotate(225deg)}
+/* The menu hangs from the header's bottom edge: the 44 px row sits 10 px above it. */
+.nav-menu ul{position:absolute;top:calc(100% + 10px);right:0;min-width:15rem;margin:0;padding:6px;list-style:none;background:#fff;border:1px solid var(--line);border-top:0;border-radius:0 0 var(--r-card) var(--r-card);box-shadow:0 12px 24px rgb(0 0 0 / .12)}
+.nav-menu li a{padding:10px 12px;border-radius:var(--r-sm)}
+/* The page you are on: a thick accent underline on its link, and on the menu's button when the page is in the menu,
+   with a tint inside the menu. Screen readers hear "current page". */
+.nav-links a[aria-current=page],.nav-menu:has([aria-current=page])>summary{text-decoration-line:underline;text-decoration-thickness:3px;text-decoration-color:var(--accent);text-underline-offset:8px}
+.nav-menu li a[aria-current=page]{background:var(--accent-soft);text-underline-offset:5px}
+footer a[aria-current=page]{font-weight:700;text-decoration-thickness:3px}
+.crumb{margin:0 0 12px;font-size:var(--fs-sm);color:var(--muted)}
+.crumb a{color:var(--muted)}
+.crumb [aria-current]{color:var(--ink)}
+@media(min-height:560px){
+  :root{--stick:var(--header-h)}
+  .site-header{position:sticky;top:0}
+}
+@media(max-width:1023px){.brand-sub{display:none}.nav-links{gap:18px}}
+/* Phones: the logo on one row, and the links spread across the next in one row. Only the links stay as the page
+   scrolls, and the menu opens under them as wide as the screen. */
+@media(max-width:760px){
+  .site-header{height:auto;flex-wrap:wrap;gap:0}
+  .brand{height:52px}
+  .site-header nav{flex:1 0 100%;border-top:1px solid var(--line)}
+  /* One row; with much wider text spacing, a second row rather than a page that scrolls sideways. */
+  .nav-links{flex-wrap:wrap;justify-content:space-between;gap:0 12px}
+  .nav-links>li{position:static}
+  .nav-menu ul{top:100%;left:0;right:0}
+}
+@media(max-width:760px) and (min-height:560px){:root{--stick:46px}.site-header{top:-52px}}
+/* Shorter labels where the full ones do not fit: Find, and Data for the menu. */
+@media(max-width:560px){.nav-long{display:none}}
+@media(max-width:359px){.site-header nav{font-size:var(--fs-sm)}.nav-links{gap:0}}
+@media print{.site-header{position:static}}
 
 /* Photo band with the district search */
 .band{position:relative;color:#fff;background:var(--band-bg) url('/background1.jpg') center 55%/cover no-repeat}
@@ -101,8 +153,12 @@ a.ext::after{content:"";display:inline-block;width:.5em;height:.5em;margin-left:
 #find-matches:not(:empty){margin-top:12px;padding:16px;background:rgb(var(--band-rgb) / .72);border-radius:var(--r-card)}
 .photo-credit{position:absolute;right:8px;bottom:8px;z-index:1;margin:0;padding:3px 8px;font-size:var(--fs-xs);color:#fff;background:rgb(var(--band-rgb) / .8);border-radius:var(--r-sm)}
 
+/* Whatever the page scrolls to stops below the part of the header that stays on screen: a section, a link's target, a
+   new chat message, and whatever the keyboard moves focus to, so Shift+Tab back up the page never hides it. */
+section,:target,#log>*{scroll-margin-top:calc(var(--stick) + 16px)}
+a[href],button,input,select,textarea,summary,[tabindex]{scroll-margin-top:calc(var(--stick) + 8px)}
+
 /* Sections: one padding, one heading block, and white and gray alternating so each reads as its own block. */
-section{scroll-margin-top:16px}
 .chat-section,.map-section,.how,.sources,.about{padding:var(--section-y) 0}
 .chat-section,.how,.about{background:var(--surface)}
 .map-section,.sources{background:var(--bg)}
@@ -218,25 +274,50 @@ summary{font-weight:600;color:var(--accent);cursor:pointer}
 .error{width:fit-content;max-width:min(100%,46rem);padding:12px 16px;background:var(--error-bg);color:var(--error-ink);border:1px solid var(--error-line)}
 .error p{margin:0}
 .retry{margin-top:10px;padding:6px 18px;border:1px solid var(--error-ink);border-radius:var(--r-ctl);background:#fff;color:var(--error-ink);font-size:var(--fs-sm);font-weight:600;line-height:1.4}
-.send-hint,.chat-privacy{margin:6px 0 0;font-size:var(--fs-xs);color:var(--muted)}
+.chat-notes{margin:6px 0 0;font-size:var(--fs-xs);line-height:1.5;color:var(--muted)}
 .chat-aside h3{font-size:var(--fs-base);margin:0 0 12px}
 .examples{display:grid;gap:8px}
 .examples button{border:1px solid var(--line);border-radius:var(--r-ctl);background:#fff;text-align:left;padding:12px 14px;color:var(--ink);font-size:var(--fs-base);line-height:1.4;text-wrap:pretty}
-/* District profile beside the chat: big figures, plain labels, and comparisons written as sentences. */
-/* Side by side, the profile is as wide as the chat. It always takes the height its figures need and never scrolls inside
-   itself. The chat stays compact until a question is sent. */
-@media(min-width:1200px){.chat-layout:has(#profile:not([hidden])){grid-template-columns:repeat(2,minmax(0,1fr))}}
-.profile{background:#fff;border:1px solid var(--line);border-radius:var(--r-card);padding:20px 20px 4px}
-.chat-aside .profile h3{font-size:var(--fs-xl);line-height:1.25;margin:4px 0 8px}
-.profile-where{margin:0 0 4px;font-size:var(--fs-sm);line-height:1.5}
-.profile-meta{margin:0 0 2px;font-size:var(--fs-xs);color:var(--muted);line-height:1.5}
+/* A district's own page. The home page's photo band, the chat's introduction and the starter questions give way to the
+   district's name and where it is, then its profile: four headline figures, links to each section, the share buttons
+   and the sections, with big figures, plain labels, and comparisons written as sentences. On wide screens the chat
+   sits beside the profile, as tall as the window, and stays in view while the profile scrolls; below 1200 px the two
+   take turns behind tabs (see the end of this block). */
+.district-page .band,.district-page #chat-head,.district-page .chat-aside{display:none}
+.district-page .chat-section{padding:var(--district-top) 0 var(--section-y)}
+.district-page .chat-section>.wrap{max-width:1440px}
+.district-head{min-width:0;scroll-margin-top:calc(var(--stick) + var(--district-top))}
+.district-head h1{font-size:clamp(30px,2.6vw,36px);line-height:1.15;margin:2px 0 4px}
+.district-where{margin:0;font-size:var(--fs-md);line-height:1.45}
+.district-meta{margin:2px 0 0;font-size:var(--fs-sm);line-height:1.5;color:var(--muted)}
+/* Shown only while it has focus, as the page's own skip link is. */
+.skip-ask:not(:focus){position:absolute;width:1px;height:1px;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.skip-ask:focus{display:inline-block;margin-top:10px;padding:6px 12px;background:#fff;border-radius:var(--r-ctl);font-weight:600}
+.view-tabs{display:flex;margin:16px 0 0;border:1px solid var(--control);border-radius:var(--r-ctl);overflow:hidden;background:#fff}
+.view-tabs [role=tab]{flex:1 1 0;min-height:44px;padding:8px 12px;border:0;background:transparent;color:var(--accent-dark);font-size:var(--fs-base);font-weight:700}
+.view-tabs [role=tab]+[role=tab]{border-left:1px solid var(--control)}
+.view-tabs [role=tab][aria-selected=true]{background:var(--accent);color:#fff}
+.view-tabs [role=tab]:focus-visible{outline-offset:-6px}.view-tabs [role=tab][aria-selected=true]:focus-visible{outline-color:#fff}
+.tab-new{margin-left:8px;padding:1px 8px;border-radius:var(--r-pill);background:var(--accent-soft);color:var(--accent-dark);font-size:var(--fs-xs);font-weight:600}
+.profile{min-width:0;background:#fff;border:1px solid var(--line);border-radius:var(--r-card);padding:20px var(--card-pad) 4px}
 .profile-status{margin:0 0 16px;font-size:var(--fs-sm);color:var(--muted)}
-.profile-stats{display:grid;grid-template-columns:1fr 1fr;gap:0 20px;margin:16px 0 8px}
-.profile-stats div{display:flex;flex-direction:column-reverse;justify-content:flex-end;border-top:1px solid var(--line);padding:10px 0 12px;min-width:0}
-.profile-stats dd{margin:0;font-size:var(--fs-xl);line-height:1.15;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
-.profile-stats dt{margin-top:2px;font-size:var(--fs-xs);line-height:1.35;color:var(--muted)}
-.profile .profile-section{margin:0;padding:0}
-.profile-section summary{padding:12px 0}
+.profile-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px 20px;margin:0}
+.profile-stats div{display:flex;flex-direction:column-reverse;justify-content:flex-end;min-width:0}
+.profile-stats dd{margin:0;line-height:1.2;font-variant-numeric:tabular-nums}
+.profile-stats .num{font-size:var(--fs-xl);letter-spacing:-.02em;white-space:nowrap}
+.profile-stats .moe{font-size:var(--fs-xs);color:var(--muted);white-space:nowrap}
+.profile-stats dt{margin-top:4px;font-size:var(--fs-xs);line-height:1.35;color:var(--muted)}
+/* The title leads the first line of links. */
+.profile-jumps{display:flex;flex-wrap:wrap;align-items:baseline;gap:0 18px;margin:16px 0 0;padding-top:8px;border-top:1px solid var(--line)}
+.profile-jumps-title{margin:0;font-size:var(--fs-sm);color:var(--muted)}
+.profile-jumps ul{display:flex;flex:1 1 24rem;flex-wrap:wrap;gap:0 18px;margin:0;padding:0;list-style:none}
+.profile-jumps a,.profile-back a{display:inline-block;padding:4px 0;font-size:var(--fs-sm);font-weight:600}
+.profile .profile-section{margin:0;padding:0;scroll-margin-top:calc(var(--stick) + 12px)}
+.profile-section>summary{padding:10px 0;font-size:var(--fs-md);font-weight:700}
+/* Rows and programs side by side when there is room: three across beside the chat on a wide screen. */
+.profile-rows{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(14.5rem,100%),1fr));column-gap:24px}
+.program-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(18rem,100%),1fr));column-gap:24px}
+.profile-back{margin:0;padding:0 0 12px}
 .profile-row{padding:12px 0 14px;border-top:1px solid var(--line)}
 .profile-figure{margin:0;line-height:1.2;font-variant-numeric:tabular-nums}
 .profile-figure .num{font-size:var(--fs-lg);letter-spacing:-.015em}
@@ -252,7 +333,6 @@ summary{font-weight:600;color:var(--accent);cursor:pointer}
 .profile-sources ul,.profile-sources ol{margin:0;padding-left:18px}.profile-sources ul{list-style:none;padding-left:0}
 .profile-sources ul+.profile-sources-title,.profile-sources ol+.profile-sources-title{margin-top:8px}
 .profile-source-year{display:block}.profile-sources li+li{margin-top:4px}
-@media(min-width:641px) and (max-width:1199px){.profile-stats{grid-template-columns:repeat(4,minmax(0,1fr))}}
 /* Programs matched to a district: linked name, agency, reasons and a phone. */
 .program-intro{margin:0 0 6px;font-size:var(--fs-xs);line-height:1.5;color:var(--muted)}
 .program{padding:12px 0 14px;border-top:1px solid var(--line)}
@@ -261,6 +341,7 @@ summary{font-weight:600;color:var(--accent);cursor:pointer}
 .program-agency,.program-contact{margin:2px 0 0;font-size:var(--fs-xs);line-height:1.45;color:var(--muted)}
 .program-contact{margin-top:6px}
 .program-contact a{white-space:nowrap}
+.program-stale{color:var(--ink);font-weight:600}
 .program-about{margin:6px 0 0;font-size:var(--fs-sm);line-height:1.5}
 .program-reasons{list-style:none;margin:6px 0 0;padding:0;font-size:var(--fs-xs);line-height:1.5;color:var(--muted)}
 .program-reasons li+li{margin-top:4px}
@@ -274,28 +355,50 @@ article .answer-programs summary+.program{margin-top:10px}
 .profile-beside b{font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums}
 .profile-beside sup{margin-left:3px;line-height:0}
 .profile-caveat.lead{margin:0 0 4px}
-/* Print, link and download controls under the profile's heading */
-/* Print, link and download controls: a tinted panel near the top of the profile. */
-.profile-share{margin:16px 0 4px;padding:14px 16px 16px;background:var(--accent-soft);border-radius:var(--r-ctl)}
-.profile-share-title{margin:0;font-size:var(--fs-base);font-weight:700;color:var(--accent-dark)}
-.profile-share-note{margin:2px 0 12px;font-size:var(--fs-sm);line-height:1.45;color:var(--ink)}
-/* Print is the main action and takes the first row; Copy link and the download share the second. */
-.profile-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
-.profile-actions .action{display:flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:8px 14px;background:#fff;border:1px solid var(--accent);border-radius:var(--r-ctl);color:var(--accent-dark);font-size:var(--fs-sm);font-weight:700;line-height:1.3;text-align:center;text-decoration:none}
-.profile-actions .action.primary{grid-column:1/-1;background:var(--accent);color:#fff;font-size:var(--fs-base)}
+/* Print, link and download buttons in one row under the profile's top. */
+.profile-share{margin:4px 0 12px}
+.profile-actions{display:flex;flex-wrap:wrap;gap:8px}
+.profile-actions .action{display:inline-flex;align-items:center;gap:8px;min-height:40px;padding:6px 14px;background:#fff;border:1px solid var(--accent);border-radius:var(--r-ctl);color:var(--accent-dark);font-size:var(--fs-sm);font-weight:700;line-height:1.3;text-decoration:none}
 .icon{flex:none;width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .profile-share-status{display:flex;align-items:center;gap:6px;margin:10px 0 0;font-size:var(--fs-sm);font-weight:600;color:var(--accent-dark);overflow-wrap:anywhere}.profile-share-status:empty{display:none}
 /* Fixed and see-through: the selection Copy link falls back on when it cannot write to the clipboard directly. */
 .copy-buffer{position:fixed;top:0;left:0;width:1px;height:1px;padding:0;border:0;opacity:0;pointer-events:none}
-/* Suggested questions: short buttons between the conversation and the question box. */
-.suggest{padding:12px var(--card-pad) 0;border-top:1px solid var(--line)}
-.suggest:not([hidden])+#question-form{border-top:0;padding-top:12px}
+/* Suggested questions: short buttons at the end of the conversation, just above the question box when it is short. */
+#messages{display:flex;flex-direction:column}
+.suggest{margin-top:auto;padding:12px 0 4px;border-top:1px solid var(--line)}
 .suggest .examples{display:flex;flex-wrap:wrap;gap:8px}
 .suggest .examples button{border:1px solid var(--accent);border-radius:var(--r-pill);padding:6px 14px;color:var(--accent-dark);font-size:var(--fs-sm);font-weight:600;line-height:1.4;white-space:nowrap}
 /* Examples picked for the chosen district are tinted. */
 .suggest .examples button.local{background:var(--accent-soft)}
-/* The card is compact until the first question; then it grows and the conversation scrolls inside it. */
-@media(min-width:1024px) and (min-height:640px){.chat-card.started{min-height:min(680px,calc(100vh - 120px))}.district-bar,#suggest,#question-form,#chat-status{flex:none}.chat-card.started #messages{flex:1 1 0px;min-height:180px;overflow-y:auto;scroll-padding-block:12px}}
+/* On the home page the card is compact until the first question; then it grows and the conversation scrolls inside it. */
+@media(min-width:1024px) and (min-height:640px){body:not(.district-page) .chat-card.started{min-height:min(680px,calc(100vh - 120px))}.district-bar,#question-form,#chat-status{flex:none}body:not(.district-page) .chat-card.started #messages{flex:1 1 0px;min-height:180px;overflow-y:auto;scroll-padding-block:12px}}
+/* A district's page. The bar over the chat takes one line, since the page heading already names the district. */
+.district-page .district-bar{padding:10px var(--card-pad)}
+.district-page .district-now>div{display:flex;flex-wrap:wrap;align-items:baseline;column-gap:6px;min-width:0}
+.district-page .district-now strong{display:inline;font-size:var(--fs-base)}
+.district-page .district-now .textbutton{padding:2px 0}
+.district-page #messages{padding-top:16px}
+.district-page #question-form{padding-top:12px}
+.district-page #chat-status{padding-bottom:12px}
+/* Wide and tall enough: the profile on the left and the chat beside it, as tall as the window below the site header, so
+   it stays in view while the profile scrolls and the conversation scrolls inside it. */
+@media(min-width:1200px){
+  .view-tabs{display:none}
+  .district-page .chat-layout{grid-template-columns:minmax(0,1fr) var(--chat-w);grid-template-rows:auto 1fr;gap:20px 32px}
+  .district-page .district-head{grid-area:1/1}
+  .district-page #profile{grid-area:2/1}
+  .district-page .chat-card{grid-area:1/2/3/3}
+}
+@media(min-width:1200px) and (min-height:560px){
+  .district-page .chat-card{position:sticky;top:calc(var(--stick) + var(--district-top));height:calc(100vh - var(--header-h) - var(--district-top) - 12px)}
+  .district-page .district-bar{max-height:60%;overflow-y:auto}
+  .district-page #messages{flex:1 1 0px;min-height:120px;overflow-y:auto;scroll-padding-block:12px}
+}
+/* One column: the profile and the chat take turns behind the tabs under the district's name. */
+@media(max-width:1199px){
+  .district-page #chat[data-tab=profile] .chat-card,.district-page #chat[data-tab=ask] #profile,.district-page .skip-ask{display:none}
+  .district-page .chat-layout{row-gap:16px}
+}
 
 /* Answer tiles, charts, and sources */
 .answer .lead{font-size:var(--fs-lead);line-height:1.55;margin:0 0 16px}
@@ -429,8 +532,14 @@ td:last-child{white-space:nowrap}
 .methods{padding:var(--section-y) 0;background:var(--surface)}
 .methods h1{font-size:var(--fs-h1);line-height:1.1;margin:4px 0 16px}
 .methods>.wrap>p,.methods section{max-width:var(--measure)}
-.methods section{margin:var(--section-y) 0 0;scroll-margin-top:16px}
+.methods section{margin:var(--section-y) 0 0;scroll-margin-top:calc(var(--stick) + 16px)}
 .methods section section{margin-top:var(--block-gap)}
+/* Accessibility statement: docs/ACCESSIBILITY.md, rendered into the page by the server */
+.statement{padding:var(--section-y) 0;background:var(--surface)}
+.statement h1{font-size:var(--fs-h1);line-height:1.1;margin:0 0 16px;max-width:var(--measure)}
+.statement h2{margin:var(--section-y) 0 12px}
+.statement p,.statement ul{max-width:var(--measure);line-height:1.6}
+.statement li+li{margin-top:8px}
 .method-terms{padding-left:20px}.method-terms li{margin:0 0 8px}
 /* Where a source's figures can be checked: its tables on data.census.gov, or the methods page. */
 .source-links{display:block}
@@ -456,18 +565,13 @@ footer a{color:#fff}
 .footer-col p{margin:0}
 .footer-note{margin:32px 0 0;padding-top:20px;border-top:1px solid var(--on-dark-line);font-size:var(--fs-sm);color:var(--on-dark-muted)}
 
-/* Smaller screens. Five widths: 1199 (chat), 1023 (tablet), 760 (header), 640 (phone), 480 (small phone). */
+/* Smaller screens. Five widths: 1199 (chat), 1023 (tablet), 760 (header, set with the header above), 640 (phone),
+   480 (small phone). */
 @media(max-width:1199px){.chat-layout{grid-template-columns:1fr}.examples{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:1023px){
   .map-layout{grid-template-columns:1fr}.map-layout .section-head{margin-bottom:var(--head-gap)}
   .steps li{display:block;max-width:40rem}.shot{margin-top:16px;max-width:none}
   .footer-inner{grid-template-columns:repeat(2,minmax(0,1fr))}.footer-brand{grid-column:1/-1}
-  .site-header nav{gap:18px}
-}
-@media(max-width:760px){
-  .site-header{height:auto;flex-wrap:wrap;gap:0;padding-top:10px;padding-bottom:0}
-  .site-header nav{flex:1 0 100%;flex-wrap:wrap;gap:0 24px;margin-top:8px;border-top:1px solid var(--line)}
-  .site-header nav a{padding:12px 0}
 }
 @media(max-width:640px){
   :root{--head-gap:24px;--block-gap:20px;--fs-lead:16px}
@@ -479,7 +583,7 @@ footer a{color:#fff}
   .inputrow{position:relative}.combo{position:static}
   .examples{grid-template-columns:1fr}
   .send-hint{display:none}
-  .profile-actions{grid-template-columns:1fr}
+  .profile-stats{grid-template-columns:repeat(2,minmax(0,1fr))}
   .district-now{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;column-gap:12px}.district-now>div{display:contents}.district-now .small-label{grid-area:1/1;white-space:nowrap}.district-now strong{grid-area:2/1/3/3}.district-now .textbutton{grid-area:1/2;padding:10px 0;margin:-10px 0}
   #messages{padding:20px 16px 8px}#messages article{padding:14px 14px}
   .user{max-width:88%}
@@ -495,19 +599,19 @@ footer a{color:#fff}
   footer{padding-top:40px}.footer-inner{grid-template-columns:1fr;gap:28px}.footer-note{margin-top:28px}
 }
 @media(max-width:480px){
-  .site-header nav{justify-content:space-between;gap:0 12px}
   .chamber-cols{grid-template-columns:1fr}
+  .profile-stats .num{font-size:var(--fs-lg)}
   .chips{grid-template-columns:repeat(auto-fill,minmax(7.75rem,1fr))}.match,.zip-form .match{padding-left:8px;padding-right:8px;gap:6px;font-size:var(--fs-xs)}
 }
 
 @media(hover:hover){
-.site-header nav a:hover,.textbutton:not(:disabled):hover{text-decoration:underline;text-decoration-thickness:2px}
+.nav-links a:not([aria-current]):hover,.nav-menu:not(:has([aria-current]))>summary:hover,.textbutton:not(:disabled):hover{text-decoration:underline;text-decoration-thickness:2px}
 .inputrow button:not(:disabled):hover,.question-row button:not(:disabled,[aria-disabled=true]):hover,.map-go:not(:disabled):hover{background:var(--accent-dark);border-color:var(--accent-dark)}
 .match.house:hover{background:var(--house-soft-hover)}.match.senate:hover{background:var(--senate-soft-hover)}
 .island-tabs button[aria-pressed=false]:hover,.examples button:not(:disabled,[aria-disabled=true]):hover,.zoom-buttons button:hover{background:var(--accent-soft)}
 .suggest .examples button.local:not([aria-disabled=true]):hover{background:var(--accent-soft-hover)}
 .followup:not([aria-disabled=true]):hover,.pending .cancel:hover{background:var(--accent-soft)}.retry:not([aria-disabled=true]):hover{background:var(--error-bg)}
-.profile-actions .action:hover{background:var(--accent-soft-hover)}.profile-actions .action.primary:hover{background:var(--accent-dark);border-color:var(--accent-dark)}
+.profile-actions .action:hover{background:var(--accent-soft-hover)}.view-tabs [role=tab][aria-selected=false]:hover{background:var(--accent-soft)}
 .segmented [data-chamber=house][aria-pressed=false]:hover{background:var(--house-soft)}.segmented [data-chamber=senate][aria-pressed=false]:hover{background:var(--senate-soft)}
 }
 /* Touch screens: larger targets for controls and for links that stand alone in lists. */
@@ -515,7 +619,6 @@ footer a{color:#fff}
 #map.free{touch-action:pan-y;cursor:auto}
 .island-tabs button,.segmented button,.match,.suggest .examples button,.followup,.retry,.pending .cancel{min-height:44px}
 .send-hint{display:none}
-.site-header nav a{padding:12px 0}
 .zoom-buttons button{width:40px;height:40px}
 .footer-col ul{gap:0}.footer-col a{display:inline-block;padding:10px 0}
 #source-table a{display:inline-block;padding:6px 0}
@@ -590,13 +693,11 @@ details.meaning{margin:6px 0 0;padding:0;border:0;font-size:var(--fs-xs);line-he
 
 /* Glossary page */
 .glossary{padding:var(--section-y) 0;background:var(--surface)}
-.glossary .crumb{margin:0 0 12px;font-size:var(--fs-sm);color:var(--muted)}
-.glossary .crumb a{color:var(--muted)}
 .glossary h1{font-size:var(--fs-h1);line-height:1.1;margin:0 0 16px}
 .glossary .lede{color:var(--ink)}
 .glossary h2{margin:var(--section-y) 0 0;max-width:var(--measure)}
 .terms{max-width:var(--measure);margin:var(--block-gap) 0 0}
-.terms>div{padding:16px 0;border-top:1px solid var(--line);scroll-margin-top:16px}
+.terms>div{padding:16px 0;border-top:1px solid var(--line);scroll-margin-top:calc(var(--stick) + 16px)}
 .terms>div:target{margin:0 -12px;padding:16px 12px;border-radius:var(--r-sm);background:var(--accent-soft)}
 .terms dt{font-size:var(--fs-lg);font-weight:700;line-height:1.3}
 .terms dd{margin:6px 0 0;line-height:1.6}
@@ -606,8 +707,6 @@ details.meaning{margin:6px 0 0;padding:0;border:0;font-size:var(--fs-xs);line-he
    follows the chamber shown, as it does in the chat. */
 .outreach{padding:var(--section-y) 0;background:var(--surface)}
 .outreach[data-chamber=senate]{--accent:var(--senate);--accent-dark:var(--senate-dark);--accent-soft:var(--senate-soft)}
-.outreach .crumb{margin:0 0 12px;font-size:var(--fs-sm);color:var(--muted)}
-.outreach .crumb a{color:var(--muted)}
 .outreach h1{font-size:var(--fs-h1);line-height:1.1;margin:0 0 16px}
 .outreach .lede{color:var(--ink)}
 .outreach-choose{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:16px 32px;align-items:start;margin:0 0 var(--block-gap)}
@@ -679,9 +778,9 @@ details.tier[open] summary{margin-bottom:6px}
 }
 @media(pointer:coarse){.pair-option,.chamber-option{min-height:44px}.tier-table th a{display:inline-block;padding:6px 0}}
 
-/* The profile's outreach note: groups where the district is in the top tier, above the sections. */
-.profile-outreach{margin:12px 0 4px;padding:12px 16px 14px;background:var(--subtle);border:1px solid var(--line);border-radius:var(--r-ctl);font-size:var(--fs-sm);line-height:1.45}
-.profile-outreach h4{margin:0 0 6px;font-size:var(--fs-base);font-weight:700;color:var(--ink)}
+/* The profile's outreach note: groups where the district is in the top tier, under the share buttons and above the sections. */
+.profile-outreach{margin:4px 0 16px;padding:12px 16px 14px;background:var(--subtle);border:1px solid var(--line);border-radius:var(--r-ctl);font-size:var(--fs-sm);line-height:1.45}
+.profile-outreach h2{margin:0 0 6px;font-size:var(--fs-base);font-weight:700;color:var(--ink)}
 .profile-outreach ul{margin:0;padding:0;list-style:none}
 .profile-outreach li+li{margin-top:10px}
 .profile-outreach p{margin:0}
