@@ -10,7 +10,7 @@ from klear.agent.config import OUTREACH_NOTE_LIMIT, OUTREACH_PAIRS, PROFILE_HEAD
 from klear.config import CURRENT_LAYER
 from klear.eval.contract import MARKER, _has, _number, geo_display, geo_key, short_name
 from klear.labels import in_sentence, meaning, short_label
-from klear.programs import ELIGIBILITY_NOTE, NEEDS, Program, by_rule, catalog
+from klear.programs import ELIGIBILITY_NOTE, NEEDS, Program, by_rule, catalog, is_stale
 from klear.store.methods import place_note
 
 MAX_TILES = 6
@@ -550,7 +550,16 @@ def need_text(reason: dict, session, store: _Store, place: str) -> str:
     return f"{clause}, {TAILS[reason['direction']].format(state=state)}."
 
 
+def checked_text(p: Program, stale: bool) -> str:
+    """When a person last checked the program, or a nudge to the official page once that is too long ago."""
+    when = f"{p.verified:%B} {p.verified.day}, {p.verified.year}"
+    if stale:
+        return f"Check the official page. These details were last checked on {when}."
+    return f"Checked against official pages on {when}."
+
+
 def _program_row(p: Program, reasons: list[str]) -> dict:
+    stale = is_stale(p)
     return {
         "id": p.program_id,
         "name": p.name,
@@ -560,6 +569,8 @@ def _program_row(p: Program, reasons: list[str]) -> dict:
         "phone": p.phone,
         "phone_label": p.phone_label,
         "verified": f"{p.verified:%B} {p.verified.day}, {p.verified.year}",
+        "checked": checked_text(p, stale),
+        "stale": stale,
         "reasons": reasons,
     }
 

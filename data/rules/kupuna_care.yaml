@@ -2,6 +2,7 @@ rule_id: kupuna_care
 program: Kūpuna Care
 status: confirmed
 effective: '2026-01-01'
+review_by: '2027-07-01'
 info_url: https://www.hawaiiadrc.org/
 source_url: https://data.capitol.hawaii.gov/hrscurrent/Vol07_Ch0346-0398/HRS0349/HRS_0349-0017.htm
 saved: hrs-349-17.html
