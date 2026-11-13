@@ -115,6 +115,9 @@ class _Messages:
         question = _question(messages)
         if any(word in question for word in PARTISAN):
             return turn(tool("submit_answer", _decline(), "tu_submit"))
+        if "basic lookup" in question:
+            # The model is down, so the site answers with its free basic lookup.
+            raise RuntimeError("scripted outage")
         if "wic" in question:
             return turn(tool("submit_answer", _not_available(), "tu_submit"))
         if "1 test st" in question:

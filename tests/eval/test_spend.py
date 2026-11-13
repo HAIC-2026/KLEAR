@@ -11,7 +11,15 @@ import pytest
 import yaml
 
 from klear.eval.agents import Usage
-from klear.eval.spend import LedgerError, SpendCapError, SpendLog, estimate_cost, load_prices, request_cost
+from klear.eval.spend import (
+    LedgerError,
+    SpendCapError,
+    SpendLog,
+    estimate_cost,
+    load_prices,
+    request_cost,
+    usage_problem,
+)
 
 needs_fork = pytest.mark.skipif(sys.platform == "win32", reason="needs fork and SIGKILL")
 
@@ -47,6 +55,45 @@ def test_estimate_and_request_cost(prices):
     assert request_cost("m", Usage(1_000_000, 500_000, 1.0), prices) == pytest.approx(2.0)
     with pytest.raises(KeyError, match="nope.*known models: m"):
         estimate_cost("nope", 1, prices)
+
+
+def test_request_cost_prices_cache_writes_and_reads(prices, tmp_path):
+    used = Usage(1_000_000, 0, 1.0, 2_000_000, 10_000_000)
+    # Without cache prices in the file, writes cost 1.25 and reads 0.1 times the input price.
+    assert request_cost("m", used, prices) == pytest.approx(1.0 + 2.5 + 1.0)
+    path = tmp_path / "cached.yaml"
+    models = {"m": {"input": 1.0, "output": 2.0, "cache_write": 1.25, "cache_read": 0.05}}
+    path.write_text(yaml.safe_dump(PRICES | {"models": models}), encoding="utf-8")
+    assert request_cost("m", used, path) == pytest.approx(1.0 + 2.5 + 0.5)
+
+
+def test_real_prices_include_cache_prices():
+    want = {
+        "claude-haiku-5-5": (0.10, 0.50, 0.125, 0.01),
+        "claude-sonnet-5-5": (2.00, 10.00, 2.50, 0.10),
+        "claude-opus-5-5": (4.00, 20.00, 5.00, 0.20),
+    }
+    p = load_prices()
+    assert "pricing" in p["source"]
+    for model, (inp, out, write, read) in want.items():
+        assert p["models"][model] == {"input": inp, "output": out, "cache_write": write, "cache_read": read}
+
+
+@pytest.mark.parametrize("field", ["cache_write_tokens", "cache_read_tokens"])
+def test_usage_problem_checks_cache_tokens(field):
+    bad = Usage(1, 2, 0.1, **{field: -1})
+    assert field in usage_problem(bad)
+    with pytest.raises(ValueError, match=field):
+        request_cost("claude-haiku-5-5", bad)
+
+
+def test_settle_records_cache_tokens(tmp_path):
+    log = make(tmp_path)
+    log.settle(log.reserve(0.5), "m", Usage(1, 2, 0.1, 30, 400), 0.1)
+    settle = json.loads(log.path.read_text(encoding="utf-8").splitlines()[-1])
+    assert {k: settle[k] for k in ("input_tokens", "output_tokens", "cache_write_tokens", "cache_read_tokens")} == {
+        "input_tokens": 1, "output_tokens": 2, "cache_write_tokens": 30, "cache_read_tokens": 400,
+    }  # fmt: skip
 
 
 def test_real_prices_file_loads():

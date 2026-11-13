@@ -21,7 +21,7 @@ from klear.agent.config import (
 from klear.agent.tools import Session
 from klear.eval.contract import geo_display
 from klear.labels import in_sentence, meaning, short_label
-from klear.web.display import _plain, build_month, matched_programs, program_rows, year_text
+from klear.web.display import _plain, build_month, matched_programs, program_rows, verified, year_text
 from klear.web.geocode import address_in
 
 PERSONAL = re.compile(
@@ -210,7 +210,7 @@ def program_answer(con, district, shown: str) -> dict:
         "programs": [p | {"match": True} for p in laid["programs"]]
         + [p | {"match": False} for p in laid["others"]],
         "program_sources": laid["sources"],
-    }
+    } | verified(laid["figures"], len(laid["sources"]))
 
 
 def _cards(con, facts: list[dict]) -> list[dict]:
