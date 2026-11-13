@@ -45,6 +45,8 @@ test('chamber colors, charts, and the map under simulated color blindness', asyn
 });
 
 test('the map colored by a measure under simulated color blindness', async ({context, page}, testInfo) => {
+  // Four views, each shot under every vision type: allow for a loaded machine.
+  test.slow();
   await offline(context);
   await page.emulateMedia({reducedMotion: 'reduce'});
   await page.goto('/');

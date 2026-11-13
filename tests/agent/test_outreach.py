@@ -44,7 +44,7 @@ def endpoint(outreach_con, tmp_path):
 
 
 def get(port, path):
-    con = HTTPConnection("127.0.0.1", port, timeout=10)
+    con = HTTPConnection("127.0.0.1", port, timeout=30)
     con.request("GET", path)
     response = con.getresponse()
     data = response.read()

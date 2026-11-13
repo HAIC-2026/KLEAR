@@ -34,7 +34,8 @@
           <div id="find-matches"></div>
         </form>
       </div>
-      <p class="photo-credit">Photo: [credit needed: place, photographer, license]</p>
+      <!-- Photo credit: write the place, photographer and license after "Photo:", then delete the hidden attribute. -->
+      <p class="photo-credit" hidden>Photo: </p>
     </section>
 
     <section class="chat-section" id="chat" aria-labelledby="chat-title">
@@ -54,7 +55,7 @@
               <div id="log"></div>
             </div>
             <div id="suggest" class="suggest" role="group" aria-label="Suggested questions" hidden></div>
-            <form id="question-form"><label for="question" class="visually-hidden">Your question</label><div class="question-row"><textarea id="question" rows="1" required maxlength="2000" placeholder="Type your question here" aria-describedby="send-hint"></textarea><button id="send" type="submit">Ask KLEAR</button></div><p id="send-hint" class="send-hint">Press Ctrl+Enter to send.</p><p class="chat-privacy">A street address in a question goes to the U.S. Census Bureau only to find its district. KLEAR does not store or log it. Assistant answers send the question to the AI model provider.</p></form>
+            <form id="question-form"><label for="question" class="visually-hidden">Your question</label><div class="question-row"><textarea id="question" rows="1" required maxlength="2000" placeholder="Type your question here" aria-describedby="send-hint"></textarea><button id="send" type="submit">Ask KLEAR</button></div><p id="send-hint" class="send-hint">Press Ctrl+Enter to send.</p><p class="chat-privacy">An AI model writes answers from KLEAR’s data. Your question is sent to its provider, Anthropic, so do not type personal details. A street address goes to the U.S. Census Bureau only to find its district. KLEAR does not store or log what you type.</p></form>
             <p id="chat-status" class="status" role="status"></p>
             <p id="chat-live" class="visually-hidden" role="status"></p>
           </div>
@@ -126,6 +127,8 @@
           <li>For Hawaiʻi public data that is not published by district, such as crime, schools, energy or state budgets, try <a class="ext" href="https://datatrove.ai/">datatrove.ai<span class="visually-hidden"> (external site)</span></a>, a HAIC 2026 sponsor.</li>
         </ul>
         <p class="validation-link">Every check, the build date, and the checks still waiting on files are listed in the <a class="ext" href="https://github.com/HAIC-2026/KLEAR/blob/main/docs/VALIDATION.md">validation report<span class="visually-hidden"> (external site)</span></a>.</p>
+        <h3 class="terms-title">Terms of use</h3>
+        <p class="terms">Most of this data comes from U.S. government agencies and is free for anyone to use. Each source’s terms are linked in the <a class="ext" href="https://github.com/HAIC-2026/KLEAR#services-and-data-klear-depends-on">KLEAR project notes<span class="visually-hidden"> (external site)</span></a>. This product uses the Census Bureau Data API but is not endorsed or certified by the Census Bureau.</p>
       </div>
     </section>
 
@@ -135,14 +138,11 @@
           <h2 id="about-title">About KLEAR</h2>
           <p>Made for HAIC 2026. Challenge champion: DBEDT Research and Economic Analysis Division. Not an official State of Hawaiʻi product.</p>
         </div>
-        <h3>Team</h3>
-        <ul class="team">
-          <li>[Name], [role], [GitHub profile]</li>
-          <li>[Name], [role], [GitHub profile]</li>
-          <li>[Name], [role], [GitHub profile]</li>
-          <li>[Name], [role], [GitHub profile]</li>
-          <li>[Name], [role], [GitHub profile]</li>
-        </ul>
+        <!-- Team: add one row per member, like <li>Full name, role, <a class="ext" href="https://github.com/USERNAME">GitHub<span class="visually-hidden"> (external site)</span></a></li>, then delete the hidden attribute below. -->
+        <div class="team-block" hidden>
+          <h3>Team</h3>
+          <ul class="team"></ul>
+        </div>
         <h3>Partner resource</h3>
         <p class="partner">For Hawaiʻi data beyond district figures, <a class="ext" href="https://datatrove.ai/">datatrove.ai<span class="visually-hidden"> (external site)</span></a>, a HAIC 2026 sponsor, has its own chat over thousands of public datasets.</p>
       </div>

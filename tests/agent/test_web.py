@@ -12,6 +12,7 @@ import sys
 import threading
 from collections import defaultdict, deque
 from functools import partial
+from html.parser import HTMLParser
 from http.client import HTTPConnection
 from http.server import ThreadingHTTPServer
 from urllib.parse import urlsplit
@@ -130,6 +131,34 @@ def test_page_assets_are_public():
     refs = re.findall(r"url\(['\"]?(/[^)'\"]+)", css) + re.findall(r'(?:src|href)="(/[^"#?]*)', html)
     assert "/fonts/public-sans-ext.woff2" in refs
     assert set(refs) <= set(web.PUBLIC)
+
+
+class _PageText(HTMLParser):
+    """Text and readable attributes of a page, including hidden elements, without scripts, styles or comments."""
+
+    READABLE = frozenset({"alt", "title", "aria-label", "placeholder", "content"})
+
+    def __init__(self):
+        super().__init__()
+        self.parts, self.skip = [], 0
+
+    def handle_starttag(self, tag, attrs):
+        self.skip += tag in ("script", "style")
+        self.parts += [v for k, v in attrs if k in self.READABLE and v]
+
+    def handle_endtag(self, tag):
+        self.skip -= tag in ("script", "style")
+
+    def handle_data(self, data):
+        if not self.skip:
+            self.parts.append(data)
+
+
+@pytest.mark.parametrize("page", sorted(p.name for p in web.STATIC.glob("*.html")))
+def test_static_pages_have_no_bracketed_placeholders(page):
+    parser = _PageText()
+    parser.feed((web.STATIC / page).read_text(encoding="utf-8"))
+    assert not re.findall(r"\[[^\]]*\]", " ".join(parser.parts)), page
 
 
 def test_profile_endpoint_lays_out_the_district_profile(endpoint):
