@@ -1,6 +1,6 @@
 // The main flow at desktop and phone sizes: search, choose, profile, ask, open a source, and come back.
 import {test, expect} from '@playwright/test';
-import {DISTRICT, ask, chooseDistrict, offline, openAll} from './helpers.js';
+import {DISTRICT, ask, chooseDistrict, offline, openAll, showTab} from './helpers.js';
 
 test.beforeEach(async ({context}) => offline(context));
 
@@ -14,16 +14,27 @@ test('search, choose, read the profile, ask, open a source, and come back', asyn
   const matches = page.locator('#find-matches');
   await expect(matches.getByRole('group', {name: 'House districts for Kāneʻohe'}).getByRole('button')).toHaveCount(2);
 
-  // Choose: the chat now asks about that district, and the question box has focus.
+  // Choose: the district's own page opens at the top, its name the page heading, which takes focus. The chat asks
+  // about it.
   await matches.getByRole('button', {name: 'House 22 75% of Kāneʻohe residents'}).click();
   await expect(page.locator('#district-title')).toHaveText(DISTRICT);
-  await expect(page.getByLabel('Your question')).toBeFocused();
+  const title = page.getByRole('heading', {level: 1});
+  await expect(title).toHaveText(DISTRICT);
+  await expect(title).toBeFocused();
+  await expect(page.locator('.band')).toBeHidden();
+  expect(await page.evaluate(() => scrollY)).toBe(0);
 
-  // Profile: announced in one short line and labelled by its heading.
+  // Profile: announced in one short line. It starts with the headline figures and their margins.
   await expect(page.locator('#profile-live')).toHaveText(`Profile for ${DISTRICT} loaded.`);
-  const profile = page.getByRole('region', {name: DISTRICT});
-  await expect(profile.getByRole('heading', {name: DISTRICT})).toBeVisible();
-  await profile.getByText('People', {exact: true}).click();
+  await expect(page.locator('#district-about')).toContainText('Honolulu County');
+  const profile = page.locator('#profile');
+  const headline = profile.locator('.profile-stats div').first();
+  await expect(headline.locator('dd')).toHaveText('12.3% ± 2.1 points');
+  await expect(headline.locator('dt')).toHaveText('People below the poverty level');
+  // A link at the top leads to each section, and opens it.
+  const jumps = profile.getByRole('navigation', {name: 'In this profile'});
+  await expect(jumps.getByRole('link')).toHaveText(['People', 'Income', 'Programs to explore here', 'Programs in use', 'Who may qualify', 'Help sites']);
+  await jumps.getByRole('link', {name: 'People'}).click();
   // The row's label, not its "What this means" summary, which names the label to screen readers.
   await expect(profile.locator('.profile-label', {hasText: 'Kūpuna (65 and over)'})).toBeVisible();
 
@@ -88,6 +99,7 @@ test('a failed question is announced and waits in the box to retry', async ({pag
   await page.getByRole('button', {name: 'Find district'}).first().click();
   await expect(page.locator('#district-title')).toHaveText(DISTRICT);
   await page.route('**/api/chat', route => route.fulfill({status: 503, contentType: 'application/json', body: '{"error": "KLEAR could not answer. Please try again."}'}));
+  await showTab(page, 'Ask');
   await page.getByLabel('Your question').fill('How many kūpuna live here?');
   await page.getByRole('button', {name: 'Ask KLEAR'}).click();
   await expect(page.locator('#chat-live')).toHaveText('KLEAR could not answer. Please try again.');
@@ -104,35 +116,70 @@ test('focus stays put when the reader has moved on before the answer arrives', a
   let release;
   const held = new Promise(resolve => { release = resolve; });
   await page.route('**/api/chat', async route => { await held; await route.continue(); });
+  await showTab(page, 'Ask');
   await page.getByLabel('Your question').fill('How does poverty here compare?');
   await page.getByRole('button', {name: 'Ask KLEAR'}).click();
   await page.getByLabel('Highlight a ZIP code').focus();
   release();
-  await expect(page.locator('#chat-live')).toHaveText(`Answer ready for ${DISTRICT}.`);
+  await expect(page.locator('#chat-live')).toContainText(`Answer ready for ${DISTRICT}.`);
   await expect(page.getByLabel('Highlight a ZIP code')).toBeFocused();
 });
 
 test('a district chosen while an answer loads shows its profile at once', async ({page}) => {
-  await page.goto('/');
-  const find = async query => {
-    await page.getByLabel('District, place, ZIP code, or street address').first().fill(query);
-    await page.getByRole('button', {name: 'Find district'}).first().click();
-  };
-  await find('House 22');
+  await page.goto('/district/house-22');
   await expect(page.locator('#profile-live')).toHaveText(`Profile for ${DISTRICT} loaded.`);
   let release;
   const held = new Promise(resolve => { release = resolve; });
   await page.route('**/api/chat', async route => { await held; await route.continue(); });
+  await showTab(page, 'Ask');
   await page.getByLabel('Your question').fill('How does poverty here compare?');
   await page.getByRole('button', {name: 'Ask KLEAR'}).click();
-  await find('House 23');
+  await page.getByRole('button', {name: 'Change district'}).click();
+  await page.locator('#place').fill('House 23');
+  await page.locator('#lookup').getByRole('button', {name: 'Find district'}).click();
   await expect(page.locator('#profile-live')).toHaveText('Profile for House District 23 loaded.');
+  // The page heading follows the profile at once; the chat keeps the district it is answering about.
+  await expect(page.getByRole('heading', {level: 1})).toHaveText('House District 23');
   await expect(page.locator('#chat-status')).toHaveText('Switching to House District 23 after this answer.');
   await expect(page.locator('#district-title')).toHaveText(DISTRICT);
   release();
-  await expect(page.locator('#chat-live')).toHaveText(`Answer ready for ${DISTRICT}.`);
+  await expect(page.locator('#chat-live')).toContainText(`Answer ready for ${DISTRICT}.`);
   await expect(page.locator('#district-title')).toHaveText('House District 23');
   // The switch keeps the profile already shown instead of loading it again.
   await expect(page.locator('#profile-live')).toHaveText('Profile for House District 23 loaded.');
   await expect(page.locator('#profile .profile-status')).toHaveCount(0);
+});
+
+// Every section is one click from the top of the profile and ends with a link back up. On wide screens the first
+// sections start open. Sections the reader opens or closes stay that way for the next profile in the same tab.
+test('each section is one click from the top, links back up, and stays as the reader left it', async ({page}) => {
+  await page.goto('/district/house-22');
+  await expect(page.locator('#profile-live')).toHaveText(`Profile for ${DISTRICT} loaded.`);
+  const wide = page.viewportSize().width >= 1200, profile = page.locator('#profile');
+  await expect(profile.locator('details.profile-section[open] > summary')).toHaveText(wide ? ['People', 'Income', 'Programs to explore here'] : []);
+
+  const section = profile.locator('#profile-help-sites');
+  await expect(section).not.toHaveAttribute('open');
+  await profile.getByRole('navigation', {name: 'In this profile'}).getByRole('link', {name: 'Help sites'}).click();
+  await expect(section).toHaveAttribute('open', '');
+  await expect(page).toHaveURL(/\/district\/house-22#profile-help-sites$/);
+  await expect(section.locator(':scope > summary')).toBeInViewport();
+  await section.getByRole('link', {name: 'Back to top of profile'}).click();
+  await expect(page.getByRole('heading', {level: 1})).toBeInViewport();
+  // A section link is not a new district, so Back stays on this one.
+  await page.goBack();
+  await expect(page.getByRole('heading', {level: 1})).toHaveText(DISTRICT);
+
+  // Fold Income the other way from how it started; the next district's profile keeps that, and leaves People as it was.
+  const income = profile.locator('#profile-income'), wasOpen = await income.evaluate(d => d.open);
+  await income.locator(':scope > summary').click();
+  await page.goto('/district/house-23');
+  await expect(page.locator('#profile-live')).toHaveText('Profile for House District 23 loaded.');
+  await expect(profile.locator('#profile-income')).toHaveJSProperty('open', !wasOpen);
+  await expect(profile.locator('#profile-people')).toHaveJSProperty('open', wide);
+
+  // A link to a section opens the profile at that section.
+  await page.goto('/district/house-22#profile-programs-in-use');
+  await expect(profile.locator('#profile-programs-in-use')).toHaveAttribute('open', '');
+  await expect(profile.locator('#profile-programs-in-use > summary')).toBeInViewport();
 });

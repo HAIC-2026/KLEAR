@@ -52,6 +52,11 @@ function meaning(label, m) {
   return box;
 }
 
+// When a person last checked the program, marked once that is so long ago that the official page comes first.
+function checkedNote(p) {
+  return p.stale ? node('span', p.checked, 'program-stale') : p.checked;
+}
+
 // One program: its name linked to the page to apply or learn more, the agency, and how to call.
 function programCard(p) {
   const card = node('div', '', 'program');
@@ -61,7 +66,7 @@ function programCard(p) {
   if (p.description) card.append(says('p', p.description, 'program-about'));
   const contact = node('p', '', 'program-contact'), tel = node('a', p.phone);
   tel.href = 'tel:+' + (p.phone.startsWith('1-') ? '' : '1') + p.phone.replace(/\D/g, '');
-  contact.append('Call ', tel, p.phone_label ? `, ${p.phone_label}.` : '.', ` Details last verified ${p.verified}.`);
+  contact.append('Call ', tel, p.phone_label ? `, ${p.phone_label}.` : '.', ' ', checkedNote(p));
   card.append(contact);
   return card;
 }

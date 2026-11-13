@@ -8,6 +8,7 @@ from pathlib import Path
 from klear.eval.contract import answer_to_json
 from klear.eval.golden import ROOT
 from klear.eval.runner import Item, RunResult, exit_code, gates
+from klear.eval.spend import TOKEN_FIELDS as TOKENS
 
 NOTE = "Overall counts answered, non-pending questions only; pending and unanswered ones are listed under Skipped."
 
@@ -41,6 +42,16 @@ def _checks(items: list[Item]) -> dict[str, list[bool]]:
     return out
 
 
+def _tokens(items: list[Item]) -> str:
+    """Token totals of the answered questions, with the prompt cache writes and reads."""
+    used = [i.usage for i in items if i.usage is not None]
+    total = {k: sum(getattr(u, k) for u in used) for k in TOKENS}
+    return (
+        f"- Tokens: {total['input_tokens']:,} input, {total['cache_write_tokens']:,} cache write, "
+        f"{total['cache_read_tokens']:,} cache read, {total['output_tokens']:,} output"
+    )
+
+
 def _markdown(result: RunResult, code: int) -> str:
     scored = result.scored
     manifest = result.manifest_hash or (
@@ -63,6 +74,7 @@ def _markdown(result: RunResult, code: int) -> str:
         f"- Model time: {result.latency:.1f} s total, {result.latency / len(scored):.2f} s per answer"
         if scored
         else "- Model time: n/a",
+        _tokens(scored),
         f"- Exit code: {code}",
     ]
     if result.recording:
