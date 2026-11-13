@@ -13,7 +13,7 @@ import yaml
 from shapely.geometry import Point, box
 
 from klear import config
-from klear.etl import areas, census_api, chas, manual, profile, reapportionment
+from klear.etl import areas, census_api, chas, manual, members, profile, reapportionment
 from klear.etl import build as build_mod
 from klear.etl import fetch as fetch_mod
 from klear.etl.__main__ import main
@@ -46,7 +46,7 @@ PROFILE_LABELS = {
 }
 CHECKS = [
     "source_fidelity", "boundaries_house", "boundaries_senate", "blocks", "population", "apportionment", "irs_state",
-    "irs_county", "cms_county", "hud_hcv", "sites", "places", "chas", "gazetteer", "areas", "rules", "district_sums",
+    "irs_county", "cms_county", "hud_hcv", "sites", "members", "places", "chas", "gazetteer", "areas", "rules", "district_sums",
     "admin_counts", "store", "raw_files",
 ]  # fmt: skip
 NEW_TITLES = [
@@ -494,6 +494,28 @@ class Stub:
         return httpx.Response(200, content=self.files[name])
 
 
+def _members(client=None):
+    """One sample member per district, standing in for the Legislature's member listings."""
+    rows = [
+        {
+            "geo_type": c, "geo_id": f"{i:03d}", "name": f"SAMPLE {c.upper()} {i}, Member",
+            "profile_url": f"https://example.org/{c}/{i}", "listed_on": "2026-10-05", "retrieved_on": "2026-11-12",
+            "source_id": members.CHAMBERS[c][0],
+        }
+        for c, n in (("house", 51), ("senate", 25))
+        for i in range(1, n + 1)
+    ]  # fmt: skip
+    sources = {
+        v[0]: {
+            "name": f"{v[1]}, Thirty-Third Legislature, 2025-2026",
+            "url": v[2],
+            "vintage": "Listing dated 2026",
+        }
+        for v in members.CHAMBERS.values()
+    }
+    return pd.DataFrame(rows), sources
+
+
 @pytest.fixture
 def env(tmp_path, monkeypatch):
     stub = Stub(tmp_path)
@@ -522,6 +544,7 @@ def env(tmp_path, monkeypatch):
     monkeypatch.setattr(build_mod, "RULES_DIR", tmp_path / "rules")
     monkeypatch.setattr(build_mod, "REQUIRED_RULES", ())
     monkeypatch.setattr(build_mod, "EVAL_RECORDINGS", tmp_path / "recordings")
+    monkeypatch.setattr(members, "load_members", _members)
     return stub
 
 
@@ -569,7 +592,7 @@ def test_build_creates_store_outputs_and_report(env, capsys):
     build = env.tmp / "build"
     con = duckdb.connect(str(build / "klear.duckdb"), read_only=True)
     sources = {r[0] for r in con.execute("SELECT source_id FROM source").fetchall()}
-    assert len(sources) == 2 + 9
+    assert len(sources) == 2 + 11
     geos = dict(con.execute("SELECT geo_type, count(*) FROM geography GROUP BY 1").fetchall())
     assert geos == {"state": 1, "county": 5, "senate": 25, "house": 51, "tract": len(TRACTS), "zcta": 2}
     n_facts, n_unsourced = con.execute(
@@ -581,7 +604,9 @@ def test_build_creates_store_outputs_and_report(env, capsys):
     blocks = con.execute("SELECT count(*), sum(pop2020), count(DISTINCT house) FROM blocks").fetchone()
     assert blocks == (len(BLOCKS), TOTAL, N_HOUSE)
     licenses = dict(
-        con.execute("SELECT source_id, license FROM source WHERE source_id NOT LIKE 'acs%'").fetchall()
+        con.execute(
+            "SELECT source_id, license FROM source WHERE source_id NOT LIKE 'acs%' AND source_id NOT LIKE 'lrb%'"
+        ).fetchall()
     )
     assert set(licenses.values()) == {"Public domain, U.S. Government work"}
     con.close()

@@ -230,6 +230,13 @@ summary{font-weight:600;color:var(--accent);cursor:pointer}
 .chat-aside .profile h3{font-size:var(--fs-xl);line-height:1.25;margin:4px 0 8px}
 .profile-where{margin:0 0 4px;font-size:var(--fs-sm);line-height:1.5}
 .profile-meta{margin:0 0 2px;font-size:var(--fs-xs);color:var(--muted);line-height:1.5}
+/* The district's legislator as listed, with where and when the name was read */
+.profile-member{margin:8px 0 10px;padding:8px 0 0;border-top:1px solid var(--line)}
+.profile-member-name{margin:0;font-size:var(--fs-sm);line-height:1.5}
+.profile-member-title{font-weight:600}
+.profile-member-note{margin:2px 0 0;font-size:var(--fs-xs);color:var(--muted);line-height:1.5}
+.member-links{margin:0 0 12px;font-size:var(--fs-sm);color:var(--muted);line-height:1.5}
+.member-links p{margin:0 0 4px}
 .profile-status{margin:0 0 16px;font-size:var(--fs-sm);color:var(--muted)}
 .profile-stats{display:grid;grid-template-columns:1fr 1fr;gap:0 20px;margin:16px 0 8px}
 .profile-stats div{display:flex;flex-direction:column-reverse;justify-content:flex-end;border-top:1px solid var(--line);padding:10px 0 12px;min-width:0}
@@ -539,6 +546,8 @@ footer a{color:#fff}
   .sheet-head{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6pt 18pt;align-items:end;padding-bottom:6pt;border-bottom:2.5pt solid var(--rule)}
   .sheet-kicker{font-size:var(--pt-xs);font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
   .sheet-where{margin-top:2pt;font-size:var(--pt-md)}
+  .sheet-member{margin-top:2pt;font-size:var(--pt-sm)}
+  .sheet-member b{font-weight:600}
   .sheet-live{max-width:3.2in;padding:4pt 8pt;border:1pt solid var(--rule);border-radius:4pt;font-size:var(--pt-xs);color:var(--muted)}
   .print-sheet .sheet-live .sheet-url{font-size:var(--pt-sm);font-weight:700;color:var(--ink)}
   .sheet-dates{margin-top:2pt}

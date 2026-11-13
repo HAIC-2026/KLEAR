@@ -1,0 +1,15 @@
+# Scripted model turns for find_district-006: find the member by name, then name the district with the member marker.
+- - type: tool_use
+    name: find_member
+    input:
+      name: "Andrew Takuya Garrett"
+- - type: tool_use
+    name: submit_answer
+    input:
+      resolved: "house:022"
+      refusal: none
+      blocks:
+        - "{member:house:022} represents {geo:house:022}."
+      facts: []
+      programs: []
+      caveats: []

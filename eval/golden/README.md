@@ -34,6 +34,8 @@ Answers (contract version 1) never type a digit. Every number, vintage and place
 | {vintage:REF} | The vintage of fact ref REF followed by its source's short name, for example 2020-2024 ACS or Tax year 2023 IRS SOI. The short name is left off when the vintage already contains it (2020-2024 ACS 5-year). |
 | {label:REF} | The store label of fact ref REF's indicator, for example Population 65 years and over, so a definition such as an age threshold needs no typed digits. |
 | {geo:TYPE:ID} | A clean display name: House District 22, Senate District 12, ZIP code area 96744, Census tract 15003010100, Honolulu County or Hawaiʻi, for example {geo:house:022}, {geo:county:15003} or {geo:zcta:96744}. TYPE is a store geography type and ID is the stored id. |
+| {member:TYPE:ID} | The title and name of the legislator listed for a House or Senate district, with where and when it was listed, for example Representative DOE, Jane (as listed on the Legislative Reference Bureau's Representatives at a Glance on November 12, 2026). The agent may use it only for a member its find_member or district_profile tool returned. |
+| {listing:TYPE:ID} | When that member listing may predate the general election results. The answer builder adds it as a caveat to every answer that names a member. |
 
 Short names come from the source's stored name by prefix (klear.eval.contract.SHORT_NAMES, for example American Community Survey gives ACS and IRS Statistics of Income gives IRS SOI). A source with no listed prefix uses its full name.
 

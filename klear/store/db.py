@@ -48,6 +48,7 @@ AREA_KINDS = {"island", "neighborhood", "division"}
 AREA_OVERLAP_COLS = ["area_id", "geo_type", "geo_id", "pop2020", "share"]
 AREA_OVERLAP_TYPES = OVERLAP_TYPES | {"place"}
 ALIAS_COLS = ["plain", "name", "target_type", "target_id"]
+MEMBER_COLS = ["geo_type", "geo_id", "name", "profile_url", "listed_on", "retrieved_on", "source_id"]
 SITE_COLS = [
     "site_id", "kind", "name", "address", "lat", "lon", "house", "senate", "snapped_m", "units", "source_id",
 ]  # fmt: skip
@@ -249,3 +250,16 @@ def add_sites(con, df: pd.DataFrame) -> None:
         _fail("sites", f"unknown {col} district", df, ~df[col].isin(have))
     _fail("sites", "unknown source_id", df, _known(con, "source", "source_id", df))
     _insert(con, "site", df)
+
+
+def add_members(con, df: pd.DataFrame) -> None:
+    """Legislators by district as an official listing names them: no party, record or other detail."""
+    df = _require_columns(df, MEMBER_COLS, "members")
+    _fail("members", "geo_type not house or senate", df, _not_in(df, "geo_type", {"house", "senate"}))
+    _fail("members", "empty name", df, df["name"].fillna("").str.strip() == "")
+    _fail("members", "no official link", df, ~df["profile_url"].fillna("").str.startswith("https://"))
+    geos = {tuple(r) for r in con.execute("SELECT geo_type, geo_id FROM geography").fetchall()}
+    keys = pd.Series(list(zip(df["geo_type"], df["geo_id"], strict=True)), index=df.index)
+    _fail("members", "unknown district", df, ~keys.isin(geos))
+    _fail("members", "unknown source_id", df, _known(con, "source", "source_id", df))
+    _insert(con, "member", df)

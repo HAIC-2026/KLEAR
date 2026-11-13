@@ -699,9 +699,37 @@ function profileOutreach(o) {
   return box;
 }
 
+// The district's legislator as the Legislature lists them, linked to their official page, with where and when
+// the name was listed and whether that listing may predate the election results.
+function memberNote(m) {
+  return `${m.listed.charAt(0).toUpperCase()}${m.listed.slice(1)}. ${m.timing}`;
+}
+function profileMembers(members) {
+  const box = node('div', '', 'profile-member');
+  for (const m of members) {
+    const who = node('p', '', 'profile-member-name');
+    who.append(node('span', m.title, 'profile-member-title'), ' ', link(m.name, m.url));
+    box.append(who);
+  }
+  box.append(node('p', memberNote(members[0]), 'profile-member-note'));
+  return box;
+}
+
+// Under an answer that names a member: their official page and the listing the name was read from.
+function memberLinks(members) {
+  const box = node('div', '', 'member-links');
+  for (const m of members) {
+    const p = node('p', '');
+    p.append(`${m.title} ${m.name}, ${m.district}: `, link('official page', m.url), '. Listed in ', link(m.source, m.source_url), '.');
+    box.append(p);
+  }
+  return box;
+}
+
 function renderProfile(p) {
   const out = profileTitle(p.district);
   if (p.where) out.push(node('p', p.where, 'profile-where'));
+  if ((p.members || []).length) out.push(profileMembers(p.members));
   if (p.places.length) out.push(node('p', `Includes ${placesList(p)}`, 'profile-meta'));
   if (p.overlaps.length) out.push(node('p', `Overlaps ${overlapsList(p)}`, 'profile-meta'));
   out.push(profileActions(p));
@@ -819,6 +847,11 @@ function sheetParts(p) {
   const head = node('header', '', 'sheet-head'), who = node('div', ''), live = node('div', '', 'sheet-live');
   who.append(node('p', 'KLEAR district summary', 'sheet-kicker'), node('h1', p.district));
   if (p.where) who.append(node('p', p.where, 'sheet-where'));
+  for (const m of p.members || []) {
+    const line = node('p', '', 'sheet-member');
+    line.append(node('b', m.title), ` ${m.name} `, url(m.url));
+    who.append(line);
+  }
   live.append(node('p', 'Full profile, sources and questions online', ''), url(location.origin + districtPath(p.geo)));
   const dates = node('p', p.built ? `Data built ${p.built} · ` : '', 'sheet-dates');
   dates.append(node('span', `Printed ${longDate(new Date())}`, 'sheet-printed'));
@@ -832,8 +865,9 @@ function sheetParts(p) {
   if (about.lastChild) {
     const n = cite(p.shares_source);
     about.lastChild.append(`. Shares of 2020 Census residents${n ? ` (source ${n})` : ''}.`);
-    parts.push(about);
   }
+  if ((p.members || []).length) about.append(node('p', memberNote(p.members[0]), 'sheet-member-note'));
+  if (about.lastChild) parts.push(about);
   parts.push(section('Key figures', 'sheet-key', table, node('p', margins.join(' '), 'sheet-note')));
 
   // The programs whose need figures here sit above the state's, or the statewide list when none does.
@@ -1250,7 +1284,16 @@ function explainedCard(f) {
 function basicAnswer(answer, name) {
   const article = document.createElement('article');
   article.append(heading(answer, name));
-  for (const p of answer.text.split('\n\n')) article.append(says('p', p));
+  for (const p of answer.text.split('\n\n')) {
+    const lines = p.split('\n'), items = lines.slice(1).map(l => l.match(/^\s*[*-]\s+(.*)/));
+    if (lines.length > 1 && items.every(Boolean)) {
+      article.append(says('p', lines[0]));
+      const list = node('ul', '', 'lead-list');
+      list.append(...items.map(m => says('li', m[1])));
+      article.append(list);
+    } else article.append(says('p', p));
+  }
+  if ((answer.members || []).length) article.append(memberLinks(answer.members));
   if (answer.elsewhere) article.append(elsewhereLine(answer.elsewhere));
   if (answer.facts.length) {
     const details = document.createElement('details');
@@ -1409,6 +1452,7 @@ function renderAnswer(answer, name) {
   }
   for (const c of answer.charts) article.append(chartFigure(c));
   for (const c of answer.caveats) article.append(says('p', c, 'caveat'));
+  if ((answer.members || []).length) article.append(memberLinks(answer.members));
   if (answer.elsewhere) article.append(elsewhereLine(answer.elsewhere));
   if (answer.sources.length) {
     const years = [...new Set(answer.sources.map(s => s.year))].join(', ');

@@ -15,7 +15,8 @@ from klear.agent.config import FIXED_INCOME, FIXED_INCOME_COMPARED, FIXED_INCOME
 from klear.agent.tools import Session
 from klear.eval.contract import geo_display
 from klear.labels import in_sentence, meaning, short_label
-from klear.web.display import _plain, build_month, matched_programs, program_rows, year_text
+from klear.members import as_listed, members_of, named_in, timing
+from klear.web.display import _plain, build_month, matched_programs, member_cards, program_rows, year_text
 from klear.web.geocode import address_in
 
 PERSONAL = re.compile(
@@ -311,6 +312,113 @@ def fixed_income(con, district: tuple[str, str], shown: str) -> dict:
     }
 
 
+# Who holds a district's seat, or which district a named member holds.
+REPRESENTS = re.compile(
+    r"\b(?:represent\w*|reps?|senators?|legislators?|lawmakers?|members? of the (?:house|senate|legislature))\b",
+    re.IGNORECASE,
+)
+ASKS_WHO = re.compile(r"\b(?:who|whom|who's|name of)\b", re.IGNORECASE)
+ASKS_WHICH = re.compile(r"\b(?:which|what)\s+(?:house\s+|senate\s+)?district", re.IGNORECASE)
+NAMED_DISTRICT = re.compile(
+    r"\b(house|senate|hd|sd)\s*(?:district\s*)?(?:no\.?\s*|number\s*|#\s*)?(\d{1,2})\b", re.IGNORECASE
+)
+
+
+def _named_district(con, question: str) -> tuple[str, str] | None:
+    """A House or Senate district the question names, such as House District 22 or SD 5."""
+    m = NAMED_DISTRICT.search(question)
+    if m is None:
+        return None
+    chamber = "senate" if m.group(1).casefold() in ("senate", "sd") else "house"
+    geo = (chamber, f"{int(m.group(2)):03d}")
+    found = con.execute("SELECT 1 FROM geography WHERE geo_type = ? AND geo_id = ?", list(geo)).fetchone()
+    return geo if found else None
+
+
+SELECTED = re.compile(r"\b(?:my|our|this|here|selected|current)\b", re.IGNORECASE)
+MEMBER_WORDS = {
+    "house",
+    "senate",
+    "state",
+    "hawaii",
+    "is",
+    "are",
+    "who",
+    "whom",
+    "s",
+    "name",
+    "of",
+    "currently",
+}
+
+
+def _about_selected(question: str) -> bool:
+    """Whether a question about a member asks about the chosen district: it says my or this district, or names
+    nothing else."""
+    if SELECTED.search(question):
+        return True
+    words = set(WORDS.findall(question.casefold())) - STOP - MEMBER_WORDS
+    return all(REPRESENTS.fullmatch(w) for w in words)
+
+
+def _member_line(m, lead: str) -> str:
+    return f"{lead}, {as_listed(m)}."
+
+
+def member_answer(con, question: str, district: tuple[str, str]) -> dict | None:
+    """Who a Legislature listing names for a district, or the district of a member named exactly, with where and
+    when it was listed and whether the listing may predate the election results. None when not asked."""
+    if not REPRESENTS.search(question):
+        return None
+    named = named_in(con, question)
+    if not named and not ASKS_WHO.search(question):
+        if not ASKS_WHICH.search(question):
+            return None
+        text = (
+            "I could not find a listed member with that exact name. Names must match as the Legislature lists "
+            "them, such as a full last name, and I do not guess near spellings."
+        )
+        return {"text": text, "refusal": "none", "facts": [], "programs": []}
+    if named:
+        lines = []
+        for m in named:
+            where = geo_display(m.geo_type, m.geo_id, "")
+            lines.append(_member_line(m, f"{m.title} {m.name} represents {where}"))
+        if len(named) > 1:
+            text = "Several listed members match that name:\n" + "\n".join(f"- {line}" for line in lines)
+        else:
+            text = lines[0]
+        notes = list(dict.fromkeys(timing(m) for m in named))
+        geos = [(m.geo_type, m.geo_id) for m in named]
+    else:
+        geo = _named_district(con, question)
+        if geo is None and address_in(question):
+            return None
+        if geo is None and not _about_selected(question):
+            text = (
+                "Name the district, such as House District 22, or choose it on the page, and I will give the "
+                "member the Legislature lists for it. A town can span more than one district."
+            )
+            return {"text": text, "refusal": "none", "facts": [], "programs": []}
+        geo = geo or district
+        listed = members_of(con, *geo)
+        where = geo_display(*geo, "")
+        if not listed:
+            text = f"No member is listed for {where} in the Legislature listing KLEAR holds."
+            return {"text": text, "refusal": "none", "facts": [], "programs": [], "district": geo}
+        names = " and ".join(f"{m.title} {m.name}" for m in listed)
+        text = _member_line(listed[0], f"{where} is represented by {names}")
+        notes, geos = [timing(listed[0])], [geo]
+    out = {
+        "text": "\n\n".join([text, *notes]),
+        "refusal": "none",
+        "facts": [],
+        "programs": [],
+        "members": member_cards(con, geos),
+    }
+    return out | ({"district": geos[0]} if len(set(geos)) == 1 else {})
+
+
 CHAMBER_WORDS = re.compile(r"\b(?:house|senate|districts?)\b", re.IGNORECASE)
 
 
@@ -368,6 +476,8 @@ def ask(con, question, district, geocoder=None):
             "facts": [],
             "programs": [],
         }
+    if (member := member_answer(con, question, district)) is not None:
+        return member
     if address := address_in(question):
         return address_answer(con, question, address, geocoder)
     name = con.execute("SELECT name FROM geography WHERE geo_type=? AND geo_id=?", list(district)).fetchone()[

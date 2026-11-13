@@ -8,8 +8,18 @@ from datetime import datetime
 from klear.agent.answer import actual_direction
 from klear.agent.config import OUTREACH_NOTE_LIMIT, OUTREACH_PAIRS, PROFILE_HEADLINE
 from klear.config import CURRENT_LAYER
-from klear.eval.contract import MARKER, _has, _number, geo_display, geo_key, short_name
+from klear.eval.contract import (
+    MARKER,
+    MEMBER_MARKERS,
+    _has,
+    _number,
+    geo_display,
+    geo_key,
+    member_text,
+    short_name,
+)
 from klear.labels import in_sentence, meaning, short_label
+from klear.members import as_listed, members_of, timing
 from klear.programs import ELIGIBILITY_NOTE, NEEDS, Program, by_rule, catalog
 from klear.store.methods import place_note
 
@@ -196,6 +206,8 @@ def plain_text(texts: list[str], answer, store: _Store) -> list[str]:
 
     def sub(m):
         kind, ref = m.groups()
+        if kind in MEMBER_MARKERS:
+            return member_text(store.con, kind, ref)
         if kind == "geo":
             key = geo_key(ref)
             return store.place(*key) if key else ref
@@ -316,15 +328,39 @@ def sources(answer, store: _Store) -> list[dict]:
     return _cited([_source(f, store) | {"links": store.links(f)} for f in answer.facts])
 
 
+def member_cards(con, geos) -> list[dict]:
+    """Each listed member of the districts with their official page, the listing they were read from and its
+    notes, for the links under an answer and on the profile."""
+    out = []
+    for geo in dict.fromkeys(geos):
+        for m in members_of(con, *geo):
+            out.append(
+                {
+                    "title": m.title,
+                    "name": m.name,
+                    "district": geo_display(m.geo_type, m.geo_id, ""),
+                    "url": m.profile_url,
+                    "source": f"Legislative Reference Bureau, {m.listing}",
+                    "source_url": m.page_url,
+                    "listed": as_listed(m),
+                    "timing": timing(m),
+                }
+            )
+    return out
+
+
 def build(con, answer) -> dict:
     store = _Store(con)
     drawn, used = charts(answer, store)
+    texts = " ".join([*answer.blocks, *answer.caveats])
+    named = [geo_key(r) for k, r in MARKER.findall(texts) if k == "member" and geo_key(r)]
     return {
         "lead": plain_text(answer.blocks, answer, store),
         "tiles": tiles(answer, store, used),
         "charts": drawn,
         "sources": sources(answer, store),
         "caveats": plain_text(answer.caveats, answer, store),
+        "members": member_cards(con, named),
     }
 
 
@@ -479,6 +515,7 @@ def profile(
         "county": raw["counties"][0]["name"] if raw["counties"] else "",
         "places": [{"name": p["name"], "share": _percent(p["share"])} for p in raw["places"]],
         "overlaps": [{"name": o["name"], "share": _percent(o["share"])} for o in raw["overlaps"]],
+        "members": member_cards(con, [tuple(raw["district"]["geo"].split(":"))]),
         "headline": headline,
         "sections": sections,
         "shares_source": SHARES_SOURCE,
