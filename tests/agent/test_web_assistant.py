@@ -9,10 +9,12 @@ from http.server import ThreadingHTTPServer
 import anthropic
 import pytest
 
+from klear.eval.agents import Usage
+from klear.eval.spend import load_prices
 from klear.web import __main__ as web
 from klear.web import display
 from klear.web.assistant import BASIC, Assistant, BudgetExceeded, DailyBudget
-from tests.agent.fake_client import FakeClient, api_error, tool
+from tests.agent.fake_client import CachingClient, FakeClient, api_error, tool
 from tests.eval.conftest import _home  # noqa: F401
 
 GOOD = {
@@ -67,6 +69,43 @@ def test_assistant_answer_has_cards_and_settles_actual_cost(small_con, budget):
     assert card["uncertainty"] == "ok" and card["value"].startswith("1,000")
     assert fake.calls == 2
     assert 0 < budget.spent() < 0.01
+
+
+def test_second_question_shows_cache_reads_in_the_spend_record(small_con, budget):
+    fake = CachingClient(SCRIPT * 2)
+    assistant = Assistant(budget, client=fake)
+    assistant.ask(small_con, "How many seniors live here?", DISTRICT)
+    first = budget.tokens()
+    spent = budget.spent()
+    assert (
+        assistant.ask(small_con, "How many seniors live in this district?", DISTRICT)["mode"] == "assistant"
+    )
+    record = json.loads(budget.path.read_text(encoding="utf-8"))
+    second = {k: record["tokens"][k] - first[k] for k in first}
+    assert fake.calls == 4 and record["held"] == {}
+    # The second question reads the tools and system prompt the first one wrote, so it writes less and costs less.
+    assert fake.usages[2]["cache_read_input_tokens"] > 0
+    assert second["cache_read_tokens"] > first["cache_read_tokens"] > 0
+    assert second["cache_write_tokens"] < first["cache_write_tokens"]
+    assert 0 < record["spent"] - spent < spent
+    rate = load_prices()["models"]["claude-haiku-5-5"]
+    want = sum(
+        record["tokens"][f"{k}_tokens"] * rate[k] for k in ("input", "output", "cache_write", "cache_read")
+    )
+    assert record["spent"] == pytest.approx(want / 1e6)
+
+
+def test_budget_tokens_skip_unknown_costs_and_reset_each_day(tmp_path):
+    day = ["2026-11-04"]
+    b = DailyBudget(5.0, tmp_path / "web_spend.json", day=lambda: day[0])
+    used = Usage(10, 5, 0.1, 100, 40)
+    b.settle(b.reserve(1.0), 0.01, used)
+    b.settle(b.reserve(1.0), None, used)
+    assert b.tokens() == {
+        "input_tokens": 10, "output_tokens": 5, "cache_write_tokens": 100, "cache_read_tokens": 40,
+    }  # fmt: skip
+    day[0] = "2026-11-05"
+    assert set(b.tokens().values()) == {0}
 
 
 def test_cap_reached_uses_basic_lookup_without_calls(small_con, tmp_path):
