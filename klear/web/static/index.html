@@ -82,18 +82,22 @@
         <div class="section-head">
           <h2 id="map-title">Find your district</h2>
           <p>Choose House or Senate. Pick an island, or zoom in to the area you know. Then tap a district and ask about it. District lines are the 2022 boundaries in use today.</p>
+          <p>To compare districts, color the map by a measure such as poverty or income. The figures are also shown as a table under the map.</p>
         </div>
         <div class="map-card">
           <form class="zip-form" id="zip-form" novalidate><label for="zip">Highlight a ZIP code</label><div class="inputrow"><input id="zip" inputmode="numeric" maxlength="5" placeholder="e.g. 96744" autocomplete="postal-code"><button type="submit">Show on map</button></div><p id="zip-status" class="status" role="status"></p><div id="zip-matches" class="chips"></div></form>
+          <div class="shade-row"><label for="map-shade">Color the map by</label><select id="map-shade"><option value="">Nothing (plain map)</option><option value="pct_people_poverty">People below the poverty level</option><option value="pct_children_poverty">Keiki below the poverty level</option><option value="pct_65_plus">Share who are kūpuna (65 and over)</option><option value="median_household_income">Median household income</option><option value="pct_rent_burden_35_plus">Renters paying 35% or more of income</option><option value="pct_uninsured">People without health insurance</option><option value="pct_hh_snap">Households receiving SNAP</option></select><p id="shade-status" class="status" role="status"></p><p id="shade-live" class="visually-hidden" role="status"></p></div>
           <div class="map-controls">
             <div class="segmented" role="group" aria-label="Chamber"><button type="button" data-chamber="house" aria-pressed="true">House</button><button type="button" data-chamber="senate" aria-pressed="false">Senate</button></div>
             <div class="island-tabs" id="island-tabs" role="group" aria-label="Zoom to island"></div>
           </div>
           <div class="map-frame"><svg id="map" role="group" tabindex="-1" aria-labelledby="map-title" aria-describedby="map-keys" preserveAspectRatio="xMidYMid meet"></svg><p id="map-keys" hidden>Arrow keys move between districts. Enter picks one, and Enter again asks about it.</p><p id="map-loading" class="map-loading">Loading map…</p><div class="zoom-buttons"><button type="button" id="zoom-in" aria-label="Zoom in">+</button><button type="button" id="zoom-out" aria-label="Zoom out">−</button></div><p id="map-hint" class="map-hint" hidden>Pinch, or hold Ctrl while scrolling, to zoom</p></div>
+          <div id="map-legend" class="map-legend" hidden></div>
           <div class="map-footer">
-            <div class="map-pick" aria-live="polite"><span class="small-label" id="pick-island">No district picked yet</span><strong id="pick-name">Tap an area on the map</strong></div>
+            <div class="map-pick" aria-live="polite"><span class="small-label" id="pick-island">No district picked yet</span><strong id="pick-name">Tap an area on the map</strong><span id="pick-value" class="pick-value" hidden></span></div>
             <button type="button" id="pick-go" class="map-go" disabled>Ask about this district</button>
           </div>
+          <details id="map-table" class="chart-data map-table" hidden><summary>Show as a table</summary><div class="table-scroll" tabindex="0" role="region" aria-labelledby="map-table-caption"><table><caption id="map-table-caption"></caption><thead><tr><th scope="col">District</th><th scope="col">Estimate</th><th scope="col">90% margin of error</th><th scope="col" id="map-table-note">Note</th></tr></thead><tbody id="map-table-body"></tbody></table></div></details>
           <label for="map-list" class="map-list-label">Or choose from a list</label>
           <select id="map-list"><option value="">Choose a district…</option></select>
         </div>
