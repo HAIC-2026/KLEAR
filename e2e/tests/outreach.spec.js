@@ -23,9 +23,9 @@ test('the outreach page names the top group two clicks from the home page', asyn
   await expect(row).toContainText('400 ± 60');
   await expect(row).toContainText('900 ± 120');
 
-  // An unreliable estimate says so in words.
+  // An unreliable estimate carries a caution chip and says why.
   await page.locator('details.tier summary', {hasText: 'Second group: 1 district'}).click();
-  await expect(page.locator('details.tier').first()).toContainText('Unreliable estimate: the margin of error is large');
+  await expect(page.locator('details.tier').first().locator('.outreach-flag')).toHaveText('Use with caution The margin of error is large compared with the estimate.');
   await expect(page.locator('.outreach-facts')).toContainText('1 of these 2 estimates is unreliable');
 
   // The program's page and phone, the income test caveat and the eligibility line.
