@@ -25,6 +25,8 @@ SHORT_NAMES = (
     ("Health Center", "HRSA"),
     ("PLACES", "PLACES"),
     ("Comprehensive Housing Affordability Strategy", "CHAS"),
+    ("Local Area Unemployment Statistics", "BLS"),
+    ("Tax Credits Claimed by Hawaiʻi Taxpayers", "Hawaiʻi Department of Taxation"),
 )
 
 

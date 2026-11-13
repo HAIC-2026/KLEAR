@@ -591,10 +591,18 @@ class Session:
         rows = self.con.execute(
             "SELECT indicator_id, label, unit FROM indicator ORDER BY indicator_id"
         ).fetchall()
+        districts = {
+            r[0]
+            for r in self.con.execute(
+                "SELECT indicator_id FROM indicator_coverage WHERE geo_type IN ('house', 'senate')"
+            ).fetchall()
+        }
         scored = [
             (len(query & _tokens(f"{i} {label}".replace("_", " "))), i, label, u) for i, label, u in rows
         ]
-        scored = sorted((s for s in scored if s[0] > 0), key=lambda s: (-s[0], s[1]))[: config.SEARCH_LIMIT]
+        # at equal score, indicators published for districts come before county-level ones
+        scored = sorted((s for s in scored if s[0] > 0), key=lambda s: (-s[0], s[1] not in districts, s[1]))
+        scored = scored[: config.SEARCH_LIMIT]
         plain = plain_labels()
         out = []
         for _, i, label, unit in scored:
@@ -837,7 +845,12 @@ class Session:
         }
         against = ([("county", by_county[0][0])] if by_county else []) + [("state", "15")]
         beside = sorted({b for b, _ in config.PROFILE_BESIDE.values() if b})
-        self._prefetch([i for _, ids in config.PROFILE_SECTIONS for i in ids] + beside, [geo, *against])
+        sections = [(title, ids, geo, against, {}) for title, ids in config.PROFILE_SECTIONS]
+        if by_county:
+            # county-level figures for the main county, compared with the state, never as the district's own
+            title, ids = config.COUNTY_SECTION
+            sections.append((title, ids, against[0], against[1:], {"geo": f"county:{by_county[0][0]}"}))
+        self._prefetch([i for s in sections for i in s[1]] + beside, [geo, *against])
         out = {
             "district": self._geo(*geo),
             "counties": [self._geo("county", c, share=round(p / total, 4)) for c, p in by_county if p],
@@ -846,21 +859,21 @@ class Session:
             "sections": [],
             "missing": [],
         }
-        for title, ids in config.PROFILE_SECTIONS:
+        for title, ids, home, others, scope in sections:
             rows = []
             for ind in ids:
-                mine = self._facts_for([ind], [geo])
+                mine = self._facts_for([ind], [home])
                 out["missing"] += mine["missing"]
                 if mine["facts"]:
                     fact = mine["facts"][0]
                     row = {
                         "fact": fact,
-                        "against": [self._against(ind, fact, g, ind in additive) for g in against],
+                        "against": [self._against(ind, fact, g, ind in additive) for g in others],
                     }
-                    if extra := self._beside(ind, geo):
+                    if home == geo and (extra := self._beside(ind, geo)):
                         row["beside"] = extra
                     rows.append(row)
-            out["sections"].append({"title": title, "rows": rows})
+            out["sections"].append({"title": title, **scope, "rows": rows})
         return out
 
     def _beside(self, ind: str, geo: tuple[str, str]) -> dict | None:
@@ -1222,7 +1235,10 @@ TOOL_SPECS = [
         "(People, Income, Housing, Health and access, Programs in use, Who may qualify, Modeled needs, Help sites). "
         "Each row is a "
         "fact with its ref, compared with the main county and the state: a direction for rates, and the "
-        "district's share for totals. Use it when asked for a profile or overview of a district.",
+        "district's share for totals. A last section, County-level figures, holds figures published only for "
+        "counties (unemployment, state tax credit claims) for the main county, compared with the state: cite "
+        "them as the county's figures, never the district's. Use it when asked for a profile or overview of a "
+        "district.",
         {"district": {**_GEO, "description": "House or Senate district as TYPE:ID, for example house:022."}},
         ["district"],
     ),

@@ -28,6 +28,8 @@ TITLES = {
     "places_county": "CDC PLACES modeled need by county and for the state",
     "county_state": "County and state values built from smaller areas",
     "chas": "HUD CHAS housing cost burden",
+    "bls": "BLS county unemployment (county-level)",
+    "dotax": "Department of Taxation credits by taxation district (county-level)",
     "gazetteer": "Census places and their districts",
     "areas": "Islands, neighborhoods and county divisions for district search",
     "rules": "Program rules against their official sources",
@@ -84,7 +86,9 @@ PROVES = {
         "compared with the DBEDT workbook cell for the same variable and geography: value, margin of error, "
         "and the status of each. Any difference fails the check. Facts from the Census API detailed tables "
         "(B and C tables) have no DBEDT counterpart. They are counted as Census API only, with no second "
-        "source."
+        "source. A fact the site marks as matching DBEDT's published profile must be one of the compared "
+        "facts that equal their DBEDT cell, and county-level facts (tier C) must be stored only for counties "
+        "and the state, never for a district."
     ),
     "store_values": (
         "Every stored fact taken from the Census API data profiles is compared with the DBEDT workbook cell "
@@ -173,6 +177,24 @@ PROVES = {
         "to 10 for each tract HUD does not publish. The state marketplace counts equal the four published "
         "county rows, and the state site counts and units equal the site table and the sum over each chamber. "
         "Every summed or counted state value also equals the sum of its county values."
+    ),
+    "bls": (
+        "U.S. Bureau of Labor Statistics Local Area Unemployment Statistics for the four counties BLS publishes "
+        "and the state, from the BLS public API: unemployment rate, unemployed people and civilian labor force "
+        "for the latest month every series has, not seasonally adjusted, so county and state figures compare "
+        "like with like. These are county-level figures, stored only for counties and the state and never shown "
+        "as a district's figure. A pass means every series has that month, each published rate equals "
+        "unemployed people over labor force within rounding, and the counties add up to the state estimate "
+        "within 0.5%. BLS publishes no Kalawao County series."
+    ),
+    "dotax": (
+        "Hawaiʻi Department of Taxation, Tax Credits Claimed by Hawaiʻi Taxpayers, tax year 2023, tables A-3 "
+        "(dollars, published in thousands) and A-4 (claims) by taxation district: the state earned income tax "
+        "credit, the refundable food/excise tax credit and the low-income household renters credit. The four "
+        "taxation districts are stored as their counties (Oʻahu as Honolulu County) and are county-level "
+        "figures, never shown as a district's figure. The Oʻahu figures include claims by nonresidents with an "
+        "out-of-state address. A pass means every credit has a value for the state and each district, and the "
+        "districts add up to the state total within 0.1%."
     ),
     "gazetteer": (
         "Every Census 2020 place (CDP) with population gets its 2020 population from the block assignment "
@@ -278,6 +300,11 @@ CAVEATS = [
         "not published: the low counts the published tracts and the high adds 10 for each one left out."
     ),
     (
+        "County-level figures (BLS unemployment and Department of Taxation credits) describe a whole county. "
+        "A district inside that county can differ from it, so KLEAR shows them as county figures beside a "
+        "district, never as the district's own."
+    ),
+    (
         "Apportioned district values (IRS, CMS, vouchers, CHAS) use 2020 block population as weights. The "
         "apportionment accuracy table above is the error to expect from such numbers where no direct district "
         "estimate exists."
@@ -341,6 +368,10 @@ def summary(r: CheckResult) -> str:
         return f"{r.n_compared:,} sums compared with the state, {r.n_mismatch:,} outside its margin of error"
     if r.name == "admin_counts":
         return f"{r.n_compared:,} program counts compared, {r.n_mismatch:,} not compared"
+    if r.name == "bls":
+        return f"{r.n_compared:,} county and state series checked, {r.n_mismatch:,} problems"
+    if r.name == "dotax":
+        return f"{r.n_compared:,} credit values checked, {r.n_mismatch:,} problems"
     if r.name == "places":
         return f"{r.n_compared:,} tract and district values checked against their ranges, {r.n_mismatch:,} problems"
     if r.name == "places_county":

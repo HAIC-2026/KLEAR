@@ -4,6 +4,8 @@ PLACES_COUNTY = "cdc_places_2025_county"
 HUD_HCV = "hud_hcv_tract"
 CMS = "cms_oep_2026"
 IRS = "irs_soi_zip_2023"
+BLS = "bls_laus_county"
+DOTAX = "hi_dotax_credits_2023"
 
 # Method by fact tier.
 TIER_METHODS = {
@@ -13,15 +15,25 @@ TIER_METHODS = {
     "M": "modeled estimate: the range is a wide uncertainty band, not a formal confidence interval",
     "P": "counted from site locations",
     "S": "sum of the published counts for the smaller areas inside this place",
+    "C": "county-level figure: published only for counties and the state, not for districts; name its county "
+    "and never call it the district's figure",
 }
-# Method for apportioned sources whose range does not bound every part of the value.
+# Method for apportioned sources whose range does not bound every part of the value, and for county-level sources
+# with a caveat of their own.
 SOURCE_METHODS = {
     IRS: "apportioned estimate: moved to the district from IRS ZIP code data; the range covers returns with a "
     "mapped ZIP code, but returns from small or unlisted ZIP codes are spread by population and are not "
     "bounded by it",
     CMS: "apportioned estimate: moved to the district from ZIP code data; enrollees the source did not "
     "publish by ZIP code are placed by assumption, so the range is not a guaranteed bound",
+    BLS: "county-level figure: monthly BLS estimate for the whole county, not seasonally adjusted, not published "
+    "for districts; name its county and never call it the district's figure",
+    DOTAX: "county-level figure: Department of Taxation claims for the whole taxation district (the county), not "
+    "published for districts, and the Oʻahu figures include nonresidents with an out-of-state address; name its "
+    "county and never call it the district's figure",
 }
+# Tiers whose method a source can replace.
+SOURCE_METHOD_TIERS = ("A", "C")
 # Method for facts of one source at one geography type, where the tier alone would not say how they were made.
 PLACE_METHODS = {
     (PLACES_TRACT, "tract"): "modeled estimate published by CDC for the tract: the range is CDC's 95 percent "
@@ -50,7 +62,7 @@ def fact_method(tier: str, source_id: str, geo_type: str) -> str:
     """How a fact was produced, or '' for an unknown tier."""
     if (source_id, geo_type) in PLACE_METHODS:
         return PLACE_METHODS[(source_id, geo_type)]
-    if tier == "A" and source_id in SOURCE_METHODS:
+    if tier in SOURCE_METHOD_TIERS and source_id in SOURCE_METHODS:
         return SOURCE_METHODS[source_id]
     return TIER_METHODS.get(tier, "")
 

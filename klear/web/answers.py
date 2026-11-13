@@ -11,7 +11,13 @@ from klear.agent.answer import (
     tied_programs,
     unpublished_years,
 )
-from klear.agent.config import FIXED_INCOME, FIXED_INCOME_COMPARED, FIXED_INCOME_PROGRAMS, PROFILE_INDICATORS
+from klear.agent.config import (
+    COUNTY_SECTION,
+    FIXED_INCOME,
+    FIXED_INCOME_COMPARED,
+    FIXED_INCOME_PROGRAMS,
+    PROFILE_INDICATORS,
+)
 from klear.agent.tools import Session
 from klear.eval.contract import geo_display
 from klear.labels import in_sentence, meaning, short_label
@@ -135,7 +141,7 @@ def indicators(con, question):
     topic keywords first and then words shared with labels."""
     q = question.casefold()
     if asks_profile(q):
-        return list(PROFILE_INDICATORS)
+        return [*PROFILE_INDICATORS, *COUNTY_SECTION[1]]
     for stems, ids in TOPICS:
         if _has(q, *stems):
             return list(ids)
@@ -143,12 +149,14 @@ def indicators(con, question):
         return ["pop_65_plus", "pct_65_plus", "pct_65_plus_poverty"]
     if _has(q, "poverty", "low income"):
         return ["pct_people_poverty", "pct_children_poverty", "pct_65_plus_poverty"]
+    if _has(q, "eitc", "earned income", "excise", "renters credit", "state tax credit"):
+        return ["irs_eitc_returns", "dotax_eitc_claims", "dotax_food_excise_claims", "dotax_renters_claims"]
     if _has(q, "housing", "rent", "cost burden"):
         return ["median_gross_rent", "pct_rent_burden_35_plus", "pct_owner_cost_burden_35_plus"]
     if _has(q, "income", "wage", "earn"):
         return ["median_household_income", "per_capita_income", "pct_people_poverty"]
     if _has(q, "unemploy", "jobs", "work"):
-        return ["unemployment_rate", "pct_in_labor_force", "pct_work_from_home"]
+        return ["unemployment_rate", "bls_unemployment_rate", "pct_in_labor_force", "pct_work_from_home"]
     if _has(q, "health", "uninsured", "disabil"):
         return ["pct_uninsured", "pct_disability", "pct_public_coverage"]
     if _has(q, "child", "keiki", "young"):
@@ -165,6 +173,15 @@ def indicators(con, question):
         if shared - GENERIC:
             ranked.append((len(shared), key))
     return [key for _, key in sorted(ranked, reverse=True)[:3]]
+
+
+def _split(con, ids: list[str], geo_type: str) -> tuple[list[str], list[str]]:
+    """Indicators published for this kind of district, and county-level ones published only for counties."""
+    covered = dict(
+        con.execute("SELECT indicator_id, list(geo_type) FROM indicator_coverage GROUP BY 1").fetchall()
+    )
+    county = [i for i in ids if geo_type not in covered.get(i, []) and "county" in covered.get(i, [])]
+    return [i for i in ids if i not in county], county
 
 
 def program_answer(con, district, shown: str) -> dict:
@@ -396,7 +413,17 @@ def ask(con, question, district, geocoder=None):
     if not statewide and ("compare" in q or "state" in q or "hawaiʻi" in q or "hawaii" in q):
         geos.append("state:15")
     session = Session(con)
-    result = json.loads(session.run("get_facts", {"indicator_ids": ids, "geos": geos}))
+    here, county_ids = (ids, []) if statewide else _split(con, ids, district[0])
+    result = {"facts": []}
+    if here:
+        result = json.loads(session.run("get_facts", {"indicator_ids": here, "geos": geos}))
+    # county-level figures come from the district's main county, labeled as that county's
+    if county_ids and "error" not in result and (county := main_county(con, district)):
+        theirs = [":".join(county), *(g for g in geos[1:] if g != ":".join(county))]
+        more = json.loads(session.run("get_facts", {"indicator_ids": county_ids, "geos": theirs}))
+        if "error" in more:
+            raise ValueError("Could not read county facts")
+        result["facts"] += more["facts"]
     if "error" in result:
         raise ValueError("Could not read district facts")
     if statewide:
@@ -411,9 +438,11 @@ def ask(con, question, district, geocoder=None):
             "programs": [],
         }
     modeled = {f["ref"] for f in found if session.tiers.get(f["ref"]) == "M"}
+    county_level = {f["ref"] for f in found if session.tiers.get(f["ref"]) == "C"}
     text = "\n\n".join(
         f"{c['label']} in {c['geography']}: {c['value']}"
         + (", a modeled estimate" if f["ref"] in modeled else "")
+        + (", a county-level figure not published for districts" if f["ref"] in county_level else "")
         + f". Source: {c['source']}, {c['year']}."
         for c, f in zip(facts, found, strict=True)
     )

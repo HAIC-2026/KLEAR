@@ -24,7 +24,7 @@ from klear.store.db import add_coverage, add_facts, add_indicators, add_source
 from klear.web import __main__ as web
 from klear.web.assistant import Assistant, DailyBudget
 from tests.agent.fake_client import tool, turn
-from tests.fixtures.small_store import _fact, add_outreach, build_small_store
+from tests.fixtures.small_store import _fact, add_county_context, add_outreach, build_small_store
 
 DISTRICT = "house:022"
 PARTISAN = ("vote", "candidate", "campaign", "party")
@@ -33,8 +33,9 @@ PARTISAN = ("vote", "candidate", "campaign", "party")
 def build_store(path: Path) -> None:
     """The pytest small store plus a poverty rate, so answers can compare a percent with the county and state.
     The profile also gets a median age from an ACS data profile table, which links to that table for each place on
-    data.census.gov, and an EITC count moved to the district from ZIP codes, which links to the methods page."""
-    con = build_small_store(path)
+    data.census.gov, and an EITC count moved to the district from ZIP codes, which links to the methods page, plus
+    a county-level unemployment rate and DBEDT match marks, so pages show those notes."""
+    con = add_county_context(build_small_store(path))
     add_source(
         con, "acs2024_5yr_profile", "ACS 5-year Data Profiles", "Census", "https://example.org/api",
         "2020-2024 ACS 5-year", "pd", page_url="https://example.org/profiles",

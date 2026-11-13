@@ -548,6 +548,7 @@ function profileSources(sources, compared = []) {
       const li = document.createElement('li');
       li.append(link(s.name, s.url), node('span', s.year, 'profile-source-year'));
       if (s.links && s.links.length) li.append(sourceLinks(s.links));
+      if (s.match) li.append(matchLine(s.match));
       list.append(li);
     }
     return list;
@@ -715,6 +716,7 @@ function renderProfile(p) {
     if (!sec.rows.length) continue;
     const d = node('details', '', 'profile-section');
     d.append(node('summary', sec.title));
+    if (sec.scope) d.append(node('p', sec.scope, 'profile-scope'));
     if (sec.caveat) d.append(node('p', sec.caveat, 'profile-caveat lead'));
     d.append(...sec.rows.map(profileRow), profileSources(sec.sources, sec.compared));
     out.push(d);
@@ -1298,7 +1300,15 @@ function citation(s) {
   const li = document.createElement('li');
   li.append(link(s.name, s.url), `, ${s.year}`);
   if (s.links && s.links.length) li.append(sourceLinks(s.links));
+  if (s.match) li.append(matchLine(s.match));
   return li;
+}
+
+// Where another publisher prints the same figures, such as DBEDT's district profiles, linked for each place.
+function matchLine(m) {
+  const box = node('span', `${m.text}: `, 'source-links');
+  m.places.forEach((p, i) => box.append(i ? ', ' : '', link(p.text, p.url)));
+  return box;
 }
 
 // Bars for sighted readers, with a sentence that says what they show and the same figures as a table.
@@ -1446,7 +1456,7 @@ async function loadAbout() {
     for (const s of data.sources) {
       const row = document.createElement('tr'), name = document.createElement('td');
       name.append(link(s.name, s.url));
-      row.append(name, node('td', s.publisher), node('td', s.years));
+      row.append(name, node('td', s.publisher), node('td', s.years), node('td', s.geography || ''));
       body.append(row);
     }
     $('source-wrap').hidden = false;

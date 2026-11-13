@@ -7,8 +7,9 @@ from klear.agent.answer import main_county
 from klear.agent.config import FIXED_INCOME, FIXED_INCOME_COMPARED, FIXED_INCOME_PROGRAMS
 from klear.labels import plain_labels
 from klear.programs import by_rule
-from klear.web.answers import asks_fixed_income, indicators
+from klear.web.answers import ask, asks_fixed_income, indicators
 from klear.web.assistant import basic
+from tests.fixtures.small_store import add_county_context
 
 LABELS = {
     "poverty_universe": "Population for whom poverty status is determined",
@@ -169,3 +170,35 @@ def test_basic_unpublished_year_is_not_available(real_con):
 def test_basic_statewide_question_shows_the_state(real_con, question):
     answer = _basic(real_con, question)
     assert {t["geography"] for t in answer["tiles"]} == {"Hawaiʻi"}
+
+
+def test_tax_credit_and_unemployment_questions_include_county_level_figures(con):
+    assert "dotax_eitc_claims" in indicators(con, "How many people claim the earned income tax credit?")
+    assert "bls_unemployment_rate" in indicators(con, "What is unemployment like here?")
+
+
+def test_county_level_figures_come_from_the_main_county_and_say_so(small_con):
+    add_county_context(small_con)
+    out = ask(small_con, "Compare unemployment with the state", ("house", "022"))
+    county = [f for f in out["facts"] if f["label"] == "Unemployment rate (county-level)"]
+    assert [(f["geography"], f["value"]) for f in county] == [
+        ("Honolulu County", "3.0%"),
+        ("Hawaiʻi", "3.2%"),
+    ]
+    assert (
+        "Unemployment rate (county-level) in Honolulu County: 3.0%, a county-level figure not published for "
+        "districts." in out["text"]
+    )
+    assert not any(
+        f["geography"] == "House District 22" and "county-level" in f["label"] for f in out["facts"]
+    )
+
+
+def test_basic_figures_that_match_dbedt_link_its_profile(small_con):
+    add_county_context(small_con)
+    answer = basic(small_con, "How many kūpuna live here?", ("house", "022"))
+    (acs,) = [s for s in answer["sources"] if s["name"] == "American Community Survey 5-year"]
+    assert acs["match"] == {
+        "text": "Matches DBEDT's published district profile",
+        "places": [{"text": "House District 22", "url": "https://example.org/dbedt/house.xlsx"}],
+    }
