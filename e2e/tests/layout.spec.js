@@ -66,15 +66,19 @@ test.describe('text spacing', () => {
 
 test('links that leave the site say so, and in-page links have no arrow', async ({page}) => {
   await fullPage(page);
-  const links = await page.locator('a[href]').evaluateAll(all => all.map(a => ({
-    text: a.textContent, ext: a.classList.contains('ext'), blank: a.target === '_blank',
-    // Phone (tel:) and email links open an app, not another site.
-    external: /^https?:$/.test(new URL(a.href).protocol) && new URL(a.href).origin !== location.origin,
-  })));
-  for (const l of links) {
-    expect(l.ext, `arrow only on links that leave the site: ${l.text}`).toBe(l.external);
-    if (l.blank) expect(l.text).toContain('(opens in a new tab)');
-    else if (l.external) expect(l.text).toContain('(external site)');
+  // The home page with every part showing, then each other page, header and footer included.
+  for (const address of [null, '/outreach.html', '/methods.html', '/glossary.html', '/checks.html', '/accessibility.html']) {
+    if (address) await page.goto(address);
+    const links = await page.locator('a[href]').evaluateAll(all => all.map(a => ({
+      text: a.textContent, ext: a.classList.contains('ext'), blank: a.target === '_blank',
+      // Phone (tel:) and email links open an app, not another site.
+      external: /^https?:$/.test(new URL(a.href).protocol) && new URL(a.href).origin !== location.origin,
+    })));
+    for (const l of links) {
+      expect(l.ext, `arrow only on links that leave the site: ${l.text} (${address || '/'})`).toBe(l.external);
+      if (l.blank) expect(l.text).toContain('(opens in a new tab)');
+      else if (l.external) expect(l.text).toContain('(external site)');
+    }
   }
 });
 

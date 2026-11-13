@@ -11,6 +11,7 @@
   <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=2">
   <link rel="preload" href="/fonts/public-sans.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/style.css">
+  <script src="/nav.js" defer></script>
   <script src="/app.js" defer></script>
   <script src="/map.js" defer></script>
 </head>
@@ -18,7 +19,21 @@
   <a class="skip" href="#main">Skip to content</a>
   <header class="site-header">
     <a class="brand" href="/"><img class="brand-logo" src="/logo.svg" width="36" height="36" alt=""><span class="brand-text"><strong>KLEAR</strong><span class="brand-sub">Hawaiʻi district data</span></span></a>
-    <nav aria-label="Main navigation"><a href="#district-map">Map</a><a href="/outreach.html">Outreach</a><a href="#how">How it works</a><a href="#sources">Sources</a><a href="#about">About</a></nav>
+    <nav aria-label="Main navigation">
+      <ul class="nav-links">
+        <li><a href="/#find">Find<span class="nav-long"> a district</span></a></li>
+        <li><a href="#chat">Ask</a></li>
+        <li><a href="#district-map">Map</a></li>
+        <li><a href="/outreach.html">Outreach</a></li>
+        <li><details class="nav-menu"><summary>Data<span class="nav-long"> and methods</span></summary><ul>
+          <li><a href="#sources">Sources</a></li>
+          <li><a href="/methods.html">Methods</a></li>
+          <li><a href="/glossary.html">Glossary</a></li>
+          <li><a href="/checks.html">How we check KLEAR</a></li>
+        </ul></details></li>
+        <li><a href="#about">About</a></li>
+      </ul>
+    </nav>
   </header>
   <main id="main">
     <section class="band" aria-labelledby="page-title">
@@ -155,10 +170,11 @@
         <div class="footer-col">
           <h2 class="footer-title">Reports</h2>
           <ul>
+            <li><a href="/methods.html">Methods</a></li>
             <li><a href="/glossary.html">Glossary</a></li>
             <li><a href="/checks.html">How we check KLEAR</a></li>
             <li><a class="ext" href="https://github.com/HAIC-2026/KLEAR/blob/main/docs/VALIDATION.md">Validation report<span class="visually-hidden"> (external site)</span></a></li>
-            <li><a class="ext" href="https://github.com/HAIC-2026/KLEAR/blob/main/docs/ACCESSIBILITY.md">Accessibility statement<span class="visually-hidden"> (external site)</span></a></li>
+            <li><a href="/accessibility.html">Accessibility statement</a></li>
           </ul>
         </div>
         <div class="footer-col">

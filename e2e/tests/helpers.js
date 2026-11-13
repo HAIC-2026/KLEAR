@@ -31,13 +31,17 @@ export async function ask(page, question = 'How does poverty here compare with t
   return page.locator('#log article').last();
 }
 
-// Open every disclosure, so axe checks what is inside them too.
+// Open every disclosure, so axe checks what is inside them too. The header's menu stays shut: open, it would cover the
+// page under it (axe.spec.js checks it open on its own).
 export async function openAll(page) {
-  await page.locator('details').evaluateAll(all => all.forEach(d => { d.open = true; }));
+  await page.locator('details:not(.nav-menu)').evaluateAll(all => all.forEach(d => { d.open = true; }));
 }
 
-// Run axe for WCAG A and AA. Serious and critical problems fail the test; the rest are attached as notes.
+// Run axe for WCAG A and AA. Serious and critical problems fail the test; the rest are attached as notes. It runs from
+// the top of the page: further down, the header that stays on screen covers whatever has scrolled under it, and axe
+// would count that against a button half under it, as if the button were too small.
 export async function expectAccessible(page, testInfo, view) {
+  await page.evaluate(() => window.scrollTo({top: 0, behavior: 'instant'}));
   const results = await new AxeBuilder({page}).withTags(WCAG).analyze();
   const describe = v => `${v.impact} ${v.id}: ${v.help}\n${v.nodes.map(n => `  ${n.target.join(' ')}`).join('\n')}`;
   const minor = results.violations.filter(v => !FAILING.has(v.impact));

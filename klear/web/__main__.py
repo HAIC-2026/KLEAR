@@ -29,6 +29,7 @@ from klear.web.cache import AnswerCache
 from klear.web.checks import checks_report
 from klear.web.geocode import find_blocks, looks_like_address
 from klear.web.shade import CHAMBERS, MEASURES, NoMeasure, map_view
+from klear.web.statement import statement_page
 
 STORE = ROOT / "data" / "build" / "klear.duckdb"
 STATIC = Path(__file__).with_name("static")
@@ -39,6 +40,8 @@ PUBLIC = (
     "/glossary.html",
     "/outreach.html",
     "/outreach.js",
+    "/accessibility.html",
+    "/nav.js",
     "/checks.js",
     "/checks.css",
     "/app.js",
@@ -171,6 +174,14 @@ class Handler(SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def page(self, body: bytes):
+        """A page made when it is asked for, not read from a file."""
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
     def attachment(self, text: str, kind: str, filename: str):
         """A file the browser saves rather than shows."""
         body = text.encode()
@@ -269,6 +280,11 @@ class Handler(SimpleHTTPRequestHandler):
         if DISTRICT_PAGE.fullmatch(path.path):
             self.path = "/index.html"
             return super().do_GET()
+        if path.path == "/accessibility.html":
+            try:
+                return self.page(statement_page((STATIC / "accessibility.html").read_text(encoding="utf-8")))
+            except OSError:
+                return self.reply(503, {"error": "The accessibility statement is unavailable right now."})
         # Explicit allowlist: never serve the repository or keys.
         if path.path not in PUBLIC:
             return self.reply(404, {"error": "Not found"})
