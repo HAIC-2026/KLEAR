@@ -1,0 +1,17 @@
+id: rank-004
+category: rank
+question: Which Senate district has the most households in poverty that are not getting SNAP?
+ideal: Ranks Hawaiʻi Senate districts by households below poverty that did not receive SNAP. One Senate district
+  is alone in the first tier, so the answer may call it the highest. Names SNAP and says the count meets the
+  income test only.
+tags:
+- outreach
+facts:
+- - hh_poverty_no_snap
+  - senate
+  - '012'
+must_say:
+- income test
+programs:
+- snap_fy2027
+refusal: none
