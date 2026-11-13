@@ -11,7 +11,7 @@ from klear.agent.config import DEFAULT_MODEL
 from klear.config import MissingSecretError
 from klear.eval.contract import VERSION, Answer, fill_value, geo_display, render
 from klear.eval.scorers import reliability
-from klear.eval.spend import load_prices, request_cost
+from klear.eval.spend import TOKEN_FIELDS, load_prices, request_cost
 from klear.filelock import exclusive
 from klear.web import display
 from klear.web.answers import ask as lookup
@@ -33,7 +33,8 @@ def today() -> str:
 
 
 class DailyBudget:
-    """Spend for the current HST day in one locked JSON file; open holds count until settled or the day ends."""
+    """Spend and tokens for the current HST day in one locked JSON file; open holds count until settled or the day
+    ends."""
 
     def __init__(self, cap: float = DAILY_CAP, path: Path = BUDGET, day=today):
         self.cap, self.path, self.day = cap, path, day
@@ -59,13 +60,23 @@ class DailyBudget:
             s["held"][rid] = amount
             return rid
 
-    def settle(self, rid: str, cost: float | None) -> None:
-        """Replace a hold with its actual cost, or with the full hold when the cost is unknown."""
+    def settle(self, rid: str, cost: float | None, usage=None) -> None:
+        """Replace a hold with its actual cost, or with the full hold when the cost is unknown, and add the
+        question's input, output, cache write and cache read tokens to the day's totals."""
         with self._state() as s:
             # A hold from a previous day is already gone, so its cost is not added to today.
             held = s["held"].pop(rid, None)
             if held is not None:
                 s["spent"] += held if cost is None else cost
+                if cost is not None and usage is not None:
+                    tokens = s.setdefault("tokens", dict.fromkeys(TOKEN_FIELDS, 0))
+                    for name in TOKEN_FIELDS:
+                        tokens[name] = tokens.get(name, 0) + getattr(usage, name, 0)
+
+    def tokens(self) -> dict[str, int]:
+        """The day's settled input, output, cache write and cache read tokens."""
+        with self._state() as s:
+            return dict.fromkeys(TOKEN_FIELDS, 0) | s.get("tokens", {})
 
     def spent(self) -> float:
         with self._state() as s:
@@ -151,7 +162,7 @@ class Assistant:
             rid = self.budget.reserve(agent.max_call_cost(self.model, question, self.prices))
         except (BudgetExceeded, MissingSecretError):
             return self._basic(con, question, district, geocoder)
-        cost = None
+        cost = usage = None
         try:
             answer, usage = agent.answer("web", question, district)
             cost = request_cost(self.model, usage)
@@ -159,7 +170,7 @@ class Assistant:
         except Exception:  # noqa: BLE001 - any failure falls back to the free lookup
             return self._basic(con, question, district, geocoder)
         finally:
-            self.budget.settle(rid, cost)
+            self.budget.settle(rid, cost, usage)
 
     @staticmethod
     def _basic(con, question: str, district: tuple[str, str], geocoder=None) -> dict:

@@ -9,7 +9,15 @@ import yaml
 
 from klear.agent.tools import Session
 from klear.eval.scorers import reliability
-from klear.programs import ELIGIBILITY_NOTE, NEEDS, PROGRAMS_DIR, catalog, load_programs
+from klear.programs import (
+    ELIGIBILITY_NOTE,
+    NEEDS,
+    PROGRAMS_DIR,
+    STALE_AFTER_DAYS,
+    catalog,
+    is_stale,
+    load_programs,
+)
 from klear.rules.registry import REQUIRED_RULE_IDS
 from klear.store.db import add_facts, add_indicators
 from klear.web import display
@@ -181,6 +189,8 @@ def test_need_above_the_state_ranks_first_with_its_reason(need_con):
     assert kupuna["verified"] and kupuna["agency"] and kupuna["url"].startswith("https://")
     assert laid["title"] == "Programs to explore here" and laid["note"] == ELIGIBILITY_NOTE
     assert {x["name"] for x in laid["sources"]} == {"American Community Survey 5-year", "Public Housing"}
+    # The kūpuna share and the EITC share, each for the district and the state, however many programs repeat them.
+    assert laid["figures"] == 4
 
 
 def test_gaps_within_the_margin_read_as_about_the_same(need_con):
@@ -213,6 +223,19 @@ def test_answer_program_rows_merge_tax_years_and_use_apply_pages():
         rows[0]["url"] == "https://www.irs.gov/credits-deductions/individuals/earned-income-tax-credit-eitc"
     )
     assert rows[1]["url"] == "https://humanservices.hawaii.gov/bessd/snap/" and rows[1]["reasons"] == []
+
+
+def test_rows_say_when_a_person_checked_and_flag_old_entries(monkeypatch):
+    snap = next(p for p in catalog() if p.program_id == "snap")
+    assert not is_stale(snap, snap.verified + timedelta(days=STALE_AFTER_DAYS))
+    assert is_stale(snap, snap.verified + timedelta(days=STALE_AFTER_DAYS + 1))
+    when = f"{snap.verified:%B} {snap.verified.day}, {snap.verified.year}"
+    (row,) = display.program_rows(["snap_fy2027"])
+    assert row["checked"] == f"Checked against official pages on {when}." and row["stale"] is False
+    monkeypatch.setattr(display, "is_stale", lambda p: True)
+    (row,) = display.program_rows(["snap_fy2027"])
+    assert row["stale"] is True
+    assert row["checked"] == f"Check the official page. These details were last checked on {when}."
 
 
 # real store
@@ -271,6 +294,12 @@ def test_basic_mode_answers_with_matched_programs(real_con):
     assert len(names) == len(set(names)) == len(catalog())
     assert a["programs"][0]["match"] and a["programs"][0]["reasons"]
     assert a["programs"][0]["name"] in a["text"]
+    where = "source" if a["verified"]["sources"] == len(a["program_sources"]) == 1 else "sources"
+    assert a["verified"]["text"] == (
+        f"All {a['verified']['figures']} figures in this answer come from the cited {where} below."
+    )
+    shown = {r["text"] for p in a["programs"] for r in p["reasons"]}
+    assert 2 <= a["verified"]["figures"] <= 2 * len(shown)
     other = ask(real_con, "Which assistance programs fit this district?", ("house", "044"))
     assert [p["name"] for p in other["programs"] if p["match"]] != [
         p["name"] for p in a["programs"] if p["match"]

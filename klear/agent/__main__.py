@@ -102,7 +102,10 @@ def _ask(con, agent: KlearAgent, question: str, district) -> int:
         notes = caveats.for_places(con, [answer.resolved, *((f.geo_type, f.geo_id) for f in answer.facts)])
         text += "".join(f"\n\n{c['title']} ({c['geo']}): {c['text']}" for c in notes)
     print(f"\n{text}\n\nRefusal: {answer.refusal}")
-    print(f"Cost: ${cost:.4f} ({usage.input_tokens} input, {usage.output_tokens} output tokens)")
+    print(
+        f"Cost: ${cost:.4f} ({usage.input_tokens} input, {usage.cache_write_tokens} cache write, "
+        f"{usage.cache_read_tokens} cache read, {usage.output_tokens} output tokens)"
+    )
     if cost > worst + EPS:
         return _err(f"call cost ${cost:.4f} exceeded its ${worst:.4f} reservation")
     return 0

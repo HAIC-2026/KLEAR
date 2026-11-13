@@ -61,6 +61,14 @@ def test_site_messages():
     assert len(messages) > 20 and grade(messages) <= TARGET
 
 
+def test_program_checked_lines():
+    from klear.programs import catalog
+    from klear.web.display import checked_text
+
+    texts = [checked_text(catalog()[0], stale) for stale in (False, True)]
+    assert grade(texts) <= TARGET
+
+
 def test_outreach_page_messages():
     """The outreach page's own messages, and the sentences the server writes for it and for the profile note."""
     from klear.agent.config import OUTREACH_PAIRS

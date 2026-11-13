@@ -3,6 +3,7 @@ import json
 import re
 from collections.abc import Callable
 from datetime import date
+from pathlib import Path
 
 import openpyxl
 
@@ -83,9 +84,10 @@ def _check_fpg(rule: Rule, fetch_text, details: list[dict]) -> int:
     return n
 
 
-def _check_hud(rule: Rule, details: list[dict]) -> int:
+def _check_hud(rule: Rule, details: list[dict], path: Path | None = None) -> int:
     # A read-only workbook keeps its file open until closed, which blocks deleting it on Windows.
-    wb = openpyxl.load_workbook(manual_file(HUD_FILE, HUD_URL), read_only=True, data_only=True)
+    path = path or manual_file(HUD_FILE, HUD_URL)
+    wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
     try:
         rows = wb.active.iter_rows(values_only=True)
         header = [str(h).strip().lower() if h is not None else "" for h in next(rows)]
@@ -136,7 +138,10 @@ def _rule_text(rule: Rule, url: str, fetch_text: Callable[[str], str], notes: li
         return document_text(manual_file(rule.saved, url).read_bytes())
 
 
-def check_rules(rules: list[Rule], *, fetch_text: Callable[[str], str]) -> CheckResult:
+def check_rules(
+    rules: list[Rule], *, fetch_text: Callable[[str], str], hud_file: Path | None = None
+) -> CheckResult:
+    """Check each rule's values against its pages. hud_file, when given, replaces the HUD manual download."""
     details: list[dict] = []
     notes: list[str] = []
     missing: ManualInputMissing | None = None
@@ -161,7 +166,7 @@ def check_rules(rules: list[Rule], *, fetch_text: Callable[[str], str]) -> Check
             if r.rule_id == "fpg_2026_hi":
                 n += _check_fpg(r, fetch_text, details)
             elif r.rule_id == "hud_il_fy2026_hi":
-                n += _check_hud(r, details)
+                n += _check_hud(r, details, hud_file)
             else:
                 url = r.fetch_url or r.source_url
                 texts = {url: _rule_text(r, url, fetch_text, notes)}

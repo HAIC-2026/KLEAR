@@ -86,7 +86,7 @@ No `source`, environment export, or `--env-file` option is needed. Restart the w
 - klear/etl: downloads the sources and builds the store (python -m klear.etl build).
 - klear/store: the DuckDB schema and the writer that rejects unsourced facts.
 - klear/validation: the build's validation checks and the docs/VALIDATION.md report.
-- klear/rules: loads the program rules and checks each value against its official source quote.
+- klear/rules: loads the program rules and checks each value against its official source quote. python -m klear.rules check rechecks the rules and program contacts against the live pages.
 - klear/agent: the agent, its data tools and the code that builds and checks each answer (python -m klear.agent).
 - klear/web: the local web server, landing page, district profile and chat interface (python -m klear.web).
 - klear/eval: the answer format, eval runner, answer checks, reports and spending cap (python -m klear.eval run).
@@ -139,6 +139,10 @@ Outputs in data/build:
 - house.geojson and senate.geojson: simplified district polygons for the web.
 
 The build also rewrites docs/VALIDATION.md, the public validation report. After the checks it rescores the newest recorded live run in eval/recordings against the new store (free, no model calls) and adds the published held-out totals from eval/heldout_summary.yaml. The website's How we check KLEAR page (/checks.html, linked from the footer) reads validation.json through /api/checks, so it always shows the latest build.
+
+### Keeping rules and programs current
+
+Every Monday at 8:00 HST, and by hand from the Actions tab, the freshness workflow (.github/workflows/freshness.yml) runs uv run python -m klear.rules check. It fetches each rule's pages and checks its quotes again, fetches each program's page and phone source and confirms the phone number still appears, and warns 30 days before a rule's review_by date. It exits 1 on any change or due date and then opens or updates one issue, "Program information needs review". Sites that block scripts are listed as needing a person and do not fail the run. The site shows when a person last checked each program and asks readers to check the official page once that is more than 90 days ago. docs/KEEPING-CURRENT.md explains how to update a rule or add a program, with a calendar of when each program's figures change.
 
 ## Tests and evaluation
 
@@ -253,7 +257,9 @@ With an Anthropic key configured, questions go to the same KLEAR assistant that
 
 When an answer says the data is not available or is outside KLEAR's scope and shows no figures, the site adds one line linking to datatrove.ai (https://datatrove.ai/), a HAIC 2026 sponsor with its own chat over Hawaiʻi public datasets that are not published by district. The line is added where the page lays out the answer, not by the model, so the answer contract and the eval are unchanged. KLEAR only links to datatrove.ai and does not copy its data. The Data and sources and About sections of the page link to it too.
 
-Website spending has its own cap of 5 dollars per HST day, kept in ~/.config/klear/web_spend.json and separate from the 60 dollar eval cap. Each question reserves its worst-case cost first and then records the actual cost. When the day's cap is reached or the API fails, the site falls back to a basic keyword lookup from the store and says so. Each visitor can ask 6 questions a minute, and the server answers 3 at a time.
+Every answer with figures shows one plain line above its sources, such as "All 6 figures in this answer come from the cited sources below." The server counts the figures the page shows (tiles, chart bars, figures written into the answer and the figures behind each program's reason) from the stored facts it filled in, never from digits in the text, so the count is true by construction. Basic lookups and prepared starter answers get the same line, the chat's status line reads it out, and declines and answers with no figures have none.
+
+Website spending has its own cap of 5 dollars per HST day, kept in ~/.config/klear/web_spend.json and separate from the 60 dollar eval cap. Each question reserves its worst-case cost first and then records the actual cost, and the file also keeps the day's input, output, cache write and cache read tokens. The assistant marks its tool definitions and system prompt for the prompt cache, so a question asked within 5 minutes of another reads them at the cache price. When the day's cap is reached or the API fails, the site falls back to a basic keyword lookup from the store and says so. Each visitor can ask 6 questions a minute, and the server answers 3 at a time.
 
 | Option | Purpose |
 | --- | --- |
@@ -265,6 +271,8 @@ Website spending has its own cap of 5 dollars per HST day, kept in ~/.config/kle
 | `--daily-cap 5` | Set the website's model budget in dollars per HST day. |
 | `--model MODEL` | Choose the model used by the assistant. |
 | `--no-address-lookup` | Turn off street address lookup in search and chat, so the server never contacts the Census geocoder. |
+
+Health checks. GET /healthz always answers 200 with {"status": "ok"} while the server runs. GET /readyz answers 200 when the store is built and current, else 503, with ready, store (ok, missing, outdated or unreadable), built (the build day), prepared_answers (prepared starter answers for this build) and assistant (on or off). Neither calls the model or shows keys, file paths or questions. Cloud Run reserves some paths that end in z, so the same checks also answer at /api/health and /api/ready.
 
 ### Outreach page
 
@@ -384,7 +392,7 @@ file download. Each ACS figure also links to its table for that place on data.ce
 can be read. Each figure moved to districts from ZIP codes or tracts, or modeled by CDC, links
 to its source's section of the methods page instead. Each comparison chart has a sentence saying what it shows (written in
 `_summary` in klear/web/display.py) and a data table under it. The examples are a list until a district is chosen, then short buttons
-above the question box. Program questions list official guidance without
+at the end of the conversation, above the question box. Program questions list official guidance without
 assessing individual eligibility. Questions outside the available measures
 receive a clear limit instead of a guessed answer. Questions are independent:
 previous messages are displayed locally but are not sent as conversation history.
@@ -392,8 +400,8 @@ After each answer the chat offers up to three next questions, each written out i
 district and county named, so the basic lookup can answer them too. A question that takes more
 than 45 seconds is stopped. A waiting question can be cancelled, and errors that may pass offer Retry.
 
-Choosing a district also shows its district profile next to the chat. The profile is read
-straight from the store with no model call, through `GET /api/profile?district=house:022`.
+Choosing a district opens its own page, such as /district/house-22, with its profile beside the chat. The
+profile is read straight from the store with no model call, through `GET /api/profile?district=house:022`.
 A district chosen while an answer is still loading shows its profile at once, and the chat switches to it after that answer.
 It names the district's counties, islands, Census places and the overlapping districts
 in the other chamber, shows four headline figures, then 37 figures in seven sections:
@@ -438,11 +446,18 @@ The assistant and the free lookup follow the same rules for a few kinds of quest
 - The answer builder spells Hawaiian place names with ʻokina and kahakō in the assistant's own words too, leaving
   web addresses and official organization names as written.
 
-On screens at least 1200 px wide the profile and the chat are equal-width columns; below that
-the profile sits under the chat at full width. The chat card stays compact until the first
-question is sent, then grows to a fixed height and scrolls its conversation inside it. The
-profile never scrolls inside itself: it takes the height its figures need, and each section
-opens and closes on its own.
+A district's page starts at the top with its name as the page heading, where it is, the four
+headline figures with their margins, a link to every section, and a row of three share buttons
+(print a one-page summary, copy the link, download the figures as CSV). The home page's photo band
+and search give way to it, and Back returns to them. The sections follow in reading order: People,
+Income, Programs to explore here, then the rest. Each is a disclosure that ends with a link back to
+the top. On screens at least 1200 px wide the first three start open, the profile is the main
+column, and the chat sits beside it, sticky and as tall as the window, so its conversation scrolls
+inside it while the profile scrolls beside it. Below 1200 px the profile and the chat are two tabs,
+Profile and Ask, under the district's name. Sections the reader opens or closes, and the tab, are
+remembered for the browser tab. A link to a section, such as /district/house-22#profile-housing,
+opens the page at that section. `--stick` in style.css is how much of the site header stays on
+screen as the page scrolls (none yet); the chat sticks just under it.
 
 Only the static web assets are served; the repository and store cannot be
 downloaded. The server rejects cross-origin browser requests. HTTP logs are disabled to avoid recording questions.

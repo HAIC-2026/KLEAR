@@ -22,6 +22,7 @@ from klear.web.display import (
     matched_programs,
     place_caveats,
     program_rows,
+    verified,
     year_text,
 )
 from klear.web.geocode import address_in
@@ -202,7 +203,7 @@ def program_answer(con, district, shown: str) -> dict:
         + [p | {"match": False} for p in laid["others"]],
         "program_sources": laid["sources"],
         "place_caveats": place_caveats(con, [district]),
-    }
+    } | verified(laid["figures"], len(laid["sources"]))
 
 
 def _cards(con, facts: list[dict]) -> list[dict]:
