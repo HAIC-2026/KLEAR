@@ -48,9 +48,13 @@ class RecordingError(MissingRecording):
 
 @dataclass
 class Usage:
+    """Tokens of one question: uncached input, output, and input written to or read from the prompt cache."""
+
     input_tokens: int
     output_tokens: int
     seconds: float
+    cache_write_tokens: int = 0
+    cache_read_tokens: int = 0
 
 
 class Agent(Protocol):

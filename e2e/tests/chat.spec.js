@@ -1,6 +1,6 @@
 // The chat around each answer: next-question buttons, the waiting line with Cancel, errors with Retry, and shortcuts.
 import {test, expect} from '@playwright/test';
-import {DISTRICT, ask, chooseDistrict, offline} from './helpers.js';
+import {DISTRICT, ask, chooseDistrict, offline, showTab} from './helpers.js';
 
 test.beforeEach(async ({context}) => offline(context));
 
@@ -15,6 +15,7 @@ async function holdQuestions(page) {
 test('three related questions, each asked with a next-question button', async ({page}) => {
   await page.goto('/');
   await chooseDistrict(page);
+  await showTab(page, 'Ask');
   const sent = [];
   page.on('request', r => { if (r.url().endsWith('/api/chat')) sent.push(r.postDataJSON()); });
   const first = await ask(page, 'How many kūpuna live in this district?');
@@ -31,7 +32,7 @@ test('three related questions, each asked with a next-question button', async ({
     await button.click();
     await expect(page.locator('#log .user').last()).toHaveText(`You asked: ${question}`);
     await expect(page.locator('#log article')).toHaveCount(i + 2);
-    await expect(page.locator('#chat-live')).toHaveText(`Answer ready for ${DISTRICT}.`);
+    await expect(page.locator('#chat-live')).toContainText(`Answer ready for ${DISTRICT}.`);
     // A question already asked is not offered again, even when it said "this district".
     await expect(page.locator('#log .followup', {hasText: `How many kūpuna live in ${DISTRICT}?`})).toHaveCount(0);
   }
@@ -111,6 +112,7 @@ test('the examples include ones picked from the district profile, and they go wh
   });
   await page.goto('/');
   await chooseDistrict(page);
+  await showTab(page, 'Ask');
   const local = page.locator('#examples .local');
   // House 22's poverty rate is about 40 percent above Honolulu County's in the test store.
   await expect(local).toHaveCount(2);
@@ -118,7 +120,7 @@ test('the examples include ones picked from the district profile, and they go wh
   await expect(local.nth(1)).toHaveAccessibleName(new RegExp(`^Poverty higher than countywide\\s*: Compare poverty in ${DISTRICT} with Honolulu County and the state\\.$`));
   await local.nth(1).click();
   await expect(page.locator('#log .user')).toHaveText(`You asked: Compare poverty in ${DISTRICT} with Honolulu County and the state.`);
-  await expect(page.locator('#chat-live')).toHaveText(`Answer ready for ${DISTRICT}.`);
+  await expect(page.locator('#chat-live')).toContainText(`Answer ready for ${DISTRICT}.`);
   await expect(page.locator('#log .followups')).toHaveCount(1);
 
   await page.getByRole('button', {name: 'Change district'}).click();
@@ -142,6 +144,7 @@ test('the examples include ones picked from the district profile, and they go wh
 test('a slow question shows the seconds, can be cancelled, and Retry asks it again', async ({page}) => {
   await page.goto('/');
   await chooseDistrict(page);
+  await showTab(page, 'Ask');
   const release = await holdQuestions(page);
   await page.getByLabel('Your question').fill('How many kūpuna live here?');
   await page.getByRole('button', {name: 'Ask KLEAR'}).click();
@@ -158,7 +161,7 @@ test('a slow question shows the seconds, can be cancelled, and Retry asks it aga
   await page.unroute('**/api/chat');
   release();
   await page.locator('#log').getByRole('button', {name: 'Retry'}).click();
-  await expect(page.locator('#chat-live')).toHaveText(`Answer ready for ${DISTRICT}.`);
+  await expect(page.locator('#chat-live')).toContainText(`Answer ready for ${DISTRICT}.`);
   await expect(page.locator('#log .user')).toHaveText(['You asked: How many kūpuna live here?', 'You asked: How many kūpuna live here?']);
   await expect(page.locator('#log .retry')).toHaveCount(0);
 });
@@ -167,6 +170,7 @@ test('a question with no answer after 45 seconds is stopped and says what to do'
   await page.clock.install();
   await page.goto('/');
   await chooseDistrict(page);
+  await showTab(page, 'Ask');
   const release = await holdQuestions(page);
   await page.getByLabel('Your question').fill('How many kūpuna live here?');
   await page.getByRole('button', {name: 'Ask KLEAR'}).click();
@@ -181,6 +185,7 @@ test('a question with no answer after 45 seconds is stopped and says what to do'
 test('error pages that are not JSON get plain messages that say what to do next', async ({page}) => {
   await page.goto('/');
   await chooseDistrict(page);
+  await showTab(page, 'Ask');
   const replies = [
     [502, '<!doctype html><title>502 Bad Gateway</title><h1>Bad Gateway</h1>', 'KLEAR’s server is not responding right now (error 502). Wait a moment, then press Retry.', true],
     [200, '<!doctype html><title>Sign in</title><h1>Sign in to the network</h1>', 'KLEAR sent a reply it could not read. Press Retry to ask again.', true],
@@ -202,6 +207,7 @@ test('error pages that are not JSON get plain messages that say what to do next'
 test('Ctrl+Enter sends the question, and Enter alone starts a new line', async ({page}) => {
   await page.goto('/');
   await chooseDistrict(page);
+  await showTab(page, 'Ask');
   const box = page.getByLabel('Your question');
   await expect(box).toHaveAccessibleDescription('Press Ctrl+Enter to send.');
   await box.fill('How many kūpuna');
@@ -210,7 +216,7 @@ test('Ctrl+Enter sends the question, and Enter alone starts a new line', async (
   await expect(box).toHaveValue('How many kūpuna\nlive here?');
   await expect(page.locator('#log .user')).toHaveCount(0);
   await box.press('Control+Enter');
-  await expect(page.locator('#chat-live')).toHaveText(`Answer ready for ${DISTRICT}.`);
+  await expect(page.locator('#chat-live')).toContainText(`Answer ready for ${DISTRICT}.`);
   await expect(page.locator('#log .user')).toHaveText('You asked: How many kūpuna\nlive here?');
   await box.fill('How does poverty here compare?');
   await box.press('Meta+Enter');

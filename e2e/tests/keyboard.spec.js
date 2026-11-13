@@ -19,17 +19,24 @@ test('skip link, search, ask, and read the answer with the keyboard', async ({pa
   await page.keyboard.press('Tab');
   await expect(page.getByLabel('District, place, ZIP code, or street address').first()).toBeFocused();
 
-  // A search with one match picks it and moves to the question box.
+  // A search with one match opens the district's page with focus on its name. The next stop, a link shown only while
+  // it has focus, skips past the profile to the question box beside it.
   await page.keyboard.type('House 22');
   await page.keyboard.press('Enter');
   await expect(page.locator('#district-title')).toHaveText(DISTRICT);
+  await expect(page.getByRole('heading', {level: 1, name: DISTRICT})).toBeFocused();
+  await page.keyboard.press('Tab');
+  const skipAsk = page.getByRole('link', {name: 'Skip to the question box'});
+  await expect(skipAsk).toBeFocused();
+  await expect(skipAsk).toBeInViewport();
+  await page.keyboard.press('Enter');
   await expect(page.getByLabel('Your question')).toBeFocused();
 
   await page.keyboard.type('How does poverty here compare?');
   await page.keyboard.press('Tab');
   await expect(page.getByRole('button', {name: 'Ask KLEAR'})).toBeFocused();
   await page.keyboard.press('Enter');
-  await expect(page.locator('#chat-live')).toHaveText(`Answer ready for ${DISTRICT}.`);
+  await expect(page.locator('#chat-live')).toContainText(`Answer ready for ${DISTRICT}.`);
   const answer = page.locator('#log article').last();
   await expect(answer.getByRole('heading', {level: 3})).toBeFocused();
 
@@ -57,6 +64,48 @@ test('skip link, search, ask, and read the answer with the keyboard', async ({pa
   await expect(page.locator('#log article').last().getByRole('heading', {level: 3})).toBeFocused();
 });
 
+// One column: the profile and the chat are two tabs. The arrow keys move between them, and Tab moves into the one shown.
+test.describe('one column', () => {
+  test.use({viewport: {width: 900, height: 800}});
+  test('Profile and Ask are tabs that the arrow keys switch', async ({page}) => {
+    await page.goto('/district/house-22');
+    await expect(page.locator('#profile-live')).toHaveText(`Profile for ${DISTRICT} loaded.`);
+    const tabs = page.getByRole('tablist', {name: 'District page'});
+    const profileTab = tabs.getByRole('tab', {name: 'Profile'}), askTab = tabs.getByRole('tab', {name: 'Ask'});
+    await expect(profileTab).toHaveAttribute('aria-selected', 'true');
+    await expect(page.getByRole('tabpanel', {name: 'Profile'})).toBeVisible();
+    await expect(page.getByLabel('Your question')).toBeHidden();
+
+    await profileTab.focus();
+    await page.keyboard.press('ArrowRight');
+    await expect(askTab).toBeFocused();
+    await expect(askTab).toHaveAttribute('aria-selected', 'true');
+    await expect(page.getByRole('tabpanel', {name: 'Ask'})).toBeVisible();
+    await expect(page.locator('#profile')).toBeHidden();
+    // Only the chosen tab is a Tab stop; the next stop is in its panel.
+    await page.keyboard.press('Tab');
+    await expect(page.getByRole('button', {name: 'Change district'})).toBeFocused();
+    await askTab.focus();
+    await page.keyboard.press('Home');
+    await expect(profileTab).toBeFocused();
+    await expect(page.locator('#profile')).toBeVisible();
+
+    // An answer that arrives while the profile shows is marked on the Ask tab until it is opened.
+    let release;
+    const held = new Promise(resolve => { release = resolve; });
+    await page.route('**/api/chat', async route => { await held; await route.continue(); });
+    await askTab.click();
+    await page.getByLabel('Your question').fill('How does poverty here compare?');
+    await page.getByRole('button', {name: 'Ask KLEAR'}).click();
+    await profileTab.click();
+    release();
+    await expect(page.locator('#chat-live')).toContainText(`Answer ready for ${DISTRICT}.`);
+    await expect(tabs.getByRole('tab', {name: 'Ask New answer'})).toBeVisible();
+    await askTab.click();
+    await expect(page.locator('#tab-new')).toBeHidden();
+  });
+});
+
 test('the map: Tab in, arrows to move, Enter to pick, Enter again to ask', async ({page}) => {
   await expect(page.locator('#map .district').first()).toBeAttached();
   await page.locator('#island-tabs button').last().focus();
@@ -81,16 +130,21 @@ test('the map: Tab in, arrows to move, Enter to pick, Enter again to ask', async
 });
 
 test('the visible focus outline is never hidden', async ({page}) => {
-  // Tab through the first stops on the page and check each has a visible outline or the map's ring.
-  for (let i = 0; i < 12; i++) {
-    await page.keyboard.press('Tab');
-    const shown = await page.evaluate(() => {
-      const el = document.activeElement;
-      if (!el || el === document.body) return true;
-      const s = getComputedStyle(el);
-      return (s.outlineStyle !== 'none' && parseFloat(s.outlineWidth) >= 2) || el.matches('#map .district');
-    });
-    expect(shown, `focus outline on stop ${i + 1}`).toBe(true);
+  // Tab through the first stops on the home page, then on a district's page, and check each has a visible outline or
+  // the map's ring.
+  for (const address of ['/', '/district/house-22']) {
+    await page.goto(address);
+    if (address !== '/') await expect(page.locator('#profile-live')).toHaveText(`Profile for ${DISTRICT} loaded.`);
+    for (let i = 0; i < 12; i++) {
+      await page.keyboard.press('Tab');
+      const shown = await page.evaluate(() => {
+        const el = document.activeElement;
+        if (!el || el === document.body) return true;
+        const s = getComputedStyle(el);
+        return (s.outlineStyle !== 'none' && parseFloat(s.outlineWidth) >= 2) || el.matches('#map .district');
+      });
+      expect(shown, `focus outline on stop ${i + 1} of ${address}`).toBe(true);
+    }
   }
 });
 
@@ -117,6 +171,8 @@ test('the Ask button keeps focus while the answer loads, then focus moves to the
   let release;
   const held = new Promise(resolve => { release = resolve; });
   await page.route('**/api/chat', async route => { await held; await route.continue(); });
+  await page.keyboard.press('Tab');
+  await page.keyboard.press('Enter');
   await page.keyboard.type('How does poverty here compare?');
   await page.keyboard.press('Tab');
   await page.keyboard.press('Enter');

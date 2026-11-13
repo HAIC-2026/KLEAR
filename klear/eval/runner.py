@@ -208,6 +208,8 @@ def run(
                 used.input_tokens + spent_usage.input_tokens,
                 used.output_tokens + spent_usage.output_tokens,
                 used.seconds + spent_usage.seconds,
+                used.cache_write_tokens + spent_usage.cache_write_tokens,
+                used.cache_read_tokens + spent_usage.cache_read_tokens,
             )
     return _finish(result, goldens, used, spend if mode == "live" else None)
 

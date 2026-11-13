@@ -34,6 +34,7 @@ def test_report_sections(tmp_path, eval_store):
         assert section in md
     assert "How many kūpuna?" in md and "There are 5 kūpuna." in md and "fidelity" in md
     assert "q2" in md and "house 099" in md and "answered, non-pending" in md
+    assert "- Tokens: 20 input, 0 cache write, 0 cache read, 10 output" in md
     assert chr(0x2014) not in md
     data = json.loads(json_path.read_text(encoding="utf-8"))
     assert data["manifest_hash"] == res.manifest_hash and data["exit_code"] == 2

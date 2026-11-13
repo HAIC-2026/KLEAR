@@ -20,6 +20,12 @@ UNCERTAIN = Path.home() / ".config" / "klear" / "eval_spend.uncertain"
 MIRROR = Path.home() / ".config" / "klear" / "eval_spend_total"
 HW_WIDTH = 32
 EPS = 1e-9
+# Standard 5-minute cache write and cache read multipliers of the input price, used when prices.yaml has no
+# cache price for a model.
+CACHE_WRITE = 1.25
+CACHE_READ = 0.1
+CACHE_FIELDS = ("cache_write_tokens", "cache_read_tokens")
+TOKEN_FIELDS = ("input_tokens", "output_tokens", *CACHE_FIELDS)
 
 
 class SpendCapError(RuntimeError):
@@ -46,10 +52,20 @@ def estimate_cost(model: str, n_questions: int, prices: Path = PRICES) -> float:
     return n_questions * (tokens["input"] * rate["input"] + tokens["output"] * rate["output"]) / 1e6
 
 
+def rates(prices: dict, model: str) -> dict:
+    """Dollars per million tokens for input, output, cache_write and cache_read; cache prices default to the
+    standard multipliers of the input price when prices.yaml leaves them out."""
+    rate = _model(prices, model)
+    return {
+        "cache_write": CACHE_WRITE * rate["input"],
+        "cache_read": CACHE_READ * rate["input"],
+    } | rate
+
+
 def usage_problem(usage) -> str | None:
     """Describe the first invalid field of a usage record, or None when all are valid."""
-    for name in ("input_tokens", "output_tokens"):
-        v = getattr(usage, name, None)
+    for name in TOKEN_FIELDS:
+        v = getattr(usage, name, 0 if name in CACHE_FIELDS else None)
         if isinstance(v, bool) or not isinstance(v, int) or v < 0:
             return f"{name} must be a non-negative integer, got {v!r}"
     sec = getattr(usage, "seconds", None)
@@ -61,8 +77,13 @@ def usage_problem(usage) -> str | None:
 def request_cost(model: str, usage, prices: Path = PRICES) -> float:
     if (problem := usage_problem(usage)) is not None:
         raise ValueError(problem)
-    rate = _model(load_prices(prices), model)
-    return (usage.input_tokens * rate["input"] + usage.output_tokens * rate["output"]) / 1e6
+    rate = rates(load_prices(prices), model)
+    return (
+        usage.input_tokens * rate["input"]
+        + usage.output_tokens * rate["output"]
+        + getattr(usage, "cache_write_tokens", 0) * rate["cache_write"]
+        + getattr(usage, "cache_read_tokens", 0) * rate["cache_read"]
+    ) / 1e6
 
 
 def _amount(name: str, v) -> float:
@@ -226,8 +247,7 @@ class SpendLog:
                     "type": "settle",
                     "id": reservation,
                     "model": model,
-                    "input_tokens": usage.input_tokens,
-                    "output_tokens": usage.output_tokens,
+                    **{name: getattr(usage, name, 0) for name in TOKEN_FIELDS},
                     "cost": amount,
                 }
             )
