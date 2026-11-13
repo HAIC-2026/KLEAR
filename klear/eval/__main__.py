@@ -20,8 +20,10 @@ SCRIPTS = ROOT / "eval" / "scripts"
 def _agent(args, con, recordings: Path):
     if args.agent == "klear":
         from klear.agent.loop import KlearAgent
+        from klear.web.geocode import find_blocks
 
-        return KlearAgent(con, model=args.model, review=args.review)
+        geocoder = None if args.no_address_lookup else find_blocks
+        return KlearAgent(con, model=args.model, review=args.review, geocoder=geocoder)
     if args.agent == "scripted":
         return ScriptedAgent(con, args.scripts)
     if args.agent == "recorded":
@@ -37,6 +39,11 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--agent", choices=("stub", "recorded", "klear", "scripted"), default="stub")
     p.add_argument("--model", default=None, help="model id (live cost estimate, report)")
     p.add_argument("--review", action="store_true", help="add the safety reviewer to --agent klear")
+    p.add_argument(
+        "--no-address-lookup",
+        action="store_true",
+        help="keep --agent klear from sending street addresses to the U.S. Census Bureau geocoder",
+    )
     p.add_argument("--only", default=None, help="one golden id, category or tag")
     p.add_argument("--store", type=Path, default=STORE)
     p.add_argument("--golden", type=Path, default=ROOT / "eval" / "golden")

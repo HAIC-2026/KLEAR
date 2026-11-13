@@ -17,8 +17,8 @@ from urllib.parse import parse_qs, urlsplit
 
 import duckdb
 
-from klear.agent.config import DEFAULT_MODEL
-from klear.agent.tools import Session
+from klear.agent.config import CHAMBER_TYPES, DEFAULT_MODEL, OUTREACH_DEFAULT, OUTREACH_PAIRS
+from klear.agent.tools import Session, ToolError
 from klear.config import ROOT, MissingSecretError, load_secret
 from klear.eval.contract import geo_key
 from klear.store.db import missing_columns
@@ -27,7 +27,7 @@ from klear.web.about import about
 from klear.web.assistant import DAILY_CAP, Assistant, DailyBudget, basic
 from klear.web.cache import AnswerCache
 from klear.web.checks import checks_report
-from klear.web.geocode import GeocoderError, find_blocks, looks_like_address
+from klear.web.geocode import find_blocks, looks_like_address
 from klear.web.shade import CHAMBERS, MEASURES, NoMeasure, map_view
 
 STORE = ROOT / "data" / "build" / "klear.duckdb"
@@ -37,6 +37,8 @@ PUBLIC = (
     "/index.html",
     "/checks.html",
     "/glossary.html",
+    "/outreach.html",
+    "/outreach.js",
     "/checks.js",
     "/checks.css",
     "/app.js",
@@ -57,11 +59,6 @@ PUBLIC = (
 )
 # A district's own address, like /district/house-22. It serves the page, which then opens that district.
 DISTRICT_PAGE = re.compile(r"/district/(?:house|senate)-[0-9]{1,2}")
-ADDRESS_NOTES = {
-    "off": "Street address search is turned off on this server. Try a ZIP code or town instead.",
-    "failed": "The address lookup is unavailable right now. Try a ZIP code or town instead.",
-    "none": "No Hawaiʻi address matched. Check the house number and street name, or try a ZIP code or town.",
-}
 BUSY = threading.BoundedSemaphore(3)
 PER_MINUTE = 6
 _RECENT = defaultdict(deque)
@@ -186,20 +183,13 @@ class Handler(SimpleHTTPRequestHandler):
 
     def resolve(self, session, text):
         """District search: a street address through the geocoder, else districts, ZIP codes and place names."""
-        address = looks_like_address(text)
-        outcome = "off" if self.geocoder is None else "none"
-        if address and self.geocoder is not None:
-            try:
-                found = self.geocoder(text)
-            except GeocoderError:
-                found, outcome = [], "failed"
-            matches = [m for block, label in found if (m := session.block_match(block, label))]
-            if matches:
-                return {"matches": matches}
-        result = json.loads(session.run("resolve_place", {"text": text}))
-        if address and not result.get("matches"):
-            result["note"] = ADDRESS_NOTES[outcome]
-        return result
+        if not looks_like_address(text):
+            return json.loads(session.run("resolve_place", {"text": text}))
+        found = session.find_address(text)
+        if found["matches"]:
+            return {"matches": found["matches"]}
+        result = session.resolve_name(text)
+        return result if result.get("matches") else {"matches": [], "note": found["note"]}
 
     def connect(self):
         if not self.store.is_file():
@@ -216,7 +206,7 @@ class Handler(SimpleHTTPRequestHandler):
                 return self.reply(400, {"error": "Enter a district, town or ZIP code."})
             try:
                 with self.connect() as con:
-                    result = self.resolve(Session(con), text)
+                    result = self.resolve(Session(con, self.geocoder), text)
                 return self.reply(200, result)
             except Exception:  # noqa: BLE001 - redact internal errors at the HTTP boundary
                 return self.reply(
@@ -236,6 +226,10 @@ class Handler(SimpleHTTPRequestHandler):
         if path.path in ("/api/profile", "/api/profile.csv"):
             district = parse_qs(path.query).get("district", [""])[0]
             return self.profile(district, as_csv=path.path.endswith(".csv"))
+        if path.path == "/api/outreach":
+            query = parse_qs(path.query)
+            pair = query.get("pair", [""])[0] or OUTREACH_DEFAULT
+            return self.outreach(pair, query.get("chamber", [""])[0] or "house")
         if path.path == "/api/about":
             if not self.store.is_file():
                 return self.reply(
@@ -316,10 +310,36 @@ class Handler(SimpleHTTPRequestHandler):
                 # A program catalog that cannot be read or matched leaves the profile without programs.
                 if "error" in matched:
                     matched = None
+                # Outreach pairs that cannot be ranked leave the profile without its outreach note.
+                try:
+                    tops = session.outreach_tops(geo)
+                except Exception:  # noqa: BLE001 - the profile stands without the note
+                    tops = None
                 islands = _islands().get(":".join(geo), "")
-                return self.reply(200, display.profile(con, raw, session, islands, matched))
+                return self.reply(200, display.profile(con, raw, session, islands, matched, tops))
         except Exception:  # noqa: BLE001 - redact internal errors at the HTTP boundary
             return self.reply(503, {"error": "The district profile is unavailable right now."})
+
+    def outreach(self, pair: str, chamber: str):
+        """A chamber's districts in tiers by a group that meets a program's income test, read from the store with
+        no model call."""
+        if pair not in OUTREACH_PAIRS or chamber not in CHAMBER_TYPES:
+            return self.reply(400, {"error": "Choose one of the listed programs, and House or Senate."})
+        try:
+            with self.connect() as con:
+                session = Session(con)
+                try:
+                    raw = session.outreach(pair, chamber)
+                except ToolError:
+                    return self.reply(
+                        503,
+                        {"error": "The data store has no figures for this group yet. Try another program."},
+                    )
+                return self.reply(200, display.outreach(con, raw, session))
+        except Exception:  # noqa: BLE001 - redact internal errors at the HTTP boundary
+            return self.reply(
+                503, {"error": "The outreach figures are unavailable right now. Please try again later."}
+            )
 
     def do_POST(self):
         if self.path != "/api/chat":
@@ -366,9 +386,9 @@ class Handler(SimpleHTTPRequestHandler):
                 except ValueError:
                     return self.reply(400, {"error": "Choose a valid stored House or Senate district."})
                 if self.assistant is None:
-                    result = basic(con, question.strip(), selected)
+                    result = basic(con, question.strip(), selected, geocoder=self.geocoder)
                 else:
-                    result = self.assistant.ask(con, question.strip(), selected)
+                    result = self.assistant.ask(con, question.strip(), selected, geocoder=self.geocoder)
             self.reply(200, result)
         except Exception:  # noqa: BLE001 - redact internal errors at the HTTP boundary
             self.reply(
@@ -404,7 +424,8 @@ def main(argv: list[str] | None = None):
     parser.add_argument(
         "--no-address-lookup",
         action="store_true",
-        help="turn off street address search, which sends typed addresses to the U.S. Census Bureau geocoder",
+        help="turn off street address lookup in search and chat, which sends typed addresses to the U.S. Census "
+        "Bureau geocoder",
     )
     args = parser.parse_args(argv)
     store = args.store.expanduser().resolve()
@@ -439,7 +460,8 @@ def main(argv: list[str] | None = None):
             print(f"District search and chat are off until it is rebuilt with: {REBUILD}", flush=True)
         if geocoder is not None:
             print(
-                "Address search sends typed street addresses to the U.S. Census Bureau geocoder.", flush=True
+                "Address search and chat send typed street addresses to the U.S. Census Bureau geocoder.",
+                flush=True,
             )
         if not store.is_file():
             print("Landing page preview only: district search and chat need the data store.", flush=True)
@@ -447,6 +469,8 @@ def main(argv: list[str] | None = None):
         elif note := prepared.summary(assistant is not None):
             print(note, flush=True)
         threading.Thread(target=prepared.warm, daemon=True).start()
+        if assistant is not None:
+            threading.Thread(target=assistant.warm, daemon=True).start()
         if assistant is None and not args.basic_only:
             print("Add ANTHROPIC_API_KEY to .env and restart to enable the assistant.", flush=True)
         print("Press Ctrl+C to stop.", flush=True)

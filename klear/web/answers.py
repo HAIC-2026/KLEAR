@@ -3,15 +3,23 @@
 import json
 import re
 
-from klear.agent.answer import DIRECTION_TEXT, actual_direction, main_county
+from klear.agent.answer import (
+    DIRECTION_TEXT,
+    STATEWIDE,
+    actual_direction,
+    main_county,
+    tied_programs,
+    unpublished_years,
+)
 from klear.agent.config import FIXED_INCOME, FIXED_INCOME_COMPARED, FIXED_INCOME_PROGRAMS, PROFILE_INDICATORS
 from klear.agent.tools import Session
 from klear.eval.contract import geo_display
 from klear.labels import in_sentence, meaning, short_label
 from klear.web.display import _plain, build_month, matched_programs, program_rows, year_text
+from klear.web.geocode import address_in
 
 PERSONAL = re.compile(
-    r"\b(?:a specific person|an individual|named resident|home address|phone number|personal information|who lives at|identify a resident|my neighbor|specific resident)\b",
+    r"\b(?:a specific person|an individual|named resident|home address|phone number|personal information|who lives at|identify a resident|my neighbor|specific resident|(?:household|family|owner|tenant|occupant)s? (?:at|of|living at))\b",
     re.IGNORECASE,
 )
 PARTISAN = re.compile(
@@ -92,6 +100,16 @@ STOP = {
 # Words that name a kind of measure rather than a topic, so they never match a label on their own.
 GENERIC = {"rate", "rates", "percent", "percentage", "share", "number", "total", "count", "median", "average"}
 KUPUNA = ("kūpuna", "kupuna", "senior", "older adult", "65")
+# Topics answered by one measure family, checked before the broad topics: stems a question must hold, then indicators.
+TOPICS = (
+    (("food insecur", "food-insecur", "hunger", "hungry"), ("places_food_insecurity", "pct_hh_snap")),
+    (("housing insecur", "housing-insecur"), ("places_housing_insecurity", "pct_rent_burden_35_plus")),
+    (("shut off", "shut-off", "shutoff", "utility", "utilities"), ("places_utility_shutoff_threat",)),
+    (("transportation", "transit", "rides"), ("places_lack_transport",)),
+    (("public housing",), ("units_public_housing", "sites_public_housing")),
+    (("voucher", "section 8"), ("hud_vouchers", "pct_rent_burden_35_plus")),
+    (("snap", "food stamp"), ("pct_hh_snap", "hh_snap", "hh_poverty_no_snap")),
+)
 
 
 def _has(q, *stems):
@@ -118,6 +136,9 @@ def indicators(con, question):
     q = question.casefold()
     if asks_profile(q):
         return list(PROFILE_INDICATORS)
+    for stems, ids in TOPICS:
+        if _has(q, *stems):
+            return list(ids)
     if _has(q, *KUPUNA):
         return ["pop_65_plus", "pct_65_plus", "pct_65_plus_poverty"]
     if _has(q, "poverty", "low income"):
@@ -290,7 +311,49 @@ def fixed_income(con, district: tuple[str, str], shown: str) -> dict:
     }
 
 
-def ask(con, question, district):
+CHAMBER_WORDS = re.compile(r"\b(?:house|senate|districts?)\b", re.IGNORECASE)
+
+
+def _same_districts(matches: list[dict]) -> bool:
+    return len({tuple(o["geo"] for o in m["overlaps"]) for m in matches}) == 1
+
+
+def address_answer(con, question: str, address: str, geocoder) -> dict:
+    """The districts of a street address from the Census geocoder, then the question's figures for its House
+    district (its Senate district when only the Senate is asked about). Never a district guessed from a town."""
+    found = Session(con, geocoder).find_address(address)
+    matches = found["matches"]
+    if not matches:
+        text = f"{found['note']} KLEAR does not guess a district from a town name, because a town can span more than one district."
+        return {"text": text, "refusal": "none", "facts": [], "programs": []}
+    if not _same_districts(matches):
+        lines = [f"- {m['name']}: " + _joined([o["name"] for o in m["overlaps"]]) for m in matches]
+        text = (
+            "The U.S. Census Bureau matched more than one address. Check which one you mean:\n"
+            + "\n".join(lines)
+        )
+        return {"text": text, "refusal": "none", "facts": [], "programs": []}
+    places = {o["geo"].split(":")[0]: (o["geo"], o["name"]) for o in matches[0]["overlaps"]}
+    where = (
+        f"The U.S. Census Bureau matched this address to {matches[0]['name']}. It is in {places['house'][1]} "
+        f"and {places['senate'][1]}, in {places['county'][1]}. District lines are the 2022 boundaries in use today."
+    )
+    rest = question.replace(address, " ")
+    words = set(WORDS.findall(rest.casefold()))
+    chamber = "senate" if "senate" in words and "house" not in words else "house"
+    q = rest.casefold()
+    picked = tuple(places[chamber][0].split(":"))
+    asks = asks_fixed_income(q) or any(w in q for w in ("program", "benefit", "assistance", "support"))
+    if not (asks or indicators(con, CHAMBER_WORDS.sub(" ", rest))):
+        return {"text": where, "refusal": "none", "facts": [], "programs": [], "district": picked}
+    result = ask(con, rest, picked)
+    result["text"] = f"{where}\n\n{result['text']}"
+    return result | {"where": where, "district": picked}
+
+
+def ask(con, question, district, geocoder=None):
+    """Free answer for the selected district, or for the district of a street address the question names;
+    geocoder finds that address's Census blocks, or is None when address lookup is off."""
     if PERSONAL.search(question):
         return {
             "text": "I can describe districts from public data, but I cannot find or judge any one person.",
@@ -305,6 +368,8 @@ def ask(con, question, district):
             "facts": [],
             "programs": [],
         }
+    if address := address_in(question):
+        return address_answer(con, question, address, geocoder)
     name = con.execute("SELECT name FROM geography WHERE geo_type=? AND geo_id=?", list(district)).fetchone()[
         0
     ]
@@ -312,7 +377,9 @@ def ask(con, question, district):
     q = question.casefold()
     if asks_fixed_income(q):
         return fixed_income(con, district, shown)
-    if any(word in q for word in ("program", "benefit", "assistance", "support", "help available")):
+    if any(
+        word in q for word in ("program", "benefit", "assistance", "support", "help available")
+    ) and not any(_has(q, *stems) for stems, _ in TOPICS):
         return program_answer(con, district, shown)
     ids = indicators(con, question)
     if not ids:
@@ -322,16 +389,20 @@ def ask(con, question, district):
             "facts": [],
             "programs": [],
         }
-    geos = [f"{district[0]}:{district[1]}"]
-    if "county" in q and (county := main_county(con, district)):
+    statewide = bool(STATEWIDE.search(question))
+    geos = ["state:15"] if statewide else [f"{district[0]}:{district[1]}"]
+    if not statewide and "county" in q and (county := main_county(con, district)):
         geos.append(":".join(county))
-    if "compare" in q or "state" in q or "hawaiʻi" in q or "hawaii" in q:
+    if not statewide and ("compare" in q or "state" in q or "hawaiʻi" in q or "hawaii" in q):
         geos.append("state:15")
     session = Session(con)
     result = json.loads(session.run("get_facts", {"indicator_ids": ids, "geos": geos}))
     if "error" in result:
         raise ValueError("Could not read district facts")
-    facts = _cards(con, result["facts"][: max(8, len(ids) * len(geos))])
+    if statewide:
+        shown = "Hawaiʻi"
+    found = result["facts"][: max(8, len(ids) * len(geos))]
+    facts = _cards(con, found)
     if not facts:
         return {
             "text": f"I do not have a published figure for that question in {shown}. I will not fill the gap with a guess.",
@@ -339,11 +410,50 @@ def ask(con, question, district):
             "facts": [],
             "programs": [],
         }
+    modeled = {f["ref"] for f in found if session.tiers.get(f["ref"]) == "M"}
     text = "\n\n".join(
-        f"{f['label']} in {f['geography']}: {f['value']}. Source: {f['source']}, {f['year']}." for f in facts
+        f"{c['label']} in {c['geography']}: {c['value']}"
+        + (", a modeled estimate" if f["ref"] in modeled else "")
+        + f". Source: {c['source']}, {c['year']}."
+        for c, f in zip(facts, found, strict=True)
     )
     if len(geos) > 1:
         places = "District, county and state" if len(geos) == 3 else "District and " + geos[1].split(":")[0]
         text += f"\n\n{places} figures are shown side by side. Consider their margins of error before drawing a conclusion."
-    shown = [session.facts[f["ref"]] for f in result["facts"][: len(facts)]]
-    return {"text": text, "refusal": "none", "facts": facts, "programs": [], "fact_refs": shown}
+    refs = [session.facts[f["ref"]] for f in found]
+    notes = []
+    labels = dict(con.execute("SELECT indicator_id, label FROM indicator").fetchall())
+    missed = unpublished_years(
+        question, [r.vintage for r in refs], [labels.get(r.indicator_id, "") for r in refs], []
+    )
+    if missed:
+        years = " and ".join(str(y) for y in missed)
+        vintages = " and ".join(dict.fromkeys(r.vintage for r in refs))
+        notes.append(
+            f"Figures for {years} are not published for {shown} yet. These are the latest available, for {vintages}."
+        )
+    caveats = []
+    if modeled:
+        names = list(
+            dict.fromkeys(c["label"] for c, f in zip(facts, found, strict=True) if f["ref"] in modeled)
+        )
+        one = len(names) == 1
+        caveats.append(
+            f"The {'figure' if one else 'figures'} for {_joined([in_sentence(n) for n in names])} "
+            f"{'is a modeled estimate' if one else 'are modeled estimates'} from CDC PLACES survey answers, "
+            "not a direct count."
+        )
+    programs = program_rows(tied_programs(dict.fromkeys(r.indicator_id for r in refs), []))
+    if programs:
+        notes.append(
+            f"Related programs, with official links below: {_joined([p['name'] for p in programs])}."
+        )
+    return {
+        "text": "\n\n".join([*notes, text, *caveats]),
+        "refusal": "not_available" if missed else "none",
+        "facts": facts,
+        "programs": programs,
+        "fact_refs": refs,
+        "notes": notes,
+        "caveats": caveats,
+    }

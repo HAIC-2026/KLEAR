@@ -18,7 +18,7 @@
   <a class="skip" href="#main">Skip to content</a>
   <header class="site-header">
     <a class="brand" href="/"><img class="brand-logo" src="/logo.svg" width="36" height="36" alt=""><span class="brand-text"><strong>KLEAR</strong><span class="brand-sub">Hawaiʻi district data</span></span></a>
-    <nav aria-label="Main navigation"><a href="#district-map">Map</a><a href="#how">How it works</a><a href="#sources">Sources</a><a href="#about">About</a></nav>
+    <nav aria-label="Main navigation"><a href="#district-map">Map</a><a href="/outreach.html">Outreach</a><a href="#how">How it works</a><a href="#sources">Sources</a><a href="#about">About</a></nav>
   </header>
   <main id="main">
     <section class="band" aria-labelledby="page-title">
@@ -54,7 +54,7 @@
               <div id="log"></div>
             </div>
             <div id="suggest" class="suggest" role="group" aria-label="Suggested questions" hidden></div>
-            <form id="question-form"><label for="question" class="visually-hidden">Your question</label><div class="question-row"><textarea id="question" rows="1" required maxlength="2000" placeholder="Type your question here" aria-describedby="send-hint"></textarea><button id="send" type="submit">Ask KLEAR</button></div><p id="send-hint" class="send-hint">Press Ctrl+Enter to send.</p></form>
+            <form id="question-form"><label for="question" class="visually-hidden">Your question</label><div class="question-row"><textarea id="question" rows="1" required maxlength="2000" placeholder="Type your question here" aria-describedby="send-hint"></textarea><button id="send" type="submit">Ask KLEAR</button></div><p id="send-hint" class="send-hint">Press Ctrl+Enter to send.</p><p class="chat-privacy">A street address in a question goes to the U.S. Census Bureau only to find its district. KLEAR does not store or log it. Assistant answers send the question to the AI model provider.</p></form>
             <p id="chat-status" class="status" role="status"></p>
             <p id="chat-live" class="visually-hidden" role="status"></p>
           </div>
@@ -123,6 +123,7 @@
           <li>Modeled health and needs estimates from CDC PLACES are shown as ranges too. <a href="/methods.html">How KLEAR estimates these ranges</a>.</li>
           <li>Missing data stays missing. KLEAR does not fill gaps with guesses.</li>
           <li>Program links go to each program’s official page. KLEAR does not decide anyone’s eligibility.</li>
+          <li>For Hawaiʻi public data that is not published by district, such as crime, schools, energy or state budgets, try <a class="ext" href="https://datatrove.ai/">datatrove.ai<span class="visually-hidden"> (external site)</span></a>, a HAIC 2026 sponsor.</li>
         </ul>
         <p class="validation-link">Every check, the build date, and the checks still waiting on files are listed in the <a class="ext" href="https://github.com/HAIC-2026/KLEAR/blob/main/docs/VALIDATION.md">validation report<span class="visually-hidden"> (external site)</span></a>.</p>
       </div>
@@ -142,6 +143,8 @@
           <li>[Name], [role], [GitHub profile]</li>
           <li>[Name], [role], [GitHub profile]</li>
         </ul>
+        <h3>Partner resource</h3>
+        <p class="partner">For Hawaiʻi data beyond district figures, <a class="ext" href="https://datatrove.ai/">datatrove.ai<span class="visually-hidden"> (external site)</span></a>, a HAIC 2026 sponsor, has its own chat over thousands of public datasets.</p>
       </div>
     </section>
   </main>

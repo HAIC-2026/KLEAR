@@ -251,6 +251,8 @@ See [Run the site locally](#run-the-site-locally) for startup instructions.
 With an Anthropic key configured, questions go to the same KLEAR assistant that
 `python -m klear.agent` runs. Without the key, the site uses free basic lookups.
 
+When an answer says the data is not available or is outside KLEAR's scope and shows no figures, the site adds one line linking to datatrove.ai (https://datatrove.ai/), a HAIC 2026 sponsor with its own chat over Hawaiʻi public datasets that are not published by district. The line is added where the page lays out the answer, not by the model, so the answer contract and the eval are unchanged. KLEAR only links to datatrove.ai and does not copy its data. The Data and sources and About sections of the page link to it too.
+
 Website spending has its own cap of 5 dollars per HST day, kept in ~/.config/klear/web_spend.json and separate from the 60 dollar eval cap. Each question reserves its worst-case cost first and then records the actual cost. When the day's cap is reached or the API fails, the site falls back to a basic keyword lookup from the store and says so. Each visitor can ask 6 questions a minute, and the server answers 3 at a time.
 
 | Option | Purpose |
@@ -262,7 +264,11 @@ Website spending has its own cap of 5 dollars per HST day, kept in ~/.config/kle
 | `--store PATH` | Use a different DuckDB store. |
 | `--daily-cap 5` | Set the website's model budget in dollars per HST day. |
 | `--model MODEL` | Choose the model used by the assistant. |
-| `--no-address-lookup` | Turn off street address search, so the server never contacts the Census geocoder. |
+| `--no-address-lookup` | Turn off street address lookup in search and chat, so the server never contacts the Census geocoder. |
+
+### Outreach page
+
+/outreach.html ("Outreach" in the site menu) compares districts for five pairs of a group and the programs it may qualify for, set in `OUTREACH_PAIRS` in klear/agent/config.py: households in poverty without SNAP (SNAP), uninsured people under 138% of poverty (Med-QUEST), uninsured people from 138% to 399% of poverty (Marketplace premium tax credits), kūpuna under 200% of poverty (SSI, Kūpuna Care and Medicare Savings Programs) and working families and people below poverty (Federal EITC). The reader picks a pair and House or Senate. `GET /api/outreach?pair=ID&chamber=house|senate` ranks the group's direct ACS count with the same tiers as the assistant's rank_districts tool, so districts whose ranges overlap share a group and are listed by number, never in an order the data cannot support. Each district also shows its program-use figure from `PROFILE_BESIDE` (SNAP households, SSI households, EITC returns or Marketplace enrollees with premium tax credits) for comparison only. Figures moved from ZIP codes are too wide to rank. The page opens with a sentence naming the top tier, flags unreliable estimates, and lists each program's page and phone with the income-test caveat. Each district profile has an "Outreach opportunities" note naming up to two pairs whose top tier holds the district, the smallest tier first.
 
 ### Prepared answers to the starter questions
 
@@ -356,7 +362,20 @@ Search also takes a street address. The server sends it to the U.S. Census Burea
 store, so the districts come from the same 2022 plan as the rest of the site. The address is
 used only for that request: it is not stored, the server keeps no request log, and the page
 says so beside the search box. If the geocoder is unreachable, search falls back to names and
-says so. Start the site with `--no-address-lookup` to keep every request local.
+says so. Start the site with --no-address-lookup to keep every request local.
+
+Chat takes a street address too, as in "Which House and Senate district is 310 W Kaʻahumanu Ave,
+Kahului in?". A street address on its own is a place, not a person, so it is answered, not declined.
+The assistant passes the address to its resolve_place tool, and the basic lookup finds it in the
+question, and both use the same geocoder and block lookup as the search box, then answer for that
+district. A town can span districts, so when the geocoder is off, unreachable or finds no match, chat
+says so and asks for a place, ZIP code or district instead of guessing one from the town name.
+Questions about the people at an address, such as who lives there, are still declined. When the
+address is in another district than the one chosen, the answer is labeled with that district, its
+next questions name it, and a button switches the chat and profile to it. The matched address is shown
+in title case with Hawaiian spelling. The note under the question box says the address goes to the
+Census Bureau and is not stored or logged, and that assistant answers send the question to the AI
+model provider. The agent and eval command lines take the same --no-address-lookup option.
 Chat offers five example questions, a waiting state, explicit refusal labels,
 and figure cards with uncertainty, vintage, geography and official source
 links. Source names open the publisher's page about the dataset, never an API answer or a
@@ -403,6 +422,21 @@ with Social Security, retirement income and SSI. Those shares cover households o
 The rates and the median are compared with the county holding most of the district's people and with the state,
 and the answer lists SSI, Kūpuna Care, SNAP and Med-QUEST with official links. The assistant's answer is rejected
 until it cites each figure, comparison and program, as listed in FIXED_INCOME in klear/agent/config.py.
+
+The assistant and the free lookup follow the same rules for a few kinds of question:
+
+- Housing insecurity, food insecurity, lack of reliable transportation and utility shut-off threats get the CDC
+  PLACES measure held for the district, called a modeled estimate, not rent burden.
+- Public housing units get the count of units as well as the count of developments.
+- A figure tied to a program, such as households receiving SNAP or renters paying 35 percent or more of income on
+  rent, names that program (SNAP, HUD income limits) and lists it with its official link. The pairs are in
+  TIED_PROGRAMS in klear/agent/config.py.
+- A statewide question (statewide, the whole state, Hawaiʻi overall) is answered for the state.
+- A question for a year the store does not publish, such as 2025 when the latest survey covers 2020-2024, says
+  plainly that the year is not published, gives the latest figures with their years, and is marked as data not
+  available.
+- The answer builder spells Hawaiian place names with ʻokina and kahakō in the assistant's own words too, leaving
+  web addresses and official organization names as written.
 
 On screens at least 1200 px wide the profile and the chat are equal-width columns; below that
 the profile sits under the chat at full width. The chat card stays compact until the first

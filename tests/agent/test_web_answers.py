@@ -101,3 +101,71 @@ def test_fixed_income_answer_for_every_district(real_con):
         assert any(c.startswith("Covers all households") for c in answer["caveats"]), district
         assert len(answer["charts"]) == len(FIXED_INCOME_COMPARED), district
         assert all(len(c["bars"]) == 3 for c in answer["charts"]), district
+
+
+@pytest.mark.parametrize(("question", "first"), [
+    ("How common is housing insecurity here?", "places_housing_insecurity"),
+    ("Are people housing-insecure in this district?", "places_housing_insecurity"),
+    ("How many adults face food insecurity?", "places_food_insecurity"),
+    ("Do families go hungry here?", "places_food_insecurity"),
+    ("How often are utilities threatened with a shut-off?", "places_utility_shutoff_threat"),
+    ("Do people lack transportation here?", "places_lack_transport"),
+    ("How many public housing units are in this district?", "units_public_housing"),
+    ("How many households use housing vouchers?", "hud_vouchers"),
+    ("How many households get SNAP?", "pct_hh_snap"),
+    ("What is the median rent?", "median_gross_rent"),
+])  # fmt: skip
+def test_measure_topics_come_before_broad_topics(con, question, first):
+    assert indicators(con, question)[0] == first
+
+
+def _basic(real_con, question, district=("house", "029")):
+    return basic(real_con, question, district, "Basic lookup.")
+
+
+def test_basic_housing_insecurity_is_the_modeled_measure(real_con):
+    answer = _basic(real_con, "How common is housing insecurity here?")
+    assert answer["refusal"] == "none" and answer["tiles"][0]["label"] == "Adults facing housing insecurity"
+    caveat = (
+        "The figure for adults facing housing insecurity is a modeled estimate from CDC PLACES survey answers, "
+        "not a direct count."
+    )
+    assert answer["caveats"] == [caveat]
+
+
+def test_basic_public_housing_gives_units(real_con):
+    answer = _basic(real_con, "How many public housing units are in this district?")
+    assert [t["label"] for t in answer["tiles"]][:2] == [
+        "Public housing units",
+        "Public housing developments",
+    ]
+    assert [p["id"] for p in answer["programs"]] == ["public_housing"]
+    assert answer["lead"][-1].startswith("Related programs, with official links below: Public housing")
+
+
+def test_basic_snap_figures_name_snap(real_con):
+    answer = _basic(real_con, "What share of households get SNAP?")
+    assert [p["id"] for p in answer["programs"]] == ["snap"]
+    assert answer["lead"] == [
+        "Basic lookup.",
+        f"Related programs, with official links below: {answer['programs'][0]['name']}.",
+    ]
+
+
+def test_basic_unpublished_year_is_not_available(real_con):
+    answer = _basic(real_con, "What is the poverty rate for 2025?")
+    assert answer["refusal"] == "not_available" and answer["tiles"] and "elsewhere" not in answer
+    assert answer["lead"][0] == "Basic lookup." and answer["lead"][1] == (
+        "Figures for 2025 are not published for House District 29 yet. These are the latest available, for "
+        "2020-2024 ACS 5-year."
+    )
+    assert _basic(real_con, "What is the poverty rate?")["refusal"] == "none"
+
+
+@pytest.mark.parametrize(
+    "question",
+    ["What is the median household income statewide?", "Median household income in Hawaiʻi overall?"],
+)
+def test_basic_statewide_question_shows_the_state(real_con, question):
+    answer = _basic(real_con, question)
+    assert {t["geography"] for t in answer["tiles"]} == {"Hawaiʻi"}

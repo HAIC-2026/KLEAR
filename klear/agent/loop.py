@@ -8,6 +8,7 @@ import anthropic
 from klear.agent.answer import (
     SUBMIT_SPEC,
     build_answer,
+    finish,
     required_comparisons,
     required_facts,
     required_programs,
@@ -80,10 +81,20 @@ def _call_record(block) -> dict:
 class KlearAgent:
     name = "klear"
 
-    def __init__(self, con, model: str = DEFAULT_MODEL, client=None, sleep=time.sleep, review: bool = False):
+    def __init__(
+        self,
+        con,
+        model: str = DEFAULT_MODEL,
+        client=None,
+        sleep=time.sleep,
+        review: bool = False,
+        geocoder=None,
+    ):
         if model not in REQUEST_SETTINGS:
             raise ValueError(f"unsupported model {model!r}, expected one of {sorted(REQUEST_SETTINGS)}")
         self.con, self.model, self._client, self._sleep = con, model, client, sleep
+        # geocoder finds the Census blocks of a street address, or is None when address lookup is off
+        self.geocoder = geocoder
         self.reviews = REVIEW_CALLS if review else 0
         if review:
             self.name = "klear-review"
@@ -134,7 +145,7 @@ class KlearAgent:
             for place in dict.fromkeys(p for _, p in pairs):
                 ids = [i for i, p in pairs if p == place]
                 session.run("get_facts", {"indicator_ids": ids, "geos": [":".join(place)]})
-        return template_answer(session, resolved, "none", context, programs)
+        return finish(session, template_answer(session, resolved, "none", context, programs))
 
     def _review(self, session: Session, answer: Answer, totals: list[int]) -> list[tuple[str, str]]:
         """Flags from one reviewer call on the rendered answer; none when the call fails or runs too long."""
@@ -254,7 +265,7 @@ class KlearAgent:
     def answer(self, golden_id: str, question: str, context: tuple[str, str] | None) -> tuple[Answer, Usage]:
         start = time.monotonic()
         self.trace: list[dict] = []
-        session = Session(self.con)
+        session = Session(self.con, self.geocoder)
         session.context = context
         session.question = question
         answer, (inp, out) = self._run(session, question, context)
