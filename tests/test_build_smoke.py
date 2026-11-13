@@ -380,6 +380,7 @@ def _write_rules(d, hud_status):
         f.unlink()
     base = {
         "effective": "2026-10-01",
+        "review_by": "2027-10-01",
         "verified_by": "read from page",
         "retrieved": "2026-10-30",
         "info_url": "https://example.org/apply",

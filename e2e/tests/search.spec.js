@@ -1,6 +1,6 @@
 // District search beyond towns: neighborhoods, islands, street addresses and numbers out of range.
 import {test, expect} from '@playwright/test';
-import {ask, chooseDistrict, expectAccessible, offline} from './helpers.js';
+import {ask, chooseDistrict, expectAccessible, offline, showTab} from './helpers.js';
 
 test.beforeEach(async ({context}) => offline(context));
 
@@ -33,6 +33,7 @@ test('a street address lists its districts, and the page says where the address 
 test('a street address in a chat question gets its own district, and the question box says where it goes', async ({page}) => {
   await page.goto('/');
   await chooseDistrict(page);
+  await showTab(page, 'Ask');
   await expect(page.locator('#question-form .chat-privacy')).toHaveText('A street address in a question goes to the U.S. Census Bureau only to find its district. KLEAR does not store or log it. Assistant answers send the question to the AI model provider.');
   await expect(page.locator('#question-form .chat-privacy')).toBeVisible();
   const answer = await ask(page, 'Which House and Senate district is 1 Test St, Kāneʻohe in?');
@@ -161,5 +162,5 @@ test('after more typing, the keys never pick an option left from the earlier tex
   await box.press('ArrowDown');
   await box.press('Enter');
   await expect(page.locator('#district-title')).toHaveText('House District 22');
-  await expect(box).toHaveValue('kai');
+  await expect(page.locator('#find-place')).toHaveValue('kai');
 });

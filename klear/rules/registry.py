@@ -3,6 +3,7 @@ import html
 import io
 import re
 from dataclasses import dataclass, field
+from datetime import date
 from html.parser import HTMLParser
 from pathlib import Path
 
@@ -35,9 +36,12 @@ REQUIRED_RULE_IDS = (
 )
 # source_url is the page the rule's values were checked against, fetched from fetch_url when that is set.
 # info_url is where residents learn about the program or apply, the link the website shows.
+# review_by is the day new figures are due, when the rule needs a person to read its pages again.
 REQUIRED = (
-    "rule_id", "program", "status", "effective", "source_url", "info_url", "values", "verified_by", "retrieved",
+    "rule_id", "program", "status", "effective", "review_by", "source_url", "info_url", "values", "verified_by",
+    "retrieved",
 )  # fmt: skip
+DATED = ("effective", "review_by", "retrieved")
 OPTIONAL = ("quote", "note", "fetch_url", "effective_source", "saved")
 
 
@@ -58,6 +62,7 @@ class Rule:
     effective_source: dict | None = None
     # A copy of the page saved by hand in data/manual/, read when the live page blocks scripts.
     saved: str | None = None
+    review_by: str = ""
 
     @property
     def url(self) -> str:
@@ -102,6 +107,12 @@ def load_rules(path: Path = ROOT / "data" / "rules", *, required=REQUIRED_RULE_I
                 _check_values(f.name, d["rule_id"], d["values"])
         if not str(d["info_url"]).startswith("https://"):
             raise ValueError(f"{f.name}: info_url must be an https:// page")
+        try:
+            due = date.fromisoformat(str(d["review_by"]))
+        except ValueError:
+            raise ValueError(f"{f.name}: review_by must be a date like 2027-01-15") from None
+        if due <= date.fromisoformat(str(d["effective"])):
+            raise ValueError(f"{f.name}: review_by {due} must come after effective {d['effective']}")
         es = d.get("effective_source")
         if es is not None and not all(str(es.get(k, "")).strip() for k in ("url", "quote", "shown")):
             raise ValueError(f"{f.name}: effective_source needs url, quote and shown")
@@ -109,7 +120,7 @@ def load_rules(path: Path = ROOT / "data" / "rules", *, required=REQUIRED_RULE_I
             raise ValueError(f"{f.name}: duplicate rule_id {d['rule_id']}")
         rules.append(
             Rule(
-                **{k: (str(d[k]) if k in ("effective", "retrieved") else d[k]) for k in REQUIRED},
+                **{k: (str(d[k]) if k in DATED else d[k]) for k in REQUIRED},
                 quote=d.get("quote"),
                 note=d.get("note") or "",
                 fetch_url=d.get("fetch_url"),
