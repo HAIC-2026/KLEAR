@@ -262,7 +262,7 @@ Website spending has its own cap of 5 dollars per HST day, kept in ~/.config/kle
 | `--store PATH` | Use a different DuckDB store. |
 | `--daily-cap 5` | Set the website's model budget in dollars per HST day. |
 | `--model MODEL` | Choose the model used by the assistant. |
-| `--no-address-lookup` | Turn off street address search, so the server never contacts the Census geocoder. |
+| `--no-address-lookup` | Turn off street address lookup in search and chat, so the server never contacts the Census geocoder. |
 
 ### Prepared answers to the starter questions
 
@@ -337,7 +337,20 @@ Search also takes a street address. The server sends it to the U.S. Census Burea
 store, so the districts come from the same 2022 plan as the rest of the site. The address is
 used only for that request: it is not stored, the server keeps no request log, and the page
 says so beside the search box. If the geocoder is unreachable, search falls back to names and
-says so. Start the site with `--no-address-lookup` to keep every request local.
+says so. Start the site with --no-address-lookup to keep every request local.
+
+Chat takes a street address too, as in "Which House and Senate district is 310 W Kaʻahumanu Ave,
+Kahului in?". A street address on its own is a place, not a person, so it is answered, not declined.
+The assistant passes the address to its resolve_place tool, and the basic lookup finds it in the
+question, and both use the same geocoder and block lookup as the search box, then answer for that
+district. A town can span districts, so when the geocoder is off, unreachable or finds no match, chat
+says so and asks for a place, ZIP code or district instead of guessing one from the town name.
+Questions about the people at an address, such as who lives there, are still declined. When the
+address is in another district than the one chosen, the answer is labeled with that district, its
+next questions name it, and a button switches the chat and profile to it. The matched address is shown
+in title case with Hawaiian spelling. The note under the question box says the address goes to the
+Census Bureau and is not stored or logged, and that assistant answers send the question to the AI
+model provider. The agent and eval command lines take the same --no-address-lookup option.
 Chat offers five example questions, a waiting state, explicit refusal labels,
 and figure cards with uncertainty, vintage, geography and official source
 links. Source names open the publisher's page about the dataset, never an API answer or a

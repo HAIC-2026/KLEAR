@@ -7,8 +7,9 @@ import pytest
 
 from klear.agent.answer import REFUSAL_TEXT
 from klear.labels import plain_labels
-from klear.web.__main__ import ADDRESS_NOTES, STATIC
+from klear.web.__main__ import STATIC
 from klear.web.answers import ask
+from klear.web.geocode import NOTES as ADDRESS_NOTES
 from tests.readability import grade, page_text, syllables
 
 TARGET = 8.0
