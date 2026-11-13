@@ -105,6 +105,12 @@ def _built_day(con) -> datetime | None:
         return None
 
 
+def build_day(con) -> str | None:
+    """Day the store was built in HST, like '2026-10-09', or None when the store does not record it."""
+    day = _built_day(con)
+    return f"{day:%Y-%m-%d}" if day else None
+
+
 def build_month(con) -> str:
     """Month the store was built, like 'October 2026', or '' when the store does not record it."""
     day = _built_day(con)

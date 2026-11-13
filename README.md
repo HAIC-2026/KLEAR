@@ -253,7 +253,7 @@ With an Anthropic key configured, questions go to the same KLEAR assistant that
 
 When an answer says the data is not available or is outside KLEAR's scope and shows no figures, the site adds one line linking to datatrove.ai (https://datatrove.ai/), a HAIC 2026 sponsor with its own chat over Hawaiʻi public datasets that are not published by district. The line is added where the page lays out the answer, not by the model, so the answer contract and the eval are unchanged. KLEAR only links to datatrove.ai and does not copy its data. The Data and sources and About sections of the page link to it too.
 
-Website spending has its own cap of 5 dollars per HST day, kept in ~/.config/klear/web_spend.json and separate from the 60 dollar eval cap. Each question reserves its worst-case cost first and then records the actual cost. When the day's cap is reached or the API fails, the site falls back to a basic keyword lookup from the store and says so. Each visitor can ask 6 questions a minute, and the server answers 3 at a time.
+Website spending has its own cap of 5 dollars per HST day, kept in ~/.config/klear/web_spend.json and separate from the 60 dollar eval cap. Each question reserves its worst-case cost first and then records the actual cost, and the file also keeps the day's input, output, cache write and cache read tokens. The assistant marks its tool definitions and system prompt for the prompt cache, so a question asked within 5 minutes of another reads them at the cache price. When the day's cap is reached or the API fails, the site falls back to a basic keyword lookup from the store and says so. Each visitor can ask 6 questions a minute, and the server answers 3 at a time.
 
 | Option | Purpose |
 | --- | --- |
@@ -265,6 +265,8 @@ Website spending has its own cap of 5 dollars per HST day, kept in ~/.config/kle
 | `--daily-cap 5` | Set the website's model budget in dollars per HST day. |
 | `--model MODEL` | Choose the model used by the assistant. |
 | `--no-address-lookup` | Turn off street address lookup in search and chat, so the server never contacts the Census geocoder. |
+
+Health checks. GET /healthz always answers 200 with {"status": "ok"} while the server runs. GET /readyz answers 200 when the store is built and current, else 503, with ready, store (ok, missing, outdated or unreadable), built (the build day), prepared_answers (prepared starter answers for this build) and assistant (on or off). Neither calls the model or shows keys, file paths or questions. Cloud Run reserves some paths that end in z, so the same checks also answer at /api/health and /api/ready.
 
 ### Outreach page
 

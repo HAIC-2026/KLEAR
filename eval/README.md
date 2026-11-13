@@ -42,7 +42,7 @@ Live runs are capped at 60.00 dollars per user, across every run and every copy 
 - Spending is logged in ~/.config/klear/eval_spend.jsonl, with a lock file ~/.config/klear/eval_spend.lock beside it. No option or environment variable moves them.
 - A second copy of the total is kept in ~/.config/klear/eval_spend_total, and the lock file keeps the highest total ever seen. The cap uses the largest of the three, and live runs refuse to start if the log or the copy goes missing after money was spent.
 - Each call first holds its worst-case cost, then records the actual cost. Held amounts count against the cap, so a crashed run still shows as spent.
-- Cached input is counted at the full input price, so the log can show more than the provider bill. That is on purpose and does not mean caching failed.
+- Each settled call records its uncached input, cache write, cache read and output tokens, priced with the cache write and cache read prices in eval/prices.yaml, so the log matches the provider bill.
 - If a call returns usage numbers that make no sense, it is recorded at its full worst case and the spend total is marked uncertain. The next live run warns and needs the word continue. Delete ~/.config/klear/eval_spend.uncertain only after checking the provider dashboard.
 
 Limitation: the cap trusts the worst-case cost each agent reports. An agent that reports too low a cost can still overspend, so also set a spend limit on the provider account.

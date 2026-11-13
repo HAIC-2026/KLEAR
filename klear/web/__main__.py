@@ -57,6 +57,10 @@ PUBLIC = (
     "/shots/step-2.png",
     "/shots/step-3.png",
 )
+# Health and readiness checks. Cloud Run reserves some paths that end in z at its front end, so each check also
+# answers at an /api/ path that visitors and uptime monitors can reach from outside.
+HEALTH = ("/healthz", "/api/health")
+READY = ("/readyz", "/api/ready")
 # A district's own address, like /district/house-22. It serves the page, which then opens that district.
 DISTRICT_PAGE = re.compile(r"/district/(?:house|senate)-[0-9]{1,2}")
 BUSY = threading.BoundedSemaphore(3)
@@ -198,8 +202,39 @@ class Handler(SimpleHTTPRequestHandler):
             raise RuntimeError("Store built by an older KLEAR")
         return duckdb.connect(str(self.store), read_only=True)
 
+    def readiness(self):
+        """Whether the store is loaded and current, its build day, the prepared answers for it and whether the
+        assistant is on. Reads only the store and the prepared answers file: no model call, no keys, no paths."""
+        state = "missing"
+        built = None
+        try:
+            if self.store.is_file():
+                state = "outdated" if outdated(self.store) else "ok"
+            if state == "ok":
+                with self.connect() as con:
+                    built = display.build_day(con)
+        except Exception:  # noqa: BLE001 - a store that cannot be read is not ready
+            state = "unreadable"
+        try:
+            prepared = self.prepared.count() if self.prepared is not None and state == "ok" else 0
+        except Exception:  # noqa: BLE001 - unreadable prepared answers count as none
+            prepared = 0
+        ready = state == "ok"
+        body = {
+            "ready": ready,
+            "store": state,
+            "built": built,
+            "prepared_answers": prepared,
+            "assistant": "off" if self.assistant is None else "on",
+        }
+        return self.reply(200 if ready else 503, body)
+
     def do_GET(self):
         path = urlsplit(self.path)
+        if path.path in HEALTH:
+            return self.reply(200, {"status": "ok"})
+        if path.path in READY:
+            return self.readiness()
         if path.path == "/api/resolve":
             text = parse_qs(path.query).get("q", [""])[0].strip()
             if not 1 <= len(text) <= 160:

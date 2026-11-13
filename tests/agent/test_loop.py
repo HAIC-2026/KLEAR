@@ -1,4 +1,5 @@
 # Tests for the bounded tool loop and KlearAgent, driven by a scripted fake client.
+import json
 from types import SimpleNamespace
 
 import anthropic
@@ -15,9 +16,19 @@ from klear.agent.review import REVIEW_SPEC
 from klear.agent.tools import Session
 from klear.config import MissingSecretError
 from klear.eval import spend
-from tests.agent.fake_client import FakeAPIError, FakeClient, api_error, text, tool, turn
+from tests.agent.fake_client import (
+    CachingClient,
+    FakeAPIError,
+    FakeClient,
+    api_error,
+    rendered_blocks,
+    text,
+    tool,
+    turn,
+)
 
 PRICES = {"models": {"claude-haiku-5-5": {"input": 0.10, "output": 0.50}}}
+EPHEMERAL = {"type": "ephemeral"}
 GOOD = "{geo:house:022} has {fact:f1} {label:f1} ({vintage:f1})."
 FACTS = tool("get_facts", {"indicator_ids": ["pop_65_plus"], "geos": ["house:022"]})
 
@@ -211,16 +222,64 @@ def test_count_tokens_error_propagates(small_con):
     assert fake.calls == 0
 
 
-def test_usage_counts_cache_writes(small_con):
+def test_usage_keeps_cache_writes_and_reads_apart(small_con):
     u = {"input_tokens": 100, "cache_creation_input_tokens": 1000, "cache_read_input_tokens": 50}
     _, usage, _ = run(small_con, [turn(FACTS, usage=u), turn(submit(ok()), usage=u | {"output_tokens": 7})])
-    assert usage.input_tokens == 2 * (100 + 1250 + 50) and usage.output_tokens == 12
+    assert (usage.input_tokens, usage.output_tokens) == (200, 12)
+    assert (usage.cache_write_tokens, usage.cache_read_tokens) == (2000, 100)
 
 
 def test_usage_tolerates_missing_cache_fields(small_con):
     u = {"cache_creation_input_tokens": None, "cache_read_input_tokens": None}
     _, usage, _ = run(small_con, [turn(FACTS, usage=u), submit(ok())])
-    assert usage.input_tokens == 20
+    assert usage.input_tokens == 20 and usage.cache_write_tokens == usage.cache_read_tokens == 0
+
+
+def test_cache_breakpoints_on_tools_system_and_newest_message(small_con):
+    _, _, fake = run(small_con, [FACTS, submit(ok())])
+    for req in fake.requests:
+        assert [t.get("cache_control") for t in req["tools"]] == [None] * (len(req["tools"]) - 1) + [
+            EPHEMERAL
+        ]
+        assert [b.get("cache_control") for b in req["system"]] == [EPHEMERAL]
+        assert req["messages"][-1]["content"][-1]["cache_control"] == EPHEMERAL
+        marks = sum(
+            "cache_control" in b for m in req["messages"] for b in m["content"] if isinstance(b, dict)
+        )
+        assert marks == 1
+    # The module-level tool list keeps its marker on the last tool only, and count_tokens sees the same request.
+    assert loop.TOOLS[-1]["name"] == "submit_answer" and "cache_control" not in loop.SUBMIT_SPEC
+    assert fake.counts[0]["tools"] == fake.requests[0]["tools"]
+
+
+def test_cached_prefix_is_byte_identical_across_calls_and_questions(small_con):
+    fake = FakeClient([FACTS, submit(ok()), FACTS, submit(ok())])
+    agent = KlearAgent(small_con, client=fake)
+    agent.answer("a", "How many seniors live in House 22?", None)
+    agent.answer("b", "How many seniors live in House District 22?", None)
+    prefixes = {json.dumps([r["tools"], r["system"]], sort_keys=True) for r in fake.requests}
+    assert len(fake.requests) == 4 and len(prefixes) == 1
+
+
+def test_second_question_reads_tools_and_system_from_the_cache(small_con):
+    fake = CachingClient([FACTS, submit(ok()), FACTS, submit(ok())])
+    agent = KlearAgent(small_con, client=fake)
+    _, first = agent.answer("a", "How many seniors live in House 22?", None)
+    _, second = agent.answer("b", "How many seniors live in House District 22?", None)
+    prefix = len("".join(t for t, _ in rendered_blocks(fake.requests[0])[: len(loop.TOOLS) + 1]))
+    # The first call writes everything; the next call in the question reads it.
+    assert (
+        fake.usages[0]["cache_read_input_tokens"] == 0 and fake.usages[1]["cache_read_input_tokens"] > prefix
+    )
+    # The second question's first call reads the tools and system prompt the first question wrote.
+    assert fake.usages[2]["cache_read_input_tokens"] == prefix
+    assert second.cache_read_tokens > first.cache_read_tokens > 0
+    assert second.cache_write_tokens < first.cache_write_tokens
+    prices = spend.load_prices()
+    assert spend.request_cost(agent.model, second) < spend.request_cost(agent.model, first)
+    rate = spend.rates(prices, agent.model)
+    uncached = (second.input_tokens + second.cache_write_tokens + second.cache_read_tokens) * rate["input"]
+    assert spend.request_cost(agent.model, second) < (uncached + second.output_tokens * rate["output"]) / 1e6
 
 
 def test_text_only_reply_gets_nudge(small_con):

@@ -158,6 +158,12 @@ class AnswerCache:
         except duckdb.Error:
             return 0
 
+    def count(self) -> int:
+        """How many prepared answers match the store's build."""
+        self._refresh()
+        with self._lock:
+            return len(self._rows)
+
     def summary(self, live: bool) -> str:
         """Startup line saying how many starter answers are prepared for the store's build."""
         self._refresh()
