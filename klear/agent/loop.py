@@ -11,6 +11,7 @@ from klear.agent.answer import (
     required_comparisons,
     required_facts,
     required_programs,
+    salvage,
     stored_district,
     template_answer,
 )
@@ -203,6 +204,7 @@ class KlearAgent:
         messages = [{"role": "user", "content": _text(self._prompt(question, context, earlier))}]
         totals = [0, 0, 0, 0]
         tried: dict = {}
+        tries: list = []
         settings = REQUEST_SETTINGS[self.model]
         used = strikes = reviews = 0
         while used < MAX_CALLS:
@@ -253,6 +255,7 @@ class KlearAgent:
             }
             if submit is not None:
                 tried = submit.input if isinstance(submit.input, dict) else {}
+                tries.append(submit.input)
                 answer, problems = build_answer(session, submit.input, context)
                 if answer is not None:
                     flags = self._review(session, answer, totals) if reviews < self.reviews else []
@@ -268,8 +271,9 @@ class KlearAgent:
                 )
                 results[submit.id] = _result(submit.id, body, True)
             messages.append({"role": "user", "content": [results[b.id] for b in uses]})
-        self.trace.append({"stop": "fallback"})
-        answer = self._fallback(session, context, tried)
+        answer = next((a for t in reversed(tries) if (a := salvage(session, t, context))), None)
+        self.trace.append({"stop": "fallback" if answer is None else "salvaged"})
+        answer = answer or self._fallback(session, context, tried)
         flags = self._review(session, answer, totals) if reviews < self.reviews else []
         return self._final(session, answer, flags), totals
 

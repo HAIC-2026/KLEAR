@@ -11,6 +11,7 @@ import yaml
 
 from klear.eval.contract import MARKER, PLACE_MARKERS, Answer, ContractError, geo_key, render
 from klear.eval.golden import RULES, Golden
+from klear.labels import plain_labels
 from klear.programs import catalog
 from klear.text import hawaiian, misspellings, strip_ignorable
 
@@ -89,6 +90,24 @@ HTML_SPAN = re.compile(r"<!--.*?(?:-->|$)|<\s*[!/?a-z][^>]*(?:>|$)", re.IGNORECA
 FENCE = re.compile(r"^[ \t]*(\u0060{3,}|~{3,}).*?(?:^[ \t]*\1|\Z)", re.MULTILINE | re.DOTALL)
 CODE_SPAN = re.compile(r"(\u0060+).+?\1", re.DOTALL)
 REF_DEF = re.compile(r"^[ \t]*\[[^\]\n]*\]:.*(?:\n(?![ \t]*$).*)*", re.MULTILINE)
+NUMBER = re.compile(r"\d+(?:[.,]\d+)*")
+PHONE = re.compile(r"(?:(?<!\d)1[-.\s])?(?:\(\d{3}\)|(?<!\d)\d{3})[-.\s]?\d{3}[-.\s]\d{4}(?!\d)")
+NUMBER_BEFORE = re.compile(r"(\d+(?:[.,]\d+)*)[\s-]*$")
+TOKEN = re.compile(r"\d+(?:[.,]\d+)*|[^\W\d_]+")
+# Values of the number words a cited label, vintage or the question may hold as digits.
+WORD_VALUES = {
+    "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10,
+    "eleven": 11, "twelve": 12, "thirteen": 13, "fourteen": 14, "fifteen": 15, "sixteen": 16, "seventeen": 17,
+    "eighteen": 18, "nineteen": 19, "twenty": 20, "thirty": 30, "forty": 40, "fifty": 50, "sixty": 60,
+    "seventy": 70, "eighty": 80, "ninety": 90,
+}  # fmt: skip
+# Number words that may count what an answer cites.
+COUNT_LIMIT = 10
+LIST_ITEM = re.compile(r"^[ \t]*[-*][ \t]", re.MULTILINE)
+NUMBER_FIX = "delete it; markers print every value, place and definition"
+PHONE_FIX = "delete it; list the program in programs and the page shows its phone"
+UNIT_FIX = "delete it; the fact marker prints the unit"
+WORD_FIX = "delete it; a number word may only count the places, facts, sites or programs the answer cites"
 
 
 @dataclass
@@ -96,6 +115,62 @@ class Outcome:
     check: str
     passed: bool | None
     detail: str
+
+
+@dataclass(frozen=True)
+class Sourced:
+    """Text an answer may quote numbers and unit words from, and the counts its number words may state."""
+
+    text: str = ""
+    numbers: frozenset[str] = frozenset()
+    counts: frozenset[int] = frozenset()
+
+
+def _tokens(text: str) -> str:
+    return " ".join(TOKEN.findall(_visible(text).casefold()))
+
+
+def _quoted(phrase: str, src: Sourced) -> bool:
+    return bool(phrase) and f" {_tokens(phrase)} " in f" {src.text} "
+
+
+def sourced(a: Answer, con, question: str = "", texts=(), counts=()) -> Sourced:
+    """What an answer may quote: the labels, definitions, notes and vintages of its cited facts, the question and
+    extra texts such as names tools returned, plus how many places, facts, sources, programs and items it cites."""
+    ids = sorted({f.indicator_id for f in a.facts})
+    sources = sorted({f.source_id for f in a.facts})
+    found = [question, *texts, *(f.vintage for f in a.facts)]
+    if ids:
+        rows = con.execute(
+            "SELECT label, universe, note FROM indicator WHERE indicator_id IN (SELECT unnest(?))", [ids]
+        ).fetchall()
+        found += [x for r in rows for x in r if isinstance(x, str)]
+        plain = plain_labels()
+        found += [x for i in ids if i in plain for x in (plain[i].short, plain[i].plain)]
+    if sources:
+        rows = con.execute(
+            "SELECT name FROM source WHERE source_id IN (SELECT unnest(?))", [sources]
+        ).fetchall()
+        found += [r[0] for r in rows if isinstance(r[0], str)]
+    text = " ".join(_tokens(t) for t in found if t)
+    shown = [*a.blocks, *a.caveats]
+    geos = {(f.geo_type, f.geo_id) for f in a.facts}
+    geos |= {geo_key(r) for t in shown for k, r in MARKER.findall(t) if k == "geo"} - {None}
+    sizes = {
+        len(a.facts),
+        len(geos),
+        len(geos - {a.resolved}),
+        len({g for g in geos if g[0] in ("house", "senate")}),
+        len(ids),
+        len(sources),
+        len(a.programs),
+        *(len(LIST_ITEM.findall(t)) for t in shown),
+        *counts,
+    }
+    return Sourced(text, frozenset(NUMBER.findall(text)), frozenset(sizes - {0}))
+
+
+NOTHING = Sourced()
 
 
 def _visible(text: str) -> str:
@@ -147,15 +222,40 @@ def _markers(text: str) -> tuple[list[tuple[str, str]], list[tuple[str, str]]]:
     return shown, hidden
 
 
-def _number(text: str) -> str | None:
+def _number_problems(text: str, src: Sourced) -> list[str]:
+    """Typed phone numbers, and numbers that no cited label, definition, vintage or the question holds."""
     for t in (text, _visible(text)):
-        for i, c in enumerate(t):
-            if unicodedata.numeric(c, None) is None:
-                continue
-            if not c.isascii():
-                return f"{c} (U+{ord(c):04X})"
-            return repr(re.match("[0-9]+", t[i:]).group())
-    return None
+        for c in t:
+            if unicodedata.numeric(c, None) is not None and not c.isascii():
+                return [f"unsourced number {c} (U+{ord(c):04X}): {NUMBER_FIX}"]
+    shown = EMPHASIS.sub("", _visible(text))
+    out = [f"typed phone number {m.group().strip()!r}: {PHONE_FIX}" for m in PHONE.finditer(shown)]
+    rest = PHONE.sub(" ", shown)
+    for m in NUMBER.finditer(rest):
+        unit = UNIT_WORD.match(re.sub(r"^[\s-]+", "", rest[m.end() : m.end() + 40]))
+        ok = m.group() in src.numbers and (unit is None or _quoted(f"{m.group()} {unit.group()}", src))
+        if not ok:
+            out.append(f"unsourced number {m.group()!r}: {NUMBER_FIX}")
+    return list(dict.fromkeys(out))
+
+
+def _word_problems(plain: str, src: Sourced) -> list[str]:
+    """Unit words and number words that no cited label, definition, vintage or the question holds, and number
+    words that count nothing the answer cites."""
+    out = []
+    for w in UNIT_WORD.finditer(plain):
+        n = NUMBER_BEFORE.search(plain[: w.start()])
+        if not _quoted(f"{n.group(1)} {w.group()}" if n else w.group(), src):
+            out.append(f"unit word {w.group()!r}: {UNIT_FIX}")
+    for w in NUMBER_WORD.finditer(plain):
+        value = WORD_VALUES.get(w.group().casefold())
+        if value is not None and (
+            (value <= COUNT_LIMIT and value in src.counts) or str(value) in src.numbers
+        ):
+            continue
+        if not _quoted(w.group(), src):
+            out.append(f"number word {w.group()!r}: {WORD_FIX}")
+    return list(dict.fromkeys(out))
 
 
 def _marker_neighbor(text: str) -> str | None:
@@ -189,22 +289,18 @@ def _roman(text: str) -> str | None:
     return next((m.group() for m in ROMAN.finditer(text) if ROMAN_VALID.fullmatch(m.group())), None)
 
 
-def _text_problems(text: str) -> list[str]:
+def _text_problems(text: str, src: Sourced = NOTHING) -> list[str]:
+    """Problems of one block or caveat; src holds what it may quote, and by default nothing."""
     raw = strip_ignorable(text)
     if MARKER.findall(raw) != MARKER.findall(text):
         return ["invisible character inside a marker"]
-    problems = []
     rest = MARKER.sub(" ", raw)
-    if (n := _number(rest)) is not None:
-        problems.append(f"unsourced number {n}")
+    problems = _number_problems(rest, src)
     shown, rest = _visible(text), _visible(rest)
     if HTML.search(shown) or _entity(shown):
         problems.append("HTML tag, comment or entity")
     plain = EMPHASIS.sub("", rest)
-    if w := UNIT_WORD.search(plain):
-        problems.append(f"unit word {w.group()!r}")
-    if w := NUMBER_WORD.search(plain):
-        problems.append(f"number word {w.group()!r}")
+    problems += _word_problems(plain, src)
     if n := _roman(plain):
         problems.append(f"Roman numeral {n!r}")
     if sym := [c for c in rest if c in UNIT_SYMBOLS or unicodedata.category(c) == "Sc"]:
@@ -213,14 +309,8 @@ def _text_problems(text: str) -> list[str]:
         problems.append(problem)
     if (b := re.search(r"[{}]", rest)) is not None:
         problems.append(f"malformed marker {rest[b.start() : b.start() + 12].strip()!r}")
-    on, off = _markers(text)
+    _, off = _markers(text)
     problems += [f"marker {{{k}:{r}}} inside a link, image, code or HTML" for k, r in off]
-    facts = {r for k, r in on if k == "fact"}
-    problems += [
-        f"{{vintage:{r}}} without {{fact:{r}}} in the same block"
-        for k, r in on
-        if k == "vintage" and r not in facts
-    ]
     return problems
 
 
@@ -285,10 +375,13 @@ def _shown_facts(a: Answer) -> set[str]:
     return {r for t in [*a.blocks, *a.caveats] for k, r in _markers(t)[0] if k == "fact"}
 
 
-def answer_problems(a: Answer, con, allowed: set[tuple[str, str]]) -> list[str]:
-    """Golden-free fidelity problems of an answer."""
+def answer_problems(
+    a: Answer, con, allowed: set[tuple[str, str]], question: str = "", texts=(), counts=()
+) -> list[str]:
+    """Golden-free fidelity problems of an answer; question, texts and counts are what it may quote and count."""
+    src = sourced(a, con, question, texts, counts)
     texts = [*a.blocks, *a.caveats]
-    problems = [p for text in texts for p in _text_problems(text)]
+    problems = [p for text in texts for p in _text_problems(text, src)]
     refs = [f.ref for f in a.facts]
     problems += [f"duplicate fact ref {r}" for r in sorted({r for r in refs if refs.count(r) > 1})]
     cited = {(k, r) for text in texts for k, r in MARKER.findall(text)}
@@ -299,6 +392,11 @@ def answer_problems(a: Answer, con, allowed: set[tuple[str, str]]) -> list[str]:
     ]
     shown = _shown_facts(a)
     problems += [f"fact {f.ref} is never used by a marker" for f in a.facts if f.ref not in shown]
+    dated = {r for t in texts for k, r in _markers(t)[0] if k == "vintage"}
+    problems += [
+        f"{{vintage:{r}}} without {{fact:{r}}} anywhere in the answer; add {{fact:{r}}} or delete {{vintage:{r}}}"
+        for r in sorted(dated - shown)
+    ]
     for _, r in sorted(c for c in cited if c[0] in PLACE_MARKERS):
         if geo_key(r) not in allowed:
             problems.append(f"geography {r.replace(':', ' ')} is not allowed here")
@@ -317,7 +415,7 @@ def answer_problems(a: Answer, con, allowed: set[tuple[str, str]]) -> list[str]:
 
 
 def _fidelity(g: Golden, a: Answer, con) -> Outcome:
-    return _verdict("fidelity", answer_problems(a, con, _allowed_geos(g, a, con)))
+    return _verdict("fidelity", answer_problems(a, con, _allowed_geos(g, a, con), g.question))
 
 
 def _verdict(check: str, problems: list[str]) -> Outcome:

@@ -273,20 +273,32 @@ def test_round2_unicode_numbers_fail(eval_store):
         assert o.passed is False and "U+" in o.detail, text
 
 
-def test_round2_typed_years_fail(eval_store):
+def test_round2_typed_years_outside_the_cited_vintage_fail(eval_store):
     for text in [
-        "There are kūpuna in 2020 households. {fact:f1}",
-        "There are 2020-2024 households. {fact:f1}",
-        "There are the 2020 kūpuna. {fact:f1}",
-        "Rents rose in 2020, {fact:f1}.",
-        "See the 2020-2024 ACS. {fact:f1}",
-        "From the 2020 census, {fact:f1}.",
-        "ACS 2020-2024 5-year estimates. {fact:f1}",
-        "Data from 2020 to 2024, {fact:f1}.",
-        "Updated in 2024 January. {fact:f1}",
+        "There are kūpuna in 2019 households. {fact:f1}",
+        "There are 2019-2023 households. {fact:f1}",
+        "There are the 2025 kūpuna. {fact:f1}",
+        "Rents rose in 2018, {fact:f1}.",
+        "See the 2019-2023 ACS. {fact:f1}",
+        "From the 2010 census, {fact:f1}.",
+        "ACS 2019-2023 5-year estimates. {fact:f1}",
+        "Data from 2020 to 2025, {fact:f1}.",
+        "Updated in 2026 January. {fact:f1}",
     ]:
         a = _ans([text], [_ref()])
         assert _by(score(_gold_f1(), a, eval_store))["fidelity"].passed is False, text
+
+
+def test_years_of_the_cited_vintage_pass(eval_store):
+    for text in [
+        "See the 2020-2024 ACS. {fact:f1}",
+        "ACS 2020-2024 5-year estimates. {fact:f1}",
+        "Data from 2020 to 2024, {fact:f1}.",
+    ]:
+        a = _ans([text], [_ref()])
+        assert _by(score(_gold_f1(), a, eval_store))["fidelity"].passed is True, text
+    a = _ans(["See the 2020-2024 ACS."])
+    assert _by(score(_gold_f1(), a, eval_store))["fidelity"].passed is False
 
 
 def test_round2_typed_district_fails_even_when_resolved(eval_store):
@@ -333,14 +345,13 @@ def test_round3_modifiers_around_markers_fail(eval_store):
 
 def test_round3_five_year(eval_store):
     for text in [
-        "The program guarantees 5-year coverage. {fact:f1}",
-        "5-year-old kūpuna get {fact:f1}.",
-        "ACS 2020-2024 5-year estimates. {fact:f1}",
-        "ACS 5-year estimates show {fact:f1}.",
-        "The 2020-2024 five-year ACS says {fact:f1}.",
+        "The program guarantees 3-year coverage. {fact:f1}",
+        "ACS 2020-2024 1-year estimates. {fact:f1}",
+        "The 2020-2024 three-year ACS says {fact:f1}.",
     ]:
         assert _r3(text, eval_store).passed is False, text
-    assert _r3("The {vintage:f1} five-year ACS says {fact:f1}.", eval_store).passed is False
+    for text in ["ACS 5-year estimates show {fact:f1}.", "The {vintage:f1} five-year ACS says {fact:f1}."]:
+        assert _r3(text, eval_store).passed is True, text
     assert _r3("The {vintage:f1} ACS says {fact:f1}.", eval_store).passed is True
 
 
@@ -352,12 +363,12 @@ def test_round3_emphasis_hides_place_names(eval_store):
 
 def test_round3_typed_years_fail(eval_store):
     for text in [
-        "In 2024 we updated the estimate to {fact:f1} kūpuna.",
-        "From 2020 onward, the estimate is {fact:f1}.",
-        "The 2020-2024 figures show {fact:f1} kūpuna.",
-        "There are {fact:f1} kūpuna in 2020 households.",
-        "In 2020 households had {fact:f1}.",
-        "The 2020-2024 households had {fact:f1}.",
+        "In 2025 we updated the estimate to {fact:f1} kūpuna.",
+        "From 2019 onward, the estimate is {fact:f1}.",
+        "The 2019-2023 figures show {fact:f1} kūpuna.",
+        "There are {fact:f1} kūpuna in 2010 households.",
+        "In 2018 households had {fact:f1}.",
+        "The 2021-2025 households had {fact:f1}.",
     ]:
         assert _r3(text, eval_store).passed is False, text
 
@@ -371,8 +382,8 @@ HONEST_VINTAGE = [
 ]
 TYPED_VINTAGE = [
     "In 2020-2024, House District 22 had {fact:f1} kūpuna.",
-    "The ACS 2020-2024 estimate is {fact:f1} kūpuna.",
-    "Between 2020 and 2024, the district averaged {fact:f1} kūpuna.",
+    "The ACS 2019-2023 estimate is {fact:f1} kūpuna.",
+    "Between 2019 and 2023, the district averaged {fact:f1} kūpuna.",
     "As of the 2024 survey, House District 22 has {fact:f1} kūpuna.",
     "These 2020-2024 figures show {fact:f1} kūpuna in House District 22.",
 ]
@@ -493,7 +504,6 @@ def test_round5_must_fail(eval_store):
     for blocks in [
         "In {vintage:f2}, House District 22 had {fact:f1} kūpuna. Also {fact:f2}.",
         "In {vintage:f2}, {geo:house:022} had {fact:f1} kūpuna.",
-        ["In {vintage:f2}, {geo:house:022} had {fact:f1} kūpuna.", "County: {fact:f2}."],
         "House District 22 has {vintage:f1} kūpuna. Estimate: {fact:f1}. {fact:f2}",
         "The district house 22 kūpuna. Estimate: {fact:f1}. {fact:f2}",
         "The count is ZIP 96744 kūpuna. Estimate: {fact:f1}. {fact:f2}",
@@ -859,3 +869,32 @@ def test_direction_scores_the_asked_pair_only(eval_store):
     for text, ok in cases:
         got = _ok(_ans([text]), eval_store, direction="higher", facts=pair)["direction"]
         assert got.passed is ok, (text, got.detail)
+
+
+def test_vintage_may_sit_in_another_block_than_its_fact(eval_store):
+    a = _ans(["{geo:house:022} has {fact:f1} kūpuna.", "Source: {vintage:f1}."], [_ref()])
+    assert _fid(a, eval_store).passed is True
+    o = _fid(_ans(["{fact:f1} kūpuna.", "Source: {vintage:f2}."], [_ref(), _ref("f2")]), eval_store)
+    assert o.passed is False and "{vintage:f2} without {fact:f2} anywhere in the answer" in o.detail
+
+
+def test_count_words_pass_only_for_what_the_answer_cites(eval_store):
+    two = [_ref(), _ref("f2", "pct_65_plus", 12.3, 2.1)]
+    assert _fid(_ans(["The two figures: {fact:f1} and {fact:f2}."], two), eval_store).passed is True
+    o = _fid(_ans(["The three figures: {fact:f1} and {fact:f2}."], two), eval_store)
+    assert o.passed is False and "number word 'three'" in o.detail
+    assert _fid(_ans(["The two figures: {fact:f1}."], [_ref()]), eval_store).passed is False
+
+
+def test_label_numbers_need_their_own_unit_phrase(eval_store):
+    assert _fid(_ans(["Kūpuna, people 65 and over: {fact:f1}."], [_ref()]), eval_store).passed is True
+    o = _fid(_ans(["About 65 percent: {fact:f1}."], [_ref()]), eval_store)
+    assert o.passed is False and "unsourced number '65'" in o.detail and "unit word 'percent'" in o.detail
+    o = _by(
+        score(
+            _gold(question="Is it above 30 percent?"),
+            _ans(["Not 30 percent: {fact:f1}."], [_ref()]),
+            eval_store,
+        )
+    )
+    assert o["fidelity"].passed is True

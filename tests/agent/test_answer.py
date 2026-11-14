@@ -12,6 +12,7 @@ from klear.agent.answer import (
     _method_text,
     allowed_geos,
     build_answer,
+    salvage,
     spelled,
     template_answer,
     tied_programs,
@@ -127,11 +128,14 @@ def test_unknown_program(s1):
     assert a.programs == ["eitc_federal_ty2025"] and problems == []
 
 
-@pytest.mark.parametrize("text", ["See the EITC.", "Nothing named."])
-def test_listed_program_must_be_named(s1, text):
+@pytest.mark.parametrize(
+    ("text", "lacks"), [("See the EITC.", "'federal'"), ("Nothing named.", "'federal', 'eitc'")]
+)
+def test_listed_program_must_be_named(s1, text, lacks):
     a, problems = build_answer(s1, args(programs=["eitc_federal_ty2025"], blocks=[GOOD, text]))
     assert a is None and problems == [
-        "program eitc_federal_ty2025 is listed but not named in the text; write it as 'Federal EITC'"
+        "program eitc_federal_ty2025 is listed but not named in the text; write it as 'Federal EITC'; "
+        + f"the text lacks {lacks}"
     ]
 
 
@@ -621,3 +625,119 @@ def test_template_lists_tied_programs(session):
     a = template_answer(session, ("house", "029"), "none")
     assert a.programs == ["snap_fy2027"] and a.blocks[-1] == "Related programs: SNAP."
     assert hawaiian(render(a, session.con)) == render(a, session.con)
+
+
+def _problems(session, blocks, facts=("f1",), caveats=()):
+    return build_answer(session, args(blocks=list(blocks), facts=list(facts), caveats=list(caveats)))[1]
+
+
+def test_numbers_from_cited_labels_and_vintages_pass(s1):
+    text = (
+        "Residents 65 years and over number {fact:f1} ({vintage:f1}), from the 2020-2024 American Community "
+        "Survey 5-year estimates, a five-year survey."
+    )
+    assert _problems(s1, [text]) == []
+
+
+def test_numbers_and_unit_words_from_the_question_pass(s1):
+    s1.question = "Is the share above 20 percent in House District 22?"
+    assert _problems(s1, [GOOD + " You asked about 20 percent in House District 22."]) == []
+
+
+@pytest.mark.parametrize(
+    ("text", "flagged"),
+    [
+        ("About 6,257 kūpuna live here.", ["unsourced number '6,257'"]),
+        ("About 23 percent are kūpuna.", ["unsourced number '23'", "unit word 'percent'"]),
+        ("About 65 percent are kūpuna.", ["unsourced number '65'", "unit word 'percent'"]),
+        ("The 2019 count was lower.", ["unsourced number '2019'"]),
+        ("Several hundred are new.", ["unit word 'hundred'"]),
+    ],
+)
+def test_typed_figures_without_a_source_are_still_rejected(s1, text, flagged):
+    problems = _problems(s1, [GOOD + " " + text])
+    for f in flagged:
+        assert any(p.startswith(f + ": delete it") for p in problems), (f, problems)
+    if any("number" in f for f in flagged):
+        assert problems[-1] == NUMBER_HINT
+
+
+def test_count_words_must_count_what_the_answer_cites(small):
+    small.run("get_facts", {"indicator_ids": ["pop_65_plus"], "geos": ["house:022", "state:15"]})
+    two = "{geo:house:022} has {fact:f1} ({vintage:f1}) and {geo:state:15} has {fact:f2}."
+    assert _problems(small, ["The two figures: " + two], ["f1", "f2"]) == []
+    for word in ("three", "twice", "half"):
+        problems = _problems(small, [f"The {word} figures: " + two], ["f1", "f2"])
+        assert any(p.startswith(f"number word '{word}'") for p in problems), problems
+    small.question = "Give me three figures for House 22"
+    assert _problems(small, ["The three figures: " + two], ["f1", "f2"]) == []
+
+
+def test_names_and_numbers_tools_returned_are_known(small):
+    small.con.execute(
+        "INSERT INTO site VALUES ('s2', 'lihtc', '710 Kailua Road Homes', '2 Main St', 21.4, -157.8, '022', "
+        "'012', 1.0, 10, 'hud')"
+    )
+    small.run("get_facts", {"indicator_ids": ["pop_65_plus"], "geos": ["house:022"]})
+    text = GOOD + " Sites include 710 Kailua Road Homes."
+    problems = _problems(small, [text])
+    assert any(p.startswith("names place kailua that was not resolved: delete 'Kailua'") for p in problems)
+    assert any(p.startswith("unsourced number '710'") for p in problems)
+    small.run("find_sites", {"geo": "house:022", "kind": "lihtc"})
+    assert _problems(small, [text]) == []
+    assert _problems(small, [GOOD + " Kailua has the most sites."]) == []
+    assert any("unsourced number '711'" in p for p in _problems(small, [GOOD + " Also 711 Kailua Road."]))
+
+
+def test_vintage_may_sit_in_another_block(s1):
+    assert _problems(s1, ["{geo:house:022} has {fact:f1} {label:f1}.", "Source: {vintage:f1}."]) == []
+
+
+@pytest.mark.parametrize("phone", ["(808) 586-5230", "808-586-5230", "1-800-555-0100"])
+def test_typed_phone_numbers_point_to_the_program_phone(s1, phone):
+    problems = _problems(s1, [GOOD + f" Call {phone} for help."])
+    assert any(p.startswith("typed phone number") and "programs" in p for p in problems), problems
+    assert not any(p.startswith("unsourced number '808'") for p in problems)
+
+
+def test_overlapping_ranges_cannot_be_called_higher_or_lower(small):
+    small.run("compare", {"indicator_id": "pop_65_plus", "geo": "house:022"})
+    near = "{geo:house:022} has {fact:f1} ({vintage:f1}), WORD {geo:county:15001} at {fact:f2}."
+    cites = ["f1", "f2"]
+    ok = near.replace("WORD", "within the margin of error of")
+    assert _problems(small, [ok], cites) == []
+    problems = _problems(small, [near.replace("WORD", "lower than")], cites)
+    assert problems == [
+        "the text says {geo:house:022} is lower than {geo:county:15001}, but their margins of error overlap; "
+        + "write that {geo:house:022} is within the margin of error of {geo:county:15001} and do not call either "
+        + "lower"
+    ]
+    facts_only = "In {vintage:f1}, {fact:f1} is higher than {fact:f2} in {geo:county:15001}."
+    problems = _problems(small, [facts_only], cites)
+    assert (
+        problems and "{fact:f1} is higher than {fact:f2}, but their margins of error overlap" in problems[0]
+    )
+    far = "{geo:house:022} has {fact:f1} ({vintage:f1}), lower than {geo:county:15003} at {fact:f3}."
+    assert _problems(small, [far], ["f1", "f3"]) == []
+
+
+def test_missing_program_words_are_named(s1):
+    _, problems = build_answer(s1, args(programs=["snap_fy2027"], blocks=[GOOD + " Food help exists."]))
+    assert any("listed but not named" in p and "the text lacks 'snap'" in p for p in problems), problems
+
+
+def test_salvage_keeps_the_answer_without_its_failing_sentences(s1):
+    bad = args(
+        blocks=[GOOD + " About 23 percent are new.", "Twelve more live nearby.", "* {label:f1} again"],
+        caveats=["See {vintage:f1}. Maui is close."],
+    )
+    assert build_answer(s1, bad)[0] is None
+    a = salvage(s1, bad)
+    assert a is not None and a.blocks == [GOOD, "* {label:f1} again"] and a.caveats == ["See {vintage:f1}."]
+    assert [f.ref for f in a.facts] == ["f1"]
+
+
+def test_salvage_drops_markers_whose_fact_is_gone(s1):
+    bad = args(blocks=["About 12 people: {fact:f1}.", "{label:f1} ({vintage:f1})"])
+    assert salvage(s1, bad) is None
+    assert salvage(s1, args(blocks=["{fact:f9} is new."], facts=["f9"])) is None
