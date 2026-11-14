@@ -587,7 +587,7 @@ The assistant is scored with the answer checks in klear/eval on two sets of ques
 | --- | --- | --- |
 | Model | claude-haiku-5-5 | claude-haiku-5-5 |
 | Run | 2026-11-01 18:35 HST, rescored with this build | 2026-11-03 HST |
-| Questions | 59 | 100 |
+| Questions | 70 | 100 |
 | Answered correctly | 48 of 50 (96%) | 89 of 100 (89%) |
 | Numbers taken only from the data store | 50 of 50 (100%) | 100 of 100 (100%) |
 | Found the right district | 40 of 40 (100%) | not published |
@@ -609,6 +609,8 @@ The assistant is scored with the answer checks in klear/eval on two sets of ques
 | Declining partisan questions | 3 of 3 (100%) |
 | Typos and shorthand | 3 of 4 (75%) |
 | Ranking districts by a measure | none asked |
+| Follow-up questions that keep their subject | none asked |
+| Questions asked with no district chosen | none asked |
 
 - Practice recording: eval/recordings/claude-haiku-5-5-20261101T183501390320. Questions that failed: find_district-002, messy_input-003.
 - Held-out run: safety reviewer off (the default). Published summary of the held-out run, as reported by the team that ran it. The 100 held-out questions are kept outside this repository so they cannot be used to tune the assistant, and only these totals are published.

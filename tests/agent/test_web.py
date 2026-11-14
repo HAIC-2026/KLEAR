@@ -308,6 +308,30 @@ def test_free_program_answer_lists_each_program_once_with_its_page(endpoint):
     assert not any("federalregister" in p["url"] or p["url"].endswith(".txt") for p in data["programs"])
 
 
+def test_chat_takes_no_district_and_the_last_questions_and_keeps_nothing(endpoint, monkeypatch):
+    monkeypatch.setattr(web, "_RECENT", defaultdict(deque))
+    status, data = chat(endpoint, "How many kūpuna live in Kāneʻohe?", None)
+    assert status == 200 and data["choices"][0]["name"] == "Kāneʻohe"
+    status, data = chat(endpoint, "How many kūpuna live in Waikīkī?", None)
+    assert status == 200 and data["district"]["geo"] == "house:022"
+    subject = data["subject"]
+    earlier = [
+        {
+            "question": "How many kūpuna live in Waikīkī?",
+            "district": subject["geo"],
+            "indicators": subject["indicators"],
+        }
+    ]
+    body = {"question": "And how does that compare with the county?", "district": None, "earlier": earlier}
+    status, raw = request(endpoint, "POST", "/api/chat", json.dumps(body))
+    assert status == 200 and "Honolulu County" in {f["geography"] for f in json.loads(raw)["facts"]}
+    # Answer text is never taken back, and the handler keeps no conversation between requests.
+    body["earlier"] = [{"question": "q", "answer": "made-up figures"}]
+    assert request(endpoint, "POST", "/api/chat", json.dumps(body))[0] == 400
+    assert request(endpoint, "POST", "/api/chat", json.dumps({"question": "Hi", "district": 22}))[0] == 400
+    assert chat(endpoint, "And how does that compare with the county?", None)[1]["facts"] == []
+
+
 def test_refusals_and_unknown_question(endpoint):
     assert chat(endpoint, "How can my party persuade voters?")[1]["refusal"] == "decline_partisan"
     assert chat(endpoint, "What is a resident's home address?")[1]["refusal"] == "decline_individual"

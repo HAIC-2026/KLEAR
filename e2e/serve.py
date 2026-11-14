@@ -101,9 +101,14 @@ def build_store(path: Path) -> None:
     con.close()
 
 
-def _question(messages: list[dict]) -> str:
+def _message(messages: list[dict]) -> str:
     first = messages[0]["content"]
     return " ".join(b.get("text", "") for b in first if isinstance(b, dict)).lower()
+
+
+def _question(messages: list[dict]) -> str:
+    """The question alone, without the selected district or earlier questions that follow it."""
+    return _message(messages).split("\n\n")[0]
 
 
 def _refs(messages: list[dict]) -> list[str]:
@@ -130,6 +135,10 @@ class _Messages:
             raise RuntimeError("scripted outage")
         if "wic" in question:
             return turn(tool("submit_answer", _not_available(), "tu_submit"))
+        if "kāneʻohe" in question and "selected district" not in _message(messages):
+            if len(messages) == 1:
+                return turn(tool("resolve_place", {"text": "Kāneʻohe"}))
+            return turn(tool("submit_answer", _spans(), "tu_submit"))
         if "1 test st" in question:
             if len(messages) == 1:
                 return turn(tool("resolve_place", {"text": "1 Test St, Kāneʻohe"}))
@@ -181,6 +190,18 @@ def _address(messages: list[dict]) -> dict:
         "resolved": geos[0] if geos else None,
         "refusal": "none",
         "blocks": blocks,
+        "facts": [],
+        "programs": [],
+        "caveats": [],
+    }
+
+
+def _spans() -> dict:
+    """A town that spans two districts, asked about with none chosen: no district to answer for."""
+    return {
+        "resolved": None,
+        "refusal": "none",
+        "blocks": ["Kāneʻohe spans more than one House district. Choose one to see its kūpuna figures."],
         "facts": [],
         "programs": [],
         "caveats": [],

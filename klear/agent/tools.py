@@ -107,6 +107,15 @@ KIND_LABELS = {
 KIND_ORDER = {"island": 0, "place": 1, "neighborhood": 2, "division": 3}
 
 
+# A district or Hawaiʻi ZIP code inside a question: House District 22, senate 12, HD 5, 96744.
+DISTRICT_IN = re.compile(
+    r"\b(house|senate|hd|sd)\s*(?:district\s*|dist\.?\s*)?(?:no\.?\s*|#\s*)?(\d{1,2})\b", re.IGNORECASE
+)
+ZIP_IN = re.compile(r"(?<!\d)(96[78]\d{2})(?!\d)")
+# Longest place name, in words, looked for inside a question.
+NAME_WORDS = 5
+
+
 class _Named(NamedTuple):
     kind: str
     id: str
@@ -273,6 +282,23 @@ class Session:
         bare = search_plain(_strip_state(text, head=False))
         found = self._near(key) or (bare != key and (self._exact(bare) or self._near(bare))) or []
         return {"matches": self._name_matches(found)} if found else {"matches": [], "hint": NO_MATCH_HINT}
+
+    def place_named(self, question: str, skip: frozenset[str] = frozenset()) -> dict | None:
+        """The first district, ZIP code, or town, area, island or county name a question holds, resolved as a
+        search would, or None. Names made only of skip words or the state's name are not places here."""
+        if m := DISTRICT_IN.search(question):
+            return self._resolve_place({"text": f"{m.group(1)} {m.group(2)}"})
+        if m := ZIP_IN.search(question):
+            return self._resolve_place({"text": m.group(1)})
+        words = search_plain(question).split()
+        for i in range(len(words)):
+            for n in range(min(NAME_WORDS, len(words) - i), 0, -1):
+                key = " ".join(words[i : i + n])
+                if set(words[i : i + n]) <= skip | STATE_WORDS:
+                    continue
+                if self._exact(key) or key in config.COUNTY_NAMES:
+                    return self.resolve_name(key)
+        return None
 
     def _resolve_id(self, kind: str, id_: str) -> dict:
         """Exactly one Census place, area or county, by its id."""

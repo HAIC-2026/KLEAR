@@ -36,12 +36,70 @@ test('three related questions, each asked with a next-question button', async ({
     // A question already asked is not offered again, even when it said "this district".
     await expect(page.locator('#log .followup', {hasText: `How many kūpuna live in ${DISTRICT}?`})).toHaveCount(0);
   }
-  // Each question stands on its own: the full question and the district, with no earlier answers sent along.
-  expect(sent.slice(1)).toEqual(expected.map(question => ({question, district: 'house:022'})));
+  // Each question goes with the last two questions in this tab: each one's place and measures, never answer text.
+  const asked = ['How many kūpuna live in this district?', ...expected];
+  for (const [i, body] of sent.entries()) {
+    expect(body.question).toBe(asked[i]);
+    expect(body.district).toBe('house:022');
+    expect((body.earlier || []).map(x => x.question)).toEqual(asked.slice(Math.max(0, i - 2), i));
+    for (const x of body.earlier || []) expect(x).toEqual({question: x.question, district: 'house:022', indicators: ['pct_people_poverty', 'pop_65_plus', 'sites_lihtc', 'irs_eitc_returns']});
+  }
   // Next questions keep to the district's address, and only the newest answer offers them.
   await expect(page).toHaveURL(/\/district\/house-22$/);
   await expect(page.locator('#log .followups')).toHaveCount(1);
   await expect(page.locator('#log article').last().locator('.followups')).toBeVisible();
+});
+
+test('with no district chosen, a question naming a town offers its districts, and picking one answers for it', async ({page}) => {
+  await page.goto('/');
+  const sent = [];
+  page.on('request', r => { if (r.url().endsWith('/api/chat')) sent.push(r.postDataJSON()); });
+  await expect(page.locator('#welcome-text')).toHaveText('Ask about a district, a town or ZIP code, or all of Hawaiʻi.');
+  await page.getByLabel('Your question').fill('How many kūpuna live in Kāneʻohe?');
+  await page.getByRole('button', {name: 'Ask KLEAR'}).click();
+  await expect(page.locator('#chat-live')).toHaveText('Answer ready.');
+  expect(sent[0]).toEqual({question: 'How many kūpuna live in Kāneʻohe?', district: null});
+  const answer = page.locator('#log article').last();
+  await expect(answer).toContainText('Kāneʻohe spans more than one House district.');
+  const houses = answer.getByRole('group', {name: 'House districts for Kāneʻohe'});
+  await expect(houses.getByRole('button')).toHaveCount(2);
+  await houses.getByRole('button', {name: /^House 22\b/}).click();
+  await expect(page.locator('#district-title')).toHaveText(DISTRICT);
+  await expect(page).toHaveURL(/\/district\/house-22$/);
+  await expect(page.locator('#chat-live')).toContainText(`Answer ready for ${DISTRICT}.`);
+  await expect(page.locator('#log .user')).toHaveText(Array(2).fill('You asked: How many kūpuna live in Kāneʻohe?'));
+  expect(sent[1].district).toBe('house:022');
+  await expect(page.locator('#log .answer-choices')).toHaveCount(0);
+});
+
+test('with no district chosen, an answer about one district chooses it, and a follow-up keeps its subject', async ({page}) => {
+  await page.goto('/');
+  const sent = [];
+  page.on('request', r => { if (r.url().endsWith('/api/chat')) sent.push(r.postDataJSON()); });
+  const question = `How does poverty in ${DISTRICT} compare with the state?`;
+  await page.getByLabel('Your question').fill(question);
+  await page.getByRole('button', {name: 'Ask KLEAR'}).click();
+  await expect(page.locator('#chat-live')).toContainText(`Answer ready for ${DISTRICT}.`);
+  await expect(page.locator('#district-title')).toHaveText(DISTRICT);
+  await expect(page).toHaveURL(/\/district\/house-22$/);
+  await expect(page.locator('#profile-live')).toHaveText(`Profile for ${DISTRICT} loaded.`);
+  await expect(page.locator('#log article').last().locator('h3')).toHaveText(`KLEAR, ${DISTRICT}`);
+  await expect(page.locator('#log .followups')).toHaveCount(1);
+  await expect(page.locator('#log .switch-offer')).toHaveCount(0);
+  await ask(page, 'And how does that compare with the county?');
+  const subject = {question, district: 'house:022', indicators: ['pct_people_poverty', 'pop_65_plus', 'sites_lihtc', 'irs_eitc_returns']};
+  expect(sent).toEqual([{question, district: null}, {question: 'And how does that compare with the county?', district: 'house:022', earlier: [subject]}]);
+});
+
+test('the statewide starter question is asked with no district chosen', async ({page}) => {
+  await page.goto('/');
+  const sent = [];
+  page.on('request', r => { if (r.url().endsWith('/api/chat')) sent.push(r.postDataJSON()); });
+  await page.locator('#examples').getByRole('button', {name: /highest share of kūpuna/}).click();
+  const question = 'Which House districts have the highest share of kūpuna?';
+  await expect(page.locator('#log .user')).toHaveText(`You asked: ${question}`);
+  await expect(page.locator('#chat-live')).toHaveText(/^Answer ready/);
+  expect(sent).toEqual([{question, district: null}]);
 });
 
 test('the examples include ones picked from the district profile, and they go when the district changes', async ({page}) => {
