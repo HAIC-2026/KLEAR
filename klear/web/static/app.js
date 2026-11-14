@@ -581,11 +581,13 @@ async function loadProfile(geo, name) {
 // districts of the other chamber it overlaps.
 function districtHead(name, p) {
   $('district-name').textContent = name;
-  const about = $('district-about');
+  const about = $('district-about'), member = $('district-member');
   about.replaceChildren();
+  member.replaceChildren();
   if (!p) return;
+  // The legislator sits beside the district's name, or under it on a narrow screen.
+  if ((p.members || []).length) member.append(profileMembers(p.members));
   if (p.where) about.append(node('p', p.where, 'district-where'));
-  if ((p.members || []).length) about.append(profileMembers(p.members));
   const meta = [p.places.length ? `Includes ${placesList(p)}.` : '', p.overlaps.length ? `Overlaps ${overlapsList(p)}.` : ''];
   if (meta.some(Boolean)) about.append(node('p', meta.filter(Boolean).join(' '), 'district-meta'));
 }

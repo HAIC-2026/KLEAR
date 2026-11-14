@@ -300,9 +300,11 @@ summary{font-weight:600;color:var(--accent);cursor:pointer}
 .view-tabs [role=tab]:focus-visible{outline-offset:-6px}.view-tabs [role=tab][aria-selected=true]:focus-visible{outline-color:#fff}
 .tab-new{margin-left:8px;padding:1px 8px;border-radius:var(--r-pill);background:var(--accent-soft);color:var(--accent-dark);font-size:var(--fs-xs);font-weight:600}
 .profile{min-width:0;background:#fff;border:1px solid var(--line);border-radius:var(--r-card);padding:20px var(--card-pad) 4px}
-/* The district's legislator as listed, on one line under where the district is. Where and when the name was read
-   opens beneath it. */
-.profile-member{display:flex;flex-wrap:wrap;align-items:baseline;gap:0 14px;margin:2px 0 0}
+/* The district's legislator as listed, on one line beside the district's name, or under it where there is no room.
+   Where and when the name was read opens beneath it. */
+.district-title{display:flex;flex-wrap:wrap;align-items:baseline;column-gap:24px}
+.district-title h1{min-width:0}
+.profile-member{display:flex;flex-wrap:wrap;align-items:baseline;gap:0 14px;margin:0 0 4px}
 .profile-member-name{margin:0;font-size:var(--fs-sm);line-height:1.5}
 .profile-member-title{font-weight:600}
 details.profile-member-about{margin:0;padding:0;border:0;font-size:var(--fs-xs);line-height:1.5;color:var(--muted)}
