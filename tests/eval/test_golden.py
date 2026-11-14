@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 import yaml
 
+from klear.agent.earlier import Exchange
 from klear.eval.golden import CATEGORIES, GoldenError, load_golden, pending_reason
 
 GOOD = {"id": "q1", "category": "profile", "question": "How many kūpuna?", "ideal": "Gives the count."}
@@ -82,6 +83,30 @@ def test_allowed_geos_direction_and_rule_programs(tmp_path):
     (g,) = load_golden(tmp_path)
     assert g.allowed_geos == [("house", "048"), ("zcta", "96744")]
     assert g.direction == "within_margin" and g.programs == ["snap_fy2027"]
+
+
+def test_earlier_questions_load_as_the_website_sends_them(tmp_path):
+    earlier = [{"question": "How many kūpuna?", "district": ["house", "022"], "indicators": ["pop_65_plus"]}]
+    _write(tmp_path, "follow_up", "q1", GOOD | {"category": "follow_up", "earlier": earlier})
+    (g,) = load_golden(tmp_path)
+    assert g.earlier == (Exchange("How many kūpuna?", ("house", "022"), ("pop_65_plus",)),)
+
+
+@pytest.mark.parametrize(
+    "earlier",
+    [
+        [],
+        [{"question": "q"}] * 3,
+        [{"question": "q", "answer": "text"}],
+        [{"district": ["house", "022"]}],
+        [{"question": "q", "district": ["nowhere", "1"]}],
+        [{"question": "q", "indicators": "pop_65_plus"}],
+    ],
+)
+def test_earlier_questions_are_checked(tmp_path, earlier):
+    _write(tmp_path, "follow_up", "q1", GOOD | {"category": "follow_up", "earlier": earlier})
+    with pytest.raises(GoldenError, match="earlier"):
+        load_golden(tmp_path)
 
 
 def test_shipped_golden_dir_loads():

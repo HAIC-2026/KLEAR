@@ -1,0 +1,23 @@
+# Scripted model turns for no_district-003: a county named with no district chosen.
+- - type: tool_use
+    name: resolve_place
+    input:
+      text: Maui County
+- - type: tool_use
+    name: get_facts
+    input:
+      indicator_ids:
+      - pop_under_18
+      geos:
+      - county:15009
+- - type: tool_use
+    name: submit_answer
+    input:
+      resolved: null
+      refusal: none
+      blocks:
+      - 'Keiki in {geo:county:15009}, {label:f1}: {fact:f1} ({vintage:f1}).'
+      facts:
+      - f1
+      programs: []
+      caveats: []

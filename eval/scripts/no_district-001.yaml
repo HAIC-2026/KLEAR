@@ -1,0 +1,35 @@
+# Scripted model turns for no_district-001: a town across districts, asked with none chosen.
+- - type: tool_use
+    name: resolve_place
+    input:
+      text: Kāneʻohe
+- - type: tool_use
+    name: get_facts
+    input:
+      indicator_ids:
+      - pop_65_plus
+      geos:
+      - house:048
+      - house:049
+      - house:050
+- - type: tool_use
+    name: submit_answer
+    input:
+      resolved: null
+      refusal: none
+      blocks:
+      - 'Kāneʻohe spans more than one House district: it is mostly in {geo:house:049} and partly in {geo:house:050}
+        and {geo:house:048}. Choose one for its full figures.'
+      - 'Kūpuna, {label:f1} ({vintage:f1}):
+
+        * {geo:house:049}: {fact:f2}
+
+        * {geo:house:050}: {fact:f3}
+
+        * {geo:house:048}: {fact:f1}'
+      facts:
+      - f1
+      - f2
+      - f3
+      programs: []
+      caveats: []

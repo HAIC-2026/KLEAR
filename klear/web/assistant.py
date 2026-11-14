@@ -8,6 +8,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from klear.agent.config import DEFAULT_MODEL
+from klear.agent.earlier import INDICATORS_MAX
 from klear.config import MissingSecretError
 from klear.eval.contract import VERSION, Answer, fill_value, geo_display, render
 from klear.eval.scorers import reliability
@@ -15,7 +16,7 @@ from klear.eval.spend import TOKEN_FIELDS, load_prices, request_cost
 from klear.filelock import exclusive
 from klear.web import display
 from klear.web.answers import ask as lookup
-from klear.web.answers import asks_profile
+from klear.web.answers import asks_profile, place_of
 
 BUDGET = Path.home() / ".config" / "klear" / "web_spend.json"
 DAILY_CAP = 5.0
@@ -83,14 +84,49 @@ class DailyBudget:
             return s["spent"] + sum(s["held"].values())
 
 
+def _named(con, geo: tuple[str, str]) -> str | None:
+    row = con.execute("SELECT name FROM geography WHERE geo_type = ? AND geo_id = ?", list(geo)).fetchone()
+    return geo_display(*geo, row[0]) if row else None
+
+
 def answered_district(con, answered: tuple[str, str] | None, selected: tuple[str, str] | None) -> dict:
-    """The House or Senate district an answer is about when it is not the selected one, as {"district": ...}."""
-    if answered is None or selected is None or answered == selected or answered[0] not in ("house", "senate"):
+    """The House or Senate district an answer is about when it is not the selected one, or when none is
+    selected, as {"district": ...}."""
+    if answered is None or answered == selected or answered[0] not in ("house", "senate"):
         return {}
-    row = con.execute(
-        "SELECT name FROM geography WHERE geo_type = ? AND geo_id = ?", list(answered)
-    ).fetchone()
-    return {"district": {"geo": ":".join(answered), "name": geo_display(*answered, row[0])}} if row else {}
+    name = _named(con, answered)
+    return {"district": {"geo": ":".join(answered), "name": name}} if name else {}
+
+
+def subject(con, place: tuple[str, str] | None, refs) -> dict:
+    """What an answer is about, which the page sends back with a follow-up question: its place and the indicator
+    ids and places of its figures. Never its text."""
+    ids = list(dict.fromkeys(r.indicator_id for r in refs))[:INDICATORS_MAX]
+    name = _named(con, place) if place else None
+    if not ids and not name:
+        return {}
+    places = list(dict.fromkeys(f"{r.geo_type}:{r.geo_id}" for r in refs))
+    geo = ":".join(place) if name else None
+    return {"subject": {"geo": geo, "name": name or "", "indicators": ids, "places": places}}
+
+
+def _only_place(refs) -> tuple[str, str] | None:
+    """The one place an answer's figures describe besides the state, or the state when they describe only it,
+    for an answer about a county, which names no district."""
+    places = {(r.geo_type, r.geo_id) for r in refs}
+    others = places - {("state", "15")}
+    return (
+        next(iter(others)) if len(others) == 1 else ("state", "15") if places == {("state", "15")} else None
+    )
+
+
+def _choices(con, question: str, answer, selected) -> dict:
+    """District choices for an assistant answer to a question that names a place spanning several districts,
+    asked with no district chosen."""
+    if selected is not None or answer.resolved is not None:
+        return {}
+    _, _, reply = place_of(con, question, None)
+    return {"choices": reply["choices"]} if reply and "choices" in reply else {}
 
 
 def _payload(con, answer, mode: str, selected: tuple[str, str] | None = None) -> dict:
@@ -131,6 +167,7 @@ def _payload(con, answer, mode: str, selected: tuple[str, str] | None = None) ->
         | display.build(con, answer)
         | display.elsewhere(answer.refusal, bool(answer.facts))
         | answered_district(con, answer.resolved, selected)
+        | subject(con, answer.resolved or selected or _only_place(answer.facts), answer.facts)
     )
 
 
@@ -153,33 +190,36 @@ class Assistant:
             self._client = KlearAgent(None, self.model).client
         return self._client
 
-    def ask(self, con, question: str, district: tuple[str, str], geocoder=None) -> dict:
-        """geocoder finds the Census blocks of a street address, or is None when address lookup is off."""
+    def ask(self, con, question: str, district: tuple[str, str] | None, geocoder=None, earlier=()) -> dict:
+        """district is None when none is chosen. geocoder finds the Census blocks of a street address, or is None
+        when address lookup is off. earlier holds the reader's last questions in this tab."""
         from klear.agent.loop import KlearAgent
 
         try:
             agent = KlearAgent(con, self.model, client=self.client(), geocoder=geocoder)
             rid = self.budget.reserve(agent.max_call_cost(self.model, question, self.prices))
         except (BudgetExceeded, MissingSecretError):
-            return self._basic(con, question, district, geocoder)
+            return self._basic(con, question, district, geocoder, earlier)
         cost = usage = None
         try:
-            answer, usage = agent.answer("web", question, district)
+            answer, usage = agent.answer("web", question, district, earlier)
             cost = request_cost(self.model, usage)
-            return _payload(con, answer, "assistant", district)
+            return _payload(con, answer, "assistant", district) | _choices(con, question, answer, district)
         except Exception:  # noqa: BLE001 - any failure falls back to the free lookup
-            return self._basic(con, question, district, geocoder)
+            return self._basic(con, question, district, geocoder, earlier)
         finally:
             self.budget.settle(rid, cost, usage)
 
     @staticmethod
-    def _basic(con, question: str, district: tuple[str, str], geocoder=None) -> dict:
-        return basic(con, question, district, BASIC, geocoder)
+    def _basic(con, question: str, district: tuple[str, str] | None, geocoder=None, earlier=()) -> dict:
+        return basic(con, question, district, BASIC, geocoder, earlier)
 
 
-def basic(con, question: str, district: tuple[str, str], note: str = "", geocoder=None) -> dict:
+def basic(
+    con, question: str, district: tuple[str, str] | None, note: str = "", geocoder=None, earlier=()
+) -> dict:
     """Free keyword lookup, laid out like an assistant answer when it found figures."""
-    result = lookup(con, question, district, geocoder)
+    result = lookup(con, question, district, geocoder, earlier)
     refs = result.pop("fact_refs", [])
     written, caveats, notes = result.pop("lead", []), result.pop("caveats", []), result.pop("notes", [])
     where, answered = result.pop("where", None), result.pop("district", district)
@@ -207,4 +247,5 @@ def basic(con, question: str, district: tuple[str, str], note: str = "", geocode
         | {"mode": "basic"}
         | display.elsewhere(result["refusal"], bool(refs))
         | answered_district(con, answered, district)
+        | subject(con, answered, refs)
     )

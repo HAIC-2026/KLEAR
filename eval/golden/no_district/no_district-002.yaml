@@ -1,0 +1,24 @@
+id: no_district-002
+category: no_district
+question: Which Senate districts have the highest uninsured rate?
+ideal: Asked with no district chosen. Ranks Hawaiʻi Senate districts by the share of people with no health insurance
+  and names the first tier together, saying their ranges overlap so none can be called the highest.
+tags:
+- demo
+facts:
+- - pct_uninsured
+  - senate
+  - '003'
+- - pct_uninsured
+  - senate
+  - '002'
+- - pct_uninsured
+  - senate
+  - '022'
+- - pct_uninsured
+  - senate
+  - '019'
+must_say:
+- overlap
+- 2020-2024
+refusal: none

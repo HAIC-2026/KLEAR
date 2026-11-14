@@ -1,0 +1,25 @@
+id: follow_up-006
+category: follow_up
+question: How does that compare with Hawaiʻi as a whole?
+ideal: Keeps Maui County and the uninsured share from the earlier answer and compares them with Hawaiʻi. Says the
+  gap is within the margin of error and cites the ACS vintage.
+earlier:
+- question: What share of people in Maui County have no health insurance?
+  district:
+  - county
+  - '15009'
+  indicators:
+  - pct_uninsured
+  - pct_disability
+  - pct_public_coverage
+facts:
+- - pct_uninsured
+  - county
+  - '15009'
+- - pct_uninsured
+  - state
+  - '15'
+must_say:
+- 2020-2024
+direction: within_margin
+refusal: none

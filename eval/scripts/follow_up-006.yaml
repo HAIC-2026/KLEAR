@@ -1,0 +1,25 @@
+# Scripted model turns for follow_up-006: the earlier answer was about a county, compared now with the state.
+- - type: tool_use
+    name: resolve_place
+    input:
+      text: Maui County
+- - type: tool_use
+    name: compare
+    input:
+      indicator_id: pct_uninsured
+      geo: county:15009
+      against:
+      - state:15
+- - type: tool_use
+    name: submit_answer
+    input:
+      resolved: null
+      refusal: none
+      blocks:
+      - '{label:f1} in {geo:county:15009}: {fact:f1} ({vintage:f1}).'
+      - That is within the margin of error of {geo:state:15}, at {fact:f2}.
+      facts:
+      - f1
+      - f2
+      programs: []
+      caveats: []

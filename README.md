@@ -383,9 +383,29 @@ Questions about the people at an address, such as who lives there, are still dec
 address is in another district than the one chosen, the answer is labeled with that district, its
 next questions name it, and a button switches the chat and profile to it. The matched address is shown
 in title case with Hawaiian spelling. The note under the question box says the address goes to the
-Census Bureau and is not stored or logged, and that assistant answers send the question to the AI
-model provider. The agent and eval command lines take the same --no-address-lookup option.
-Chat offers five example questions, a waiting state, explicit refusal labels,
+Census Bureau and is not stored or logged, and that assistant answers send the question, with the last two
+questions in that tab, to the AI model provider. The agent and eval command lines take the same
+--no-address-lookup option.
+
+A question can name its own place, so chat works before a district is chosen. With no district, the page
+sends district null. The basic lookup finds a district, ZIP code, town, neighborhood, island or county
+named in the question, the same way the search box does. One district is answered and chosen on the page,
+so its profile loads. A place that spans several districts gets the search's district buttons in the
+answer, and picking one chooses it and asks again. A county, or an island that is one county such as
+Oʻahu, is answered with the county's figures, and a statewide question with Hawaiʻi's. A question that
+names no place asks for one, and a question that ranks every district says it needs the assistant. With
+the assistant on, the question goes to the agent with no district, and it resolves the place itself.
+
+Follow-ups keep their subject. Each answer carries a subject: the place it is about and the indicator ids
+of its figures. The page sends the last one or two exchanges from the tab with the next question: the
+question, that place and those ids, never answer text, which the server could not check. The server checks
+them (at most two exchanges, questions of up to 500 characters, at most 40 known indicator ids, a stored
+district, county or the state) and keeps none of them. The assistant gets them as a short "Earlier in this
+conversation" block and uses it only to resolve words like that, there or the county, fetching every fact
+again. The basic lookup reuses the last answer's measures when a question names no topic, and its place
+when no district is chosen, so "and how does that compare with the county?" after a poverty answer shows
+the poverty rate for the district, its county and the state.
+Chat offers six example questions, one of them statewide, a waiting state, explicit refusal labels,
 and figure cards with uncertainty, vintage, geography and official source
 links. Source names open the publisher's page about the dataset, never an API answer or a
 file download. Each ACS figure also links to its table for that place on data.census.gov
