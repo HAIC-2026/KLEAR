@@ -741,3 +741,39 @@ def test_salvage_drops_markers_whose_fact_is_gone(s1):
     bad = args(blocks=["About 12 people: {fact:f1}.", "{label:f1} ({vintage:f1})"])
     assert salvage(s1, bad) is None
     assert salvage(s1, args(blocks=["{fact:f9} is new."], facts=["f9"])) is None
+
+
+@pytest.mark.parametrize(
+    ("listed", "kept", "named"),
+    [("SNAP", "snap_fy2027", "SNAP"), ("med_quest", "medquest_2026", "Med-QUEST")],
+)
+def test_a_program_listed_by_its_name_or_catalog_id_gets_its_id(s1, listed, kept, named):
+    a, problems = build_answer(s1, args(programs=[listed], blocks=[GOOD, f"See {named}."]))
+    assert problems == [] and a.programs == [kept]
+
+
+@pytest.mark.parametrize("listed", ["Federal EITC", "medicare_savings"])
+def test_a_program_name_shared_or_unlike_its_rule_stays_unknown(s1, listed):
+    a, problems = build_answer(s1, args(programs=[listed]))
+    assert a is None and problems[0].startswith(f"unknown program id {listed!r}")
+
+
+def test_a_fact_a_marker_cites_is_listed_without_being_named_in_facts(s1):
+    a, problems = build_answer(s1, args(facts=[]))
+    assert problems == [] and [f.ref for f in a.facts] == ["f1"]
+    a, problems = build_answer(s1, args(blocks=[GOOD + " Also {fact:f9}."], facts=[]))
+    assert a is None and any("f9" in p for p in problems)
+
+
+@pytest.mark.parametrize(
+    ("phone", "listed", "ok"),
+    [
+        ("1-855-643-1643", ["snap_fy2027"], True),
+        ("(855) 643-1643", ["snap_fy2027"], True),
+        ("1-855-643-1643", [], False),
+    ],
+)
+def test_a_typed_phone_is_allowed_only_as_a_listed_programs_catalog_phone(s1, phone, listed, ok):
+    text = GOOD + f" Call SNAP at {phone}." if listed else GOOD + f" Call {phone}."
+    a, problems = build_answer(s1, args(blocks=[text], programs=listed))
+    assert (a is not None) == ok, problems

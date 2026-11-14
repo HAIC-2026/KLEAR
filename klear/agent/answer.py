@@ -6,7 +6,16 @@ from dataclasses import replace
 from klear.agent import config
 from klear.agent.tools import _spec, display_name
 from klear.etl.places_gazetteer import plain_name, search_plain
-from klear.eval.contract import MARKER, MEMBER_MARKERS, REFUSALS, VERSION, Answer, geo_key, render
+from klear.eval.contract import (
+    MARKER,
+    MEMBER_MARKERS,
+    PLACE_MARKERS,
+    REFUSALS,
+    VERSION,
+    Answer,
+    geo_key,
+    render,
+)
 from klear.eval.scorers import (
     EMPHASIS,
     FLIP,
@@ -22,7 +31,7 @@ from klear.eval.scorers import (
     sourced,
 )
 from klear.members import members_of
-from klear.programs import by_rule
+from klear.programs import by_rule, catalog
 from klear.store.methods import place_note
 from klear.text import hawaiian, strip_ignorable
 
@@ -195,6 +204,25 @@ def _strings(args: dict, key: str) -> tuple[list[str], list[str]]:
     return [], [f"{key} must be a list of strings"]
 
 
+def _key(name: str) -> str:
+    return re.sub(r"[^0-9a-z]", "", search_plain(name))
+
+
+def program_ids() -> dict[str, str]:
+    """Program ids by their plain id, name or catalog entry, leaving out keys shared by two programs."""
+    known = known_programs()
+    pairs = [(x, i) for i, name in known.items() for x in (i, name, display_name(name))]
+    for p in catalog():
+        same = [
+            r for r in p.rules if r in known and _key(display_name(known[r])) == _key(display_name(p.name))
+        ]
+        pairs += [(x, same[0]) for x in (p.program_id, p.name) if len(same) == 1]
+    found: dict[str, set[str]] = {}
+    for x, i in pairs:
+        found.setdefault(_key(x), set()).add(i)
+    return {k: next(iter(v)) for k, v in found.items() if k and len(v) == 1}
+
+
 def build_answer(session, args: dict, context=None) -> tuple[Answer | None, list[str]]:
     """Answer from a submit_answer call with facts copied from the session, plus its problems."""
     if not isinstance(args, dict):
@@ -206,8 +234,12 @@ def build_answer(session, args: dict, context=None) -> tuple[Answer | None, list
     problems += p
     refs, p = _strings(args, "facts")
     problems += p
+    marked = [r for t in [*blocks, *caveats] for k, r in MARKER.findall(t) if k not in PLACE_MARKERS]
+    refs = list(dict.fromkeys([*refs, *(r for r in marked if r in session.facts)]))
     programs, p = _strings(args, "programs")
     problems += p
+    ids = program_ids()
+    programs = list(dict.fromkeys(ids.get(_key(x), x) for x in programs))
     refusal = args.get("refusal")
     if refusal not in REFUSALS:
         problems.append(f"refusal must be one of {list(REFUSALS)}")
