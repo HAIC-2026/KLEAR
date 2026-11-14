@@ -395,9 +395,23 @@ def finish(session, answer: Answer) -> Answer:
         caveats.append(
             f"{shown} {'is a modeled estimate' if len(modeled) == 1 else 'are modeled estimates'}."
         )
+    caveats += _dated(answer.facts, [*blocks, *caveats])
     return replace(
         answer, resolved=resolved, refusal=refusal, blocks=blocks, caveats=caveats, programs=programs
     )
+
+
+def _dated(facts, texts: list[str]) -> list[str]:
+    """A note giving the year of each source whose shown figures carry no {vintage} marker."""
+    marked = [(k, r) for t in texts for k, r in MARKER.findall(t)]
+    by_ref = {f.ref: f for f in facts}
+    shown = [by_ref[r] for k, r in marked if k == "fact" and r in by_ref]
+    dated = {by_ref[r].source_id for k, r in marked if k == "vintage" and r in by_ref}
+    first = {}
+    for f in shown:
+        if f.source_id not in dated:
+            first.setdefault(f.source_id, f)
+    return [f"{{label:{f.ref}}}: {{vintage:{f.ref}}}." for f in first.values()]
 
 
 def listing_caveats(texts: list[str]) -> list[str]:
