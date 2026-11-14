@@ -364,7 +364,8 @@ def finish(session, answer: Answer) -> Answer:
     caveats = [spelled(t) for t in answer.caveats]
     resolved, refusal, programs = answer.resolved, answer.refusal, list(answer.programs)
     state_only = bool(answer.facts) and all(f.geo_type == "state" for f in answer.facts)
-    if STATEWIDE.search(session.question) and (resolved is None or state_only):
+    # A statewide comparison with figures for another place keeps that place, not the state.
+    if STATEWIDE.search(session.question) and (state_only or (resolved is None and not answer.facts)):
         resolved = ("state", "15")
     if refusal not in ("none", "not_available"):
         return replace(answer, blocks=blocks, caveats=caveats, resolved=resolved)

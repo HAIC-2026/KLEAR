@@ -1553,7 +1553,7 @@ $('question-form').onsubmit = async e => {
     if (next && !adopt) reply.append(next);
     pending.replaceWith(reply);
     saved.answer = answer;
-    const shown = name || about.name || (answer.subject && answer.subject.name);
+    const shown = answerPlace(answer, name);
     done = [shown ? `Answer ready for ${shown}.` : 'Answer ready.', answer.verified && answer.verified.text].filter(Boolean).join(' ');
   } catch (err) {
     reader = reader || readerPlace();
@@ -1575,7 +1575,15 @@ $('question-form').onsubmit = async e => {
     if (reply && ONE_COLUMN.matches && shownTab !== 'ask') $('tab-new').hidden = false;
     if (queued) { const next = queued; queued = null; choose(next.geo, next.name, true, next.push); }
     // Choosing the district drops next questions that name another, so they are added once it is chosen.
-    else if (adopt && !district) { choose(adopt.geo, adopt.name, true); if (next) reply.append(next); }
+    // The chosen district counts as asked about, here and in the saved conversation, like one picked first.
+    else if (adopt && !district) {
+      choose(adopt.geo, adopt.name, true);
+      asked = adopt.geo;
+      sent.dataset.chamber = adopt.geo.split(':')[0];
+      Object.assign(saved, {geo: adopt.geo, name: adopt.name});
+      saveChat();
+      if (next) reply.append(next);
+    }
     if (hold) hold();
     if (follow && (logScrolls() || (!elsewhere && !(hold && hold.field)))) reveal(sent);
     // A reader still in the chat moves to the new answer; after an error, back to the question to retry.
@@ -1627,7 +1635,8 @@ function waiting(name) {
   const tick = setInterval(() => {
     const s = Math.floor((Date.now() - started) / 1000);
     clock.textContent = s === 1 ? '1 second' : `${s} seconds`;
-    if (s >= note) { $('chat-live').textContent = `Still checking for ${name}: ${note} seconds so far. Press Cancel to stop.`; note += 15; }
+    const what = name ? `for ${name}` : 'district data and sources';
+    if (s >= note) { $('chat-live').textContent = `Still checking ${what}: ${note} seconds so far. Press Cancel to stop.`; note += 15; }
   }, 1000);
   const limit = setTimeout(() => stop('timeout'), ASK_LIMIT * 1000);
   wait.stop = () => { clearInterval(tick); clearTimeout(limit); };
@@ -1736,6 +1745,13 @@ function followUps(question, answer, name, county) {
   if (t && t.more) add(t.more(name));
   for (const key of [...(t ? t.next : []), 'profile', 'kupuna', 'housing', 'poverty', 'programs']) add(topic(key).ask(name));
   return out.slice(0, 3);
+}
+
+// The place an answer's figures are for: the district it chose, else its subject, such as Hawaiʻi for a statewide
+// question asked with a district chosen, else the district asked about.
+function answerPlace(answer, name) {
+  const named = x => x && typeof x.name === 'string' && x.name;
+  return named(answer.district) || named(answer.subject) || name || '';
 }
 
 // The district an answer is about: the one the server names when it differs from the selected one, as for a
@@ -2069,7 +2085,7 @@ function tileValue(text) {
 }
 
 function renderAnswer(answer, name) {
-  name = answerAbout(answer, '', name).name || (answer.subject && answer.subject.name) || '';
+  name = answerPlace(answer, name);
   if (!answer.lead) return basicAnswer(answer, name);
   const article = document.createElement('article');
   article.className = 'answer';

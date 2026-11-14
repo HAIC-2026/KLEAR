@@ -23,6 +23,7 @@ from klear.agent.config import (
     PROFILE_LARGEST,
 )
 from klear.agent.tools import Session
+from klear.etl.places_gazetteer import search_plain
 from klear.eval.contract import geo_display
 from klear.labels import in_sentence, meaning, short_label
 from klear.members import as_listed, members_of, named_in, timing
@@ -134,6 +135,7 @@ POINTING = {
     "statewide",
     "hawaii",
     "island",
+    "whole",
     "those",
     "these",
     "them",
@@ -150,7 +152,14 @@ RANKING = re.compile(
     r"|\b(?:rank|ranks|ranked|ranking)\b.*\bdistricts\b|\btop\s+(?:\w+\s+)?districts\b",
     re.IGNORECASE,
 )
+# Words that set the subject against another place, so a statewide phrase adds the state instead of replacing it.
+COMPARING = re.compile(
+    r"\b(?:compar\w*|versus|vs|against|than|relative\s+to|next\s+to|alongside)\b", re.IGNORECASE
+)
 CHAMBERS = ("house", "senate")
+STATE = ("state", "15")
+# The word for each kind of place, in the line under figures shown side by side.
+KIND_WORDS = {"house": "district", "senate": "district", "county": "county", "state": "state"}
 # A share of residents at or above this reads as all of them, and an island holding this much of a county's
 # residents is answered with the county's figures.
 WHOLE = 0.995
@@ -227,6 +236,13 @@ def asks_fixed_income(question: str) -> bool:
     return _has(q, *KUPUNA) and _has(q, "income", "poverty", "poor", "ssi", "supplemental security", "afford")
 
 
+def asks_programs(question: str) -> bool:
+    """Whether a question asks which programs or benefits could help, rather than about one measure."""
+    q = question.casefold()
+    words = ("program", "benefit", "assistance", "support", "help available")
+    return any(w in q for w in words) and not any(_has(q, *stems) for stems, _ in TOPICS)
+
+
 def indicators(con, question):
     """Indicator ids for a question: every profile figure for a profile question, else up to three, with
     topic keywords first and then words shared with labels."""
@@ -254,13 +270,13 @@ def indicators(con, question):
         return ["pop_under_18", "pct_children_poverty", "pct_hh_with_children"]
     if _has(q, "population", "people", "residents"):
         return ["pop_total", "pop_under_18", "pop_65_plus"]
-    terms = set(WORDS.findall(q)) - STOP - POINTING
+    terms = set(WORDS.findall(search_plain(question))) - STOP - POINTING
     if not terms - GENERIC:
         return []
     rows = con.execute("SELECT indicator_id, label FROM indicator ORDER BY indicator_id").fetchall()
     ranked = []
     for key, label in rows:
-        shared = terms & set(WORDS.findall(label.casefold()))
+        shared = terms & set(WORDS.findall(search_plain(label)))
         if shared - GENERIC:
             ranked.append((len(shared), key))
     return [key for _, key in sorted(ranked, reverse=True)[:3]]
@@ -370,13 +386,16 @@ def _comparison(session, fact: dict, others: list[dict], unit: str) -> str:
 
 
 def _places(con, question: str, district: tuple[str, str]) -> list[tuple[str, str]]:
-    """The district's main county and the state when the question asks to compare with them."""
+    """The district's main county and the state when the question asks to compare with them, or names the whole
+    state beside the place, as in 'compare with Hawaiʻi as a whole'. None for the state itself."""
+    if district == STATE:
+        return []
     q = question.casefold()
     out = []
     if "county" in q and (county := main_county(con, district)):
         out.append(county)
-    if "compare" in q or "state" in q or "hawaiʻi" in q or "hawaii" in q:
-        out.append(("state", "15"))
+    if "compare" in q or "state" in q or "hawaiʻi" in q or "hawaii" in q or STATEWIDE.search(question):
+        out.append(STATE)
     return out
 
 
@@ -384,14 +403,10 @@ def group_answer(con, question: str, district: tuple[str, str], shown: str, ids:
     """A group of shares, such as the industries residents work in, listed largest first, each beside the main
     county and the state when the question asks for them."""
     opening, counts = GROUPS[ids]
-    statewide = bool(STATEWIDE.search(question))
-    home = ("state", "15") if statewide else district
-    places = [] if statewide else _places(con, question, district)
-    if statewide:
-        shown = "Hawaiʻi"
+    places = _places(con, question, district)
     session = Session(con)
-    order = session.largest(ids, home)
-    here = json.loads(session.run("get_facts", {"indicator_ids": order, "geos": [":".join(home)]}))
+    order = session.largest(ids, district)
+    here = json.loads(session.run("get_facts", {"indicator_ids": order, "geos": [":".join(district)]}))
     there = {"facts": []}
     if places and order:
         there = json.loads(
@@ -677,15 +692,21 @@ def _match_name(match: dict) -> str:
 
 
 def place_of(con, question: str, selected, earlier=()) -> tuple[tuple[str, str] | None, str, dict | None]:
-    """The place to answer for: one the question names, else the selected district, else the whole state for a
-    statewide question, else the place of the last answer. Also a line saying where a named town lies, or a reply
-    to send instead of an answer: district choices when a named place spans several, or a request to name one."""
+    """The place to answer for: one the question names, else the whole state for a question only about the state,
+    else the selected district, else the place of the last answer. A statewide phrase in a comparison, such as
+    'compare with Hawaiʻi as a whole', keeps the subject, and the state is added beside it. Also a line saying
+    where a named town lies, or a reply to send instead of an answer: district choices when a named place spans
+    several, or a request to name one."""
     session = Session(con)
-    statewide = bool(STATEWIDE.search(question))
-    found = None if statewide else session.place_named(question, frozenset(STOP | GENERIC | POINTING))
+    statewide = STATEWIDE.search(question)
+    rest = STATEWIDE.sub(" ", question) if statewide else question
+    found = session.place_named(rest, frozenset(STOP | GENERIC | POINTING))
     if found is None:
+        # Programs are matched to one district, so a statewide program question keeps the chosen one.
+        if statewide and not COMPARING.search(question) and not (selected and asks_programs(question)):
+            return STATE, "", None
         last = next((x.district for x in reversed(earlier) if x.district), None)
-        subject = selected or (("state", "15") if statewide else last)
+        subject = selected or last or (STATE if statewide else None)
         return subject, "", None if subject else _reply(NAME_A_PLACE)
     matches = found.get("matches") or []
     if not matches:
@@ -782,9 +803,7 @@ def _answer(con, question, district, earlier=()):
     q = question.casefold()
     if asks_fixed_income(q):
         return fixed_income(con, district, shown)
-    if any(
-        word in q for word in ("program", "benefit", "assistance", "support", "help available")
-    ) and not any(_has(q, *stems) for stems, _ in TOPICS):
+    if asks_programs(q):
         if district[0] not in CHAMBERS:
             return _reply(PROGRAMS_NEED_DISTRICT)
         return program_answer(con, district, shown)
@@ -800,14 +819,14 @@ def _answer(con, question, district, earlier=()):
             "facts": [],
             "programs": [],
         }
-    statewide = bool(STATEWIDE.search(question)) or district == ("state", "15")
-    geos = ["state:15"] if statewide else [f"{district[0]}:{district[1]}"]
+    statewide = district == STATE
+    geos = [":".join(district)]
     if not statewide:
         geos += [":".join(p) for p in _places(con, question, district)]
     session = Session(con)
     if asks_profile(q):
         for group, n in PROFILE_LARGEST.values():
-            ids += [i for i in session.largest(group, ("state", "15") if statewide else district)[:n]]
+            ids += [i for i in session.largest(group, district)[:n]]
     here, county_ids = (ids, []) if statewide else _split(con, ids, district[0])
     result = {"facts": []}
     if here:
