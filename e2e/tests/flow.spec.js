@@ -29,13 +29,15 @@ test('search, choose, read the profile, ask, open a source, and come back', asyn
   await expect(page.locator('#district-about')).toContainText('Honolulu County');
   const profile = page.locator('#profile');
   const headline = profile.locator('.profile-stats div').first();
-  await expect(headline.locator('dd')).toHaveText('12.3% ± 2.1 points');
+  await expect(headline.locator('dd').first()).toHaveText('12.3% ± 2.1 points');
   await expect(headline.locator('dt')).toHaveText('People below the poverty level');
+  // Under the label, how the figure stands against the county and the state.
+  await expect(headline.locator('dd.profile-reading')).toHaveText('Higher than the county only');
   // A link at the top leads to each section, and opens it.
   const jumps = profile.getByRole('navigation', {name: 'In this profile'});
   await expect(jumps.getByRole('link')).toHaveText(['People', 'Income', 'Programs to explore here', 'Programs in use', 'Who may qualify', 'Help sites', 'County-level figures', 'Reapportionment plan']);
   await jumps.getByRole('link', {name: 'People'}).click();
-  // The row's label, not its "What this means" summary, which names the label to screen readers.
+  // The row's label, not its "What this means" button, which names the label to screen readers.
   await expect(profile.locator('.profile-label', {hasText: 'Kūpuna (65 and over)'})).toBeVisible();
 
   // Ask: the conversation is not a live region, so long answers are not read aloud as they arrive.
@@ -77,8 +79,9 @@ test('search, choose, read the profile, ask, open a source, and come back', asyn
   await expect(note.getByRole('link', {name: /2020 Census, table P1, Kalawao County/})).toHaveCount(1);
   // The profile flags the same estimate and states the caveat near its top.
   await expect(profile.locator('.profile-notes')).toContainText('Kalawao County (Kalaupapa) is very small');
-  const row = profile.locator('.profile-row').filter({hasText: 'Kūpuna (65 and over)'}).first();
-  await expect(row.locator('.profile-caution')).toHaveText('Use with caution The margin of error is large compared with the estimate.');
+  // The caution sits in the row of notes right under the estimate's own row.
+  const notes = profile.locator('.profile-row:has-text("Kūpuna (65 and over)") + .profile-more').first();
+  await expect(notes.locator('.profile-caution')).toHaveText('Use with caution The margin of error is large compared with the estimate.');
 
   // Open a source: it opens in a new tab, says so, and the conversation is still here afterwards.
   await answer.getByText('Sources', {exact: true}).click();

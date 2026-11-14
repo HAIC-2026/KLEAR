@@ -143,8 +143,9 @@ async function fullProfile(page) {
 }
 
 // A district's link on a laptop: the first screen shows its name, its four headline figures and at least six more
-// figures or programs. The chat beside the profile stays in view as the profile scrolls, and an answer with a chart has
-// 600 px or more to be read in.
+// figures or programs. A table row counts once for each place it shows: the district, its county and the state. The
+// chat beside the profile stays in view as the profile scrolls, and an answer with a chart has 600 px or more to be
+// read in.
 test.describe('a district at 1440 by 900', () => {
   test.skip(({isMobile}) => isMobile, 'a laptop screen');
   test.use({viewport: {width: 1440, height: 900}});
@@ -153,7 +154,7 @@ test.describe('a district at 1440 by 900', () => {
     await page.goto('/district/house-22');
     await expect(page.locator('#profile-live')).toHaveText(`Profile for ${DISTRICT} loaded.`);
     await expect(page.getByRole('heading', {level: 1, name: DISTRICT})).toBeInViewport({ratio: 1});
-    expect(await onScreen(page, '.profile-stats dd')).toBe(4);
+    expect(await onScreen(page, '.profile-stats dd:not(.profile-reading)')).toBe(4);
     expect(await onScreen(page, '.profile-row .profile-figure') + await onScreen(page, '.program .program-name')).toBeGreaterThanOrEqual(6);
 
     await ask(page);

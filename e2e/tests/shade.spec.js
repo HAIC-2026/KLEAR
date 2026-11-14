@@ -38,7 +38,8 @@ test('color the House map by a measure, read the legend, pick a district and ope
   await expect(legend.locator('.legend-source')).toHaveText('Source: American Community Survey 5-year (opens in a new tab), 2020-2024. Hawaiʻi as a whole: 9.8% ± 0.4 points.');
   await expect(legend.getByRole('link', {name: 'American Community Survey 5-year (opens in a new tab)'})).toHaveAttribute('target', '_blank');
 
-  // The picked district keeps its shade, gets the picked outline, and its figure shows under the map as in its profile.
+  // The picked district keeps its shade, gets the picked outline, and under the map are the same figures as in its
+  // profile: its own with its margin, then the state's. The fixture's two ranges overlap, so the map says so in words.
   await map.getByLabel('Or choose from a list').selectOption({label: 'House District 22'});
   await expect(page.locator('#map .district[data-geo="house:022"]')).toHaveClass(/\bq5\b/);
   await expect(page.locator('#map .pick-line')).toHaveAttribute('d', /\S/);
@@ -48,7 +49,9 @@ test('color the House map by a measure, read the legend, pick a district and ope
   const profile = await (await page.request.get('/api/profile?district=house:022')).json();
   const row = profile.sections.flatMap(s => s.rows).find(r => r.id === 'pct_people_poverty');
   await expect(value).toContainText(`${row.value} ${row.spread}`);
-  await expect(value).toContainText(`${row.against.at(-1).lead.replace(/^./, c => c.toUpperCase())} ${row.against.at(-1).rest}.`);
+  const state = row.against.at(-1);
+  expect([state.place, state.direction]).toEqual(['Hawaiʻi', 'within_margin']);
+  await expect(value).toContainText(`About the same as the rate in ${state.place}: ${state.value}.`);
 
   // The table lists every district, highest first, then the ones with no figure.
   await page.locator('#map-table summary').click();

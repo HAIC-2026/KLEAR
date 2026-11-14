@@ -12,7 +12,7 @@ from klear.etl import bls, dotax
 from klear.eval.contract import Answer, FactRef
 from klear.labels import plain_labels
 from klear.store.db import add_facts, add_indicators, add_source
-from klear.web.display import CAUTION, METHODS_PAGE, build, figure_links, profile, profile_csv
+from klear.web.display import CAUTION, METHODS_PAGE, _reading, build, figure_links, profile, profile_csv
 from tests.fixtures.small_store import _fact, add_county_context
 
 
@@ -249,10 +249,15 @@ def _profile_rows(con):
 
 def test_profile_names_the_reason_a_place_has_no_figure(small_con):
     row = _profile_rows(small_con)["sites_lihtc"]
-    assert [a["lead"] + " " + a["rest"] for a in row["against"]] == [
-        "No figure for Honolulu County: not published for county geographies",
-        "No figure for Hawaiʻi: not published for state geographies",
+    assert row["against"] == [
+        {
+            "geo": "county:15003",
+            "place": "Honolulu County",
+            "missing": "not published for county geographies",
+        },
+        {"geo": "state:15", "place": "Hawaiʻi", "missing": "not published for state geographies"},
     ]
+    assert row["reading"] == ""
 
 
 def test_profile_notes_a_state_value_derived_from_counties(small_con):
@@ -276,10 +281,20 @@ def test_profile_notes_a_state_value_derived_from_counties(small_con):
         "('state', '15', 'places_food_insecurity', 17.4, NULL, 'ok', 'range', 'M', 'cdc_places_2025_county', NULL, 15.0, 20.1)"
     )  # fmt: skip
     row = _profile_rows(small_con)["places_food_insecurity"]
-    assert [a["rest"] for a in row["against"]] == [
-        "the rate in Honolulu County: about 16.9%",
-        "the rate in Hawaiʻi: about 17.4% (average of the CDC county estimates)",
+    # the printed summary writes the note after the value; the profile sets it under the value
+    assert [(a["value"], a["plain"], a["aside"]) for a in row["against"]] == [
+        ("about 16.9%", "about 16.9%", ""),
+        (
+            "about 17.4% (average of the CDC county estimates)",
+            "about 17.4%",
+            "average of the CDC county estimates",
+        ),
     ]
+    # every range overlaps the district's, so the row reads as no clear difference, and the strip gets the ranges
+    assert [a["direction"] for a in row["against"]] == ["within_margin", "within_margin"]
+    assert row["reading"] == "No clear difference"
+    assert (row["num"], row["low"], row["high"]) == (20.0, 18.0, 22.0)
+    assert [(a["low"], a["high"]) for a in row["against"]] == [(14.4, 19.4), (15.0, 20.1)]
     # the county data the comparisons come from is cited after the section's own sources
     needs = next(s for s in _profile(small_con)["sections"] if s["title"] == "Modeled needs")
     assert [c["name"] for c in needs["compared"]] == ["PLACES county data"]
@@ -454,10 +469,70 @@ def test_county_level_figures_link_their_series_and_table_and_say_they_cover_the
         section["scope"]
         == "These figures cover all of Honolulu County. They are not published for House District 22."
     )
+    # the county's own figures head the first column, and the state's sit beside them
+    assert section["place"] == "Honolulu County"
     (row,) = section["rows"]
     assert row["label"] == "Unemployment rate (county-level)" and row["value"] == "3.0%"
-    assert row["against"][0]["lead"] == "a little lower than"
-    assert row["against"][0]["rest"] == "the rate in Hawaiʻi: 3.2%"
+    (state,) = row["against"]
+    assert (state["place"], state["plain"], state["direction"]) == ("Hawaiʻi", "3.2%", "lower")
+    assert row["reading"] == "Lower than the state"
+    # the numbers the range strip is drawn from: no margin, so each figure's bounds are the figure
+    assert (row["unit"], row["num"], row["low"], row["high"]) == ("percent", 3.0, 3.0, 3.0)
+    assert (state["num"], state["low"], state["high"]) == (3.2, 3.2, 3.2)
+
+
+def test_a_profile_row_reads_from_the_tested_directions_and_never_the_gap():
+    def against(*directions):
+        return [{"geo": geo, "direction": d} for geo, d in zip(("county:15003", "state:15"), directions)]
+
+    assert _reading(against("higher", "higher")) == "Higher than county and state"
+    assert _reading(against("lower", "lower")) == "Lower than county and state"
+    assert _reading(against("within_margin", "within_margin")) == "No clear difference"
+    assert _reading(against("higher", "within_margin")) == "Higher than the county only"
+    assert _reading(against("within_margin", "lower")) == "Lower than the state only"
+    assert _reading(against("higher", "lower")) == "Higher than the county, lower than the state"
+    # a total carries no direction, and a place with no figure is not compared
+    assert _reading(against(None, None)) == ""
+    assert _reading([{"geo": "county:15003", "place": "x", "missing": "not published"}]) == ""
+    assert _reading([]) == ""
+
+
+def test_a_profile_row_carries_the_numbers_for_its_range_strip(small_con):
+    facts = {
+        "f1": FactRef("f1", "pop_65_plus", "house", "022", "acs", 1000.0, None, None, 100.0, "2020-2024"),
+        "f2": FactRef(
+            "f2", "pop_65_plus", "county", "15003", "acs", 5000.0, 4000.0, 6500.0, None, "2020-2024"
+        ),
+        "f3": FactRef("f3", "pop_65_plus", "state", "15", "acs", None, None, None, None, "2020-2024"),
+    }
+    shown = {"ref": "f1", "indicator_id": "pop_65_plus", "label": "x", "vintage": "2020-2024",
+             "source": "ACS", "reliable": None}  # fmt: skip
+    raw = {
+        "district": {"geo": "house:022", "name": "House District 22"},
+        "counties": [], "places": [], "overlaps": [],
+        "sections": [{"title": "People", "rows": [{"fact": shown, "against": [
+            {"ref": "f2", "geo": "county:15003", "geo_name": "Honolulu County", "share": "20.0%"},
+            {"ref": "f3", "geo": "state:15", "geo_name": "Hawaiʻi"},
+            {"geo": "state:15", "geo_name": "Hawaiʻi", "missing": "not published for state geographies"},
+        ]}]}],
+    }  # fmt: skip
+    (section,) = profile(small_con, raw, SimpleNamespace(facts=facts))["sections"]
+    assert section["place"] == "House District 22" and "scope" not in section
+    (row,) = section["rows"]
+    # an estimate with a margin runs from the estimate less the margin to the estimate plus it
+    assert (row["num"], row["low"], row["high"]) == (1000.0, 900.0, 1100.0)
+    county, state, missing = row["against"]
+    # a published range is kept as it is, and a figure that is not available has no numbers
+    assert (county["num"], county["low"], county["high"]) == (5000.0, 4000.0, 6500.0)
+    assert (state["num"], state["low"], state["high"]) == (None, None, None)
+    # a total is shown beside the other places' totals, with no share sentence and no reading
+    assert county["direction"] is None and row["reading"] == ""
+    assert not {"lead", "rest", "share"} & set(county)
+    assert missing == {
+        "geo": "state:15",
+        "place": "Hawaiʻi",
+        "missing": "not published for state geographies",
+    }
 
 
 def test_work_section_shows_the_three_largest_industries(real_con):

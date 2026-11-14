@@ -564,7 +564,7 @@ LARGEST_INTROS = {
 
 
 def _compared(mine, theirs, unit: str, direction: str | None) -> str:
-    """How the district's value relates to another place's, in words like Census Reporter's profiles.
+    """How a district's value relates to another place's, in words like Census Reporter's profiles, for the map.
     Gaps inside the margins of error read as about the same."""
     if direction == "within_margin" or not _has(mine.value) or not _has(theirs.value) or theirs.value <= 0:
         return "about the same as"
@@ -611,6 +611,45 @@ def _beside(item: dict | None, session, store: _Store) -> dict | None:
     }
 
 
+def _bounds(f) -> dict:
+    """A fact's estimate with its low and high bounds as bare numbers, for the profile's range strips: the
+    published range, or the estimate less and plus its margin of error."""
+    if not _has(f.value):
+        return {"num": None, "low": None, "high": None}
+    if _has(f.value_low) and _has(f.value_high):
+        return {"num": float(f.value), "low": float(f.value_low), "high": float(f.value_high)}
+    moe = float(f.moe) if _has(f.moe) else 0.0
+    return {"num": float(f.value), "low": float(f.value) - moe, "high": float(f.value) + moe}
+
+
+# What a profile row says when no place it is set against differs from it.
+NO_DIFFERENCE = "No clear difference"
+# A reading's words for each direction that is a difference, in the order a reading lists them.
+READINGS = (("higher", "higher than"), ("lower", "lower than"))
+
+
+def _reading(against: list[dict]) -> str:
+    """One line on how a profile figure stands against the places beside it, like 'Higher than county and
+    state'. It is read from the tested directions alone, never the raw gap, so a difference inside the margins of
+    error reads as no clear difference. A figure that differs from one place and not the other ends in 'only',
+    like 'Higher than the county only'. '' for a total, which is not compared, and for a figure with nothing to
+    be set against."""
+    tested = [(a["geo"].split(":")[0], a["direction"]) for a in against if a.get("direction")]
+    if not tested:
+        return ""
+    parts = []
+    for direction, words in READINGS:
+        kinds = [kind for kind, d in tested if d == direction]
+        if kinds:
+            places = f"the {kinds[0]}" if len(kinds) == 1 else " and ".join(kinds)
+            parts.append(f"{words} {places}")
+    if not parts:
+        return NO_DIFFERENCE
+    only = " only" if any(d == "within_margin" for _, d in tested) else ""
+    text = ", ".join(parts) + only
+    return text[0].upper() + text[1:]
+
+
 def _profile_row(row: dict, session, store: _Store) -> dict:
     fact = row["fact"]
     f = session.facts[fact["ref"]]
@@ -618,42 +657,47 @@ def _profile_row(row: dict, session, store: _Store) -> dict:
     against, compared = [], []
     for a in row["against"]:
         if "missing" in a:
-            against.append({"lead": "No figure", "rest": f"for {a['geo_name']}: {a['missing']}"})
+            # a place with no figure keeps its column and says why
+            against.append({"geo": a["geo"], "place": a["geo_name"], "missing": a["missing"]})
             continue
         theirs = session.facts[a["ref"]]
         compared.append(_source(theirs, store))
-        value = _plain(theirs, unit)
-        if note := place_note(theirs.source_id, theirs.geo_type):
-            value = f"{value} ({note})"
-        # The other place's figure on its own too, for the printed summary's county and state columns.
-        figure = {
-            "geo": a["geo"],
-            "place": a["geo_name"],
-            "value": value,
-            "spread": _spread(theirs, unit),
-            "source": _source(theirs, store, fact["source"]),
-            "caution": store.caution(theirs),
-        }
-        if "share" in a:
-            against.append({"lead": a["share"], "rest": f"of the total in {a['geo_name']}: {value}"} | figure)
-        else:
-            lead = _compared(f, theirs, unit, a.get("direction"))
-            rest = f"the {NOUNS.get(unit, 'figure')} in {a['geo_name']}: {value}"
-            against.append({"lead": lead, "rest": rest} | figure)
+        plain = _plain(theirs, unit)
+        note = place_note(theirs.source_id, theirs.geo_type) or ""
+        # The other place's figure in its own column, on the profile and the printed summary, with the numbers its
+        # range strip is drawn from. A rate or an amount also carries its tested direction; a total has none. The
+        # printed summary writes a note on how the place's figure was made after the value; the profile sets it
+        # under the value.
+        against.append(
+            {
+                "geo": a["geo"],
+                "place": a["geo_name"],
+                "value": f"{plain} ({note})" if note else plain,
+                "plain": plain,
+                "aside": note,
+                "spread": _spread(theirs, unit),
+                "source": _source(theirs, store, fact["source"]),
+                "caution": store.caution(theirs),
+                "direction": a.get("direction"),
+            }
+            | _bounds(theirs)
+        )
     return {
         "id": f.indicator_id,
         "label": store.short(f.indicator_id),
         "meaning": store.meaning(f.indicator_id),
         "value": _plain(f, unit),
         "spread": _spread(f, unit),
+        "unit": unit,
         "caution": _caution(fact),
         "method": store.method(f),
         "caveat": fact.get("note", ""),
         "source": _source(f, store, fact["source"]),
         "against": against,
+        "reading": _reading(against),
         "beside": _beside(row.get("beside"), session, store),
         "compared": compared,
-    }
+    } | _bounds(f)
 
 
 def _public(row: dict) -> dict:
@@ -744,12 +788,17 @@ def profile(
 
 
 def _scope(section: dict, raw: dict, store: _Store) -> dict:
-    """For a section of county-level figures, a line that says they cover the whole county, not the district."""
+    """The place a section's own figures are for, which heads their column: the district, or the county for a
+    section of county-level figures, with a line that says they cover the whole county, not the district."""
     key = geo_key(section.get("geo", ""))
+    district = raw["district"]["name"]
     if key is None:
-        return {}
-    county, district = store.place(*key), raw["district"]["name"]
-    return {"scope": f"These figures cover all of {county}. They are not published for {district}."}
+        return {"place": district}
+    county = store.place(*key)
+    return {
+        "place": county,
+        "scope": f"These figures cover all of {county}. They are not published for {district}.",
+    }
 
 
 def _largest(raw: dict) -> dict[str, list[str]]:

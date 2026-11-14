@@ -13,7 +13,7 @@ KLEAR answers questions about Hawaiʻi's 51 House and 25 Senate legislative dist
 One-minute tour:
 
 1. Type a town, such as Kāneʻohe, in the search box. KLEAR lists the House and Senate districts that hold it and the share of its residents in each.
-2. Pick a district. Its own page opens with four headline figures, then the full profile, each figure with its margin of error or range and its county and state values. The chat sits beside it (on a phone, under the Ask tab).
+2. Pick a district. Its own page opens with four headline figures, then the full profile: a table for each topic that sets the district beside its county and the state, each figure with its margin of error or range, and says in words whether a rate differs. The chat sits beside it (on a phone, under the Ask tab).
 3. Ask one of the suggested questions, or your own. Each answer shows its figures as cards and charts with their sources. Open a source to see the publisher's page.
 4. Open Outreach in the menu to see which districts have the most people who meet a program's income test.
 5. Open How we check KLEAR in the footer to see every check the last data build ran.

@@ -49,8 +49,9 @@ test('every label on screen is short and has its meaning beside it', async ({pag
   const texts = await labelTexts(labels);
   expect(texts.length).toBeGreaterThan(3);
   for (const text of texts) expect(text.length, text).toBeLessThanOrEqual(45);
+  // In the profile the meaning opens from a button beside each label.
   const rows = page.locator('#profile .profile-row');
-  await expect(rows.locator('details.meaning')).toHaveCount(await rows.count());
+  await expect(rows.locator('button.info')).toHaveCount(await rows.count());
   for (const tile of await answer.locator('.tile').all()) await expect(tile.locator('details.meaning')).toHaveCount(1);
 });
 
