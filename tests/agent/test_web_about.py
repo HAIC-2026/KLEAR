@@ -32,11 +32,16 @@ def _report(path, built_at=BUILT):
 
 def test_counts_and_sources_come_from_the_store(small_con, tmp_path):
     data = about(small_con, tmp_path / "validation.json")
-    assert data["facts"] == ["2 House and 1 Senate districts", "3 measures from 2 public sources"]
+    assert data["facts"] == ["2 House and 1 Senate districts", "3 measures from 3 public sources"]
     assert data["crosscheck"] is None
     assert [(s["name"], s["publisher"], s["years"]) for s in data["sources"]] == [
         ("American Community Survey 5-year", "Census", "2020-2024"),
         ("Public Housing", "HUD", "2025"),
+        (
+            "2021 Reapportionment Commission Final Report and Reapportionment Plan",
+            "Office of Elections",
+            "Final report, February 25, 2022",
+        ),
     ]
     assert set(data) == {"facts", "sources", "crosscheck"}
 

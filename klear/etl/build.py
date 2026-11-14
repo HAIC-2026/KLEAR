@@ -13,10 +13,11 @@ from pathlib import Path
 import duckdb
 import httpx
 import pandas as pd
+from pypdf.errors import PyPdfError
 
 from klear import config
 from klear.config import MissingSecretError
-from klear.etl import areas, chas, cms, hud, irs, manual, places, places_gazetteer, sites
+from klear.etl import areas, chas, cms, hud, irs, manual, places, places_gazetteer, plan_report, sites
 from klear.etl import fetch as fetch_mod
 from klear.etl.blocks import build_block_table, load_block_points
 from klear.etl.boundaries import ArcGISError, download_districts, export_web_geojson
@@ -43,6 +44,7 @@ from klear.store.db import (
     add_blocks,
     add_coverage,
     add_coverage_exclusions,
+    add_district_plan,
     add_facts,
     add_geographies,
     add_indicators,
@@ -64,6 +66,7 @@ from klear.validation.gazetteer import check_gazetteer
 from klear.validation.hud import check_hcv
 from klear.validation.irs import check_irs
 from klear.validation.places import check_places, check_places_county
+from klear.validation.plan_report import check_plan_report
 from klear.validation.population import check_population
 from klear.validation.report import (
     CAVEATS,
@@ -128,6 +131,9 @@ SOURCES = {
         "Comprehensive Housing Affordability Strategy (CHAS) data, Table 8", HUD_PUBLISHER, chas.CHAS_URL,
         chas.VINTAGE, chas.PAGE_URL,
     ),
+    plan_report.SOURCE_ID: (
+        plan_report.NAME, plan_report.PUBLISHER, plan_report.URL, plan_report.VINTAGE, plan_report.PAGE_URL,
+    ),
 }  # fmt: skip
 
 
@@ -151,6 +157,7 @@ STORE_STEPS = (
     "chas",
     "gazetteer",
     "areas",
+    "plan_report",
     "county_state",
 )
 EXIT_MEANING = {
@@ -311,6 +318,25 @@ def _population(blocks: pd.DataFrame, api) -> CheckResult:
     return check_population(blocks, census, commission, commission_problem=problem)
 
 
+def _plan_report(con) -> CheckResult:
+    # the report's district descriptions and permanent residents, checked against its totals and the plan files
+    try:
+        report = plan_report.load_report()
+    except (httpx.HTTPError, PyPdfError, ValueError) as e:
+        raise StepSkipped(f"Reapportionment Commission report download or read failed: {e}") from None
+    try:
+        commission, problem = load_commission(), None
+    except (httpx.HTTPError, OSError, RuntimeError, ValueError, KeyError) as e:
+        commission, problem = None, f"download or read failed ({type(e).__name__})"
+    result, rows = check_plan_report(report, commission, commission_problem=problem)
+    name, publisher, url, vintage, page_url = SOURCES[plan_report.SOURCE_ID]
+    add_source(
+        con, plan_report.SOURCE_ID, name, publisher, url, vintage, plan_report.LICENSE, page_url=page_url
+    )
+    add_district_plan(con, rows.assign(source_id=plan_report.SOURCE_ID))
+    return result
+
+
 def _site_counts(df: pd.DataFrame) -> str:
     n = df.kind.value_counts()
     return "sites by kind: " + ", ".join(f"{SITE_WORDS[k]} {n.get(k, 0):,}" for k in SITE_WORDS)
@@ -432,6 +458,7 @@ def _store_steps(con, blocks, house, senate, step, checks: list[CheckResult]) ->
         ("chas", chas_step),
         ("gazetteer", gazetteer_step),
         ("areas", areas_step),
+        ("plan_report", lambda: checks.append(_plan_report(con))),
         ("county_state", lambda: checks.append(check_county_state(con))),
     ):
         step(name, fn)
