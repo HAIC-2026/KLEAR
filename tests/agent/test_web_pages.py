@@ -26,12 +26,14 @@ HEADER_LINKS = [
     ("#chat", "Ask"),
     ("#district-map", "Map"),
     ("/outreach.html", "Outreach"),
-    ("#sources", "Sources"),
+    ("/#sources", "Sources"),
     ("/methods.html", "Methods"),
     ("/glossary.html", "Glossary"),
     ("/checks.html", "How we check KLEAR"),
-    ("#about", "About"),
+    ("/#about", "About"),
 ]
+# The home page sections a district's page leaves out, so its header opens them on the home page from everywhere.
+HOME_ONLY = ["find", "sources", "about"]
 MENU = ["Sources", "Methods", "Glossary", "How we check KLEAR"]
 
 
@@ -84,10 +86,13 @@ def test_the_header_reaches_every_part_of_klear_in_task_order():
 
 
 def test_other_pages_link_the_home_page_sections_from_anywhere():
-    # On the home page, its sections are linked in place, so a district's own address keeps its district. Elsewhere
-    # they open the home page. Find a district opens the home page's search from everywhere.
-    assert 'href="/#find"' in block("index.html", "header")
-    assert not re.search(r'href="/#(?!find")', block("index.html", "header"))
+    # On the home page, the sections a district's page also shows (Ask and Map) are linked in place, so a district's
+    # own address keeps its district. Elsewhere they open the home page. Find a district, Sources and About are left
+    # out of a district's page, so they open the home page from everywhere.
+    home_only = "|".join(HOME_ONLY)
+    for section in HOME_ONLY:
+        assert f'href="/#{section}"' in block("index.html", "header"), section
+    assert not re.search(rf'href="/#(?!({home_only})")', block("index.html", "header"))
     for page in set(PAGES) - {"index.html"}:
         assert not re.search(r'href="#', block(page, "header")), page
 

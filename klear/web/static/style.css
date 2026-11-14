@@ -282,8 +282,9 @@ summary{font-weight:600;color:var(--accent);cursor:pointer}
    district's name and where it is, then its profile: four headline figures, links to each section, the share buttons
    and the sections, with big figures, plain labels, and comparisons written as sentences. On wide screens the chat
    sits beside the profile, as tall as the window, and stays in view while the profile scrolls; below 1200 px the two
-   take turns behind tabs (see the end of this block). */
-.district-page .band,.district-page #chat-head,.district-page .chat-aside{display:none}
+   take turns behind tabs (see the end of this block). The page ends with the profile and the map: the home page's
+   How it works, Sources and About are a link away, in the profile's closing row and the header. */
+.district-page .band,.district-page #chat-head,.district-page .chat-aside,.district-page #how,.district-page #sources,.district-page #about{display:none}
 .district-page .chat-section{padding:var(--district-top) 0 var(--section-y)}
 .district-page .chat-section>.wrap{max-width:1440px}
 .district-head{min-width:0;scroll-margin-top:calc(var(--stick) + var(--district-top))}
@@ -330,6 +331,11 @@ details.profile-member-about{margin:0;padding:0;border:0;font-size:var(--fs-xs);
 .profile-jumps-title{margin:0;font-size:var(--fs-sm);color:var(--muted)}
 .profile-jumps ul{display:flex;flex:1 1 24rem;flex-wrap:wrap;gap:0 18px;margin:0;padding:0;list-style:none}
 .profile-jumps a,.profile-back a{display:inline-block;padding:4px 0;font-size:var(--fs-sm);font-weight:600}
+/* The row that closes the profile: where to read about the data, and the way to another district. */
+.profile-end{display:flex;flex-wrap:wrap;align-items:baseline;gap:0 18px;margin:var(--block-gap) 0 0;padding-top:8px;border-top:1px solid var(--line)}
+.profile-end-title{margin:0;font-size:var(--fs-sm);color:var(--muted)}
+.profile-end ul{display:flex;flex:1 1 24rem;flex-wrap:wrap;gap:0 18px;margin:0;padding:0;list-style:none}
+.profile-end a{display:inline-block;padding:10px 0;font-size:var(--fs-sm);font-weight:600}
 .profile .profile-section{margin:0;padding:0;scroll-margin-top:calc(var(--stick) + 12px)}
 .profile-section>summary{padding:10px 0;font-size:var(--fs-md);font-weight:700}
 /* A section's figures as a table: the measure, then the home place and each place beside it in its own column, then how
