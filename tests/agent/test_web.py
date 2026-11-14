@@ -159,6 +159,29 @@ def test_profile_endpoint_lays_out_the_district_profile(endpoint):
         assert get(endpoint, "/api/profile?district=" + bad)[0] == 400
 
 
+def test_profile_gives_the_official_description_and_permanent_residents(endpoint):
+    plan = json.loads(get(endpoint, "/api/profile?district=house:022")[1])["plan"]
+    assert plan["description"] == {
+        "text": "The 22nd Representative District comprises the portion of the island of Oʻahu including Manoa.",
+        "cite": "report page D-017, PDF page 891",
+    }
+    assert (
+        plan["population"]["value"] == "26,451"
+        and plan["population"]["cite"] == "report page 15, PDF page 23"
+    )
+    assert "not the same as the total population" in plan["population"]["note"]
+    assert plan["source"]["url"] == "https://example.org/reapportionment"
+    # a count left out by the build is not shown, and a district without either has no block
+    partial = json.loads(get(endpoint, "/api/profile?district=house:023")[1])["plan"]
+    assert "description" in partial and "population" not in partial
+    assert json.loads(get(endpoint, "/api/profile?district=senate:012")[1])["plan"] is None
+
+
+def test_profile_from_a_store_without_the_plan_table(small_con):
+    small_con.execute("DROP TABLE district_plan")
+    assert display.plan(small_con, "house:022") is None
+
+
 def test_profile_gives_the_printed_summary_its_columns_programs_and_sources(endpoint):
     profile = json.loads(get(endpoint, "/api/profile?district=house:022")[1])
     row = next(r for s in profile["sections"] for r in s["rows"] if r["id"] == "pop_65_plus")
@@ -214,7 +237,11 @@ def test_about_serves_store_facts_and_sources(endpoint):
     body = json.loads(data)
     assert status == 200 and headers["Cache-Control"] == "no-store"
     assert body["facts"][0] == "2 House and 1 Senate districts"
-    assert "example" not in body and [s["publisher"] for s in body["sources"]] == ["Census", "HUD"]
+    assert "example" not in body and [s["publisher"] for s in body["sources"]] == [
+        "Census",
+        "HUD",
+        "Office of Elections",
+    ]
 
 
 def test_about_without_a_store_is_unavailable(tmp_path):
