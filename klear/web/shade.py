@@ -111,6 +111,8 @@ def map_view(con, indicator: str, chamber: str) -> dict:
     session = Session(con)
     ranked = json.loads(session.run("rank_districts", {"indicator": indicator, "chamber": chamber}))
     if "error" in ranked:
+        if ranked["error"].startswith("rank_districts failed:"):
+            raise RuntimeError(ranked["error"])
         raise NoMeasure(ranked["error"])
     found = json.loads(session.run("get_facts", {"indicator_ids": [indicator], "geos": ["state:15"]}))
     store = _Store(con)
