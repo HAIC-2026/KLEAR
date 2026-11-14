@@ -264,11 +264,16 @@ def _ask(g, agent, con, mode, model, spend, prices, result, keep=None) -> tuple[
         return Item(g, "unanswered", result.stopped), None
     if keep is not None:
         try:
-            save_recording(*keep, g.id, answer, usage, getattr(agent, "trace", None))
+            trace = getattr(agent, "trace", None)
+            seen = getattr(agent, "seen", None)
+            save_recording(
+                *keep, g.id, answer, usage, trace if seen is None else [*(trace or []), {"seen": seen}]
+            )
         except OSError as e:
             result.error = f"recording not saved for {g.id}: {e}"
     try:
-        item = Item(g, "scored", "", score(g, answer, con), answer, _render(answer, con), usage)
+        seen = getattr(agent, "seen", None)
+        item = Item(g, "scored", "", score(g, answer, con, seen=seen), answer, _render(answer, con), usage)
     except Exception as e:  # noqa: BLE001 - any scorer crash fails only this question
         item = _failed(g, f"scoring error: {e!r}", answer, usage)
     return item, usage

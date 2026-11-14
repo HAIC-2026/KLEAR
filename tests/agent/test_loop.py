@@ -574,3 +574,10 @@ def test_last_answer_is_salvaged_before_the_bare_fallback(small_con):
     ans, _ = agent.answer("x", "How many seniors live in House 22?", None)
     assert agent.trace[-1] == {"stop": "salvaged"}
     assert ans.blocks == [GOOD] and [f.ref for f in ans.facts] == ["f1"]
+
+
+def test_the_agent_keeps_what_its_tools_returned(small_con):
+    place = tool("resolve_place", {"text": "House 23"})
+    agent = KlearAgent(small_con, client=FakeClient([place, FACTS, submit(ok())]))
+    agent.answer("x", "How many seniors live in House 22?", ("house", "022"))
+    assert "house:023" in agent.seen["resolved"] and set(agent.seen) == {"resolved", "names", "counts"}

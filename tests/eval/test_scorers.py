@@ -898,3 +898,16 @@ def test_label_numbers_need_their_own_unit_phrase(eval_store):
         )
     )
     assert o["fidelity"].passed is True
+
+
+def test_places_and_numbers_the_tools_returned_are_allowed(eval_store):
+    a = _ans(
+        [
+            "{geo:house:022} has {fact:f1} kūpuna, and {geo:senate:012} holds it. The center is at 710 Main St."
+        ],
+        [_ref()],
+    )
+    bare = _by(score(_gold(), a, eval_store))["fidelity"]
+    assert bare.passed is False and "senate 012" in bare.detail and "'710'" in bare.detail
+    seen = {"resolved": ["senate:012"], "names": ["710 Main St"], "counts": []}
+    assert _by(score(_gold(), a, eval_store, seen=seen))["fidelity"].passed is True
