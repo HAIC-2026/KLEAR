@@ -121,6 +121,20 @@ CREATE TABLE IF NOT EXISTS site (
     source_id VARCHAR NOT NULL REFERENCES source (source_id)
 );
 
+-- Legislators by district as listed by the Legislature's Public Access Room: the name as printed, an official
+-- page, the date printed on the listing and the date the build fetched it. No party, votes or record.
+CREATE TABLE IF NOT EXISTS member (
+    geo_type VARCHAR NOT NULL CHECK (geo_type IN ('house', 'senate')),
+    geo_id VARCHAR NOT NULL,
+    name VARCHAR NOT NULL CHECK (length(name) > 0),
+    profile_url VARCHAR NOT NULL CHECK (length(profile_url) > 0),
+    listed_on VARCHAR NOT NULL,
+    retrieved_on VARCHAR NOT NULL,
+    source_id VARCHAR NOT NULL REFERENCES source (source_id),
+    PRIMARY KEY (geo_type, geo_id, name),
+    FOREIGN KEY (geo_type, geo_id) REFERENCES geography (geo_type, geo_id)
+);
+
 -- 2020 Census blocks with their county, tract, ZCTA, 2022-plan districts and population.
 CREATE TABLE IF NOT EXISTS blocks (
     block VARCHAR PRIMARY KEY,

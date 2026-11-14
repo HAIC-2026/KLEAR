@@ -12,6 +12,7 @@ from klear.etl.places_gazetteer import plain_name, search_plain
 from klear.eval.contract import FactRef, fill_value, geo_display, geo_key, short_name
 from klear.eval.scorers import counties, program_names, reliability
 from klear.labels import plain_labels
+from klear.members import Member, as_listed, by_name, members_of, timing
 from klear.programs import ELIGIBILITY_NOTE, NEEDS, Program, catalog
 from klear.rules.registry import load_rules
 from klear.store.db import MOE_STATUSES, SITE_KINDS, VALUE_STATUSES
@@ -201,6 +202,8 @@ class Session:
         self.places: set[str] = set()
         self.geos: set[tuple[str, str]] = set()
         self.resolved: set[tuple[str, str]] = set()
+        # districts whose listed member a tool returned, which {member:TYPE:ID} may name
+        self.members: set[tuple[str, str]] = set()
         self.context: tuple[str, str] | None = None
         self.question = ""
         self.tiers: dict[str, str] = {}
@@ -877,6 +880,7 @@ class Session:
             "counties": [self._geo("county", c, share=round(p / total, 4)) for c, p in by_county if p],
             "places": [{"name": n, "share": round(p / total, 4)} for n, p in places],
             "overlaps": [self._geo(other, g, share=round(p / total, 4)) for g, p in overlaps],
+            "members": self._member_entries(members_of(self.con, *geo)),
             "sections": [],
             "missing": [],
         }
@@ -1193,6 +1197,50 @@ class Session:
         ).fetchone()
         return row is not None and row[0] == 0
 
+    # find_member
+
+    def _member_entries(self, found: list[Member]) -> list[dict]:
+        out = []
+        for m in found:
+            key = (m.geo_type, m.geo_id)
+            self.members.add(key)
+            self.resolved.add(key)
+            out.append(
+                {
+                    "marker": f"{{member:{m.geo}}}",
+                    **self._geo(*key),
+                    "title": m.title,
+                    "listed_name": m.name,
+                    "official_page": m.profile_url,
+                    "listed": as_listed(m),
+                    "timing": timing(m),
+                }
+            )
+        return out
+
+    def _find_member(self, args: dict) -> dict:
+        district, name = args.get("district"), args.get("name")
+        if bool(district) == bool(name):
+            raise ToolError("give exactly one of district (TYPE:ID) or name")
+        if district:
+            geo = _geo_arg(district)
+            if geo[0] not in ("house", "senate") or self._name(*geo) is None:
+                raise ToolError("district must be a stored House or Senate district, for example house:022")
+            found = members_of(self.con, *geo)
+            if not found:
+                return {"members": [], "note": f"No member is listed for {self._name(*geo)}."}
+            return {"members": self._member_entries(found)}
+        found = by_name(self.con, _str(args, "name"))
+        if not found:
+            return {
+                "members": [],
+                "note": "No listed member has that exact name. Names must match as listed, without near spellings.",
+            }
+        out = {"members": self._member_entries(found)}
+        if len(found) > 1:
+            out["note"] = "Several members match. List each one, or ask which one the user means."
+        return out
+
     def _explain_source(self, args: dict) -> dict:
         sid = _str(args, "source_id")
         row = self.con.execute(
@@ -1323,6 +1371,23 @@ TOOL_SPECS = [
         "fact, not the count of developments.",
         {"geo": _GEO, "kind": {"type": "string", "enum": sorted(SITE_KINDS)}},
         ["geo"],
+    ),
+    _spec(
+        "find_member",
+        "The legislator a Legislature listing names for a House or Senate district, or the district of a "
+        "legislator by name. Give district or name. Names match exactly, ignoring case, ʻokina and kahakō, and "
+        "every match is returned. Each member has a marker: write the member only with it, as in "
+        '"{geo:house:022} is represented by {member:house:022}." The marker prints the title and name with where '
+        "and when it was listed, and a caveat on the election timing is added for you. Never give a party, votes, record "
+        "or opinion of a member.",
+        {
+            "district": {
+                **_GEO,
+                "description": "House or Senate district as TYPE:ID, for example house:022.",
+            },
+            "name": {**_STR, "description": "The legislator's name as the user wrote it, without the title."},
+        },
+        [],
     ),
     _spec(
         "explain_source",

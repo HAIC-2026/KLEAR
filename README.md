@@ -373,6 +373,19 @@ used only for that request: it is not stored, the server keeps no request log, a
 says so beside the search box. If the geocoder is unreachable, search falls back to names and
 says so. Start the site with --no-address-lookup to keep every request local.
 
+Chat also answers who represents a district ("Who represents House District 22?") and which district a
+legislator represents ("Which district does Senator Stanley Chang represent?"). The build reads the members from the
+Legislative Reference Bureau Public Access Room's Representatives at a Glance and Senators at a Glance PDFs
+(https://lrb.hawaii.gov/par/current-legislature/), with each member's official page from the Pictures and Profiles
+PDFs, and keeps the name as printed, the chamber, the district, that link, the date on the listing and the date it
+was fetched. Party is never stored. The capitol.hawaii.gov member pages refuse scripted downloads, so the build does
+not read them. A validation check requires exactly one member for each of the 51 House and 25 Senate districts.
+Names match exactly, ignoring case, ʻokina and kahakō, and a name that fits several members lists each one. Every
+mention says "as listed on" the listing and the date it was fetched, and says when the listing is dated before the
+general election, since it may not show members elected then. The assistant's find_member tool and the basic lookup
+give the same answer, and the district profile and its printed summary show the member with the same note. Questions
+about how to vote, a party or a legislator's record are still declined.
+
 Chat takes a street address too, as in "Which House and Senate district is 310 W Kaʻahumanu Ave,
 Kahului in?". A street address on its own is a place, not a person, so it is answered, not declined.
 The assistant passes the address to its resolve_place tool, and the basic lookup finds it in the

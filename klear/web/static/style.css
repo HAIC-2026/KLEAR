@@ -300,6 +300,19 @@ summary{font-weight:600;color:var(--accent);cursor:pointer}
 .view-tabs [role=tab]:focus-visible{outline-offset:-6px}.view-tabs [role=tab][aria-selected=true]:focus-visible{outline-color:#fff}
 .tab-new{margin-left:8px;padding:1px 8px;border-radius:var(--r-pill);background:var(--accent-soft);color:var(--accent-dark);font-size:var(--fs-xs);font-weight:600}
 .profile{min-width:0;background:#fff;border:1px solid var(--line);border-radius:var(--r-card);padding:20px var(--card-pad) 4px}
+/* The district's legislator as listed, on one line beside the district's name, or under it where there is no room.
+   Where and when the name was read opens beneath it. */
+.district-title{display:flex;flex-wrap:wrap;align-items:baseline;column-gap:24px}
+.district-title h1{min-width:0}
+.profile-member{display:flex;flex-wrap:wrap;align-items:baseline;gap:0 14px;margin:0 0 4px}
+.profile-member-name{margin:0;font-size:var(--fs-sm);line-height:1.5}
+.profile-member-title{font-weight:600}
+details.profile-member-about{margin:0;padding:0;border:0;font-size:var(--fs-xs);line-height:1.5;color:var(--muted)}
+.profile-member-about[open]{flex-basis:100%}
+.profile-member-about summary{padding:4px 0}
+.profile-member-note{margin:0 0 4px;max-width:var(--measure)}
+.member-links{margin:0 0 12px;font-size:var(--fs-sm);color:var(--muted);line-height:1.5}
+.member-links p{margin:0 0 4px}
 /* The Commission's official description and permanent residents, each with its report page, in a section of its own. */
 .profile-plan{max-width:var(--measure);padding-bottom:4px}
 .profile-plan p{margin:0 0 8px;font-size:var(--fs-sm);line-height:1.5}
@@ -671,6 +684,8 @@ footer a{color:#fff}
 .sheet-head{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6pt 18pt;align-items:end;padding-bottom:6pt;border-bottom:2.5pt solid var(--rule)}
 .sheet-kicker{font-size:var(--pt-xs);font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
 .sheet-where{margin-top:2pt;font-size:var(--pt-md)}
+.sheet-member{margin-top:2pt;font-size:var(--pt-sm)}
+.sheet-member b{font-weight:600}
 .sheet-live{max-width:3.2in;padding:4pt 8pt;border:1pt solid var(--rule);border-radius:4pt;font-size:var(--pt-xs);color:var(--muted)}
 .print-sheet .sheet-live .sheet-url{font-size:var(--pt-sm);font-weight:700;color:var(--ink)}
 .sheet-dates{margin-top:2pt}

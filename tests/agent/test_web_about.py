@@ -38,6 +38,12 @@ def test_counts_and_sources_come_from_the_store(small_con, tmp_path):
         ("American Community Survey 5-year", "Census", "2020-2024"),
         ("Public Housing", "HUD", "2025"),
         (
+            "Representatives at a Glance, Thirty-Third Legislature, 2025-2026",
+            "LRB",
+            "Listing dated October 5, 2026",
+        ),
+        ("Senators at a Glance, Thirty-Third Legislature, 2025-2026", "LRB", "Listing dated October 5, 2026"),
+        (
             "2021 Reapportionment Commission Final Report and Reapportionment Plan",
             "Office of Elections",
             "Final report, February 25, 2022",

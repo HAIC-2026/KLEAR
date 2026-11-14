@@ -17,7 +17,19 @@ from pypdf.errors import PyPdfError
 
 from klear import config
 from klear.config import MissingSecretError
-from klear.etl import areas, chas, cms, hud, irs, manual, places, places_gazetteer, plan_report, sites
+from klear.etl import (
+    areas,
+    chas,
+    cms,
+    hud,
+    irs,
+    manual,
+    members,
+    places,
+    places_gazetteer,
+    plan_report,
+    sites,
+)
 from klear.etl import fetch as fetch_mod
 from klear.etl.blocks import build_block_table, load_block_points
 from klear.etl.boundaries import ArcGISError, download_districts, export_web_geojson
@@ -48,6 +60,7 @@ from klear.store.db import (
     add_facts,
     add_geographies,
     add_indicators,
+    add_members,
     add_places,
     add_sites,
     add_source,
@@ -65,6 +78,7 @@ from klear.validation.eligible import check_admin_counts, check_district_sums
 from klear.validation.gazetteer import check_gazetteer
 from klear.validation.hud import check_hcv
 from klear.validation.irs import check_irs
+from klear.validation.members import check_members
 from klear.validation.places import check_places, check_places_county
 from klear.validation.plan_report import check_plan_report
 from klear.validation.population import check_population
@@ -153,6 +167,7 @@ STORE_STEPS = (
     "cms",
     "hud_vouchers",
     "sites",
+    "members",
     "places",
     "chas",
     "gazetteer",
@@ -399,6 +414,17 @@ def _store_steps(con, blocks, house, senate, step, checks: list[CheckResult]) ->
         result.notes.insert(0, _site_counts(df))
         checks.append(result)
 
+    def members_step():
+        df, listed = members.load_members()
+        for sid, src in listed.items():
+            add_source(
+                con, sid, src["name"], members.PUBLISHER, src["url"], src["vintage"], members.LICENSE,
+                page_url=members.PAGE_URL,
+            )  # fmt: skip
+        add_members(con, df)
+        districts = {"house": list(house.geo_id), "senate": list(senate.geo_id)}
+        checks.append(check_members(df, districts, {c: v[3] for c, v in members.CHAMBERS.items()}))
+
     def places_step():
         df = places.load_places()
         facts = places.places_facts(df, blocks, geos=geos)
@@ -454,6 +480,7 @@ def _store_steps(con, blocks, house, senate, step, checks: list[CheckResult]) ->
         ("cms", cms_step),
         ("hud_vouchers", hud_step),
         ("sites", sites_step),
+        ("members", members_step),
         ("places", places_step),
         ("chas", chas_step),
         ("gazetteer", gazetteer_step),

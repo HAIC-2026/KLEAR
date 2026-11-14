@@ -9,7 +9,7 @@ from pathlib import Path
 
 import yaml
 
-from klear.eval.contract import MARKER, Answer, ContractError, geo_key, render
+from klear.eval.contract import MARKER, PLACE_MARKERS, Answer, ContractError, geo_key, render
 from klear.eval.golden import RULES, Golden
 from klear.text import hawaiian, misspellings, strip_ignorable
 
@@ -279,11 +279,13 @@ def answer_problems(a: Answer, con, allowed: set[tuple[str, str]]) -> list[str]:
     problems += [f"duplicate fact ref {r}" for r in sorted({r for r in refs if refs.count(r) > 1})]
     cited = {(k, r) for text in texts for k, r in MARKER.findall(text)}
     problems += [
-        f"marker {{{k}:{r}}} has no fact ref" for k, r in sorted(cited) if k != "geo" and r not in refs
+        f"marker {{{k}:{r}}} has no fact ref"
+        for k, r in sorted(cited)
+        if k not in PLACE_MARKERS and r not in refs
     ]
     shown = _shown_facts(a)
     problems += [f"fact {f.ref} is never used by a marker" for f in a.facts if f.ref not in shown]
-    for _, r in sorted(c for c in cited if c[0] == "geo"):
+    for _, r in sorted(c for c in cited if c[0] in PLACE_MARKERS):
         if geo_key(r) not in allowed:
             problems.append(f"geography {r.replace(':', ' ')} is not allowed here")
     for f in a.facts:

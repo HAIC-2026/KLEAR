@@ -132,6 +132,10 @@ class _Messages:
             raise RuntimeError("scripted outage")
         if "wic" in question:
             return turn(tool("submit_answer", _not_available(), "tu_submit"))
+        if "represents" in question:
+            if len(messages) == 1:
+                return turn(tool("find_member", {"district": DISTRICT}))
+            return turn(tool("submit_answer", _member(), "tu_submit"))
         if "kāneʻohe" in question and "selected district" not in _message(messages):
             if len(messages) == 1:
                 return turn(tool("resolve_place", {"text": "Kāneʻohe"}))
@@ -187,6 +191,17 @@ def _address(messages: list[dict]) -> dict:
         "resolved": geos[0] if geos else None,
         "refusal": "none",
         "blocks": blocks,
+        "facts": [],
+        "programs": [],
+        "caveats": [],
+    }
+
+
+def _member() -> dict:
+    return {
+        "resolved": DISTRICT,
+        "refusal": "none",
+        "blocks": ["{geo:house:022} is represented by {member:house:022}."],
         "facts": [],
         "programs": [],
         "caveats": [],

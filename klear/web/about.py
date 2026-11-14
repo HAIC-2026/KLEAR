@@ -85,10 +85,12 @@ def about(con, validation: Path) -> dict:
         ).fetchall()
     ]
     measures = con.execute("SELECT count(*) FROM indicator").fetchone()[0]
+    # the legislator listings are sources too, but of names, not measures
+    listings = con.execute("SELECT count(DISTINCT source_id) FROM member").fetchone()[0]
     house, senate = counts.get("house", 0), counts.get("senate", 0)
     facts = [
         f"{house} House and {senate} Senate districts",
-        f"{_n(measures, 'measure')} from {_n(len(sources), 'public source')}",
+        f"{_n(measures, 'measure')} from {_n(len(sources) - listings, 'public source')}",
     ]
     crosscheck = None
     build = con.execute("SELECT built_at, checks, skipped_steps FROM build_info").fetchone()
