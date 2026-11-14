@@ -48,6 +48,10 @@ AREA_KINDS = {"island", "neighborhood", "division"}
 AREA_OVERLAP_COLS = ["area_id", "geo_type", "geo_id", "pop2020", "share"]
 AREA_OVERLAP_TYPES = OVERLAP_TYPES | {"place"}
 ALIAS_COLS = ["plain", "name", "target_type", "target_id"]
+PLAN_COLS = [
+    "geo_type", "geo_id", "description", "description_page", "description_pdf_page", "permanent", "permanent_page",
+    "permanent_pdf_page", "source_id",
+]  # fmt: skip
 SITE_COLS = [
     "site_id", "kind", "name", "address", "lat", "lon", "house", "senate", "snapped_m", "units", "source_id",
 ]  # fmt: skip
@@ -249,3 +253,15 @@ def add_sites(con, df: pd.DataFrame) -> None:
         _fail("sites", f"unknown {col} district", df, ~df[col].isin(have))
     _fail("sites", "unknown source_id", df, _known(con, "source", "source_id", df))
     _insert(con, "site", df)
+
+
+def add_district_plan(con, df: pd.DataFrame) -> None:
+    """Official descriptions and permanent-resident counts of stored House and Senate districts."""
+    df = _require_columns(df, PLAN_COLS, "district plan")
+    have = set(
+        con.execute("SELECT geo_type, geo_id FROM geography WHERE geo_type IN ('house', 'senate')").fetchall()
+    )
+    known = pd.Series([(t, g) in have for t, g in zip(df.geo_type, df.geo_id, strict=True)], index=df.index)
+    _fail("district plan", "unknown district", df, ~known)
+    _fail("district plan", "unknown source_id", df, _known(con, "source", "source_id", df))
+    _insert(con, "district_plan", df)
