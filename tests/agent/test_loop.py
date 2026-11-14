@@ -321,19 +321,19 @@ def test_second_submit_in_one_turn_is_rejected(small_con):
 
 
 def test_max_call_cost_matches_formula(small_con):
-    expected = 6 * (30000 * 1.25 * 0.10 + 1500 * 0.50) / 1e6
+    expected = 6 * (INPUT_CAP * 1.25 * 0.10 + 1500 * 0.50) / 1e6
     assert KlearAgent(small_con).max_call_cost("claude-haiku-5-5", "q", PRICES) == pytest.approx(expected)
 
 
 def test_max_call_cost_reads_prices_file(small_con, tmp_path):
     path = tmp_path / "prices.yaml"
     path.write_text(yaml.safe_dump(PRICES), encoding="utf-8")
-    expected = 6 * (30000 * 1.25 * 0.10 + 1500 * 0.50) / 1e6
+    expected = 6 * (INPUT_CAP * 1.25 * 0.10 + 1500 * 0.50) / 1e6
     assert KlearAgent(small_con).max_call_cost("claude-haiku-5-5", "q", path) == pytest.approx(expected)
 
 
 def test_max_call_cost_real_prices_per_model(small_con):
-    want = {"claude-haiku-5-5": 0.027, "claude-sonnet-5-5": 0.540, "claude-opus-5-5": 1.080}
+    want = {"claude-haiku-5-5": 0.0495, "claude-sonnet-5-5": 0.990, "claude-opus-5-5": 1.980}
     for model, cost in want.items():
         assert KlearAgent(small_con, model=model).max_call_cost(model, "q", spend.PRICES) == pytest.approx(
             cost
@@ -562,7 +562,7 @@ def test_reviewer_without_a_verdict_passes(small_con):
 
 
 def test_max_call_cost_adds_review_calls(small_con):
-    answer = 6 * (30000 * 1.25 * 0.10 + 1500 * 0.50)
+    answer = 6 * (INPUT_CAP * 1.25 * 0.10 + 1500 * 0.50)
     review_cost = 2 * (6000 * 0.10 + 300 * 0.50)
     got = KlearAgent(small_con, review=True).max_call_cost("claude-haiku-5-5", "q", PRICES)
     assert got == pytest.approx((answer + review_cost) / 1e6)

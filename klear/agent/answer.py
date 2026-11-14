@@ -247,6 +247,7 @@ def build_answer(session, args: dict, context=None) -> tuple[Answer | None, list
     if any(p.startswith("unsourced number") for p in problems):
         problems.append(NUMBER_HINT)
     if not problems:
+        answer = completed(session, answer)
         text = render(answer, session.con)
         problems = [
             f"program {p} is listed but not named in the text; write it as {display_name(known[p])!r}"
@@ -624,6 +625,57 @@ def salvage(session, args, context=None) -> Answer | None:
     return None
 
 
+def _bullet(session, f) -> str:
+    """One fact as a marker line: its label, place, value and year."""
+    return (
+        f"* {{label:{f.ref}}} in {{geo:{f.geo_type}:{f.geo_id}}}: {{fact:{f.ref}}} ({{vintage:{f.ref}}})"
+        + _method_text(session.tiers.get(f.ref), f)
+        + (", an unreliable estimate" if f.ref in session.unreliable else "")
+    )
+
+
+def _fetched(session, indicator: str, geo: tuple[str, str]):
+    """The session fact for an indicator at a place, fetched first when no tool has returned it."""
+    key = (indicator, *geo)
+    for _ in range(2):
+        if found := next(
+            (f for f in session.facts.values() if (f.indicator_id, f.geo_type, f.geo_id) == key), None
+        ):
+            return found
+        session.run("get_facts", {"indicator_ids": [indicator], "geos": [":".join(geo)]})
+    return None
+
+
+def completed(session, answer: Answer) -> Answer:
+    """The answer with what it leaves out listed after its own text: the facts, comparisons and programs the
+    question requires, when it covers part of them, and the name of each listed program its text never names."""
+    if answer.refusal != "none":
+        return answer
+    names = known_programs()
+    asked = [p for p in required_programs(session) if p in names]
+    wanted = []
+    if answer.resolved is not None:
+        wanted = [(i, answer.resolved) for i in required_facts(session, answer.resolved)]
+        wanted += required_comparisons(session, answer.resolved)
+    cited = {(f.indicator_id, f.geo_type, f.geo_id) for f in answer.facts}
+    wanted = list(dict.fromkeys(wanted))
+    facts, added = [], []
+    if any((i, *g) in cited for i, g in wanted) or set(asked) & set(answer.programs):
+        found = [_fetched(session, i, g) for i, g in wanted if (i, *g) not in cited]
+        facts = [replace(f) for f in found if f is not None]
+        added = [p for p in asked if p not in answer.programs]
+    text = render(answer, session.con)
+    unnamed = [p for p in answer.programs if p in names and not program_named(text, names[p])]
+    if not facts and not added and not unnamed:
+        return answer
+    blocks = list(answer.blocks)
+    if facts:
+        blocks.append("\n".join(_bullet(session, f) for f in facts))
+    if listed := [*unnamed, *added]:
+        blocks.append("Related programs: " + ", ".join(display_name(names[p]) for p in listed) + ".")
+    return replace(answer, blocks=blocks, facts=[*answer.facts, *facts], programs=[*answer.programs, *added])
+
+
 def template_answer(
     session, resolved: tuple[str, str] | None, refusal: str, context=None, programs=()
 ) -> Answer:
@@ -635,13 +687,7 @@ def template_answer(
     if not facts:
         return Answer(VERSION, resolved, "none", [NO_FACTS_TEXT], [], [], [])
     shown = {f.ref: f for f in facts}
-    lines = [
-        f"* {{label:{f.ref}}} in {{geo:{f.geo_type}:{f.geo_id}}}: {{fact:{f.ref}}} ({{vintage:{f.ref}}})"
-        + _method_text(session.tiers.get(f.ref), f)
-        + (", an unreliable estimate" if f.ref in session.unreliable else "")
-        for f in facts
-    ]
-    blocks = ["\n".join(lines)]
+    blocks = ["\n".join(_bullet(session, f) for f in facts)]
     if groups := asked_group_words(session):
         blocks.insert(0, "Figures on " + " and ".join(groups) + ":")
     compared = [

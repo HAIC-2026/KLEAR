@@ -128,15 +128,14 @@ def test_unknown_program(s1):
     assert a.programs == ["eitc_federal_ty2025"] and problems == []
 
 
-@pytest.mark.parametrize(
-    ("text", "lacks"), [("See the EITC.", "'federal'"), ("Nothing named.", "'federal', 'eitc'")]
-)
-def test_listed_program_must_be_named(s1, text, lacks):
+@pytest.mark.parametrize("text", ["See the EITC.", "Nothing named."])
+def test_a_listed_program_the_text_never_names_is_named_after_it(s1, text):
     a, problems = build_answer(s1, args(programs=["eitc_federal_ty2025"], blocks=[GOOD, text]))
-    assert a is None and problems == [
-        "program eitc_federal_ty2025 is listed but not named in the text; write it as 'Federal EITC'; "
-        + f"the text lacks {lacks}"
-    ]
+    assert problems == [] and a.blocks == [GOOD, text, "Related programs: Federal EITC."]
+    a, problems = build_answer(
+        s1, args(programs=["eitc_federal_ty2025"], blocks=[GOOD, "See the Federal EITC."])
+    )
+    assert problems == [] and a.blocks == [GOOD, "See the Federal EITC."]
 
 
 @pytest.mark.parametrize(
@@ -161,9 +160,12 @@ def test_question_asking_to_compare_requires_main_county_and_state(s1, monkeypat
     monkeypatch.setattr(config, "REQUIRED_PROGRAMS", ())
     s1.question = "Who lives on a fixed income in House 22?"
     a, problems = build_answer(s1, args())
-    assert a is None and problems == [
-        f"this question compares pop_65_plus at house:022 with {g}; call get_facts for it there and cite it"
-        for g in ("county:15003", "state:15")
+    # The district figure is cited, so the county and state figures are listed after the text.
+    assert problems == [] and a.blocks[0] == GOOD
+    assert [(f.geo_type, f.geo_id) for f in a.facts if f.indicator_id == "pop_65_plus"] == [
+        ("house", "022"),
+        ("county", "15003"),
+        ("state", "15"),
     ]
     s1.run("get_facts", {"indicator_ids": ["pop_65_plus"], "geos": ["county:15003", "state:15"]})
     text = GOOD + " Compare {geo:county:15003} at {fact:f2} and {geo:state:15} at {fact:f3}."
@@ -175,14 +177,31 @@ def test_question_asking_about_programs_requires_them(s1, monkeypatch):
     monkeypatch.setattr(config, "REQUIRED_COMPARISONS", ())
     monkeypatch.setattr(config, "REQUIRED_PROGRAMS", ((("fixed",), ("snap_fy2027",)),))
     s1.question = "Who lives on a fixed income in House 22?"
+    a, problems = build_answer(s1, args(blocks=["Nothing cited."], facts=[]))
+    assert (
+        a is None
+        and "this question asks about snap_fy2027; list it in programs and write it as 'SNAP'" in problems
+    )
     a, problems = build_answer(s1, args())
-    assert a is None and problems == [
-        "this question asks about snap_fy2027; list it in programs and write it as 'SNAP'"
-    ]
+    assert problems == [] and a.programs == ["snap_fy2027"] and a.blocks[-1] == "Related programs: SNAP."
     a, problems = build_answer(s1, args(blocks=[GOOD + " SNAP can help."], programs=["snap_fy2027"]))
     assert problems == [] and a.programs == ["snap_fy2027"]
     _, problems = build_answer(s1, args(refusal="not_available"))
     assert not any("asks about" in p for p in problems)
+
+
+def test_a_profile_citing_some_figures_lists_the_rest_after_its_text(s1, monkeypatch):
+    monkeypatch.setattr(config, "REQUIRED_FACTS", ((("profile",), ("pop_65_plus", "sites_lihtc")),))
+    s1.question = "Give me a profile of House 22."
+    a, problems = build_answer(s1, args())
+    added = next(f for f in a.facts if f.indicator_id == "sites_lihtc")
+    assert problems == [] and a.blocks[0] == GOOD
+    assert (
+        a.blocks[1]
+        == f"* {{label:{added.ref}}} in {{geo:house:022}}: {{fact:{added.ref}}} ({{vintage:{added.ref}}})"
+    )
+    _, problems = build_answer(s1, args(blocks=["{label:f1} ({vintage:f1}) is {fact:f1}."]))
+    assert problems == []
 
 
 def test_required_facts_skip_refusals(s1, monkeypatch):
@@ -719,11 +738,6 @@ def test_overlapping_ranges_cannot_be_called_higher_or_lower(small):
     )
     far = "{geo:house:022} has {fact:f1} ({vintage:f1}), lower than {geo:county:15003} at {fact:f3}."
     assert _problems(small, [far], ["f1", "f3"]) == []
-
-
-def test_missing_program_words_are_named(s1):
-    _, problems = build_answer(s1, args(programs=["snap_fy2027"], blocks=[GOOD + " Food help exists."]))
-    assert any("listed but not named" in p and "the text lacks 'snap'" in p for p in problems), problems
 
 
 def test_salvage_keeps_the_answer_without_its_failing_sentences(s1):
