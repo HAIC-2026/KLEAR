@@ -144,13 +144,21 @@ test('printing gives a one-page summary with every source, year and address writ
   await expect(plan.first()).toHaveText('Official description The 22nd Representative District comprises the portion of the island of Oʻahu including Manoa. (source 3, report page D-017, PDF page 891)');
   await expect(plan.last()).toContainText('Permanent residents in the 2022 plan 26,451 (source 3, report page 15, PDF page 23).');
   await expect(plan.last()).toContainText('so it differs from the total population.');
-  // No need figure in the fixture district sits above the state's, so the statewide programs print, six at most.
+  // No need figure in the fixture district sits above the state's, so the programs of every need group print, six at
+  // most, each under its group's figure and written as on the profile. Rows that say who a program is for and its limit
+  // run longer, so the page holds fewer than six.
   const programs = sheet.locator('.sheet-programs');
-  await expect(programs.locator('li')).toHaveCount(6);
-  await expect(programs).toContainText('SNAP (State): Monthly food benefits on an EBT card');
-  await expect(programs).toContainText('https://humanservices.hawaii.gov/bessd/snap/');
+  const printed = await programs.locator('li').count();
+  expect(printed).toBeGreaterThanOrEqual(3);
+  expect(printed).toBeLessThanOrEqual(6);
+  await expect(programs.locator('.sheet-program-group').first()).toHaveText(/^Housing\. .+ statewide\.$/);
+  await expect(programs).toContainText('Public housing and housing choice vouchers (State): Rental homes in state and federal public housing');
+  await expect(programs).toContainText('For Households with low income');
+  await expect(programs).toContainText('Limit Income at or below 50% of the county median, in effect from January 1, 2026.');
+  await expect(programs).toContainText('https://hpha.hawaii.gov/how-to-apply · Call (808) 204-9042');
   await expect(programs.locator('.sheet-note')).toContainText('None of this district’s need figures sit clearly above the state’s');
   await expect(programs.locator('.sheet-note')).toContainText('The live profile lists every program.');
+  await expect(programs.locator('.sheet-note')).toContainText(/Program details checked \w+ \d+/);
   await expect(sheet.locator('.sheet-live')).toContainText(address(page));
   await expect(sheet.locator('.sheet-live')).toContainText(/Printed \w+ \d+, \d{4}/);
   await expect(sheet.locator('.sheet-foot')).toContainText('Not an official State of Hawaiʻi product.');

@@ -10,7 +10,7 @@ from urllib.parse import urlsplit
 import yaml
 
 from klear.config import ROOT
-from klear.rules.registry import load_rules
+from klear.rules.registry import Rule, load_rules
 
 PROGRAMS_DIR = ROOT / "data" / "programs"
 REQUIRED = (
@@ -26,8 +26,20 @@ REQUIRED = (
     "needs",
     "verified",
     "verification",
+    "group",
 )
-OPTIONAL = ("phone_label", "level", "counties")
+OPTIONAL = ("phone_label", "level", "counties", "limit")
+# The needs programs are grouped by on the website, with each group's heading.
+GROUPS = {
+    "kupuna": "Kūpuna",
+    "food": "Food",
+    "health": "Health coverage",
+    "housing": "Housing",
+    "taxes": "Taxes and income",
+    "keiki": "Keiki",
+}
+LIMIT_FIELDS = ("rule", "value", "unit", "text")
+LIMIT_UNITS = ("dollars", "percent")
 COUNTIES = {
     "15001": "Hawaiʻi County",
     "15003": "Honolulu County",
@@ -95,6 +107,16 @@ NEEDS = {
 
 
 @dataclass(frozen=True)
+class Limit:
+    """One headline income limit: a value in one of the program's rule files and the sentence it fills."""
+
+    rule: str
+    value: str
+    unit: str
+    text: str
+
+
+@dataclass(frozen=True)
 class Program:
     """One catalog entry: what the program does, who runs it, how to reach it and what signals need."""
 
@@ -110,9 +132,11 @@ class Program:
     needs: tuple[str, ...]
     verified: date
     verification: str
+    group: str
     phone_label: str = ""
     level: str = ""
     counties: tuple[str, ...] = ()
+    limit: Limit | None = None
 
     @property
     def level_label(self) -> str:
@@ -140,14 +164,31 @@ def _ids(name: str, field: str, value, *, empty: bool = False) -> tuple[str, ...
     return tuple(value)
 
 
-def _program(f: Path, d: dict, rule_ids: set[str]) -> Program:
+def _limit(name: str, d, rules: tuple[str, ...], values: dict[str, dict] | None) -> Limit:
+    """A program's headline limit, checked against its rules and, when given, the values those rules hold."""
+    if not isinstance(d, dict) or sorted(d) != sorted(LIMIT_FIELDS):
+        raise ValueError(f"{name}: limit needs exactly {list(LIMIT_FIELDS)}")
+    if not all(isinstance(d[k], str) and d[k].strip() for k in LIMIT_FIELDS):
+        raise ValueError(f"{name}: limit fields must be non-empty text")
+    if d["rule"] not in rules:
+        raise ValueError(f"{name}: limit rule {d['rule']} is not one of the program's rules")
+    if d["unit"] not in LIMIT_UNITS:
+        raise ValueError(f"{name}: limit unit must be one of {list(LIMIT_UNITS)}")
+    if d["text"].count("{value}") != 1:
+        raise ValueError(f"{name}: limit text must hold {{value}} once")
+    if values is not None and d["value"] not in values.get(d["rule"], {}):
+        raise ValueError(f"{name}: rule {d['rule']} has no value {d['value']!r}")
+    return Limit(**d)
+
+
+def _program(f: Path, d: dict, rule_ids: set[str], values: dict[str, dict] | None = None) -> Program:
     name = f.name
     missing = [k for k in REQUIRED if k not in d]
     if missing:
         raise ValueError(f"{name}: missing fields {missing}")
     if extra := sorted(set(d) - set(REQUIRED) - set(OPTIONAL)):
         raise ValueError(f"{name}: unknown fields {extra}")
-    text = [k for k in (*REQUIRED, *OPTIONAL) if k not in ("rules", "needs", "counties") and k in d]
+    text = [k for k in (*REQUIRED, *OPTIONAL) if k not in ("rules", "needs", "counties", "limit") and k in d]
     if bad := [k for k in text if not isinstance(d[k], str) or not d[k].strip()]:
         raise ValueError(f"{name}: {bad} must be non-empty text")
     if d["program_id"] != f.stem:
@@ -175,22 +216,32 @@ def _program(f: Path, d: dict, rule_ids: set[str]) -> Program:
         raise ValueError(f"{name}: verified must be a date like 2026-11-09") from None
     if verified > date.today():
         raise ValueError(f"{name}: verified date {verified} is in the future")
-    return Program(**(d | {"rules": rules, "needs": needs, "verified": verified, "counties": counties}))
+    if d["group"] not in GROUPS:
+        raise ValueError(f"{name}: group must be one of {list(GROUPS)}")
+    limit = _limit(name, d["limit"], rules, values) if "limit" in d else None
+    return Program(
+        **(d | {"rules": rules, "needs": needs, "verified": verified, "counties": counties, "limit": limit})
+    )
 
 
 def load_programs(path: Path = PROGRAMS_DIR, rule_ids=None) -> list[Program]:
-    """Every program in the catalog, checked, in file name order."""
+    """Every program in the catalog, checked, in file name order. Given only rule ids, a limit's value key is not
+    checked against the rule file."""
     path = Path(path)
     if not path.is_dir():
         raise ValueError(f"programs directory {path} does not exist")
-    known = set(rule_ids) if rule_ids is not None else {r.rule_id for r in load_rules()}
+    if rule_ids is None:
+        values = {r.rule_id: r.values or {} for r in load_rules()}
+        known = set(values)
+    else:
+        values, known = None, set(rule_ids)
     out: list[Program] = []
     owner: dict[str, str] = {}
     for f in sorted(path.glob("*.yaml")):
         d = yaml.safe_load(f.read_text(encoding="utf-8"))
         if not isinstance(d, dict):
             raise TypeError(f"{f.name}: expected a mapping of fields")
-        p = _program(f, d, known)
+        p = _program(f, d, known, values)
         for r in p.rules:
             if r in owner:
                 raise ValueError(f"{f.name}: rule {r} already belongs to {owner[r]}")
@@ -205,6 +256,34 @@ def load_programs(path: Path = PROGRAMS_DIR, rule_ids=None) -> list[Program]:
 def catalog() -> tuple[Program, ...]:
     """The checked catalog, read once per process."""
     return tuple(load_programs())
+
+
+@functools.cache
+def _rule_book() -> dict[str, Rule]:
+    return {r.rule_id: r for r in load_rules()}
+
+
+def long_date(d: date) -> str:
+    """A date as November 9, 2026."""
+    return f"{d:%B} {d.day}, {d.year}"
+
+
+def headline_limit(p: Program, rules: dict[str, Rule] | None = None) -> dict | None:
+    """The program's one headline limit in words, with its rule and the date it took effect, or None when the program
+    names none or its rule is not confirmed."""
+    if p.limit is None:
+        return None
+    rule = (rules if rules is not None else _rule_book()).get(p.limit.rule)
+    entry = (rule.values or {}).get(p.limit.value) if rule and rule.status == "confirmed" else None
+    value = entry.get("value") if isinstance(entry, dict) else None
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        return None
+    shown = f"${value:,.0f}" if p.limit.unit == "dollars" else f"{value:g}%"
+    return {
+        "text": p.limit.text.format(value=shown),
+        "rule": rule.rule_id,
+        "effective": long_date(date.fromisoformat(rule.effective)),
+    }
 
 
 def by_rule() -> dict[str, Program]:

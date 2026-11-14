@@ -15,3 +15,4 @@ needs:
 verified: '2026-11-12'
 verification: Fetched the county FAQ page (HTTP 200). It lists the home exemption rules, a larger amount for
   owners 65 and older, and the office phone. Information-only entry; no numeric eligibility rules are modeled.
+group: housing

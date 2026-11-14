@@ -286,8 +286,8 @@ def program_answer(con, district, shown: str) -> dict:
     if names:
         listed = ", ".join(names[:-1]) + (" and " if len(names) > 1 else "") + names[-1]
         lead = (
-            f"Programs to explore for residents of {shown}: {listed}. They are ranked by how far the district's "
-            "figures sit above the state's, and each one below gives its reason."
+            f"Programs to explore for residents of {shown}: {listed}. They are grouped by need and ranked by how "
+            "far the district's figures sit above the state's, and each group below gives its figure."
         )
     else:
         lead = (
@@ -300,6 +300,7 @@ def program_answer(con, district, shown: str) -> dict:
         "facts": [],
         "programs": [p | {"match": True} for p in laid["programs"]]
         + [p | {"match": False} for p in laid["others"]],
+        "program_groups": laid["groups"],
         "program_sources": laid["sources"],
         "place_caveats": place_caveats(con, [district]),
     } | verified(laid["figures"], len(laid["sources"]))

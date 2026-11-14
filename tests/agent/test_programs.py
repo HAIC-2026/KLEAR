@@ -1,5 +1,6 @@
 # Tests for the program catalog, matching programs to district need figures, and how the website shows them.
 import json
+from dataclasses import replace
 from datetime import date, timedelta
 from urllib.parse import urlsplit
 
@@ -11,14 +12,16 @@ from klear.agent.tools import Session
 from klear.eval.scorers import reliability
 from klear.programs import (
     ELIGIBILITY_NOTE,
+    GROUPS,
     NEEDS,
     PROGRAMS_DIR,
     STALE_AFTER_DAYS,
     catalog,
+    headline_limit,
     is_stale,
     load_programs,
 )
-from klear.rules.registry import REQUIRED_RULE_IDS
+from klear.rules.registry import REQUIRED_RULE_IDS, load_rules
 from klear.store.db import add_facts, add_indicators
 from klear.web import display
 from klear.web.answers import ask
@@ -38,6 +41,13 @@ GOOD = {
     "needs": ["pct_hh_snap"],
     "verified": "2026-11-01",
     "verification": "Fetched the page.",
+    "group": "food",
+}
+LIMIT = {
+    "rule": "snap_fy2027",
+    "value": "gross_130pct_monthly_size3",
+    "unit": "dollars",
+    "text": "Gross monthly income up to {value} for a household of 3",
 }
 
 
@@ -113,11 +123,45 @@ def test_loader_accepts_a_good_entry(tmp_path):
         ({"verified": (date.today() + timedelta(days=2)).isoformat()}, "future"),
         ({"agency": " "}, "non-empty text"),
         ({"badge": "New"}, "unknown fields"),
+        ({"group": "pets"}, "group must be one of"),
+        ({"limit": LIMIT | {"rule": "wic_2026_27"}}, "not one of the program's rules"),
+        ({"limit": LIMIT | {"unit": "yen"}}, "unit must be"),
+        ({"limit": LIMIT | {"text": "Low income"}}, "value"),
+        ({"limit": {"rule": "snap_fy2027"}}, "exactly"),
     ],
 )
 def test_loader_rejects_bad_entries(tmp_path, change, message):
     with pytest.raises(ValueError, match=message):
         load_programs(_write(tmp_path, snap=GOOD | change), RULES)
+
+
+def test_loader_checks_a_limit_against_its_rule_file(tmp_path):
+    (p,) = load_programs(_write(tmp_path, snap=GOOD | {"limit": LIMIT}))
+    assert p.limit.value == "gross_130pct_monthly_size3" and p.group == "food"
+    with pytest.raises(ValueError, match="has no value"):
+        load_programs(_write(tmp_path, snap=GOOD | {"limit": LIMIT | {"value": "gross_size99"}}))
+
+
+def test_headline_limits_fill_from_confirmed_rules():
+    snap = next(p for p in catalog() if p.program_id == "snap")
+    assert headline_limit(snap) == {
+        "text": "Gross monthly income up to $3,404 for a household of 3",
+        "rule": "snap_fy2027",
+        "effective": "October 1, 2026",
+    }
+    # Every limit in the catalog resolves, and programs without one say nothing.
+    for p in catalog():
+        assert (headline_limit(p) is None) == (p.limit is None), p.program_id
+    assert headline_limit(next(p for p in catalog() if p.program_id == "med_quest"))["text"] == (
+        "Adults: income up to 138% of the poverty level"
+    )
+    # A rule no longer confirmed leaves the limit out.
+    pending = {r.rule_id: replace(r, status="pending") for r in load_rules()}
+    assert headline_limit(snap, pending) is None
+
+
+def test_every_group_holds_a_program():
+    assert {p.group for p in catalog()} == set(GROUPS)
 
 
 def test_loader_rejects_missing_fields_and_shared_rules(tmp_path):
@@ -164,6 +208,10 @@ def need_con(small_con):
     return small_con
 
 
+def kupuna_care_checked():
+    return next(p for p in catalog() if p.program_id == "kupuna_care").verified.isoformat()
+
+
 def _by_id(out):
     return {p["program_id"]: p for p in out["programs"]}
 
@@ -180,17 +228,32 @@ def test_need_above_the_state_ranks_first_with_its_reason(need_con):
     assert ids.index("eitc_federal") < ids.index("kupuna_care")
     assert out["note"] == ELIGIBILITY_NOTE
     laid = display.matched_programs(need_con, out, s)
-    kupuna = next(p for p in laid["programs"] if p["id"] == "kupuna_care")
-    assert kupuna["reasons"] == [
-        {
-            "text": "Kūpuna are 22.8% of House District 22 residents (± 1.8 points), compared with 20.5% statewide.",
-            "caution": "",
-        }
-    ]
-    eitc = next(p for p in laid["programs"] if p["id"] == "eitc_federal")
+    groups = {g["id"]: g for g in laid["groups"]}
+    # The EITC share outranks the kūpuna share, so taxes and income comes first, then kūpuna.
+    assert [g["id"] for g in laid["groups"] if g["above"]] == ["taxes", "kupuna"]
+    assert groups["kupuna"]["title"] == "Kūpuna"
+    assert groups["kupuna"]["figure"] == {
+        "text": "Kūpuna are 22.8% of House District 22 residents (± 1.8 points), compared with 20.5% statewide.",
+        "caution": "",
+    }
+    assert {"kupuna_care", "medicare_savings"} <= set(groups["kupuna"]["programs"])
     shown = "In House District 22, an estimated 30.0% of tax returns claim the EITC (range 23.8% to 36.8%), "
-    assert eitc["reasons"] == [{"text": shown + "compared with 12.0% statewide.", "caution": ""}]
-    assert kupuna["verified"] and kupuna["agency"] and kupuna["url"].startswith("https://")
+    assert groups["taxes"]["figure"] == {"text": shown + "compared with 12.0% statewide.", "caution": ""}
+    assert groups["taxes"]["programs"][:2] == ["eitc_federal", "hi_state_credits"]
+    # Each group's figure is said once, so no two groups share a sentence and rows carry none of their own.
+    said = [g["figure"]["text"] for g in laid["groups"] if g["figure"]]
+    assert len(said) == len(set(said)) and not any("reasons" in p for p in laid["programs"] + laid["others"])
+    # The open rows are the programs of the groups above the state's; the rest follow in group order.
+    assert [p["id"] for p in laid["programs"]] == [
+        i for g in laid["groups"] if g["above"] for i in g["programs"]
+    ]
+    assert [p["id"] for p in laid["others"]] == [
+        i for g in laid["groups"] if not g["above"] for i in g["programs"]
+    ]
+    assert laid["others_title"] == "Other programs"
+    kupuna = next(p for p in laid["programs"] if p["id"] == "kupuna_care")
+    assert kupuna["verified"] and kupuna["serves"] and kupuna["url"].startswith("https://")
+    assert kupuna["group"] == "kupuna" and kupuna["verified_on"] == kupuna_care_checked()
     assert laid["title"] == "Programs to explore here" and laid["note"] == ELIGIBILITY_NOTE
     assert {x["name"] for x in laid["sources"]} == {"American Community Survey 5-year", "Public Housing"}
     # The kūpuna share and the EITC share, each for the district and the state, however many programs repeat them.
@@ -204,15 +267,17 @@ def test_gaps_within_the_margin_read_as_about_the_same(need_con):
     laid = display.matched_programs(need_con, out, s)
     assert laid["programs"] == [] and laid["others_title"] == "Available here"
     assert laid["intro"].startswith("None of House District 23's need figures sit clearly above the state's")
-    kupuna = next(p for p in laid["others"] if p["id"] == "kupuna_care")
-    assert [r["text"] for r in kupuna["reasons"]] == [
+    groups = {g["id"]: g for g in laid["groups"]}
+    assert not any(g["above"] for g in laid["groups"])
+    assert groups["kupuna"]["figure"]["text"] == (
         "Kūpuna are 21.0% of House District 23 residents (± 1.8 points), about the same as the 20.5% statewide."
-    ]
-    eitc = next(p for p in laid["others"] if p["id"] == "eitc_federal")
-    said = eitc["reasons"][0]["text"]
+    )
+    said = groups["taxes"]["figure"]["text"]
     assert "the possible range is very wide" in said and "about the same" in said
+    # No food figure is stored here, so the group has no line but still lists its programs.
+    assert groups["food"]["figure"] is None and "snap" in groups["food"]["programs"]
     snap = next(p for p in laid["others"] if p["id"] == "snap")
-    assert snap["reasons"] == [] and snap["phone"]
+    assert snap["phone"] and snap["limit"]["text"].endswith("for a household of 3")
 
 
 def test_district_programs_needs_a_district(small):
@@ -226,7 +291,8 @@ def test_answer_program_rows_merge_tax_years_and_use_apply_pages():
     assert (
         rows[0]["url"] == "https://www.irs.gov/credits-deductions/individuals/earned-income-tax-credit-eitc"
     )
-    assert rows[1]["url"] == "https://humanservices.hawaii.gov/bessd/snap/" and rows[1]["reasons"] == []
+    assert rows[1]["url"] == "https://humanservices.hawaii.gov/bessd/snap/" and "reasons" not in rows[1]
+    assert rows[0]["limit"]["rule"] == "eitc_federal_ty2026" and rows[1]["serves"].startswith("Households")
 
 
 def test_rows_say_when_a_person_checked_and_flag_old_entries(monkeypatch):
@@ -253,7 +319,7 @@ def test_contrasting_districts_get_different_ranked_lists(real_con):
         laid = display.matched_programs(real_con, out, s)
         names = [p["name"] for p in laid["programs"] + laid["others"]]
         assert len(names) == len(set(names)) == len(s._programs_for([tuple(geo.split(":"))]))
-        assert all(p["reasons"] for p in laid["programs"])
+        assert all(g["figure"] for g in laid["groups"] if g["above"])
         lists[geo] = [p["id"] for p in laid["programs"]]
     assert lists["house:022"] and lists["house:044"] and lists["house:022"] != lists["house:044"]
     assert "kupuna_care" in lists["house:022"] and "kupuna_care" not in lists["house:044"]
@@ -270,10 +336,22 @@ def test_every_district_gets_a_ranked_list(real_con):
         laid = display.matched_programs(real_con, out, s)
         text = json.dumps(laid, ensure_ascii=False)
         assert "·" not in text and "—" not in text
-        for p in laid["programs"]:
-            assert all("compared with" in r["text"] for r in p["reasons"]), p
+        said = [g["figure"]["text"] for g in laid["groups"] if g["figure"]]
+        assert len(said) == len(set(said)), geo_id
+        for g in laid["groups"]:
+            assert not g["above"] or "compared with" in g["figure"]["text"], g
         seen.add(tuple(p["id"] for p in laid["programs"]))
     assert len(seen) >= 10
+
+
+def test_house_49_opens_kupuna_and_keeps_the_rest_under_other_programs(real_con):
+    s = Session(real_con)
+    laid = display.matched_programs(real_con, call(s, "district_programs", district="house:049"), s)
+    assert [g["id"] for g in laid["groups"] if g["above"]] == ["kupuna"]
+    assert len(laid["programs"]) == 3 and len(laid["others"]) == 12
+    # The rent burden sits below the state's, so housing leads with a figure that does not.
+    housing = next(g for g in laid["groups"] if g["id"] == "housing")
+    assert "lower than" not in housing["figure"]["text"]
 
 
 def test_unreliable_need_figures_carry_a_caution(real_con):
@@ -281,13 +359,14 @@ def test_unreliable_need_figures_carry_a_caution(real_con):
     for geo_id in ("010", "014", "022", "036", "044"):
         s = Session(real_con)
         out = call(s, "district_programs", district=f"house:{geo_id}")
-        raw = {e["program_id"]: e for e in out["programs"]}
         laid = display.matched_programs(real_con, out, s)
-        for p in laid["programs"] + laid["others"]:
-            for r, e in zip(p["reasons"], raw[p["id"]]["reasons"]):
-                shaky = any(reliability(s.facts[ref]) is False for ref in e["refs"])
-                assert bool(r["caution"]) == shaky, (geo_id, p["id"])
-                flagged += shaky
+        for g in laid["groups"]:
+            if not g["figure"]:
+                continue
+            e = s.need_figures[("house", geo_id)][g["need"]]
+            shaky = any(reliability(s.facts[ref]) is False for ref in e["refs"])
+            assert bool(g["figure"]["caution"]) == shaky, (geo_id, g["id"])
+            flagged += shaky
     assert flagged
 
 
@@ -296,13 +375,13 @@ def test_basic_mode_answers_with_matched_programs(real_con):
     assert a["refusal"] == "none" and ELIGIBILITY_NOTE in a["text"]
     names = [p["name"] for p in a["programs"]]
     assert len(names) == len(set(names)) == len(Session(real_con)._programs_for([("house", "022")]))
-    assert a["programs"][0]["match"] and a["programs"][0]["reasons"]
+    assert a["programs"][0]["match"] and a["program_groups"][0]["above"] and a["program_groups"][0]["figure"]
     assert a["programs"][0]["name"] in a["text"]
     where = "source" if a["verified"]["sources"] == len(a["program_sources"]) == 1 else "sources"
     assert a["verified"]["text"] == (
         f"All {a['verified']['figures']} figures in this answer come from the cited {where} below."
     )
-    shown = {r["text"] for p in a["programs"] for r in p["reasons"]}
+    shown = {g["figure"]["text"] for g in a["program_groups"] if g["figure"]}
     assert 2 <= a["verified"]["figures"] <= 2 * len(shown)
     other = ask(real_con, "Which assistance programs fit this district?", ("house", "044"))
     assert [p["name"] for p in other["programs"] if p["match"]] != [

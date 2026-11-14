@@ -12,3 +12,9 @@ needs: [pct_rent_burden_35_plus, pct_severe_overcrowding]
 verified: '2026-11-09'
 verification: Fetched the How to Apply page (HTTP 200). It prints the phone
 level: state
+group: housing
+limit:
+  rule: hpha_limits
+  value: low_income_pct_of_median
+  unit: percent
+  text: 'Income at or below {value} of the county median'

@@ -29,7 +29,17 @@ from klear.eval.contract import (
 from klear.eval.scorers import reliability
 from klear.labels import in_sentence, meaning, short_label
 from klear.members import as_listed, members_of, timing
-from klear.programs import ELIGIBILITY_NOTE, NEEDS, Program, by_rule, catalog, is_stale
+from klear.programs import (
+    ELIGIBILITY_NOTE,
+    GROUPS,
+    NEEDS,
+    Program,
+    by_rule,
+    catalog,
+    headline_limit,
+    is_stale,
+    long_date,
+)
 from klear.store.methods import place_note
 
 MAX_TILES = 6
@@ -921,60 +931,89 @@ def need_text(reason: dict, session, store: _Store, place: str) -> str:
 
 def checked_text(p: Program, stale: bool) -> str:
     """When a person last checked the program, or a nudge to the official page once that is too long ago."""
-    when = f"{p.verified:%B} {p.verified.day}, {p.verified.year}"
+    when = long_date(p.verified)
     if stale:
         return f"Check the official page. These details were last checked on {when}."
     return f"Checked against official pages on {when}."
 
 
-def _program_row(p: Program, reasons: list[dict]) -> dict:
+def _program_row(p: Program) -> dict:
+    """One program as the website lists it: what it gives, who it is for, one limit, and how to reach it. The page
+    says once when the rows were checked, so a row marks its date only when it is stale."""
     stale = is_stale(p)
     return {
         "id": p.program_id,
         "name": p.name,
         "description": p.description,
+        "serves": p.serves,
+        "limit": headline_limit(p),
+        "group": p.group,
         "level": p.level_label,
         "agency": p.agency,
         "url": p.url,
         "phone": p.phone,
         "phone_label": p.phone_label,
-        "verified": f"{p.verified:%B} {p.verified.day}, {p.verified.year}",
+        "verified": long_date(p.verified),
+        "verified_on": p.verified.isoformat(),
         "checked": checked_text(p, stale),
         "stale": stale,
-        "reasons": reasons,
     }
 
 
 def matched_programs(con, raw: dict, session) -> dict:
-    """The district programs tool's result laid out for the website: programs whose need figures sit above the
-    state's first, each with its reasons in words, then the rest of the catalog."""
+    """The district programs tool's result laid out for the website, in need groups. A group's line is its
+    strongest need figure that no earlier group shows, so each figure shows once; groups whose figure sits above
+    the state's come first, in the tool's ranking, and the rest follow as other programs."""
     store = _Store(con)
     place = raw["district"]["name"]
     known = {p.program_id: p for p in catalog()}
-    rows = {"higher": [], "other": []}
-    cited, figures = {}, set()
+    # Every need figure the tool set against the state's, and at least the reasons it returned.
+    found = {r["need"]: r for e in raw["programs"] for r in e["reasons"]} | session.need_figures.get(
+        tuple(raw["district"]["geo"].split(":")), {}
+    )
+    members: dict[str, list[Program]] = {}
     for e in raw["programs"]:
-        reasons = e["reasons"][:2]
-        # Each reason shows the district's figure and the state's.
-        figures.update(key for r in reasons for key in (tuple(r["refs"]), tuple(r["state_refs"])))
-        rows["higher" if e["need"] == "higher" else "other"].append(
-            _program_row(
-                known[e["program_id"]],
-                [
-                    {"text": need_text(r, session, store, place), "caution": _need_caution(r, session, store)}
-                    for r in reasons
-                ],
-            )
+        p = known[e["program_id"]]
+        members.setdefault(p.group, []).append(p)
+    cited, figures, used, laid = {}, set(), set(), []
+    for group, programs in members.items():
+        ranked = sorted(
+            {n: found[n] for p in programs for n in p.needs if n in found}.values(),
+            key=lambda r: (r["direction"] != "higher", -r["ratio"]),
         )
-        for f in (session.facts[ref] for r in reasons for ref in r["refs"] + r["state_refs"]):
-            name, url = store.sources.get(f.source_id, (f.source_id, ""))
-            cited.setdefault(
-                (name, f.vintage), {"name": name, "url": url, "year": year_text(f.vintage, store.month)}
-            )
-    if rows["higher"]:
+        r = next((r for r in ranked if r["need"] not in used), None)
+        figure = None
+        if r:
+            used.add(r["need"])
+            figure = {
+                "text": need_text(r, session, store, place),
+                "caution": _need_caution(r, session, store),
+            }
+            # The line shows the district's figure and the state's.
+            figures.update((tuple(r["refs"]), tuple(r["state_refs"])))
+            for f in (session.facts[ref] for ref in r["refs"] + r["state_refs"]):
+                name, url = store.sources.get(f.source_id, (f.source_id, ""))
+                cited.setdefault(
+                    (name, f.vintage), {"name": name, "url": url, "year": year_text(f.vintage, store.month)}
+                )
+        laid.append(
+            {
+                "id": group,
+                "title": GROUPS[group],
+                "figure": figure,
+                "need": r["need"] if r else None,
+                "above": bool(r) and r["direction"] == "higher",
+                "programs": [p.program_id for p in programs],
+            }
+        )
+    # Groups above the state's first, in the tool's ranking; a stable sort keeps the order within each part.
+    laid.sort(key=lambda g: not g["above"])
+    rows = {p.program_id: _program_row(p) for programs in members.values() for p in programs}
+    above = [g for g in laid if g["above"]]
+    if above:
         intro = (
-            f"Ranked by how far {place}'s figures sit above the state's. A figure within its margin of error "
-            "of the state's counts as about the same."
+            f"Grouped by need. Groups are ranked by how far {place}'s figure sits above the state's; a figure "
+            "within its margin of error of the state's counts as about the same."
         )
     else:
         intro = (
@@ -983,9 +1022,10 @@ def matched_programs(con, raw: dict, session) -> dict:
     return {
         "title": "Programs to explore here",
         "intro": intro,
-        "programs": rows["higher"],
-        "others_title": "Also available here" if rows["higher"] else "Available here",
-        "others": rows["other"],
+        "groups": laid,
+        "programs": [rows[i] for g in above for i in g["programs"]],
+        "others_title": "Other programs" if above else "Available here",
+        "others": [rows[i] for g in laid if not g["above"] for i in g["programs"]],
         "note": ELIGIBILITY_NOTE,
         "sources": list(cited.values()),
         "figures": len(figures),
@@ -993,10 +1033,10 @@ def matched_programs(con, raw: dict, session) -> dict:
 
 
 def program_rows(rule_ids: list[str]) -> list[dict]:
-    """One row per program named by the rule ids an answer lists, without district reasons."""
+    """One row per program named by the rule ids an answer lists, without district figures."""
     owners = by_rule() | {p.program_id: p for p in catalog()}
     found = [owners[r] for r in rule_ids if r in owners]
-    return [_program_row(p, []) for p in dict.fromkeys(found)]
+    return [_program_row(p) for p in dict.fromkeys(found)]
 
 
 # The outreach page: a chamber's districts in tiers by a group that meets a program's income test.
@@ -1175,7 +1215,7 @@ def outreach(con, raw: dict, session) -> dict:
         "tiers": tiers,
         "unranked": unranked,
         "missing": missing,
-        "programs": [_program_row(known[p], []) for p in spec["programs"] if p in known],
+        "programs": [_program_row(known[p]) for p in spec["programs"] if p in known],
         "note": ELIGIBILITY_NOTE,
         "sources": _page_sources([*ranked, *([state] if state else []), *use_facts], session, store),
         "pairs": [{"id": k, "title": v["title"], "who": v["who"]} for k, v in OUTREACH_PAIRS.items()],

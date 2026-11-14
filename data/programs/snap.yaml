@@ -12,3 +12,9 @@ needs: [pct_hh_snap, pct_people_poverty]
 verified: '2026-11-09'
 verification: Fetched the page (HTTP 200). It links the online application and prints the phone
 level: state
+group: food
+limit:
+  rule: snap_fy2027
+  value: gross_130pct_monthly_size3
+  unit: dollars
+  text: 'Gross monthly income up to {value} for a household of 3'

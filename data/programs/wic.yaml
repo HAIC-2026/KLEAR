@@ -12,3 +12,9 @@ needs: [pct_children_poverty, pct_hh_with_children]
 verified: '2026-11-09'
 verification: Fetched the How to Apply page and the branch contact page (HTTP 200)
 level: state
+group: food
+limit:
+  rule: wic_2026_27
+  value: annual_185pct_size3
+  unit: dollars
+  text: 'Yearly income up to {value} for a household of 3'
