@@ -48,6 +48,7 @@ KLEAR rebuilds every number it serves about Hawaiʻi's legislative districts fro
 | dotax | yes | PASS | 30 credit values checked, 0 problems |
 | gazetteer | yes | PASS | 163 places, 0 problems |
 | areas | yes | PASS | 78 areas, 0 problems |
+| plan_report | yes | PASS | 76 of 76 districts with an official description and a population that adds up |
 | county_state | yes | PASS | 549 values and totals checked, 0 problems |
 | rules | yes | PASS | 260 rule values compared with their sources, 0 mismatches |
 | district_sums | yes | PASS | 51 sums compared with the state, 0 outside its margin of error |
@@ -424,6 +425,36 @@ District search also finds islands, Honolulu neighborhood board areas (City and 
 Key numbers:
 
 - 7 islands with residents, 35 neighborhood board areas, 36 county divisions, 34 other names
+
+## Official district descriptions and permanent residents from the Reapportionment Commission report
+
+**plan_report: PASS** (gated). 76 of 76 districts with an official description and a population that adds up.
+
+Each House and Senate district's official area description is read from Appendix D of the 2021 Reapportionment Commission Final Report and Reapportionment Plan, and its permanent-resident population from Tables 1 to 8 of the same report. The profile shows both with their report pages. A pass means every district has both, each table row adds up (population minus target is the deviation), equals statewide Tables 9 and 10, the districts of each island unit add up to the unit's total in Tables B and C, the units add up to the state's 1,348,054 permanent residents in Table D, and every count equals the Commission's final plan files. A value that fails is left out of the profile.
+
+Key numbers:
+
+- Official descriptions for 76 of 76 districts, report pages D-001 to D-051 (Appendix D)
+- Permanent residents for 76 of 76 districts, Tables 1 to 10 on report pages 15, 16, 17, 18
+- Island units: 8 of 8 chamber and unit sums equal the report's totals, statewide 1,348,054 permanent residents
+- Permanent residents equal the Commission's final plan files (field PopHaw2022) in 76 of 76 districts
+
+### Permanent residents by island unit
+
+| Chamber | Island unit | Districts | Sum of districts | Report total | Match |
+| --- | --- | ---: | ---: | ---: | --- |
+| House | Oʻahu | 34 | 910,521 | 910,521 | yes |
+| House | Hawaiʻi | 8 | 199,990 | 199,990 | yes |
+| House | Maui | 6 | 164,539 | 164,539 | yes |
+| House | Kauaʻi | 3 | 73,004 | 73,004 | yes |
+| Senate | Oʻahu | 17 | 910,521 | 910,521 | yes |
+| Senate | Hawaiʻi | 4 | 199,990 | 199,990 | yes |
+| Senate | Maui | 3 | 164,539 | 164,539 | yes |
+| Senate | Kauaʻi | 1 | 73,004 | 73,004 | yes |
+| House | State | 51 | 1,348,054 | 1,348,054 | yes |
+| Senate | State | 25 | 1,348,054 | 1,348,054 | yes |
+
+Sum of districts adds the permanent residents of the island unit's districts in Tables 1 to 8. Report total is the unit's permanent-resident population in Tables B and C. The State rows add the four units and compare them with Table D.
 
 ## County and state values built from smaller areas
 

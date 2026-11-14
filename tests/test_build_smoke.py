@@ -13,7 +13,7 @@ import yaml
 from shapely.geometry import Point, box
 
 from klear import config
-from klear.etl import areas, census_api, chas, manual, profile, reapportionment
+from klear.etl import areas, census_api, chas, manual, plan_report, profile, reapportionment
 from klear.etl import build as build_mod
 from klear.etl import fetch as fetch_mod
 from klear.etl.__main__ import main
@@ -28,6 +28,7 @@ from tests.etl.test_bls import reply as bls_reply
 from tests.etl.test_dbedt import make_workbook
 from tests.etl.test_dotax import make_tables
 from tests.fixtures.make_chas_sample import table8
+from tests.fixtures.make_plan_report import plan_rows, report_pdf
 
 KEY = "SECRETKEY123"
 N_HOUSE, N_SENATE = 51, 25
@@ -48,7 +49,8 @@ PROFILE_LABELS = {
 }
 CHECKS = [
     "source_fidelity", "boundaries_house", "boundaries_senate", "blocks", "population", "apportionment", "irs_state",
-    "irs_county", "cms_county", "hud_hcv", "sites", "places", "chas", "bls", "dotax", "gazetteer", "areas", "rules",
+    "irs_county", "cms_county", "hud_hcv", "sites", "places", "chas", "bls", "dotax", "gazetteer", "areas", "plan_report",
+    "rules",
     "district_sums", "admin_counts", "store", "raw_files",
 ]  # fmt: skip
 NEW_TITLES = [
@@ -60,6 +62,7 @@ NEW_TITLES = [
     "sites",
     "places",
     "chas",
+    "plan_report",
     "rules",
 ]
 RULE_PAGE = "<html><body><p>Hawaii maximum 4 $1,023 $1,655 per month</p><script>x=1</script></body></html>"
@@ -209,16 +212,31 @@ def _district_pops(chamber):
     return out
 
 
+def _unit(_chamber, geo_id):
+    # the Commission splits districts by island unit: district 1 to Hawaii, 2 to Maui, 3 to Kauai, the rest Oʻahu
+    return dict(enumerate(reapportionment.UNITS[:3], 1)).get(int(geo_id), "Oahu")
+
+
+def _permanent():
+    # each chamber's districts add up to the same island unit totals, as in the real plan
+    house = {f"{i:03d}": 20_000 for i in range(1, N_HOUSE + 1)}
+    oahu, rest = 20_000 * (N_HOUSE - 3), N_SENATE - 3
+    senate = {f"{i:03d}": 20_000 if i <= 3 else oahu // rest for i in range(1, N_SENATE + 1)}
+    senate[f"{N_SENATE:03d}"] += oahu - (oahu // rest) * rest
+    return {"house": house, "senate": senate}
+
+
+PERMANENT = _permanent()
+
+
 def _commission(tmp, unit, chamber):
-    # the Commission's files split districts by island unit: district 1 to Hawaii, 2 to Maui, 3 to Kauai
-    units = dict(zip(reapportionment.UNITS, (1, 2, 3), strict=False))
     pops = _district_pops(chamber)
-    ids = [int(g) for g in pops if units.get(unit) == int(g) or (unit == "Oahu" and int(g) > 3)]
+    ids = [int(g) for g in pops if _unit(chamber, g) == unit]
     gdf = gpd.GeoDataFrame(
         {
             "DISTRICT": ids,
             "TOTAL": [pops[f"{i:03d}"] for i in ids],
-            "PopHaw2022": [pops[f"{i:03d}"] - 10 for i in ids],
+            "PopHaw2022": [PERMANENT[chamber][f"{i:03d}"] for i in ids],
         },
         geometry=[Point(-158.0, 21.3) for _ in ids],
         crs="EPSG:4326",
@@ -422,6 +440,7 @@ class Stub:
         for unit in reapportionment.UNITS:
             for chamber in ("house", "senate"):
                 self.files[reapportionment.file_name(unit, chamber)] = _commission(tmp, unit, chamber)
+        self.files[plan_report.URL.rsplit("/", 1)[1]] = report_pdf(plan_rows(PERMANENT, _unit))
         for g, f in (("house", "house"), ("senate", "senate"), ("county", "counties"), ("state", "state")):
             self.files[f"acs2024_5yr_{f}_hi.xlsx"] = _dbedt(tmp, g)
         cms_zip, cms_county = _cms()
@@ -575,8 +594,8 @@ def test_build_creates_store_outputs_and_report(env, capsys):
     build = env.tmp / "build"
     con = duckdb.connect(str(build / "klear.duckdb"), read_only=True)
     sources = {r[0] for r in con.execute("SELECT source_id FROM source").fetchall()}
-    # ACS, nine other sources of figures, BLS and the Department of Taxation, and DBEDT for the cross-check
-    assert len(sources) == 2 + 9 + 3
+    # ACS, ten other sources of figures, BLS and the Department of Taxation, and DBEDT for the cross-check
+    assert len(sources) == 2 + 10 + 3
     geos = dict(con.execute("SELECT geo_type, count(*) FROM geography GROUP BY 1").fetchall())
     assert geos == {"state": 1, "county": 5, "senate": 25, "house": 51, "tract": len(TRACTS), "zcta": 2}
     n_facts, n_unsourced = con.execute(
@@ -590,6 +609,7 @@ def test_build_creates_store_outputs_and_report(env, capsys):
     licenses = dict(
         con.execute("SELECT source_id, license FROM source WHERE source_id NOT LIKE 'acs%'").fetchall()
     )
+    assert licenses.pop(plan_report.SOURCE_ID) == "Public record of the State of Hawaiʻi"
     assert set(licenses.values()) == {
         "Public domain, U.S. Government work",
         "Public data of the State of Hawaiʻi",
@@ -603,6 +623,10 @@ def test_build_creates_store_outputs_and_report(env, capsys):
         n_marked
         == con.execute("SELECT count(*) FROM fact WHERE source_id = 'acs2024_5yr_profile'").fetchone()[0]
     )
+    plan = con.execute(
+        "SELECT count(*), count(description), sum(permanent), min(description_page) FROM district_plan"
+    ).fetchone()
+    assert plan == (76, 76, 2 * 20_000 * N_HOUSE, "D-001")
     con.close()
     for name in ("house.geojson", "senate.geojson", "manifest.json", "validation.json"):
         assert (build / name).is_file(), name
