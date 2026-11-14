@@ -48,16 +48,20 @@ class RecordingError(MissingRecording):
 
 @dataclass
 class Usage:
+    """Tokens of one question: uncached input, output, and input written to or read from the prompt cache."""
+
     input_tokens: int
     output_tokens: int
     seconds: float
+    cache_write_tokens: int = 0
+    cache_read_tokens: int = 0
 
 
 class Agent(Protocol):
     name: str
 
     def answer(
-        self, golden_id: str, question: str, context: tuple[str, str] | None
+        self, golden_id: str, question: str, context: tuple[str, str] | None, earlier: tuple = ()
     ) -> tuple[Answer, Usage]: ...
 
 
@@ -157,7 +161,9 @@ class StubAgent:
             return none
         return self._profile(indicators, geo, bool(COMPARE.search(question))) or none
 
-    def answer(self, golden_id: str, question: str, context: tuple[str, str] | None) -> tuple[Answer, Usage]:
+    def answer(
+        self, golden_id: str, question: str, context: tuple[str, str] | None, earlier: tuple = ()
+    ) -> tuple[Answer, Usage]:
         return self._answer(question, context), Usage(0, 0, 0.0)
 
 
@@ -176,7 +182,9 @@ class RecordedAgent:
     def max_call_cost(self, model, question, prices) -> float:
         return 0.0
 
-    def answer(self, golden_id: str, question: str, context: tuple[str, str] | None) -> tuple[Answer, Usage]:
+    def answer(
+        self, golden_id: str, question: str, context: tuple[str, str] | None, earlier: tuple = ()
+    ) -> tuple[Answer, Usage]:
         path = _path(self.dir, self.name, golden_id)
         if not path.is_file():
             raise MissingRecording(f"no recording for {golden_id} at {path}")
@@ -264,7 +272,9 @@ class ScriptedAgent:
     def max_call_cost(self, model, question, prices) -> float:
         return 0.0
 
-    def answer(self, golden_id: str, question: str, context: tuple[str, str] | None) -> tuple[Answer, Usage]:
+    def answer(
+        self, golden_id: str, question: str, context: tuple[str, str] | None, earlier: tuple = ()
+    ) -> tuple[Answer, Usage]:
         from klear.agent.loop import KlearAgent
 
         if not GOLDEN_ID.fullmatch(golden_id):
@@ -273,7 +283,7 @@ class ScriptedAgent:
         if not path.is_file():
             raise MissingRecording(f"no script for {golden_id} at {path}")
         client = ScriptClient(load_script(path), path)
-        out = KlearAgent(self.con, client=client).answer(golden_id, question, context)
+        out = KlearAgent(self.con, client=client).answer(golden_id, question, context, earlier)
         if client.turns:
             raise RecordingError(f"script {path} has {len(client.turns)} unused turns after the answer")
         return out

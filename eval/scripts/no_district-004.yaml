@@ -1,0 +1,24 @@
+# Scripted model turns for no_district-004: a town inside one district, asked with none chosen.
+- - type: tool_use
+    name: resolve_place
+    input:
+      text: Wahiawā
+- - type: tool_use
+    name: get_facts
+    input:
+      indicator_ids:
+      - median_household_income
+      geos:
+      - house:046
+- - type: tool_use
+    name: submit_answer
+    input:
+      resolved: house:046
+      refusal: none
+      blocks:
+      - Wahiawā lies entirely in {geo:house:046}.
+      - '{label:f1} in {geo:house:046}: {fact:f1} ({vintage:f1}).'
+      facts:
+      - f1
+      programs: []
+      caveats: []

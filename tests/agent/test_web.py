@@ -12,6 +12,7 @@ import sys
 import threading
 from collections import defaultdict, deque
 from functools import partial
+from html.parser import HTMLParser
 from http.client import HTTPConnection
 from http.server import ThreadingHTTPServer
 from urllib.parse import urlsplit
@@ -21,6 +22,7 @@ import pytest
 from klear import config
 from klear.web import __main__ as web
 from klear.web import display
+from klear.web.assistant import Assistant
 from tests.eval.conftest import _home  # noqa: F401
 
 
@@ -131,6 +133,34 @@ def test_page_assets_are_public():
     assert set(refs) <= set(web.PUBLIC)
 
 
+class _PageText(HTMLParser):
+    """Text and readable attributes of a page, including hidden elements, without scripts, styles or comments."""
+
+    READABLE = frozenset({"alt", "title", "aria-label", "placeholder", "content"})
+
+    def __init__(self):
+        super().__init__()
+        self.parts, self.skip = [], 0
+
+    def handle_starttag(self, tag, attrs):
+        self.skip += tag in ("script", "style")
+        self.parts += [v for k, v in attrs if k in self.READABLE and v]
+
+    def handle_endtag(self, tag):
+        self.skip -= tag in ("script", "style")
+
+    def handle_data(self, data):
+        if not self.skip:
+            self.parts.append(data)
+
+
+@pytest.mark.parametrize("page", sorted(p.name for p in web.STATIC.glob("*.html")))
+def test_static_pages_have_no_bracketed_placeholders(page):
+    parser = _PageText()
+    parser.feed((web.STATIC / page).read_text(encoding="utf-8"))
+    assert not re.findall(r"\[[^\]]*\]", " ".join(parser.parts)), page
+
+
 def test_profile_endpoint_lays_out_the_district_profile(endpoint):
     status, data, headers = get(endpoint, "/api/profile?district=house:022")
     profile = json.loads(data)
@@ -156,6 +186,29 @@ def test_profile_endpoint_lays_out_the_district_profile(endpoint):
     assert all(p["agency"] and p["verified"] and p["phone"] and ".gov" in p["url"] for p in shown)
     for bad in ["house:999", "county:15003", ""]:
         assert get(endpoint, "/api/profile?district=" + bad)[0] == 400
+
+
+def test_profile_gives_the_official_description_and_permanent_residents(endpoint):
+    plan = json.loads(get(endpoint, "/api/profile?district=house:022")[1])["plan"]
+    assert plan["description"] == {
+        "text": "The 22nd Representative District comprises the portion of the island of Oʻahu including Manoa.",
+        "cite": "report page D-017, PDF page 891",
+    }
+    assert (
+        plan["population"]["value"] == "26,451"
+        and plan["population"]["cite"] == "report page 15, PDF page 23"
+    )
+    assert "not the same as the total population" in plan["population"]["note"]
+    assert plan["source"]["url"] == "https://example.org/reapportionment"
+    # a count left out by the build is not shown, and a district without either has no block
+    partial = json.loads(get(endpoint, "/api/profile?district=house:023")[1])["plan"]
+    assert "description" in partial and "population" not in partial
+    assert json.loads(get(endpoint, "/api/profile?district=senate:012")[1])["plan"] is None
+
+
+def test_profile_from_a_store_without_the_plan_table(small_con):
+    small_con.execute("DROP TABLE district_plan")
+    assert display.plan(small_con, "house:022") is None
 
 
 def test_profile_gives_the_printed_summary_its_columns_programs_and_sources(endpoint):
@@ -213,7 +266,13 @@ def test_about_serves_store_facts_and_sources(endpoint):
     body = json.loads(data)
     assert status == 200 and headers["Cache-Control"] == "no-store"
     assert body["facts"][0] == "2 House and 1 Senate districts"
-    assert "example" not in body and [s["publisher"] for s in body["sources"]] == ["Census", "HUD"]
+    assert "example" not in body and [s["publisher"] for s in body["sources"]] == [
+        "Census",
+        "HUD",
+        "LRB",
+        "LRB",
+        "Office of Elections",
+    ]
 
 
 def test_about_without_a_store_is_unavailable(tmp_path):
@@ -256,7 +315,13 @@ def test_free_answer_adds_the_main_county_when_asked(endpoint, monkeypatch):
     assert status == 200 and data["mode"] == "basic" and data["refusal"] == "none"
     kupuna = [f["geography"] for f in data["facts"] if f["label"] == "Kūpuna (65 and over)"]
     assert kupuna == ["House District 22", "Honolulu County", "Hawaiʻi"]
-    assert [b["geography"] for b in data["charts"][0]["bars"]] == kupuna
+    # Counts stay tiles, and the district's names its share of the state's.
+    assert not data["charts"] and [t["geography"] for t in data["tiles"]] == [
+        "",
+        "Honolulu County",
+        "Hawaiʻi",
+    ]
+    assert data["tiles"][0]["share"] == "11.1% of the Hawaiʻi total"
     assert "District, county and state figures" in data["text"]
     county_only = chat(endpoint, "How many kūpuna live in House District 22 and in its county?")[1]
     assert [f["geography"] for f in county_only["facts"]] == ["House District 22", "Honolulu County"]
@@ -272,6 +337,30 @@ def test_free_program_answer_lists_each_program_once_with_its_page(endpoint):
     assert len(names) == len(set(names)) >= 12 and names.count("Federal EITC") == 1
     assert all(p["url"].startswith("https://") and "match" in p for p in data["programs"])
     assert not any("federalregister" in p["url"] or p["url"].endswith(".txt") for p in data["programs"])
+
+
+def test_chat_takes_no_district_and_the_last_questions_and_keeps_nothing(endpoint, monkeypatch):
+    monkeypatch.setattr(web, "_RECENT", defaultdict(deque))
+    status, data = chat(endpoint, "How many kūpuna live in Kāneʻohe?", None)
+    assert status == 200 and data["choices"][0]["name"] == "Kāneʻohe"
+    status, data = chat(endpoint, "How many kūpuna live in Waikīkī?", None)
+    assert status == 200 and data["district"]["geo"] == "house:022"
+    subject = data["subject"]
+    earlier = [
+        {
+            "question": "How many kūpuna live in Waikīkī?",
+            "district": subject["geo"],
+            "indicators": subject["indicators"],
+        }
+    ]
+    body = {"question": "And how does that compare with the county?", "district": None, "earlier": earlier}
+    status, raw = request(endpoint, "POST", "/api/chat", json.dumps(body))
+    assert status == 200 and "Honolulu County" in {f["geography"] for f in json.loads(raw)["facts"]}
+    # Answer text is never taken back, and the handler keeps no conversation between requests.
+    body["earlier"] = [{"question": "q", "answer": "made-up figures"}]
+    assert request(endpoint, "POST", "/api/chat", json.dumps(body))[0] == 400
+    assert request(endpoint, "POST", "/api/chat", json.dumps({"question": "Hi", "district": 22}))[0] == 400
+    assert chat(endpoint, "And how does that compare with the county?", None)[1]["facts"] == []
 
 
 def test_refusals_and_unknown_question(endpoint):
@@ -294,12 +383,16 @@ def test_startup_reports_mode_and_missing_store(tmp_path, monkeypatch, capsys, h
         raise KeyboardInterrupt
 
     monkeypatch.setattr(ThreadingHTTPServer, "serve_forever", stop)
+    warmed = threading.Event()
+    monkeypatch.setattr(Assistant, "warm", staticmethod(warmed.set))
     args = ["--port", "0", "--store", str(tmp_path / "missing.duckdb")]
     if basic_only:
         args.append("--basic-only")
     web.main(args)
     out = capsys.readouterr().out
     assert expected in out
+    # With the assistant on, its code loads at startup instead of on the first question.
+    assert warmed.wait(5) if has_key and not basic_only else not warmed.is_set()
     assert "Landing page preview only" in out
     assert "uv run python -m klear.etl build" in out
     assert "Ctrl+C" in out

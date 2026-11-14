@@ -17,8 +17,9 @@ from urllib.parse import parse_qs, urlsplit
 
 import duckdb
 
-from klear.agent.config import DEFAULT_MODEL
-from klear.agent.tools import Session
+from klear.agent.config import CHAMBER_TYPES, DEFAULT_MODEL, OUTREACH_DEFAULT, OUTREACH_PAIRS
+from klear.agent.earlier import parse_earlier
+from klear.agent.tools import Session, ToolError
 from klear.config import ROOT, MissingSecretError, load_secret
 from klear.eval.contract import geo_key
 from klear.store.db import missing_columns
@@ -27,7 +28,9 @@ from klear.web.about import about
 from klear.web.assistant import DAILY_CAP, Assistant, DailyBudget, basic
 from klear.web.cache import AnswerCache
 from klear.web.checks import checks_report
-from klear.web.geocode import GeocoderError, find_blocks, looks_like_address
+from klear.web.geocode import find_blocks, looks_like_address
+from klear.web.shade import CHAMBERS, MEASURES, NoMeasure, map_view
+from klear.web.statement import statement_page
 
 STORE = ROOT / "data" / "build" / "klear.duckdb"
 STATIC = Path(__file__).with_name("static")
@@ -36,6 +39,10 @@ PUBLIC = (
     "/index.html",
     "/checks.html",
     "/glossary.html",
+    "/outreach.html",
+    "/outreach.js",
+    "/accessibility.html",
+    "/nav.js",
     "/checks.js",
     "/checks.css",
     "/app.js",
@@ -54,15 +61,16 @@ PUBLIC = (
     "/shots/step-2.png",
     "/shots/step-3.png",
 )
+# Health and readiness checks. Cloud Run reserves some paths that end in z at its front end, so each check also
+# answers at an /api/ path that visitors and uptime monitors can reach from outside.
+HEALTH = ("/healthz", "/api/health")
+READY = ("/readyz", "/api/ready")
 # A district's own address, like /district/house-22. It serves the page, which then opens that district.
 DISTRICT_PAGE = re.compile(r"/district/(?:house|senate)-[0-9]{1,2}")
-ADDRESS_NOTES = {
-    "off": "Street address search is turned off on this server. Try a ZIP code or town instead.",
-    "failed": "The address lookup is unavailable right now. Try a ZIP code or town instead.",
-    "none": "No Hawaiʻi address matched. Check the house number and street name, or try a ZIP code or town.",
-}
 BUSY = threading.BoundedSemaphore(3)
 PER_MINUTE = 6
+# Largest chat request: a question, the last two questions and their indicator ids.
+CHAT_BYTES = 16384
 _RECENT = defaultdict(deque)
 _RECENT_LOCK = threading.Lock()
 
@@ -173,6 +181,14 @@ class Handler(SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def page(self, body: bytes):
+        """A page made when it is asked for, not read from a file."""
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
     def attachment(self, text: str, kind: str, filename: str):
         """A file the browser saves rather than shows."""
         body = text.encode()
@@ -185,20 +201,13 @@ class Handler(SimpleHTTPRequestHandler):
 
     def resolve(self, session, text):
         """District search: a street address through the geocoder, else districts, ZIP codes and place names."""
-        address = looks_like_address(text)
-        outcome = "off" if self.geocoder is None else "none"
-        if address and self.geocoder is not None:
-            try:
-                found = self.geocoder(text)
-            except GeocoderError:
-                found, outcome = [], "failed"
-            matches = [m for block, label in found if (m := session.block_match(block, label))]
-            if matches:
-                return {"matches": matches}
-        result = json.loads(session.run("resolve_place", {"text": text}))
-        if address and not result.get("matches"):
-            result["note"] = ADDRESS_NOTES[outcome]
-        return result
+        if not looks_like_address(text):
+            return json.loads(session.run("resolve_place", {"text": text}))
+        found = session.find_address(text)
+        if found["matches"]:
+            return {"matches": found["matches"]}
+        result = session.resolve_name(text)
+        return result if result.get("matches") else {"matches": [], "note": found["note"]}
 
     def connect(self):
         if not self.store.is_file():
@@ -207,15 +216,46 @@ class Handler(SimpleHTTPRequestHandler):
             raise RuntimeError("Store built by an older KLEAR")
         return duckdb.connect(str(self.store), read_only=True)
 
+    def readiness(self):
+        """Whether the store is loaded and current, its build day, the prepared answers for it and whether the
+        assistant is on. Reads only the store and the prepared answers file: no model call, no keys, no paths."""
+        state = "missing"
+        built = None
+        try:
+            if self.store.is_file():
+                state = "outdated" if outdated(self.store) else "ok"
+            if state == "ok":
+                with self.connect() as con:
+                    built = display.build_day(con)
+        except Exception:  # noqa: BLE001 - a store that cannot be read is not ready
+            state = "unreadable"
+        try:
+            prepared = self.prepared.count() if self.prepared is not None and state == "ok" else 0
+        except Exception:  # noqa: BLE001 - unreadable prepared answers count as none
+            prepared = 0
+        ready = state == "ok"
+        body = {
+            "ready": ready,
+            "store": state,
+            "built": built,
+            "prepared_answers": prepared,
+            "assistant": "off" if self.assistant is None else "on",
+        }
+        return self.reply(200 if ready else 503, body)
+
     def do_GET(self):
         path = urlsplit(self.path)
+        if path.path in HEALTH:
+            return self.reply(200, {"status": "ok"})
+        if path.path in READY:
+            return self.readiness()
         if path.path == "/api/resolve":
             text = parse_qs(path.query).get("q", [""])[0].strip()
             if not 1 <= len(text) <= 160:
                 return self.reply(400, {"error": "Enter a district, town or ZIP code."})
             try:
                 with self.connect() as con:
-                    result = self.resolve(Session(con), text)
+                    result = self.resolve(Session(con, self.geocoder), text)
                 return self.reply(200, result)
             except Exception:  # noqa: BLE001 - redact internal errors at the HTTP boundary
                 return self.reply(
@@ -235,6 +275,10 @@ class Handler(SimpleHTTPRequestHandler):
         if path.path in ("/api/profile", "/api/profile.csv"):
             district = parse_qs(path.query).get("district", [""])[0]
             return self.profile(district, as_csv=path.path.endswith(".csv"))
+        if path.path == "/api/outreach":
+            query = parse_qs(path.query)
+            pair = query.get("pair", [""])[0] or OUTREACH_DEFAULT
+            return self.outreach(pair, query.get("chamber", [""])[0] or "house")
         if path.path == "/api/about":
             if not self.store.is_file():
                 return self.reply(
@@ -268,13 +312,38 @@ class Handler(SimpleHTTPRequestHandler):
                     503,
                     {"error": "No checked build yet. The results appear here once the data build has run."},
                 )
+        if path.path == "/api/map":
+            query = parse_qs(path.query)
+            return self.shading(query.get("indicator", [""])[0], query.get("chamber", [""])[0])
         if DISTRICT_PAGE.fullmatch(path.path):
             self.path = "/index.html"
             return super().do_GET()
+        if path.path == "/accessibility.html":
+            try:
+                return self.page(statement_page((STATIC / "accessibility.html").read_text(encoding="utf-8")))
+            except OSError:
+                return self.reply(503, {"error": "The accessibility statement is unavailable right now."})
         # Explicit allowlist: never serve the repository or keys.
         if path.path not in PUBLIC:
             return self.reply(404, {"error": "Not found"})
         super().do_GET()
+
+    def shading(self, indicator: str, chamber: str):
+        """One measure for every district of a chamber, in five shades for the map, read from the store with no
+        model call."""
+        if indicator not in MEASURES or chamber not in CHAMBERS:
+            return self.reply(400, {"error": "Choose one of the listed measures, and House or Senate."})
+        try:
+            with self.connect() as con:
+                return self.reply(200, map_view(con, indicator, chamber))
+        except NoMeasure:
+            return self.reply(
+                503, {"error": "The data store has no figures for this measure yet. Try another one."}
+            )
+        except Exception:  # noqa: BLE001 - redact internal errors at the HTTP boundary
+            return self.reply(
+                503, {"error": "The map figures are unavailable right now. Please try again later."}
+            )
 
     def profile(self, text: str, as_csv: bool = False):
         """The standard district profile, read from the store with no model call, as JSON or as a CSV file."""
@@ -295,10 +364,36 @@ class Handler(SimpleHTTPRequestHandler):
                 # A program catalog that cannot be read or matched leaves the profile without programs.
                 if "error" in matched:
                     matched = None
+                # Outreach pairs that cannot be ranked leave the profile without its outreach note.
+                try:
+                    tops = session.outreach_tops(geo)
+                except Exception:  # noqa: BLE001 - the profile stands without the note
+                    tops = None
                 islands = _islands().get(":".join(geo), "")
-                return self.reply(200, display.profile(con, raw, session, islands, matched))
+                return self.reply(200, display.profile(con, raw, session, islands, matched, tops))
         except Exception:  # noqa: BLE001 - redact internal errors at the HTTP boundary
             return self.reply(503, {"error": "The district profile is unavailable right now."})
+
+    def outreach(self, pair: str, chamber: str):
+        """A chamber's districts in tiers by a group that meets a program's income test, read from the store with
+        no model call."""
+        if pair not in OUTREACH_PAIRS or chamber not in CHAMBER_TYPES:
+            return self.reply(400, {"error": "Choose one of the listed programs, and House or Senate."})
+        try:
+            with self.connect() as con:
+                session = Session(con)
+                try:
+                    raw = session.outreach(pair, chamber)
+                except ToolError:
+                    return self.reply(
+                        503,
+                        {"error": "The data store has no figures for this group yet. Try another program."},
+                    )
+                return self.reply(200, display.outreach(con, raw, session))
+        except Exception:  # noqa: BLE001 - redact internal errors at the HTTP boundary
+            return self.reply(
+                503, {"error": "The outreach figures are unavailable right now. Please try again later."}
+            )
 
     def do_POST(self):
         if self.path != "/api/chat":
@@ -311,7 +406,7 @@ class Handler(SimpleHTTPRequestHandler):
             )
         try:
             length = int(self.headers.get("Content-Length", "0"))
-            if not 0 < length <= 8192:
+            if not 0 < length <= CHAT_BYTES:
                 raise ValueError()
             data = json.loads(self.rfile.read(length))
             if not isinstance(data, dict):
@@ -320,12 +415,11 @@ class Handler(SimpleHTTPRequestHandler):
             district = data.get("district")
             if not isinstance(question, str) or not 1 <= len(question.strip()) <= 2000:
                 raise ValueError()
-            if not isinstance(district, str):
+            # No district means the question names its own place, or asks about the whole state.
+            if district is not None and not isinstance(district, str):
                 raise TypeError()
         except (ValueError, TypeError):
-            return self.reply(
-                400, {"error": "Choose a district and enter a question of up to 2,000 characters."}
-            )
+            return self.reply(400, {"error": "Enter a question of up to 2,000 characters."})
         if not _allowed(self.client_address[0]):
             return self.reply(
                 429, {"error": "Too many questions at once. Please wait a minute and try again."}
@@ -341,13 +435,20 @@ class Handler(SimpleHTTPRequestHandler):
         try:
             with self.connect() as con:
                 try:
-                    selected = _district(con, district)
+                    selected = None if district is None else _district(con, district)
                 except ValueError:
                     return self.reply(400, {"error": "Choose a valid stored House or Senate district."})
+                # Earlier questions from this tab are checked here, used for this answer only and never kept.
+                try:
+                    earlier = parse_earlier(con, data.get("earlier"))
+                except ValueError:
+                    return self.reply(400, {"error": "Reload the page, then ask again."})
                 if self.assistant is None:
-                    result = basic(con, question.strip(), selected)
+                    result = basic(con, question.strip(), selected, geocoder=self.geocoder, earlier=earlier)
                 else:
-                    result = self.assistant.ask(con, question.strip(), selected)
+                    result = self.assistant.ask(
+                        con, question.strip(), selected, geocoder=self.geocoder, earlier=earlier
+                    )
             self.reply(200, result)
         except Exception:  # noqa: BLE001 - redact internal errors at the HTTP boundary
             self.reply(
@@ -383,7 +484,8 @@ def main(argv: list[str] | None = None):
     parser.add_argument(
         "--no-address-lookup",
         action="store_true",
-        help="turn off street address search, which sends typed addresses to the U.S. Census Bureau geocoder",
+        help="turn off street address lookup in search and chat, which sends typed addresses to the U.S. Census "
+        "Bureau geocoder",
     )
     args = parser.parse_args(argv)
     store = args.store.expanduser().resolve()
@@ -418,7 +520,8 @@ def main(argv: list[str] | None = None):
             print(f"District search and chat are off until it is rebuilt with: {REBUILD}", flush=True)
         if geocoder is not None:
             print(
-                "Address search sends typed street addresses to the U.S. Census Bureau geocoder.", flush=True
+                "Address search and chat send typed street addresses to the U.S. Census Bureau geocoder.",
+                flush=True,
             )
         if not store.is_file():
             print("Landing page preview only: district search and chat need the data store.", flush=True)
@@ -426,6 +529,8 @@ def main(argv: list[str] | None = None):
         elif note := prepared.summary(assistant is not None):
             print(note, flush=True)
         threading.Thread(target=prepared.warm, daemon=True).start()
+        if assistant is not None:
+            threading.Thread(target=assistant.warm, daemon=True).start()
         if assistant is None and not args.basic_only:
             print("Add ANTHROPIC_API_KEY to .env and restart to enable the assistant.", flush=True)
         print("Press Ctrl+C to stop.", flush=True)

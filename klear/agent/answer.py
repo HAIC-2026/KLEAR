@@ -5,8 +5,8 @@ from dataclasses import replace
 
 from klear.agent import config
 from klear.agent.tools import _spec, display_name
-from klear.etl.places_gazetteer import plain_name
-from klear.eval.contract import MARKER, REFUSALS, VERSION, Answer, render
+from klear.etl.places_gazetteer import plain_name, search_plain
+from klear.eval.contract import MARKER, MEMBER_MARKERS, REFUSALS, VERSION, Answer, geo_key, render
 from klear.eval.scorers import (
     EMPHASIS,
     FLIP,
@@ -16,15 +16,18 @@ from klear.eval.scorers import (
     program_named,
     program_names,
 )
+from klear.members import members_of
+from klear.programs import by_rule
 from klear.store.methods import place_note
-from klear.text import strip_ignorable
+from klear.text import hawaiian, strip_ignorable
 
 _STRS = {"type": "array", "items": {"type": "string"}}
 SUBMIT_SPEC = _spec(
     "submit_answer",
     "Submit the final answer. Write blocks as plain prose with markers in place of every number, unit, place "
     "name, label and vintage: {fact:fN} for a value, {vintage:fN} for its vintage and source, {label:fN} for "
-    "its indicator label and {geo:TYPE:ID} for a place. Never type digits. Cite only refs that tools returned.",
+    "its indicator label, {geo:TYPE:ID} for a place and {member:TYPE:ID} for a member find_member returned. Never "
+    "type digits. Cite only refs that tools returned.",
     {
         "resolved": {
             "type": ["string", "null"],
@@ -50,7 +53,22 @@ REFUSAL_TEXT = {
 }
 OKINA_MARKS = str.maketrans("", "", "\u02bb\u2018\u02bc\u0060")
 NO_FACT_REFUSALS = ("decline_individual", "decline_partisan")
-DISTRICT = re.compile(r"(house|senate):(\d{3})")
+DISTRICT = re.compile(r"(house|senate):(\d{3})|(state):(\d{2})")
+# Web addresses and email addresses, kept exactly as written.
+WEB = re.compile(
+    r"(?:https?://|www\.)[^\s)\]>]+|[\w.+-]+@[\w-]+(?:\.[\w-]+)+"
+    r"|\b[\w-]+(?:\.[\w-]+)*\.(?:gov|org|com|edu|net|us)\b(?:/[^\s)\]>]*)?",
+    re.IGNORECASE,
+)
+STATEWIDE = re.compile(config.STATEWIDE, re.IGNORECASE)
+YEAR = re.compile(r"(?<!\d)(?:19|20)\d{2}(?!\d)")
+# A release year in a vintage, which is not a year the data describe.
+RELEASE = re.compile(r"(?:19|20)\d{2}\s+release", re.IGNORECASE)
+UNPUBLISHED_TEXT = (
+    "Figures for the year you asked about are not published for this place yet. The latest available figures "
+    "are below, with their years."
+)
+SAYS_UNPUBLISHED = re.compile(r"\bnot (?:yet )?(?:published|available|released)\b", re.IGNORECASE)
 NO_FACTS_TEXT = "I could not retrieve any facts for that question."
 # Party, candidate and advocacy words a partisan decline must not repeat.
 PARTISAN_WORDS = (
@@ -108,10 +126,9 @@ def stored_district(session, text) -> tuple[str, str] | None:
     m = DISTRICT.fullmatch(text) if isinstance(text, str) else None
     if m is None:
         return None
-    exists = session.con.execute(
-        "SELECT 1 FROM geography WHERE geo_type = ? AND geo_id = ?", list(m.groups())
-    )
-    return m.groups() if exists.fetchone() else None
+    geo = tuple(g for g in m.groups() if g is not None)
+    exists = session.con.execute("SELECT 1 FROM geography WHERE geo_type = ? AND geo_id = ?", list(geo))
+    return geo if exists.fetchone() else None
 
 
 def _typed_places(session, texts: list[str], allowed: set[tuple[str, str]]) -> list[str]:
@@ -130,6 +147,22 @@ def _typed_places(session, texts: list[str], allowed: set[tuple[str, str]]) -> l
                 found.append(f"names place {n} that was not resolved; use resolve_place or a geo marker")
                 break
     return found
+
+
+def _member_problems(session, texts: list[str]) -> list[str]:
+    """Member markers no tool returned, and member names typed outside a marker."""
+    problems = [
+        f"{{{k}:{r}}} names a member no tool returned; call find_member first"
+        for k, r in dict.fromkeys(MARKER.findall(" ".join(texts)))
+        if k in MEMBER_MARKERS and geo_key(r) not in session.members
+    ]
+    words = search_plain(MARKER.sub(" ", " ".join(texts))).split()
+    for geo in sorted(session.members):
+        for m in members_of(session.con, *geo):
+            n = len(m.surname)
+            if any(words[i : i + n] == m.surname for i in range(len(words) - n + 1)):
+                problems.append(f"write {m.title} {m.name} with {{member:{m.geo}}}, never typed out")
+    return problems
 
 
 def _words(text: str) -> list[str]:
@@ -167,7 +200,7 @@ def build_answer(session, args: dict, context=None) -> tuple[Answer | None, list
         resolved = stored_district(session, resolved)
         if resolved is None:
             problems.append(
-                "resolved must be null or exactly house:NNN or senate:NNN naming a stored district"
+                "resolved must be null, state:15 or exactly house:NNN or senate:NNN naming a stored district"
             )
     for r in refs:
         if r not in session.facts:
@@ -198,6 +231,7 @@ def build_answer(session, args: dict, context=None) -> tuple[Answer | None, list
     problems = answer_problems(answer, session.con, allowed) + _typed_places(
         session, [*blocks, *caveats], allowed
     )
+    problems += _member_problems(session, [*blocks, *caveats])
     if any(p.startswith("unsourced number") for p in problems):
         problems.append(NUMBER_HINT)
     if not problems:
@@ -209,7 +243,111 @@ def build_answer(session, args: dict, context=None) -> tuple[Answer | None, list
         ]
         problems += _missing_required(session, answer) + _measured_not_available(answer)
         problems += _wrong_directions(answer) + _missing_group_words(session, text)
-    return (None if problems else answer), problems
+    return (None if problems else finish(session, answer)), problems
+
+
+def spelled(text: str) -> str:
+    """Text with Hawaiian place names spelled with ʻokina and kahakō, markers and web addresses kept as written."""
+    kept: list[list[int]] = []
+    for a, b in sorted(m.span() for rx in (MARKER, WEB) for m in rx.finditer(text)):
+        if kept and a <= kept[-1][1]:
+            kept[-1][1] = max(kept[-1][1], b)
+        else:
+            kept.append([a, b])
+    out, pos = [], 0
+    for a, b in kept:
+        out += [hawaiian(text[pos:a]), text[a:b]]
+        pos = b
+    return "".join([*out, hawaiian(text[pos:])])
+
+
+def tied_programs(indicators, listed) -> list[str]:
+    """Rule ids of programs tied to the indicators that no listed rule's program already covers."""
+    owners = by_rule()
+    names = program_names()
+    have = {owners[r].program_id if r in owners else r for r in listed}
+    out = []
+    for i in indicators:
+        for r in config.TIED_PROGRAMS.get(i, ()):
+            owner = owners[r].program_id if r in owners else r
+            if r in names and owner not in have:
+                have.add(owner)
+                out.append(r)
+    return out
+
+
+def _joined(parts: list[str]) -> str:
+    return parts[0] if len(parts) == 1 else f"{', '.join(parts[:-1])} and {parts[-1]}"
+
+
+def unpublished_years(
+    question: str, vintages: list[str], labels: list[str], programs: list[str]
+) -> list[int]:
+    """Years the question asks for that no dated vintage, label or listed program covers."""
+    asked = sorted({int(y) for y in YEAR.findall(question)})
+    covered: set[int] = set()
+    for v in vintages:
+        years = [int(y) for y in YEAR.findall(RELEASE.sub(" ", v or ""))]
+        if not years:
+            return []
+        covered |= set(range(min(years), max(years) + 1))
+    covered |= {int(y) for t in [*labels, *programs] for y in YEAR.findall(t)}
+    return [y for y in asked if y not in covered] if vintages else []
+
+
+def finish(session, answer: Answer) -> Answer:
+    """The accepted answer with Hawaiian spelling fixed, its resolved place, the year it can give, the programs
+    its figures are tied to, and a note on modeled figures."""
+    blocks = [spelled(t) for t in answer.blocks]
+    caveats = [spelled(t) for t in answer.caveats]
+    resolved, refusal, programs = answer.resolved, answer.refusal, list(answer.programs)
+    state_only = bool(answer.facts) and all(f.geo_type == "state" for f in answer.facts)
+    if STATEWIDE.search(session.question) and (resolved is None or state_only):
+        resolved = ("state", "15")
+    if refusal not in ("none", "not_available"):
+        return replace(answer, blocks=blocks, caveats=caveats, resolved=resolved)
+    caveats += listing_caveats([*blocks, *caveats])
+    names = program_names()
+    ids = list(dict.fromkeys(f.indicator_id for f in answer.facts))
+    labels = [
+        r[0]
+        for r in session.con.execute(
+            "SELECT label FROM indicator WHERE indicator_id IN (SELECT unnest(?))", [ids]
+        ).fetchall()
+    ]
+    if unpublished_years(
+        session.question, [f.vintage for f in answer.facts], labels, [f"{p} {names[p]}" for p in programs]
+    ):
+        refusal = "not_available"
+        if not SAYS_UNPUBLISHED.search(" ".join([*blocks, *caveats])):
+            blocks.insert(0, UNPUBLISHED_TEXT)
+    programs += tied_programs(ids, programs)
+    text = render(replace(answer, blocks=blocks, caveats=caveats), session.con)
+    unnamed = [display_name(names[p]) for p in programs if not program_named(text, names[p])]
+    if unnamed:
+        blocks.append(f"Related programs: {_joined(unnamed)}.")
+    modeled = list(dict.fromkeys(f.indicator_id for f in answer.facts if session.tiers.get(f.ref) == "M"))
+    if modeled and not re.search(r"\bmodel(?:l)?ed\b", text, re.IGNORECASE):
+        refs = {f.indicator_id: f.ref for f in reversed(answer.facts)}
+        shown = _joined([f"{{label:{refs[i]}}}" for i in modeled])
+        caveats.append(
+            f"{shown} {'is a modeled estimate' if len(modeled) == 1 else 'are modeled estimates'}."
+        )
+    return replace(
+        answer, resolved=resolved, refusal=refusal, blocks=blocks, caveats=caveats, programs=programs
+    )
+
+
+def listing_caveats(texts: list[str]) -> list[str]:
+    """A {listing:TYPE:ID} caveat for each chamber whose member the texts name and whose listing note is not
+    already there."""
+    found = MARKER.findall(" ".join(texts))
+    have = {r.split(":")[0] for k, r in found if k == "listing"}
+    out = {}
+    for k, r in found:
+        if k == "member" and (chamber := r.split(":")[0]) not in have:
+            out.setdefault(chamber, f"{{listing:{r}}}")
+    return list(out.values())
 
 
 def _triggered(session, table) -> list[str]:
@@ -378,6 +516,7 @@ def template_answer(
         blocks.append("\n".join(compared))
     names = program_names()
     programs = [p for p in dict.fromkeys(programs) if p in names]
+    programs += tied_programs(dict.fromkeys(f.indicator_id for f in facts), programs)
     if programs:
         blocks.append("Related programs: " + ", ".join(display_name(names[p]) for p in programs) + ".")
     return Answer(VERSION, resolved, "none", blocks, facts, programs, [])

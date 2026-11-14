@@ -208,6 +208,8 @@ def run(
                 used.input_tokens + spent_usage.input_tokens,
                 used.output_tokens + spent_usage.output_tokens,
                 used.seconds + spent_usage.seconds,
+                used.cache_write_tokens + spent_usage.cache_write_tokens,
+                used.cache_read_tokens + spent_usage.cache_read_tokens,
             )
     return _finish(result, goldens, used, spend if mode == "live" else None)
 
@@ -223,7 +225,10 @@ def _ask(g, agent, con, mode, model, spend, prices, result, keep=None) -> tuple[
             result.stopped = f"spend cap: {e}"
             return Item(g, "unanswered", result.stopped), None
     try:
-        answer, usage = agent.answer(g.id, g.question, g.context)
+        # Only follow-up questions pass earlier questions, so agents that predate them still run.
+        answer, usage = agent.answer(
+            g.id, g.question, g.context, **({"earlier": g.earlier} if g.earlier else {})
+        )
     except ContractError as e:
         if reserved is not None:
             _settle_worst(result, spend, reserved, model, f"malformed answer: {e}", stop=False)

@@ -6,14 +6,19 @@ from typing import NamedTuple
 
 import duckdb
 
+from klear import caveats
 from klear.agent import config
 from klear.etl.places_gazetteer import plain_name, search_plain
 from klear.eval.contract import FactRef, fill_value, geo_display, geo_key, short_name
-from klear.eval.scorers import CV_LIMIT, counties, cv
+from klear.eval.scorers import counties, program_names, reliability
+from klear.labels import plain_labels
+from klear.members import Member, as_listed, by_name, members_of, timing
 from klear.programs import ELIGIBILITY_NOTE, NEEDS, Program, catalog
 from klear.rules.registry import load_rules
 from klear.store.db import MOE_STATUSES, SITE_KINDS, VALUE_STATUSES
 from klear.store.methods import fact_method
+from klear.web.geocode import NOTES as ADDRESS_NOTES
+from klear.web.geocode import GeocoderError, looks_like_address, readable
 
 CHAMBERS = {
     "house": ("h", "hd", "hse", "house"),
@@ -22,6 +27,7 @@ CHAMBERS = {
 DISTRICT_WORDS = ("d", "dis", "dist", "district", "no")
 ZIP = re.compile(r"^(?:zip(?:\s*code)?\s*)?(\d{5})$")
 SITE_INDICATORS = {k: f"sites_{k}" for k in SITE_KINDS}
+UNIT_INDICATORS = {"public_housing": "units_public_housing", "lihtc": "units_lihtc"}
 
 
 def _fuzzy_limit(plain: str) -> int:
@@ -63,8 +69,21 @@ def _chamber(word: str) -> str | None:
 
 STATE_HEAD = re.compile(r"^(?:the\s+)?(?:state\s+of\s+)?(?:hawaiis?|hi)(?:\s+state)?\b")
 STATE_TAIL = re.compile(r"\b(?:in\s+)?(?:the\s+)?(?:state\s+of\s+)?(?:hawaii|hi)(?:\s+state)?$")
+# Words that, with or without the state's name, mean the whole state: statewide, the entire state, all of Hawaiʻi.
+STATE_WORDS = frozenset((
+    "the", "a", "as", "of", "in", "across", "all", "whole", "entire", "overall", "total",
+    "state", "states", "statewide", "wide", "hawaii", "hawaiis", "hi",
+))  # fmt: skip
 NO_MATCH_HINT = (
     "No match. Give a district like House District 22 or Senate District 12, a place name, or a ZIP code."
+)
+ADDRESS_FOUND = (
+    "The Census geocoder placed this street address in these districts. A street address is a place, not a "
+    "person: answer for its district with refusal none."
+)
+ADDRESS_HINT = (
+    "Say this plainly with refusal none, write please give a place, ZIP code or district, and never pick a "
+    "district from the town name."
 )
 NO_ZIP_NOTE = (
     "ZIP code {} has no area with residents in Hawaiʻi. Home ZIP codes there start with 967 or 968, "
@@ -87,6 +106,15 @@ KIND_LABELS = {
 # When an island, Census place, neighborhood board area and county division share a name on one island,
 # search keeps the first of these.
 KIND_ORDER = {"island": 0, "place": 1, "neighborhood": 2, "division": 3}
+
+
+# A district or Hawaiʻi ZIP code inside a question: House District 22, senate 12, HD 5, 96744.
+DISTRICT_IN = re.compile(
+    r"\b(house|senate|hd|sd)\s*(?:district\s*|dist\.?\s*)?(?:no\.?\s*|#\s*)?(\d{1,2})\b", re.IGNORECASE
+)
+ZIP_IN = re.compile(r"(?<!\d)(96[78]\d{2})(?!\d)")
+# Longest place name, in words, looked for inside a question.
+NAME_WORDS = 5
 
 
 class _Named(NamedTuple):
@@ -114,6 +142,12 @@ def _strip_state(text: str, head: bool = True) -> str:
     """Plain text without a trailing Hawaiʻi state name, and without a leading one when head is set."""
     plain = re.sub(r"[^a-z0-9:]+", " ", plain_name(text)).strip()
     return STATE_TAIL.sub("", STATE_HEAD.sub("", plain) if head else plain).strip()
+
+
+def _statewide(text: str) -> bool:
+    """Whether text names the whole state, such as statewide or Hawaiʻi overall."""
+    words = re.findall(r"[a-z]+", plain_name(text))
+    return bool(words) and set(words) <= STATE_WORDS and bool({"state", "statewide", "hawaii"} & set(words))
 
 
 def _district_form(text: str) -> tuple[str, str] | None:
@@ -161,12 +195,15 @@ def _tokens(text: str) -> set[str]:
 
 
 class Session:
-    def __init__(self, con):
-        self.con = con
+    def __init__(self, con, geocoder=None):
+        # geocoder finds the Census blocks of a street address, or is None when address lookup is off
+        self.con, self.geocoder = con, geocoder
         self.facts: dict[str, FactRef] = {}
         self.places: set[str] = set()
         self.geos: set[tuple[str, str]] = set()
         self.resolved: set[tuple[str, str]] = set()
+        # districts whose listed member a tool returned, which {member:TYPE:ID} may name
+        self.members: set[tuple[str, str]] = set()
         self.context: tuple[str, str] | None = None
         self.question = ""
         self.tiers: dict[str, str] = {}
@@ -180,6 +217,7 @@ class Session:
         self._named: list[_Named] | None = None
         self._aliases: dict[str, list[_Named]] = {}
         self._alias_names: dict[str, str] = {}
+        self._display_names: dict[tuple[str, str], str | None] = {}
 
     def run(self, tool: str, args: dict) -> str:
         try:
@@ -198,10 +236,14 @@ class Session:
     # geography helpers
 
     def _name(self, geo_type: str, geo_id: str) -> str | None:
-        row = self.con.execute(
-            "SELECT name FROM geography WHERE geo_type = ? AND geo_id = ?", [geo_type, geo_id]
-        ).fetchone()
-        return geo_display(geo_type, geo_id, row[0]) if row else None
+        """A geography's display name, read once per session: rankings name every district of a chamber."""
+        key = (geo_type, geo_id)
+        if key not in self._display_names:
+            row = self.con.execute(
+                "SELECT name FROM geography WHERE geo_type = ? AND geo_id = ?", [geo_type, geo_id]
+            ).fetchone()
+            self._display_names[key] = geo_display(geo_type, geo_id, row[0]) if row else None
+        return self._display_names[key]
 
     def _geo(self, geo_type: str, geo_id: str, **extra) -> dict:
         self.geos.add((geo_type, geo_id))
@@ -226,16 +268,40 @@ class Session:
             if self._name("zcta", zipm.group(1)):
                 return {"matches": [self._zcta_match(zipm.group(1))]}
             return {"matches": [], "note": NO_ZIP_NOTE.format(zipm.group(1)), "hint": NO_MATCH_HINT}
+        if looks_like_address(text):
+            return self.find_address(text)
+        return self.resolve_name(text)
+
+    def resolve_name(self, text: str) -> dict:
+        """Census places, areas, counties or the state by name."""
         key = search_plain(text)
         if found := self._exact(key):
             return {"matches": self._name_matches(found)}
         if county := config.COUNTY_NAMES.get(key) or config.COUNTY_NAMES.get(plain_name(text)):
             return {"matches": [self._county_match(county)]}
-        if not _strip_state(text):
+        if not _strip_state(text) or _statewide(text):
+            self.resolved.add(("state", "15"))
             return {"matches": [{"kind": "state", **self._geo("state", "15")}]}
         bare = search_plain(_strip_state(text, head=False))
         found = self._near(key) or (bare != key and (self._exact(bare) or self._near(bare))) or []
         return {"matches": self._name_matches(found)} if found else {"matches": [], "hint": NO_MATCH_HINT}
+
+    def place_named(self, question: str, skip: frozenset[str] = frozenset()) -> dict | None:
+        """The first district, ZIP code, or town, area, island or county name a question holds, resolved as a
+        search would, or None. Names made only of skip words or the state's name are not places here."""
+        if m := DISTRICT_IN.search(question):
+            return self._resolve_place({"text": f"{m.group(1)} {m.group(2)}"})
+        if m := ZIP_IN.search(question):
+            return self._resolve_place({"text": m.group(1)})
+        words = search_plain(question).split()
+        for i in range(len(words)):
+            for n in range(min(NAME_WORDS, len(words) - i), 0, -1):
+                key = " ".join(words[i : i + n])
+                if set(words[i : i + n]) <= skip | STATE_WORDS:
+                    continue
+                if self._exact(key) or key in config.COUNTY_NAMES:
+                    return self.resolve_name(key)
+        return None
 
     def _resolve_id(self, kind: str, id_: str) -> dict:
         """Exactly one Census place, area or county, by its id."""
@@ -306,6 +372,28 @@ class Session:
         pop, overlaps = self._block_overlaps("county", county)
         overlaps = [o for o in overlaps if not o["geo"].startswith("county:")]
         return {"kind": "county", **self._geo("county", county), "pop2020": pop, "overlaps": overlaps}
+
+    def find_address(self, text: str) -> dict:
+        """Districts of a street address through the geocoder, or no matches with a note on why."""
+        outcome = "off" if self.geocoder is None else "none"
+        found = []
+        if self.geocoder is not None:
+            try:
+                found = self.geocoder(text)
+            except GeocoderError:
+                outcome = "failed"
+        matches = [m for block, label in found if (m := self.block_match(block, readable(label, text)))]
+        self._places_named(" ".join([text, *(m["name"] for m in matches)]))
+        if matches:
+            return {"matches": matches, "note": ADDRESS_FOUND}
+        return {"matches": [], "address": outcome, "note": ADDRESS_NOTES[outcome], "hint": ADDRESS_HINT}
+
+    def _places_named(self, text: str) -> None:
+        """Remember the Census places an address names, so an answer may name its town."""
+        words = f" {search_plain(text)} "
+        for name, plain in self.con.execute("SELECT name, plain FROM place").fetchall():
+            if plain and f" {plain} " in words:
+                self.places.add(name)
 
     def block_match(self, block: str, label: str) -> dict | None:
         """Districts and county of one 2020 Census block, for a street address the website geocoded to it."""
@@ -533,17 +621,37 @@ class Session:
         rows = self.con.execute(
             "SELECT indicator_id, label, unit FROM indicator ORDER BY indicator_id"
         ).fetchall()
+        districts = {
+            r[0]
+            for r in self.con.execute(
+                "SELECT indicator_id FROM indicator_coverage WHERE geo_type IN ('house', 'senate')"
+            ).fetchall()
+        }
         scored = [
             (len(query & _tokens(f"{i} {label}".replace("_", " "))), i, label, u) for i, label, u in rows
         ]
-        scored = sorted((s for s in scored if s[0] > 0), key=lambda s: (-s[0], s[1]))[: config.SEARCH_LIMIT]
+        # at equal score, indicators published for districts come before county-level ones
+        scored = sorted((s for s in scored if s[0] > 0), key=lambda s: (-s[0], s[1] not in districts, s[1]))
+        scored = scored[: config.SEARCH_LIMIT]
+        plain = plain_labels()
         out = []
         for _, i, label, unit in scored:
             types = self.con.execute(
                 "SELECT geo_type FROM indicator_coverage WHERE indicator_id = ? ORDER BY geo_type", [i]
             ).fetchall()
-            out.append({"indicator_id": i, "label": label, "unit": unit, "geo_types": [t[0] for t in types]})
+            entry = {"indicator_id": i, "label": label, "unit": unit, "geo_types": [t[0] for t in types]}
+            if i in plain:
+                entry["meaning"] = plain[i].plain
+            if self._modeled(i):
+                entry["method"] = "modeled estimate"
+            out.append(entry)
         return {"indicators": out}
+
+    def _modeled(self, indicator_id: str) -> bool:
+        row = self.con.execute(
+            "SELECT 1 FROM fact WHERE indicator_id = ? AND tier = 'M' LIMIT 1", [indicator_id]
+        ).fetchone()
+        return row is not None
 
     # get_facts
 
@@ -602,8 +710,7 @@ class Session:
             lambda r: FactRef(r, indicator_id, *geo, source_id, value, low, high, moe, vintage),
         )
         f = self.facts[ref]
-        c = cv(f)
-        reliable = None if moe is None else not (c > CV_LIMIT if c is not None else value == 0 and moe > 0)
+        reliable = reliability(f)
         self.tiers[ref] = tier
         if reliable is False:
             self.unreliable.add(ref)
@@ -623,6 +730,9 @@ class Session:
         }
         if note := self._note(indicator_id):
             out["note"] = note
+        if tied := config.TIED_PROGRAMS.get(indicator_id):
+            names = program_names()
+            out["programs"] = [{"rule_id": r, "name": display_name(names[r])} for r in tied if r in names]
         return out
 
     def _missing_reason(self, indicator_id: str, geo: tuple[str, str]) -> str:
@@ -665,7 +775,13 @@ class Session:
     def _get_facts(self, args: dict) -> dict:
         ids = _strs(args, "indicator_ids")
         geos = [_geo_arg(g) for g in _strs(args, "geos")]
-        return self._facts_for(ids, geos)
+        return self._noted(self._facts_for(ids, geos), geos)
+
+    def _noted(self, out: dict, geos) -> dict:
+        """The result with the caveats for its districts and counties, when any apply."""
+        if notes := [{k: c[k] for k in ("geo", "title", "text")} for c in caveats.for_places(self.con, geos)]:
+            out["place_caveats"] = notes
+        return out
 
     # compare
 
@@ -684,7 +800,7 @@ class Session:
         rows = self._rows(ind, geo)
         mine = self._interval(rows[0]) if rows else None
         if mine is None:
-            return out
+            return self._noted(out, [geo])
         extra = [_geo_arg(g) for g in _strs(args, "against", optional=True) or []]
         others = (
             sorted(counties(geo, self.con)) + ([("state", "15")] if geo != ("state", "15") else []) + extra
@@ -707,7 +823,7 @@ class Session:
             )
             if base["facts"] and direction != "not_comparable":
                 self.directions.append((base["facts"][0]["ref"], theirs["facts"][0]["ref"], direction))
-        return out
+        return self._noted(out, [geo, *others])
 
     # district_profile
 
@@ -764,31 +880,55 @@ class Session:
         }
         against = ([("county", by_county[0][0])] if by_county else []) + [("state", "15")]
         beside = sorted({b for b, _ in config.PROFILE_BESIDE.values() if b})
-        self._prefetch([i for _, ids in config.PROFILE_SECTIONS for i in ids] + beside, [geo, *against])
+        sections = [(title, ids, geo, against, {}) for title, ids in config.PROFILE_SECTIONS]
+        if by_county:
+            # county-level figures for the main county, compared with the state, never as the district's own
+            title, ids = config.COUNTY_SECTION
+            sections.append((title, ids, against[0], against[1:], {"geo": f"county:{by_county[0][0]}"}))
+        listed = [i for s in sections for i in s[1] if i not in config.PROFILE_LARGEST]
+        groups = [i for group, _ in config.PROFILE_LARGEST.values() for i in group]
+        self._prefetch(listed + groups + beside, [geo, *against])
         out = {
             "district": self._geo(*geo),
             "counties": [self._geo("county", c, share=round(p / total, 4)) for c, p in by_county if p],
             "places": [{"name": n, "share": round(p / total, 4)} for n, p in places],
             "overlaps": [self._geo(other, g, share=round(p / total, 4)) for g, p in overlaps],
+            "members": self._member_entries(members_of(self.con, *geo)),
             "sections": [],
             "missing": [],
         }
-        for title, ids in config.PROFILE_SECTIONS:
+        for title, ids, home, others, scope in sections:
             rows = []
-            for ind in ids:
-                mine = self._facts_for([ind], [geo])
+            for ind in [i for key in ids for i in self._profile_ids(key, home)]:
+                mine = self._facts_for([ind], [home])
                 out["missing"] += mine["missing"]
                 if mine["facts"]:
                     fact = mine["facts"][0]
                     row = {
                         "fact": fact,
-                        "against": [self._against(ind, fact, g, ind in additive) for g in against],
+                        "against": [self._against(ind, fact, g, ind in additive) for g in others],
                     }
-                    if extra := self._beside(ind, geo):
+                    if home == geo and (extra := self._beside(ind, geo)):
                         row["beside"] = extra
                     rows.append(row)
-            out["sections"].append({"title": title, "rows": rows})
-        return out
+            out["sections"].append({"title": title, **scope, "rows": rows})
+        return self._noted(out, [geo])
+
+    def _profile_ids(self, key: str, geo: tuple[str, str]) -> list[str]:
+        """A profile row's indicator, or for a PROFILE_LARGEST key the district's largest figures of its group."""
+        if key not in config.PROFILE_LARGEST:
+            return [key]
+        group, n = config.PROFILE_LARGEST[key]
+        return self.largest(group, geo)[:n]
+
+    def largest(self, indicator_ids, geo: tuple[str, str]) -> list[str]:
+        """Indicators with a stored value for geo, largest value first, ties in the order given."""
+        values = {}
+        for ind in indicator_ids:
+            found = [r[2] for r in self._rows(ind, geo) if r[2] is not None]
+            if found:
+                values[ind] = found[0]
+        return sorted(values, key=lambda i: -values[i])
 
     def _beside(self, ind: str, geo: tuple[str, str]) -> dict | None:
         """The figure a profile row is shown next to, with how the two differ."""
@@ -868,6 +1008,8 @@ class Session:
             self.resolved.add(g)
             self.geos.add(g)
         note = self._note(ind)
+        ranked = [geo_key(d["geo"]) for t in tiers for d in t["districts"]]
+        notes = caveats.grouped(self.con, ranked)
         return {
             "indicator_id": ind,
             "label": row[0],
@@ -881,7 +1023,48 @@ class Session:
             "missing": got["missing"],
             "unreliable": sum(d["reliable"] is False for t in tiers for d in t["districts"]),
             **({"note": note} if note else {}),
+            **({"place_caveats": notes} if notes else {}),
         }
+
+    # outreach: the website's outreach page and the outreach note on district profiles, not a model tool
+
+    def outreach(self, pair: str, chamber: str) -> dict:
+        """An outreach pair across a chamber: the group's count ranked into tiers as rank_districts ranks it, the
+        state's count, and each district's program-use figure, which is shown beside it and never ranked."""
+        if pair not in config.OUTREACH_PAIRS:
+            raise ToolError(f"pair must be one of {list(config.OUTREACH_PAIRS)}")
+        ind = config.OUTREACH_PAIRS[pair]["indicator"]
+        ranked = self._rank_districts({"indicator": ind, "chamber": chamber})
+        geos = [_geo_arg(d["geo"]) for t in ranked["tiers"] for d in t["districts"]]
+        geos += [_geo_arg(d["geo"]) for d in ranked["unranked"]]
+        use = config.PROFILE_BESIDE.get(ind, (None, ""))[0]
+        if use:
+            self._prefetch([use], geos)
+        beside = {f"{g[0]}:{g[1]}": b["fact"] for g in geos if (b := self._beside(ind, g)) and "fact" in b}
+        state = self._facts_for([ind], [("state", "15")])["facts"]
+        return {
+            "pair": pair,
+            **ranked,
+            "state": state[0] if state else None,
+            "use": use if beside else None,
+            "beside": beside,
+        }
+
+    def outreach_tops(self, geo: tuple[str, str]) -> dict:
+        """The outreach pairs whose top tier holds a district, the smallest top tier first, and how many pairs
+        the store could rank."""
+        tops, ranked = [], 0
+        for pair, spec in config.OUTREACH_PAIRS.items():
+            try:
+                tiers = self._rank_districts({"indicator": spec["indicator"], "chamber": geo[0]})["tiers"]
+            except ToolError:
+                continue  # a store without this measure
+            ranked += bool(tiers)
+            top = tiers[0]["districts"] if tiers else []
+            if mine := next((d for d in top if d["geo"] == f"{geo[0]}:{geo[1]}"), None):
+                tops.append({"pair": pair, "fact": mine, "shared": len(top)})
+        tops.sort(key=lambda t: t["shared"])  # a stable sort keeps the pairs' order between equal tiers
+        return {"tops": tops, "ranked": ranked}
 
     # list_programs, district_programs
 
@@ -1010,7 +1193,7 @@ class Session:
             entry["reasons"] = higher or reasons[:1]
             out.append(entry)
         out.sort(key=lambda e: (e["need"] != "higher", -max((r["ratio"] for r in e["reasons"]), default=0)))
-        return {"district": self._geo(*geo), "programs": out, "note": ELIGIBILITY_NOTE}
+        return self._noted({"district": self._geo(*geo), "programs": out, "note": ELIGIBILITY_NOTE}, [geo])
 
     # find_sites, explain_source
 
@@ -1022,7 +1205,17 @@ class Session:
         if kind is not None and kind not in SITE_KINDS:
             raise ToolError(f"kind must be one of {sorted(SITE_KINDS)}")
         kinds = [kind] if kind else sorted(SITE_KINDS)
+        units = [UNIT_INDICATORS[k] for k in kinds if k in UNIT_INDICATORS]
         out = self._facts_for([SITE_INDICATORS[k] for k in kinds], [geo])
+        if units:
+            got = self._facts_for(units, [geo])
+            out["facts"] += got["facts"]
+            out["missing"] += [
+                m | {"reason": "none, the place has no site of this kind"}
+                if self._zero_sites(m["indicator_id"], geo)
+                else m
+                for m in got["missing"]
+            ]
         marks = ",".join("?" * len(kinds))
         rows = self.con.execute(
             f"SELECT kind, name FROM site WHERE {geo[0]} = ? AND kind IN ({marks}) ORDER BY kind, name",
@@ -1030,6 +1223,59 @@ class Session:
         ).fetchall()
         out["site_total"] = len(rows)
         out["sites"] = [{"kind": k, "name": n} for k, n in rows[: config.SITE_LIMIT]]
+        return self._noted(out, [geo])
+
+    def _zero_sites(self, units: str, geo: tuple[str, str]) -> bool:
+        """Whether the place has no site of the kind a units indicator counts."""
+        kind = next(k for k, u in UNIT_INDICATORS.items() if u == units)
+        row = self.con.execute(
+            "SELECT value FROM fact WHERE indicator_id = ? AND geo_type = ? AND geo_id = ?",
+            [SITE_INDICATORS[kind], *geo],
+        ).fetchone()
+        return row is not None and row[0] == 0
+
+    # find_member
+
+    def _member_entries(self, found: list[Member]) -> list[dict]:
+        out = []
+        for m in found:
+            key = (m.geo_type, m.geo_id)
+            self.members.add(key)
+            self.resolved.add(key)
+            out.append(
+                {
+                    "marker": f"{{member:{m.geo}}}",
+                    **self._geo(*key),
+                    "title": m.title,
+                    "listed_name": m.name,
+                    "official_page": m.profile_url,
+                    "listed": as_listed(m),
+                    "timing": timing(m),
+                }
+            )
+        return out
+
+    def _find_member(self, args: dict) -> dict:
+        district, name = args.get("district"), args.get("name")
+        if bool(district) == bool(name):
+            raise ToolError("give exactly one of district (TYPE:ID) or name")
+        if district:
+            geo = _geo_arg(district)
+            if geo[0] not in ("house", "senate") or self._name(*geo) is None:
+                raise ToolError("district must be a stored House or Senate district, for example house:022")
+            found = members_of(self.con, *geo)
+            if not found:
+                return {"members": [], "note": f"No member is listed for {self._name(*geo)}."}
+            return {"members": self._member_entries(found)}
+        found = by_name(self.con, _str(args, "name"))
+        if not found:
+            return {
+                "members": [],
+                "note": "No listed member has that exact name. Names must match as listed, without near spellings.",
+            }
+        out = {"members": self._member_entries(found)}
+        if len(found) > 1:
+            out["note"] = "Several members match. List each one, or ask which one the user means."
         return out
 
     def _explain_source(self, args: dict) -> dict:
@@ -1059,16 +1305,27 @@ _GEO = {
 TOOL_SPECS = [
     _spec(
         "resolve_place",
-        "Resolve a district, ZIP code, island, county, neighborhood or town to geographies. Returns every "
+        "Resolve a district, ZIP code, street address, island, county, neighborhood or town to geographies. "
+        "A street address goes to the Census geocoder. Returns every "
         "candidate with its island and the districts and counties it overlaps, or no matches with a note on why. "
         "Islands, neighborhood board areas and county divisions have no facts of their own: use their districts, "
         "or their county when of_county is close to 1. Never guess between candidates.",
-        {"text": {"type": "string", "description": "District, ZIP code or place name as the user wrote it."}},
+        {
+            "text": {
+                "type": "string",
+                "description": "District, ZIP code, whole street address or place name as the user wrote it.",
+            }
+        },
         ["text"],
     ),
     _spec(
         "search_indicators",
-        "Find indicators by words. Returns ids, labels, units and the geography types each is published for.",
+        "Find indicators by words. Returns ids, labels, units, the geography types each is published for, meaning "
+        "(a plain definition) and method (modeled estimate for CDC PLACES measures). Pick the indicator whose label "
+        "and meaning match the question's words. Housing insecurity, food insecurity, lack of reliable "
+        "transportation, utility shut-off threats, uninsured adults 18 to 64 and adults who received SNAP are "
+        "modeled measures held for districts: use them for those words, not rent burden or a household count, and "
+        "call each a modeled estimate.",
         {"words": {**_STRS, "description": "Search words, for example kupuna or poverty."}},
         ["words"],
     ),
@@ -1077,7 +1334,9 @@ TOOL_SPECS = [
         "Get stored facts for indicators at geographies. Each fact has a ref, the exact value text, vintage, "
         "source, source_id, method and a reliability flag (false when the margin of error is large, null when "
         "the fact has no margin of error to judge). Facts that do not exist, are suppressed or do not apply are "
-        "listed under missing with the reason.",
+        "listed under missing with the reason. A fact tied to a benefit program lists it under programs: put its "
+        "rule_id in programs and write its name in the answer. Districts and counties with a known caveat, such "
+        "as the Maui wildfires, are listed under place_caveats.",
         {"indicator_ids": _STRS, "geos": {**_STRS, "description": "Geographies as TYPE:ID."}},
         ["indicator_ids", "geos"],
     ),
@@ -1099,10 +1358,13 @@ TOOL_SPECS = [
         "district_profile",
         "The standard profile of a House or Senate district, the same one the website shows: its counties, "
         "Census places and overlapping districts in the other chamber with population shares, then sections "
-        "(People, Income, Housing, Health and access, Programs in use, Who may qualify, Modeled needs, Help sites). "
-        "Each row is a "
+        "(People, Income, Work and education, Housing, Health and access, Programs in use, Who may qualify, Modeled "
+        "needs, Help sites). Work and education lists the district's three largest industries. Each row is a "
         "fact with its ref, compared with the main county and the state: a direction for rates, and the "
-        "district's share for totals. Use it when asked for a profile or overview of a district.",
+        "district's share for totals. A last section, County-level figures, holds figures published only for "
+        "counties (unemployment, state tax credit claims) for the main county, compared with the state: cite "
+        "them as the county's figures, never the district's. Use it when asked for a profile or overview of a "
+        "district.",
         {"district": {**_GEO, "description": "House or Senate district as TYPE:ID, for example house:022."}},
         ["district"],
     ),
@@ -1146,9 +1408,28 @@ TOOL_SPECS = [
     ),
     _spec(
         "find_sites",
-        "Find housing and health sites in a district. Returns site-count facts and up to 20 site names.",
+        "Find housing and health sites in a district. Returns site-count facts, the housing units at public "
+        "housing and tax credit projects, and up to 20 site names. Asked how many units or homes, cite the units "
+        "fact, not the count of developments.",
         {"geo": _GEO, "kind": {"type": "string", "enum": sorted(SITE_KINDS)}},
         ["geo"],
+    ),
+    _spec(
+        "find_member",
+        "The legislator a Legislature listing names for a House or Senate district, or the district of a "
+        "legislator by name. Give district or name. Names match exactly, ignoring case, ʻokina and kahakō, and "
+        "every match is returned. Each member has a marker: write the member only with it, as in "
+        '"{geo:house:022} is represented by {member:house:022}." The marker prints the title and name with where '
+        "and when it was listed, and a caveat on the election timing is added for you. Never give a party, votes, record "
+        "or opinion of a member.",
+        {
+            "district": {
+                **_GEO,
+                "description": "House or Senate district as TYPE:ID, for example house:022.",
+            },
+            "name": {**_STR, "description": "The legislator's name as the user wrote it, without the title."},
+        },
+        [],
     ),
     _spec(
         "explain_source",

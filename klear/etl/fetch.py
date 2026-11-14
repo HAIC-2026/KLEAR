@@ -26,11 +26,13 @@ def mask_key(text: str) -> str:
     return _KEY_RE.sub(lambda m: f"{m.group(1)}=***", text)
 
 
-def _download(client: httpx.Client, url: str, tmp: Path) -> tuple[str, int]:
+def _download(client: httpx.Client, url: str, tmp: Path, body: dict | None = None) -> tuple[str, int]:
+    # GET the url, or POST body as JSON when given
+    method, extra = ("GET", {}) if body is None else ("POST", {"json": body})
     for attempt in range(ATTEMPTS):
         last = attempt == ATTEMPTS - 1
         try:
-            with client.stream("GET", url, headers={"User-Agent": USER_AGENT}) as resp:
+            with client.stream(method, url, headers={"User-Agent": USER_AGENT}, **extra) as resp:
                 if resp.status_code in RETRY_STATUS and not last:
                     time.sleep(BACKOFF_S * 2**attempt)
                     continue
@@ -79,8 +81,10 @@ def fetch(
     refresh: bool = False,
     client: httpx.Client | None = None,
     validate: Callable[[Path], None] | None = None,
+    json_body: dict | None = None,
 ) -> Path:
     # validate runs on the downloaded file before it is cached; if it raises, nothing is saved
+    # json_body makes the request a POST of that JSON, recorded in the sidecar
     target = config.RAW_DIR / name
     if _session is not None:
         _session["used"].add(target)
@@ -94,7 +98,7 @@ def fetch(
     os.close(fd)
     tmp = Path(tmp_name)
     try:
-        sha256, size = _download(client, url, tmp)
+        sha256, size = _download(client, url, tmp, json_body)
         if validate is not None:
             validate(tmp)
         tmp.replace(target)
@@ -112,6 +116,8 @@ def fetch(
         "sha256": sha256,
         "bytes": size,
     }
+    if json_body is not None:
+        meta["request_json"] = json_body
     meta_path = target.with_name(target.name + ".meta.json")
     meta_path.write_text(json.dumps(meta, indent=2) + "\n", encoding="utf-8")
     if _session is not None:

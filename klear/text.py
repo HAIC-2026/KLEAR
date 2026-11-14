@@ -1,4 +1,5 @@
-# Hawaiian place-name spelling with ʻokina and kahakō.
+"""Hawaiian place-name spelling with ʻokina and kahakō."""
+
 import re
 import unicodedata
 
@@ -60,20 +61,25 @@ def _pattern(name: str) -> str:
 
 _RULES = [(re.compile(_pattern(n)), n) for n in (*NAMES, *PLACES)]
 _ANY_CASE = [(re.compile(_pattern(n), re.IGNORECASE), n) for n in (*NAMES, *PLACES)]
+# Web addresses, with or without a scheme, which cannot carry the ʻokina.
+LINK = r"https?://[^\s)\]>]+|(?<![\w@.-])(?:[\w-]+\.)+(?:gov|org|com|edu|net|us)(?![\w-])(?:/[^\s)\]>]*)?"
 _ORG = re.compile(
     r"(?<!\w)(?:" + "|".join(re.escape(n) for n in sorted(ORG_NAMES, key=len, reverse=True)) + r")(?!\w)"
 )
+_KEEP = re.compile(f"(?i:{LINK})|{_ORG.pattern}")
 
 
 def _plain_chunks(s: str) -> list[tuple[bool, str]]:
+    """Text split into (kept as written, chunk): organization names and web addresses are kept."""
     out, pos = [], 0
-    for m in _ORG.finditer(s):
+    for m in _KEEP.finditer(s):
         out += [(False, s[pos : m.start()]), (True, m.group())]
         pos = m.end()
     return [*out, (False, s[pos:])]
 
 
 def hawaiian(s: str) -> str:
+    """Place names spelled with ʻokina and kahakō, organization names and web addresses kept."""
     s = unicodedata.normalize("NFC", s)
     out = []
     for is_org, chunk in _plain_chunks(s):

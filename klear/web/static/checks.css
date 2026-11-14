@@ -1,7 +1,5 @@
 /* How we check KLEAR page. Shares the tokens, header, tables and footer of style.css. */
 .check-intro{padding:clamp(32px,5vw,56px) 0 clamp(40px,5vw,64px);background:var(--surface);border-bottom:1px solid var(--line)}
-.crumb{margin:0 0 12px;font-size:var(--fs-sm);color:var(--muted)}
-.crumb a{color:var(--muted)}
 .check-intro h1{font-size:clamp(30px,3.6vw,44px);line-height:1.15;margin:0 0 16px}
 .checks-page .lede{color:var(--ink);max-width:var(--measure);margin:0 0 var(--block-gap)}
 .check-section{padding:var(--section-y) 0;background:var(--bg)}
@@ -50,15 +48,16 @@
 .report-link{margin:var(--block-gap) 0 0;max-width:var(--measure)}
 
 /* Disclosures: the district table and the check details */
-.checks-page details{margin:0;padding:0;border:0}
-.checks-page summary{list-style:none;display:flex;align-items:center;gap:12px}
-.checks-page summary::-webkit-details-marker{display:none}
-.checks-page summary::before{content:"";flex:none;width:8px;height:8px;margin:0 4px 0 2px;border-right:2px solid currentColor;border-bottom:2px solid currentColor;transform:rotate(-45deg);transition:transform .15s}
-.checks-page details[open]>summary::before{transform:rotate(45deg)}
+/* The page's own disclosures; the header's menu keeps its own look. */
+.checks-page main details{margin:0;padding:0;border:0}
+.checks-page main summary{list-style:none;display:flex;align-items:center;gap:12px}
+.checks-page main summary::-webkit-details-marker{display:none}
+.checks-page main summary::before{content:"";flex:none;width:8px;height:8px;margin:0 4px 0 2px;border-right:2px solid currentColor;border-bottom:2px solid currentColor;transform:rotate(-45deg);transition:transform .15s}
+.checks-page main details[open]>summary::before{transform:rotate(45deg)}
 .table-toggle>summary{display:inline-flex;padding:10px 16px;background:#fff;border:1px solid var(--accent);border-radius:var(--r-ctl);color:var(--accent-dark)}
 .table-toggle[open]>summary{margin-bottom:16px}
 .check-details{display:grid;grid-template-columns:minmax(0,1fr);gap:10px}
-.checks-page .check-detail{background:#fff;border:1px solid var(--line);border-radius:var(--r-ctl);scroll-margin-top:16px}
+.checks-page .check-detail{background:#fff;border:1px solid var(--line);border-radius:var(--r-ctl);scroll-margin-top:calc(var(--stick) + 16px)}
 .check-detail>summary{padding:14px 18px;color:var(--ink)}
 .detail-title{flex:1;min-width:0;font-weight:600}
 .detail-body{padding:4px 18px 20px 44px;border-top:1px solid var(--line)}
@@ -68,7 +67,7 @@
 .detail-body .key-list{margin-top:8px}
 .detail-body .table-block{margin-top:20px}
 .check-detail:target{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
-@media(prefers-reduced-motion:reduce){.checks-page summary::before{transition:none}}
+@media(prefers-reduced-motion:reduce){.checks-page main summary::before{transition:none}}
 
 @media(max-width:1023px){
   .build-facts{grid-template-columns:repeat(2,minmax(0,1fr))}

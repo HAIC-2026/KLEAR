@@ -2,6 +2,7 @@ rule_id: hi_state_credits
 program: Hawaiʻi state EITC, food/excise and renters credits
 status: confirmed
 effective: '2025-01-01'
+review_by: '2027-01-01'
 info_url: https://tax.hawaii.gov/geninfo/
 source_url: https://tax.hawaii.gov/geninfo/
 fetch_url: https://files.hawaii.gov/tax/forms/2025/n11ins.pdf

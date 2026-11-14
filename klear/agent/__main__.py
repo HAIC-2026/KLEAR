@@ -7,6 +7,7 @@ from pathlib import Path
 
 import duckdb
 
+from klear import caveats
 from klear.agent.config import DEFAULT_MODEL, REQUEST_SETTINGS
 from klear.agent.loop import KlearAgent
 from klear.config import MissingSecretError
@@ -14,6 +15,7 @@ from klear.eval.agents import Usage
 from klear.eval.contract import ContractError, geo_key, render
 from klear.eval.golden import ROOT
 from klear.eval.spend import EPS, PRICES, LedgerError, SpendCapError, SpendLog, load_prices, request_cost
+from klear.web.geocode import find_blocks
 
 STORE = ROOT / "data" / "build" / "klear.duckdb"
 SECRET = re.compile(r"sk-[A-Za-z0-9_-]+")
@@ -96,8 +98,14 @@ def _ask(con, agent: KlearAgent, question: str, district) -> int:
         text = render(answer, con)
     except (ContractError, KeyError) as e:
         text = f"[render failed: {e}]\n\n" + "\n\n".join([*answer.blocks, *answer.caveats])
+    if answer.facts and answer.resolved:
+        notes = caveats.for_places(con, [answer.resolved, *((f.geo_type, f.geo_id) for f in answer.facts)])
+        text += "".join(f"\n\n{c['title']} ({c['geo']}): {c['text']}" for c in notes)
     print(f"\n{text}\n\nRefusal: {answer.refusal}")
-    print(f"Cost: ${cost:.4f} ({usage.input_tokens} input, {usage.output_tokens} output tokens)")
+    print(
+        f"Cost: ${cost:.4f} ({usage.input_tokens} input, {usage.cache_write_tokens} cache write, "
+        f"{usage.cache_read_tokens} cache read, {usage.output_tokens} output tokens)"
+    )
     if cost > worst + EPS:
         return _err(f"call cost ${cost:.4f} exceeded its ${worst:.4f} reservation")
     return 0
@@ -110,6 +118,11 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--model", default=DEFAULT_MODEL)
     ap.add_argument("--review", action="store_true", help="add the safety reviewer")
     ap.add_argument("--store", type=Path, default=STORE)
+    ap.add_argument(
+        "--no-address-lookup",
+        action="store_true",
+        help="never send a street address to the U.S. Census Bureau geocoder",
+    )
     args = ap.parse_args(argv)
     known = sorted(set(load_prices()["models"]) & set(REQUEST_SETTINGS))
     if args.model not in known:
@@ -122,7 +135,9 @@ def main(argv: list[str] | None = None) -> int:
             district = _district(con, args.district)
         except ValueError as e:
             return _err(str(e))
-        return _ask(con, KlearAgent(con, model=args.model, review=args.review), args.question, district)
+        geocoder = None if args.no_address_lookup else find_blocks
+        agent = KlearAgent(con, model=args.model, review=args.review, geocoder=geocoder)
+        return _ask(con, agent, args.question, district)
     except LedgerError as e:
         return _err(f"spend ledger: {e}")
     finally:

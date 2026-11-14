@@ -23,7 +23,7 @@ REQUEST_SETTINGS = {
     },
     "claude-opus-5-5": {"params": {"output_config": {"effort": "low"}}, "force_submit": False},
 }
-SEARCH_LIMIT = 12
+SEARCH_LIMIT = 16
 SITE_LIMIT = 20
 CHAMBER_TYPES = ("house", "senate")
 # How rank_districts groups districts, as the tool reports it.
@@ -46,10 +46,55 @@ ALIASES = {
     "tenure": ("renter", "owner", "occupied"),
     "homeowner": ("owner", "occupied"),
     "household": ("household", "occupied"),
+    "insecure": ("insecurity",),
+    "hunger": ("food", "insecurity"),
+    "hungry": ("food", "insecurity"),
+    "shutoff": ("utility", "shut", "off"),
+    "disconnection": ("utility", "shut", "off"),
+    "transit": ("transportation",),
+    "stamp": ("snap", "food", "stamp"),
+    "job": ("industry", "unemployment", "labor"),
+    "industrie": ("industry",),
+    "tourism": ("accommodation", "arts", "entertainment", "recreation"),
+    "tourist": ("accommodation", "arts", "entertainment", "recreation"),
+    "hotel": ("accommodation",),
+    "construction": ("construction", "industry"),
+    "government": ("public", "administration", "admin"),
+    "degree": ("bachelor", "degree"),
+    "college": ("bachelor", "degree"),
+    "diploma": ("high", "school", "graduate"),
+    "education": ("high", "school", "graduate", "bachelor", "degree"),
 }
 # Hawaiian group words by their plain spelling, as an answer must write them.
 GROUP_WORDS = {"kupuna": "kūpuna", "keiki": "keiki", "ohana": "ʻohana"}
+# Industry and occupation groups of employed residents, and educational attainment, from the ACS data profiles.
+INDUSTRIES = (
+    "pct_industry_agriculture",
+    "pct_industry_construction",
+    "pct_industry_manufacturing",
+    "pct_industry_wholesale",
+    "pct_industry_retail",
+    "pct_industry_transportation",
+    "pct_industry_information",
+    "pct_industry_finance",
+    "pct_industry_professional",
+    "pct_industry_education_health",
+    "pct_industry_arts_food",
+    "pct_industry_other_services",
+    "pct_industry_public_admin",
+)
+OCCUPATIONS = (
+    "pct_occupation_management",
+    "pct_occupation_service",
+    "pct_occupation_sales_office",
+    "pct_occupation_natural_resources",
+    "pct_occupation_production",
+)
+EDUCATION = ("pct_bachelors_plus", "pct_hs_grad_plus")
+# Profile rows chosen for each district: a group's largest figures there, at most the given number.
+PROFILE_LARGEST = {"largest_industries": (INDUSTRIES, 3)}
 # The standard district profile: section titles and their indicators, read from the store with no model call.
+# A PROFILE_LARGEST key stands for the district's largest figures of its group.
 PROFILE_SECTIONS = (
     (
         "People",
@@ -74,6 +119,10 @@ PROFILE_SECTIONS = (
             "pct_children_poverty",
             "pct_65_plus_poverty",
         ),
+    ),
+    (
+        "Work and education",
+        ("unemployment_rate", "pct_in_labor_force", "largest_industries", "pct_bachelors_plus"),
     ),
     (
         "Housing",
@@ -143,11 +192,71 @@ PROFILE_BESIDE = {
             "reaches incomes above poverty."
         ),
     ),
+    "uninsured_138_399pct_poverty": (
+        "aca_aptc_consumers",
+        (
+            "Marketplace enrollees got premium tax credits. These count people who signed up for a plan, so they "
+            "have coverage."
+        ),
+    ),
 }
+# Outreach pairs for the outreach page and the profile's outreach note: a group that meets a program's income test,
+# the indicator the page ranks districts by (a direct ACS count, tight enough to rank), the group as a sentence names
+# it, and the catalog programs (data/programs) it may qualify for. A pair's program-use figure is its PROFILE_BESIDE
+# figure, shown beside each district for comparison and never ranked.
+OUTREACH_PAIRS = {
+    "snap": {
+        "title": "SNAP",
+        "indicator": "hh_poverty_no_snap",
+        "who": "households in poverty that did not get SNAP",
+        "programs": ("snap",),
+    },
+    "med_quest": {
+        "title": "Med-QUEST",
+        "indicator": "uninsured_under_138pct_poverty",
+        "who": "uninsured people with income under 138% of poverty",
+        "programs": ("med_quest",),
+    },
+    "marketplace": {
+        "title": "Marketplace tax credits",
+        "indicator": "uninsured_138_399pct_poverty",
+        "who": "uninsured people with income from 138% to 399% of poverty",
+        "programs": ("marketplace",),
+    },
+    "kupuna": {
+        "title": "Kūpuna programs",
+        "indicator": "kupuna_under_200pct_poverty",
+        "who": "kūpuna with income under 200% of poverty",
+        "programs": ("ssi", "kupuna_care", "medicare_savings"),
+    },
+    "eitc": {
+        "title": "Federal EITC",
+        "indicator": "working_below_poverty",
+        "who": "working families and people below poverty",
+        "programs": ("eitc_federal",),
+    },
+}
+OUTREACH_DEFAULT = "snap"
+# A district profile names at most this many pairs whose top tier holds the district.
+OUTREACH_NOTE_LIMIT = 2
+# County-level figures the profile shows for the district's main county, compared with the state. Their sources
+# publish them only for counties, so they are never the district's own figures.
+COUNTY_SECTION = (
+    "County-level figures",
+    (
+        "bls_unemployment_rate",
+        "dotax_eitc_claims",
+        "dotax_eitc_dollars",
+        "dotax_food_excise_claims",
+        "dotax_renters_claims",
+    ),
+)
 # Profile figures to show first, before the full sections.
 PROFILE_HEADLINE = ("pop_total", "median_household_income", "pct_people_poverty", "pct_65_plus")
 PROFILE_INDICATORS = tuple(
-    dict.fromkeys(PROFILE_HEADLINE + tuple(i for _, ids in PROFILE_SECTIONS for i in ids))
+    dict.fromkeys(
+        PROFILE_HEADLINE + tuple(i for _, ids in PROFILE_SECTIONS for i in ids if i not in PROFILE_LARGEST)
+    )
 )
 # Kūpuna on fixed incomes: the figures for the district, the rates and medians also compared with its main
 # county and the state, and the programs to name.
@@ -177,6 +286,16 @@ REQUIRED_FACTS = (
     (("profile",), PROFILE_INDICATORS),
     (("income", "picture"), ("median_household_income", "pct_people_poverty")),
     (("fixed",), FIXED_INCOME),
+    (("industries",), INDUSTRIES),
+    (("housing", "insecurity"), ("places_housing_insecurity",)),
+    (("housing", "insecure"), ("places_housing_insecurity",)),
+    (("food", "insecurity"), ("places_food_insecurity",)),
+    (("food", "insecure"), ("places_food_insecurity",)),
+    (("shut", "off"), ("places_utility_shutoff_threat",)),
+    (("shutoff",), ("places_utility_shutoff_threat",)),
+    (("lack", "transportation"), ("places_lack_transport",)),
+    (("reliable", "transportation"), ("places_lack_transport",)),
+    (("public", "housing", "units"), ("units_public_housing",)),
 )
 # Comparisons a question asks for: trigger words, then indicators the answer must also cite for the district's
 # main county and the state.
@@ -189,10 +308,59 @@ MEASURES = {
     "eitc_federal_ty2025": ("irs_eitc_returns", "irs_eitc_dollars"),
     "eitc_federal_ty2026": ("irs_eitc_returns", "irs_eitc_dollars"),
     "hud_il_fy2026_hi": ("hud_vouchers",),
+    "hi_state_credits": (
+        "dotax_eitc_claims",
+        "dotax_eitc_dollars",
+        "dotax_food_excise_claims",
+        "dotax_food_excise_dollars",
+        "dotax_renters_claims",
+        "dotax_renters_dollars",
+    ),
     "snap_fy2027": ("pct_hh_snap", "hh_snap", "places_received_snap"),
     "ssi_federal_2026": ("pct_hh_ssi", "hh_ssi"),
     "ssi_hi_supplement": ("pct_hh_ssi", "hh_ssi"),
 }
+# Programs tied to a figure: an answer citing the indicator lists the first rule id unless it already lists a
+# rule of the same program, and names the program in its text.
+_SNAP, _SSI, _EITC, _ACA, _HUD, _HPHA = (
+    ("snap_fy2027",),
+    ("ssi_federal_2026",),
+    ("eitc_federal_ty2025",),
+    ("aca_ptc_2026",),
+    ("hud_il_fy2026_hi",),
+    ("hpha_limits",),
+)
+TIED_PROGRAMS = {
+    "pct_hh_snap": _SNAP,
+    "hh_snap": _SNAP,
+    "hh_poverty_no_snap": _SNAP,
+    "places_received_snap": _SNAP,
+    "places_food_insecurity": _SNAP,
+    "pct_hh_ssi": _SSI,
+    "hh_ssi": _SSI,
+    "irs_eitc_returns": _EITC,
+    "irs_eitc_dollars": _EITC,
+    "aca_consumers": _ACA,
+    "aca_aptc_consumers": _ACA,
+    "uninsured_138_399pct_poverty": _ACA,
+    "uninsured_under_138pct_poverty": ("medquest_2026",),
+    "hud_vouchers": _HUD,
+    "pct_rent_burden_35_plus": _HUD,
+    "renter_hh_rent_50_plus": _HUD,
+    "chas_renter_lowinc": _HUD,
+    "chas_renter_lowinc_burdened": _HUD,
+    "chas_owner_lowinc": _HUD,
+    "chas_owner_lowinc_burdened": _HUD,
+    "sites_public_housing": _HPHA,
+    "units_public_housing": _HPHA,
+    "places_housing_insecurity": _HUD,
+    "places_utility_shutoff_threat": ("h_heap_fy2026",),
+}
+# Words that make a question about the whole state rather than one place.
+STATEWIDE = (
+    r"\bstate\s*-?\s*wide\b|\b(?:whole|entire)\s+state\b|\bacross\s+(?:the\s+)?state\b|\bstate\s+as\s+a\s+whole\b"
+    r"|\b(?:all\s+of|across)\s+hawai\S?i\b|\bhawai\S?i\s+(?:overall|as\s+a\s+whole)\b|\boverall\s+in\s+hawai\S?i\b"
+)
 # Null-valued fact statuses and why such facts are listed as missing.
 NULL_REASONS = {
     "suppressed": "too few cases for the source to publish",

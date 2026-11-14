@@ -2,6 +2,7 @@ rule_id: preschool_open_doors
 program: Preschool Open Doors
 status: confirmed
 effective: '2026-05-29'
+review_by: '2027-05-29'
 info_url: https://www.patchhawaii.org/programs/families/preschool-open-doors-pod/
 source_url: https://humanservices.hawaii.gov/?p=15260
 effective_source:

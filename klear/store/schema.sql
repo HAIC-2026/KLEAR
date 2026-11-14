@@ -78,6 +78,10 @@ CREATE TABLE IF NOT EXISTS build_info (
 --                   available, treat as uncertain".
 --   not_applicable  moe is NULL, no margin of error applies. Do not give a margin.
 --   range           moe is NULL, value_low and value_high bound the value. Say "about X (range L to H)".
+--
+-- tier
+--   D direct, A apportioned, P counted from points, M modeled, C county-level context: published only for
+--   counties and the state, so a C fact is never stored for a district, tract or ZIP code.
 CREATE TABLE IF NOT EXISTS fact (
     geo_type VARCHAR NOT NULL,
     geo_id VARCHAR NOT NULL,
@@ -104,7 +108,22 @@ CREATE TABLE IF NOT EXISTS fact (
     -- tier S (summed) carries a range only when some of its parts were suppressed
     CHECK (tier = 'S' OR (tier IN ('A', 'M') AND value IS NOT NULL) = (value_low IS NOT NULL)),
     CHECK ((moe_status = 'range') = (value_low IS NOT NULL)),
-    CHECK (tier NOT IN ('A', 'M') OR value IS NULL OR moe_status = 'range')
+    CHECK (tier NOT IN ('A', 'M') OR value IS NULL OR moe_status = 'range'),
+    CHECK (tier <> 'C' OR geo_type IN ('state', 'county'))
+);
+
+-- Stored facts that equal a second publication of the same figure (value, margin of error and both
+-- statuses), with the page or file that publishes it. The build writes a row only for a fact it compared.
+CREATE TABLE IF NOT EXISTS fact_match (
+    geo_type VARCHAR NOT NULL,
+    geo_id VARCHAR NOT NULL,
+    indicator_id VARCHAR NOT NULL,
+    source_id VARCHAR NOT NULL,
+    match_source_id VARCHAR NOT NULL REFERENCES source (source_id),
+    match_url VARCHAR NOT NULL CHECK (match_url LIKE 'https://%'),
+    PRIMARY KEY (geo_type, geo_id, indicator_id, source_id, match_source_id),
+    FOREIGN KEY (geo_type, geo_id, indicator_id, source_id) REFERENCES fact (geo_type, geo_id, indicator_id, source_id),
+    CHECK (match_source_id <> source_id)
 );
 
 CREATE TABLE IF NOT EXISTS site (
@@ -119,6 +138,20 @@ CREATE TABLE IF NOT EXISTS site (
     snapped_m DOUBLE NOT NULL CHECK (snapped_m >= 0),
     units INTEGER,
     source_id VARCHAR NOT NULL REFERENCES source (source_id)
+);
+
+-- Legislators by district as listed by the Legislature's Public Access Room: the name as printed, an official
+-- page, the date printed on the listing and the date the build fetched it. No party, votes or record.
+CREATE TABLE IF NOT EXISTS member (
+    geo_type VARCHAR NOT NULL CHECK (geo_type IN ('house', 'senate')),
+    geo_id VARCHAR NOT NULL,
+    name VARCHAR NOT NULL CHECK (length(name) > 0),
+    profile_url VARCHAR NOT NULL CHECK (length(profile_url) > 0),
+    listed_on VARCHAR NOT NULL,
+    retrieved_on VARCHAR NOT NULL,
+    source_id VARCHAR NOT NULL REFERENCES source (source_id),
+    PRIMARY KEY (geo_type, geo_id, name),
+    FOREIGN KEY (geo_type, geo_id) REFERENCES geography (geo_type, geo_id)
 );
 
 -- 2020 Census blocks with their county, tract, ZCTA, 2022-plan districts and population.
@@ -179,4 +212,20 @@ CREATE TABLE IF NOT EXISTS area_alias (
     target_type VARCHAR NOT NULL CHECK (target_type IN ('area', 'place')),
     target_id VARCHAR NOT NULL,
     PRIMARY KEY (plain, target_type, target_id)
+);
+
+-- Each House and Senate district's official area description and permanent-resident population from the 2021
+-- Reapportionment Commission Final Report, with the report page (as printed, such as D-001 or 15) and the PDF page
+-- each was read from. A value that failed the report's own totals is left out (NULL).
+CREATE TABLE IF NOT EXISTS district_plan (
+    geo_type VARCHAR NOT NULL CHECK (geo_type IN ('house', 'senate')),
+    geo_id VARCHAR NOT NULL,
+    description VARCHAR,
+    description_page VARCHAR,
+    description_pdf_page INTEGER,
+    permanent BIGINT CHECK (permanent > 0),
+    permanent_page VARCHAR,
+    permanent_pdf_page INTEGER,
+    source_id VARCHAR NOT NULL REFERENCES source (source_id),
+    PRIMARY KEY (geo_type, geo_id)
 );

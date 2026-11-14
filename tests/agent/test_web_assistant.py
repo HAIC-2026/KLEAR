@@ -9,9 +9,12 @@ from http.server import ThreadingHTTPServer
 import anthropic
 import pytest
 
+from klear.eval.agents import Usage
+from klear.eval.spend import load_prices
 from klear.web import __main__ as web
+from klear.web import display
 from klear.web.assistant import BASIC, Assistant, BudgetExceeded, DailyBudget
-from tests.agent.fake_client import FakeClient, api_error, tool
+from tests.agent.fake_client import CachingClient, FakeClient, api_error, tool
 from tests.eval.conftest import _home  # noqa: F401
 
 GOOD = {
@@ -68,6 +71,43 @@ def test_assistant_answer_has_cards_and_settles_actual_cost(small_con, budget):
     assert 0 < budget.spent() < 0.01
 
 
+def test_second_question_shows_cache_reads_in_the_spend_record(small_con, budget):
+    fake = CachingClient(SCRIPT * 2)
+    assistant = Assistant(budget, client=fake)
+    assistant.ask(small_con, "How many seniors live here?", DISTRICT)
+    first = budget.tokens()
+    spent = budget.spent()
+    assert (
+        assistant.ask(small_con, "How many seniors live in this district?", DISTRICT)["mode"] == "assistant"
+    )
+    record = json.loads(budget.path.read_text(encoding="utf-8"))
+    second = {k: record["tokens"][k] - first[k] for k in first}
+    assert fake.calls == 4 and record["held"] == {}
+    # The second question reads the tools and system prompt the first one wrote, so it writes less and costs less.
+    assert fake.usages[2]["cache_read_input_tokens"] > 0
+    assert second["cache_read_tokens"] > first["cache_read_tokens"] > 0
+    assert second["cache_write_tokens"] < first["cache_write_tokens"]
+    assert 0 < record["spent"] - spent < spent
+    rate = load_prices()["models"]["claude-haiku-5-5"]
+    want = sum(
+        record["tokens"][f"{k}_tokens"] * rate[k] for k in ("input", "output", "cache_write", "cache_read")
+    )
+    assert record["spent"] == pytest.approx(want / 1e6)
+
+
+def test_budget_tokens_skip_unknown_costs_and_reset_each_day(tmp_path):
+    day = ["2026-11-04"]
+    b = DailyBudget(5.0, tmp_path / "web_spend.json", day=lambda: day[0])
+    used = Usage(10, 5, 0.1, 100, 40)
+    b.settle(b.reserve(1.0), 0.01, used)
+    b.settle(b.reserve(1.0), None, used)
+    assert b.tokens() == {
+        "input_tokens": 10, "output_tokens": 5, "cache_write_tokens": 100, "cache_read_tokens": 40,
+    }  # fmt: skip
+    day[0] = "2026-11-05"
+    assert set(b.tokens().values()) == {0}
+
+
 def test_cap_reached_uses_basic_lookup_without_calls(small_con, tmp_path):
     fake = FakeClient(SCRIPT)
     tiny = DailyBudget(0.0, tmp_path / "web_spend.json")
@@ -118,3 +158,80 @@ def test_chat_profile_cites_the_same_figures_as_the_profile(real_con):
         r["fact"]["label"] for s in profile["sections"] for r in s["rows"]
     }
     assert answer["lead"][0].startswith("This is the standard profile")
+
+
+def _refused(refusal: str, blocks: list[str], facts: list[str] | None = None) -> list:
+    answer = {"resolved": "house:022", "refusal": refusal, "blocks": blocks, "facts": facts or []}
+    return [tool("submit_answer", answer | {"programs": [], "caveats": []}, "tu_submit")]
+
+
+@pytest.mark.parametrize(
+    ("refusal", "blocks", "linked"),
+    [
+        ("not_available", ["WIC enrollment is not published by district."], True),
+        ("out_of_scope", ["KLEAR covers population, income, housing, work and health, not crime."], True),
+        ("decline_partisan", ["KLEAR does not help with campaigns or voting choices."], False),
+        ("decline_individual", ["KLEAR does not answer questions about one person."], False),
+    ],
+)
+def test_assistant_links_datatrove_only_when_data_is_missing(small_con, budget, refusal, blocks, linked):
+    result = Assistant(budget, client=FakeClient(_refused(refusal, blocks))).ask(
+        small_con, "Question?", DISTRICT
+    )
+    assert result["mode"] == "assistant" and result["refusal"] == refusal
+    assert result.get("elsewhere") == (display.ELSEWHERE if linked else None)
+    assert "datatrove" not in result["text"]
+
+
+def test_assistant_answer_with_figures_has_no_datatrove_link(small_con, budget):
+    assert "elsewhere" not in Assistant(budget, client=FakeClient(SCRIPT)).ask(
+        small_con, "Seniors?", DISTRICT
+    )
+    partial_answer = [
+        SCRIPT[0],
+        *_refused("not_available", ["{geo:house:022} has {fact:f1} {label:f1} ({vintage:f1})."], ["f1"]),
+    ]
+    result = Assistant(budget, client=FakeClient(partial_answer)).ask(small_con, "Seniors?", DISTRICT)
+    assert result["refusal"] == "not_available" and result["facts"] and "elsewhere" not in result
+
+
+@pytest.mark.parametrize(
+    ("question", "refusal", "linked"),
+    [
+        ("Explain quantum mechanics", "not_available", True),
+        ("Which party should win here?", "decline_partisan", False),
+        ("How many kūpuna live here?", "none", False),
+    ],
+)
+def test_basic_links_datatrove_only_when_data_is_missing(small_con, tmp_path, question, refusal, linked):
+    tiny = DailyBudget(0.0, tmp_path / "web_spend.json")
+    result = Assistant(tiny, client=FakeClient()).ask(small_con, question, DISTRICT)
+    assert result["mode"] == "basic" and result["refusal"] == refusal
+    assert result.get("elsewhere") == (display.ELSEWHERE if linked else None)
+
+
+def test_datatrove_link_is_display_only():
+    link = display.ELSEWHERE
+    assert link["url"] == "https://datatrove.ai/" and not any(c.isdigit() for c in link["text"])
+    for refusal in ("not_available", "out_of_scope"):
+        assert display.elsewhere(refusal, False) == {"elsewhere": link}
+        assert display.elsewhere(refusal, True) == {}
+    for refusal in ("none", "decline_individual", "decline_partisan"):
+        assert display.elsewhere(refusal, False) == {}
+
+
+def test_answers_with_figures_say_each_comes_from_a_cited_source(small_con, budget, tmp_path):
+    line = "The 1 figure in this answer comes from the cited source below."
+    assistant = Assistant(budget, client=FakeClient(SCRIPT)).ask(small_con, "Seniors?", DISTRICT)
+    assert assistant["verified"]["text"] == line
+    tiny = DailyBudget(0.0, tmp_path / "web_spend.json")
+    basic = Assistant(tiny, client=FakeClient()).ask(small_con, "How many kūpuna live here?", DISTRICT)
+    assert basic["mode"] == "basic" and basic["verified"]["figures"] == len(basic["tiles"]) + sum(
+        len(c["bars"]) for c in basic["charts"]
+    )
+    for question in ("Explain quantum mechanics", "Which party should win here?"):
+        assert "verified" not in Assistant(tiny, client=FakeClient()).ask(small_con, question, DISTRICT)
+    refused = Assistant(budget, client=FakeClient(_refused("out_of_scope", ["Not covered."]))).ask(
+        small_con, "Crime?", DISTRICT
+    )
+    assert "verified" not in refused

@@ -11,16 +11,31 @@
   <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=2">
   <link rel="preload" href="/fonts/public-sans.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/style.css">
+  <script src="/nav.js" defer></script>
 </head>
 <body>
   <a class="skip" href="#main">Skip to content</a>
   <header class="site-header">
     <a class="brand" href="/"><img class="brand-logo" src="/logo.svg" width="36" height="36" alt=""><span class="brand-text"><strong>KLEAR</strong><span class="brand-sub">Hawaiʻi district data</span></span></a>
-    <nav aria-label="Main navigation"><a href="/#district-map">Map</a><a href="/#how">How it works</a><a href="/#sources">Sources</a><a href="/#about">About</a></nav>
+    <nav aria-label="Main navigation">
+      <ul class="nav-links">
+        <li><a href="/#find">Find<span class="nav-long"> a district</span></a></li>
+        <li><a href="/#chat">Ask</a></li>
+        <li><a href="/#district-map">Map</a></li>
+        <li><a href="/outreach.html">Outreach</a></li>
+        <li><details class="nav-menu"><summary>Data<span class="nav-long"> and methods</span></summary><ul>
+          <li><a href="/#sources">Sources</a></li>
+          <li><a href="/methods.html">Methods</a></li>
+          <li><a href="/glossary.html" aria-current="page">Glossary</a></li>
+          <li><a href="/checks.html">How we check KLEAR</a></li>
+        </ul></details></li>
+        <li><a href="/#about">About</a></li>
+      </ul>
+    </nav>
   </header>
   <main id="main" class="glossary">
     <div class="wrap">
-      <p class="crumb"><a href="/">KLEAR</a> <span aria-hidden="true">/</span> Glossary</p>
+      <p class="crumb"><a href="/">KLEAR</a> <span aria-hidden="true">/</span> <span aria-current="page">Glossary</span></p>
       <h1>Glossary</h1>
       <p class="lede">What the words KLEAR uses about its numbers mean. Each figure on the site also has a “What this means” link that explains that figure.</p>
 
@@ -53,6 +68,14 @@
         <div id="kupuna-keiki"><dt><span lang="haw">Kūpuna</span> and <span lang="haw">keiki</span></dt><dd><p>Hawaiian words KLEAR uses for older people and children. Here, <span lang="haw">kūpuna</span> means people 65 and over and <span lang="haw">keiki</span> means children under 18, unless a label gives another age.</p></dd></div>
         <div id="race-alone"><dt>Race “alone” and “with other races”</dt><dd><p>On Census forms, people can choose one race or more. “Alone” counts people who chose only that race. “Alone or with other races” counts everyone who chose it, so one person can be counted in more than one group.</p></dd></div>
       </dl>
+
+      <h2 id="work">Work and school</h2>
+      <dl class="terms">
+        <div id="labor-force"><dt>Labor force</dt><dd><p>People 16 and over who have a job or are looking for one. People who are retired, in school or at home and not looking for work are not in it.</p></dd></div>
+        <div id="unemployment-rate"><dt>Unemployment rate</dt><dd><p>The share of the labor force that has no job and is looking for one. People who are not looking for work do not count.</p></dd></div>
+        <div id="industry-occupation"><dt>Industry and occupation</dt><dd><p>Industry is the kind of business a person works for, such as a hotel or a school. Occupation is the kind of work the person does there, such as cook or teacher.</p><p>The Census Bureau counts workers where they live. So a district’s figures show the jobs of the people who live there, wherever the job is.</p></dd></div>
+        <div id="educational-attainment"><dt>Educational attainment</dt><dd><p>The most schooling a person has finished. KLEAR shows it for adults 25 and over, such as the share with a high school diploma or a four-year college degree.</p></dd></div>
+      </dl>
       <p class="validation-link"><a href="/">Back to KLEAR</a></p>
     </div>
   </main>
@@ -63,10 +86,11 @@
         <div class="footer-col">
           <h2 class="footer-title">Reports</h2>
           <ul>
+            <li><a href="/methods.html">Methods</a></li>
             <li><a href="/glossary.html" aria-current="page">Glossary</a></li>
             <li><a href="/checks.html">How we check KLEAR</a></li>
             <li><a class="ext" href="https://github.com/HAIC-2026/KLEAR/blob/main/docs/VALIDATION.md">Validation report<span class="visually-hidden"> (external site)</span></a></li>
-            <li><a class="ext" href="https://github.com/HAIC-2026/KLEAR/blob/main/docs/ACCESSIBILITY.md">Accessibility statement<span class="visually-hidden"> (external site)</span></a></li>
+            <li><a href="/accessibility.html">Accessibility statement</a></li>
           </ul>
         </div>
         <div class="footer-col">

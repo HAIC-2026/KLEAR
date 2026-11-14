@@ -16,100 +16,163 @@
       - Here is the profile of {geo:senate:008}, the Senate district, not a House district.
       - 'People
 
+
         * {label:f1}: {fact:f1} ({vintage:f1})
 
-        * {label:f4}: {fact:f4}
 
-        * {label:f7}: {fact:f7}
+        * {label:f4}: {fact:f4} ({vintage:f4})
 
-        * {label:f10}: {fact:f10}
 
-        * {label:f13}: {fact:f13}
+        * {label:f7}: {fact:f7} ({vintage:f7})
+
+
+        * {label:f10}: {fact:f10} ({vintage:f10})
+
+
+        * {label:f13}: {fact:f13} ({vintage:f13})
+
 
         * {label:f16}: {fact:f16} ({vintage:f16})
 
-        * {label:f19}: {fact:f19}
 
-        * {label:f22}: {fact:f22}
+        * {label:f19}: {fact:f19} ({vintage:f19})
 
-        * {label:f25}: {fact:f25}'
+
+        * {label:f22}: {fact:f22} ({vintage:f22})
+
+
+        * {label:f25}: {fact:f25} ({vintage:f25})'
       - 'Income
 
-        * {label:f28}: {fact:f28}
 
-        * {label:f31}: {fact:f31}
+        * {label:f28}: {fact:f28} ({vintage:f28})
 
-        * {label:f34}: {fact:f34}
 
-        * {label:f37}: {fact:f37}
+        * {label:f31}: {fact:f31} ({vintage:f31})
 
-        * {label:f40}: {fact:f40}'
+
+        * {label:f34}: {fact:f34} ({vintage:f34})
+
+
+        * {label:f37}: {fact:f37} ({vintage:f37})
+
+
+        * {label:f40}: {fact:f40} ({vintage:f40})'
+      - 'Work and education
+
+
+        * {label:f43}: {fact:f43} ({vintage:f43})
+
+
+        * {label:f46}: {fact:f46} ({vintage:f46})
+
+
+        * {label:f49}: {fact:f49} ({vintage:f49})
+
+
+        * {label:f52}: {fact:f52} ({vintage:f52})
+
+
+        * {label:f55}: {fact:f55} ({vintage:f55})
+
+
+        * {label:f58}: {fact:f58} ({vintage:f58})'
       - 'Housing
 
-        * {label:f43}: {fact:f43}
 
-        * {label:f46}: {fact:f46}
+        * {label:f61}: {fact:f61} ({vintage:f61})
 
-        * {label:f49}: {fact:f49}
 
-        * {label:f52}: {fact:f52}
+        * {label:f64}: {fact:f64} ({vintage:f64})
 
-        * {label:f55}: {fact:f55}'
+
+        * {label:f67}: {fact:f67} ({vintage:f67})
+
+
+        * {label:f70}: {fact:f70} ({vintage:f70})
+
+
+        * {label:f73}: {fact:f73} ({vintage:f73})'
       - 'Health and access
 
-        * {label:f58}: {fact:f58}
-
-        * {label:f61}: {fact:f61}
-
-        * {label:f64}: {fact:f64}'
-      - 'Programs in use
-
-        * {label:f67}: {fact:f67}
-
-        * {label:f70}: {fact:f70}
-
-        * {label:f73}: {fact:f73}
 
         * {label:f76}: {fact:f76} ({vintage:f76})
 
-        * {label:f79}: {fact:f79}
 
-        * {label:f82}: {fact:f82} ({vintage:f82})
+        * {label:f79}: {fact:f79} ({vintage:f79})
 
-        * {label:f84}: {fact:f84}
 
-        * {label:f86}: {fact:f86} ({vintage:f86})'
+        * {label:f82}: {fact:f82} ({vintage:f82})'
+      - 'Programs in use
+
+
+        * {label:f85}: {fact:f85} ({vintage:f85})
+
+
+        * {label:f88}: {fact:f88} ({vintage:f88})
+
+
+        * {label:f91}: {fact:f91} ({vintage:f91})
+
+
+        * {label:f94}: {fact:f94} ({vintage:f94})
+
+
+        * {label:f97}: {fact:f97} ({vintage:f97})
+
+
+        * {label:f100}: {fact:f100} ({vintage:f100})
+
+
+        * {label:f103}: {fact:f103} ({vintage:f103})
+
+
+        * {label:f106}: {fact:f106} ({vintage:f106})'
       - 'Who may qualify
 
-        * {label:f87}: {fact:f87}
 
-        * {label:f91}: {fact:f91}
+        * {label:f109}: {fact:f109} ({vintage:f109})
 
-        * {label:f94}: {fact:f94}
 
-        * {label:f97}: {fact:f97}
+        * {label:f113}: {fact:f113} ({vintage:f113})
 
-        * {label:f100}: {fact:f100}
 
-        * {label:f103}: {fact:f103}
+        * {label:f116}: {fact:f116} ({vintage:f116})
 
-        * {label:f107}: {fact:f107}'
+
+        * {label:f119}: {fact:f119} ({vintage:f119})
+
+
+        * {label:f122}: {fact:f122} ({vintage:f122})
+
+
+        * {label:f125}: {fact:f125} ({vintage:f125})
+
+
+        * {label:f129}: {fact:f129} ({vintage:f129})'
       - 'Modeled needs
 
-        * {label:f110}: {fact:f110} ({vintage:f110})
 
-        * {label:f111}: {fact:f111}
+        * {label:f132}: {fact:f132} ({vintage:f132})
 
-        * {label:f112}: {fact:f112}
 
-        * {label:f113}: {fact:f113}'
+        * {label:f135}: {fact:f135} ({vintage:f135})
+
+
+        * {label:f138}: {fact:f138} ({vintage:f138})
+
+
+        * {label:f141}: {fact:f141} ({vintage:f141})'
       - 'Help sites
 
-        * {label:f114}: {fact:f114} ({vintage:f114})
 
-        * {label:f115}: {fact:f115} ({vintage:f115})
+        * {label:f144}: {fact:f144} ({vintage:f144})
 
-        * {label:f116}: {fact:f116} ({vintage:f116})'
+
+        * {label:f147}: {fact:f147} ({vintage:f147})
+
+
+        * {label:f150}: {fact:f150} ({vintage:f150})'
       facts:
       - f1
       - f4
@@ -139,25 +202,30 @@
       - f76
       - f79
       - f82
-      - f84
-      - f86
-      - f87
+      - f85
+      - f88
       - f91
       - f94
       - f97
       - f100
       - f103
-      - f107
-      - f110
-      - f111
-      - f112
+      - f106
+      - f109
       - f113
-      - f114
-      - f115
       - f116
+      - f119
+      - f122
+      - f125
+      - f129
+      - f132
+      - f135
+      - f138
+      - f141
+      - f144
+      - f147
+      - f150
       programs: []
       caveats:
-      - Figures marked unreliable have large margins of error, so read them with care. Apportioned figures are estimates
-        moved to the district from ZIP code or tract data, and CDC PLACES figures are modeled estimates.
-      - Income-eligible figures meet the income test only. Assets, age, immigration status and household rules also
-        apply.
+      - Figures marked unreliable have large margins of error, so read them with care. Apportioned figures are estimates moved
+        to the district from ZIP code or tract data, and CDC PLACES figures are modeled estimates.
+      - Income-eligible figures meet the income test only. Assets, age, immigration status and household rules also apply.

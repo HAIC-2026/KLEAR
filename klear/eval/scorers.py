@@ -9,7 +9,7 @@ from pathlib import Path
 
 import yaml
 
-from klear.eval.contract import MARKER, Answer, ContractError, geo_key, render
+from klear.eval.contract import MARKER, PLACE_MARKERS, Answer, ContractError, geo_key, render
 from klear.eval.golden import RULES, Golden
 from klear.programs import catalog
 from klear.text import hawaiian, misspellings, strip_ignorable
@@ -46,8 +46,8 @@ UNIT_K_BEFORE = re.compile(r"(?<!\w)k" + MARK_GAP + "$", re.IGNORECASE)
 CV_LIMIT = 0.30
 # Comparison words per direction and the words that contradict it.
 DIRECTION_WORDS = {
-    "higher": ("higher", "more", "greater", "above", "exceeds", "exceed"),
-    "lower": ("lower", "less", "fewer", "below"),
+    "higher": ("higher", "more", "greater", "bigger", "larger", "above", "exceeds", "exceed"),
+    "lower": ("lower", "less", "fewer", "smaller", "below"),
     "within_margin": (
         "within the margin",
         "not significant",
@@ -60,7 +60,16 @@ DIRECTION_WORDS = {
 FLIP = {"higher": "lower", "lower": "higher", "within_margin": "within_margin"}
 # Phrases that state a direction from the place before them to the place after them.
 COMPARE_PHRASES = {
-    "higher": ("higher than", "more than", "greater than", "larger than", "older than", "above", "exceeds"),
+    "higher": (
+        "higher than",
+        "more than",
+        "greater than",
+        "bigger than",
+        "larger than",
+        "older than",
+        "above",
+        "exceeds",
+    ),
     "lower": ("lower than", "less than", "fewer than", "smaller than", "younger than", "below"),
     "within_margin": ("within the margin of error of", "within the margin of"),
 }
@@ -71,6 +80,10 @@ CLAIM_TOKEN = re.compile(
     re.IGNORECASE,
 )
 PHRASE_DIRECTION = {p: d for d, ps in COMPARE_PHRASES.items() for p in ps}
+# A sentence that also says the gap is within the margin of error makes no higher or lower claim.
+HEDGE = re.compile(
+    r"(?<!not )(?<!outside )within the margin|not (?:statistically )?significant", re.IGNORECASE
+)
 BLOCK_COLUMN = {"house": "house", "senate": "senate", "zcta": "zcta", "tract": "tract"}
 HTML_SPAN = re.compile(r"<!--.*?(?:-->|$)|<\s*[!/?a-z][^>]*(?:>|$)", re.IGNORECASE | re.DOTALL)
 FENCE = re.compile(r"^[ \t]*(\u0060{3,}|~{3,}).*?(?:^[ \t]*\1|\Z)", re.MULTILINE | re.DOTALL)
@@ -280,11 +293,13 @@ def answer_problems(a: Answer, con, allowed: set[tuple[str, str]]) -> list[str]:
     problems += [f"duplicate fact ref {r}" for r in sorted({r for r in refs if refs.count(r) > 1})]
     cited = {(k, r) for text in texts for k, r in MARKER.findall(text)}
     problems += [
-        f"marker {{{k}:{r}}} has no fact ref" for k, r in sorted(cited) if k != "geo" and r not in refs
+        f"marker {{{k}:{r}}} has no fact ref"
+        for k, r in sorted(cited)
+        if k not in PLACE_MARKERS and r not in refs
     ]
     shown = _shown_facts(a)
     problems += [f"fact {f.ref} is never used by a marker" for f in a.facts if f.ref not in shown]
-    for _, r in sorted(c for c in cited if c[0] == "geo"):
+    for _, r in sorted(c for c in cited if c[0] in PLACE_MARKERS):
         if geo_key(r) not in allowed:
             problems.append(f"geography {r.replace(':', ' ')} is not allowed here")
     for f in a.facts:
@@ -344,6 +359,15 @@ def cv(f) -> float | None:
     return (f.moe / 1.645) / abs(f.value)
 
 
+def reliability(f) -> bool | None:
+    """False when the margin of error is large next to the estimate (CV above 0.30, or a zero with a margin),
+    None when the fact has no margin of error to judge."""
+    if f.moe is None:
+        return None
+    c = cv(f)
+    return not (c > CV_LIMIT if c is not None else f.value == 0 and f.moe > 0)
+
+
 def _reliability(a: Answer, low: str) -> Outcome:
     shown = _shown_facts(a)
     shaky = [f.ref for f in a.facts if f.ref in shown and (c := cv(f)) is not None and c > CV_LIMIT]
@@ -370,6 +394,7 @@ def direction_claims(text: str) -> list[tuple[tuple[str, str], str, tuple[str, s
     claims, topic = [], None
     for sentence in re.split(r"[.!?;\n]+", text):
         subject = pending = first = None
+        start = len(claims)
         for m in CLAIM_TOKEN.finditer(sentence):
             if m.group(3):
                 subject = subject or topic
@@ -380,6 +405,8 @@ def direction_claims(text: str) -> list[tuple[tuple[str, str], str, tuple[str, s
             else:
                 subject = (m.group(1), m.group(2))
                 first = first or subject
+        if HEDGE.search(sentence):
+            claims[start:] = [(s, "within_margin", o) for s, _, o in claims[start:]]
         topic = first or topic
     return claims
 

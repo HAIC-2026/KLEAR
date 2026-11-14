@@ -5,10 +5,11 @@ import time
 
 import pytest
 
-from klear.agent.config import FIXED_INCOME, PROFILE_SECTIONS
+from klear.agent.config import COUNTY_SECTION, FIXED_INCOME, INDUSTRIES, PROFILE_SECTIONS
 from klear.agent.tools import TOOL_SPECS, Session, _dedupe, _Named
 from klear.eval.golden import load_golden
 from klear.programs import catalog
+from tests.fixtures.small_store import add_county_context
 
 
 def call(s, tool, **args):
@@ -72,6 +73,73 @@ def test_state_name_alone_or_after_a_place(session):
     assert [m["name"] for m in out] == ["Kāneʻohe"]
 
 
+@pytest.mark.parametrize(
+    "text",
+    ["statewide", "Hawaii overall", "the whole state", "all of Hawaiʻi", "across the state", "entire state"],
+)
+def test_statewide_words_resolve_to_the_state(session, text):
+    assert [m["geo"] for m in call(session, "resolve_place", text=text)["matches"]] == ["state:15"]
+    assert ("state", "15") in session.resolved
+
+
+@pytest.mark.parametrize("text", ["Hawaii County", "Hawaii Kai", "all", "overall"])
+def test_statewide_check_leaves_places_alone(session, text):
+    assert "state:15" not in [m.get("geo") for m in call(session, "resolve_place", text=text)["matches"]]
+
+
+@pytest.mark.parametrize(
+    ("words", "first"),
+    [
+        (["housing", "insecurity"], "places_housing_insecurity"),
+        (["housing insecure"], "places_housing_insecurity"),
+        (["food", "insecure"], "places_food_insecurity"),
+        (["hunger"], "places_food_insecurity"),
+        (["utility", "shutoff"], "places_utility_shutoff_threat"),
+        (["lack", "reliable", "transportation"], "places_lack_transport"),
+        (["public", "housing", "units"], "units_public_housing"),
+    ],
+)
+def test_search_finds_the_measure_the_words_name(session, words, first):
+    found = call(session, "search_indicators", words=words)["indicators"]
+    assert found[0]["indicator_id"] == first
+    assert found[0]["meaning"]
+    modeled = {f["indicator_id"] for f in found if f.get("method") == "modeled estimate"}
+    assert {f["indicator_id"] for f in found if f["indicator_id"].startswith("places_")} == modeled
+
+
+def test_tied_facts_name_their_program(session):
+    facts = call(session, "get_facts", indicator_ids=["pct_hh_snap", "median_age"], geos=["house:005"])[
+        "facts"
+    ]
+    by_id = {f["indicator_id"]: f for f in facts}
+    assert by_id["pct_hh_snap"]["programs"] == [{"rule_id": "snap_fy2027", "name": "SNAP"}]
+    assert "programs" not in by_id["median_age"]
+
+
+def test_find_sites_gives_public_housing_units(session):
+    rows = session.con.execute(
+        "SELECT geo_id, value FROM fact WHERE indicator_id = 'units_public_housing' AND geo_type = 'house' "
+        "ORDER BY value DESC LIMIT 1"
+    ).fetchone()
+    out = call(session, "find_sites", geo=f"house:{rows[0]}", kind="public_housing")
+    got = {f["indicator_id"]: f for f in out["facts"]}
+    assert set(got) == {"sites_public_housing", "units_public_housing"}
+    assert session.facts[got["units_public_housing"]["ref"]].value == rows[1]
+    empty = session.con.execute(
+        "SELECT geo_id FROM fact WHERE indicator_id = 'sites_public_housing' AND geo_type = 'house' AND value = 0 "
+        "ORDER BY geo_id LIMIT 1"
+    ).fetchone()[0]
+    out = call(session, "find_sites", geo=f"house:{empty}", kind="public_housing")
+    assert out["missing"] == [
+        {
+            "indicator_id": "units_public_housing",
+            "geo": f"house:{empty}",
+            "reason": "none, the place has no site of this kind",
+        }
+    ]
+    assert "units" in next(t["description"] for t in TOOL_SPECS if t["name"] == "find_sites")
+
+
 def test_no_match_gives_a_hint(session):
     for text in ("Atlantis", "House District 99", "Hawaiʻi House District 99"):
         out = call(session, "resolve_place", text=text)
@@ -128,7 +196,7 @@ def test_bad_args_return_error_json(session):
 def test_specs_cover_every_tool(session):
     assert [t["name"] for t in TOOL_SPECS] == [
         "resolve_place", "search_indicators", "get_facts", "compare", "district_profile", "rank_districts",
-        "list_programs", "district_programs", "find_sites", "explain_source",
+        "list_programs", "district_programs", "find_sites", "find_member", "explain_source",
     ]  # fmt: skip
     assert all(t["input_schema"]["type"] == "object" and t["description"] for t in TOOL_SPECS)
 
@@ -304,6 +372,25 @@ def test_facts_name_their_method(session):
     assert by["pct_hh_snap"] == "published for this geography"
 
 
+def test_county_level_facts_say_so_and_are_never_a_districts(session):
+    out = call(
+        session,
+        "get_facts",
+        indicator_ids=["bls_unemployment_rate", "dotax_eitc_claims"],
+        geos=["county:15003", "house:011"],
+    )
+    by = {(f["indicator_id"], f["geo"]): f for f in out["facts"]}
+    assert set(by) == {("bls_unemployment_rate", "county:15003"), ("dotax_eitc_claims", "county:15003")}
+    for f in by.values():
+        assert f["method"].startswith("county-level figure") and "never call it the district's" in f["method"]
+        assert "county-level" in f["label"]
+    assert "Oʻahu figures include nonresidents" in by[("dotax_eitc_claims", "county:15003")]["method"]
+    assert {m["reason"] for m in out["missing"]} == {"not published for house geographies"}
+    found = call(session, "search_indicators", words=["unemployment"])["indicators"]
+    bls = next(i for i in found if i["indicator_id"] == "bls_unemployment_rate")
+    assert bls["geo_types"] == ["county", "state"]
+
+
 def test_programs_say_what_they_cover_and_match_on_it(session):
     programs = call(session, "list_programs")["programs"]
     assert all(p["covers"] for p in programs)
@@ -359,7 +446,10 @@ def test_district_profile_header_and_comparisons(small):
     ]
     assert [(o["geo"], o["share"]) for o in out["overlaps"]] == [("senate:012", 1.0)]
     assert {p["name"] for p in out["places"]} == {"Kāneʻohe", "Kailua"}
-    assert [s["title"] for s in out["sections"]] == [title for title, _ in PROFILE_SECTIONS]
+    assert [s["title"] for s in out["sections"]] == [title for title, _ in PROFILE_SECTIONS] + [
+        COUNTY_SECTION[0]
+    ]
+    assert out["sections"][-1]["geo"] == "county:15003" and out["sections"][-1]["rows"] == []
     rows = {r["fact"]["indicator_id"]: r for s in out["sections"] for r in s["rows"]}
     # A total is set against its main county and the state as the district's share.
     assert [(a["geo"], a["share"]) for a in rows["pop_65_plus"]["against"]] == [
@@ -381,6 +471,18 @@ def test_district_profile_header_and_comparisons(small):
     ).items()
 
 
+def test_district_profile_shows_county_level_figures_for_the_main_county(small_con):
+    out = call(Session(add_county_context(small_con)), "district_profile", district="house:022")
+    county = out["sections"][-1]
+    assert county["title"] == COUNTY_SECTION[0] and county["geo"] == "county:15003"
+    (row,) = county["rows"]
+    assert row["fact"]["geo"] == "county:15003" and row["fact"]["indicator_id"] == "bls_unemployment_rate"
+    assert row["fact"]["method"].startswith("county-level figure")
+    assert [(a["geo"], a["direction"]) for a in row["against"]] == [("state:15", "lower")]
+    district_rows = [r for s in out["sections"][:-1] for r in s["rows"]]
+    assert all(r["fact"]["geo"] == "house:022" for r in district_rows)
+
+
 def test_district_profile_needs_a_district(small):
     assert "error" in call(small, "district_profile", district="county:15003")
     assert "error" in call(small, "district_profile", district="house:999")
@@ -397,8 +499,11 @@ def test_every_district_profile_is_complete_and_fast(real_con):
         out = json.loads(Session(real_con).run("district_profile", {"district": f"{geo_type}:{geo_id}"}))
         took.append(time.perf_counter() - start)
         assert took[-1] < 3, f"{geo_type}:{geo_id} took too long"
-        rows = [r for s in out["sections"] for r in s["rows"]]
+        rows = [r for s in out["sections"] if "geo" not in s for r in s["rows"]]
         assert len(rows) >= 30 and out["counties"], f"{geo_type}:{geo_id}"
+        county = out["sections"][-1]
+        assert county["geo"] == out["counties"][0]["geo"] and len(county["rows"]) == len(COUNTY_SECTION[1])
+        assert all(r["fact"]["geo"] == county["geo"] for r in county["rows"]), f"{geo_type}:{geo_id}"
         for r in rows:
             f = r["fact"]
             assert f["geo"] == f"{geo_type}:{geo_id}" and f["source"] and f["vintage"] and f["status"], f
@@ -573,3 +678,25 @@ def test_suggestions_on_the_built_store(session):
             assert out, (text, s)
             if s["kind"] in ("place", "island", "neighborhood", "division"):
                 assert [m["name"] for m in out] == [s["label"]], (text, s)
+
+
+@pytest.mark.parametrize(("words", "first"), [
+    (["tourism"], "pct_industry_arts_food"),
+    (["hotels"], "pct_industry_arts_food"),
+    (["government"], "pct_industry_public_admin"),
+    (["construction"], "pct_industry_construction"),
+    (["college", "degree"], "pct_bachelors_plus"),
+    (["education"], "pct_hs_grad_plus"),
+])  # fmt: skip
+def test_work_and_education_words_find_their_measures(real_con, words, first):
+    assert call(Session(real_con), "search_indicators", words=words)["indicators"][0]["indicator_id"] == first
+
+
+def test_industry_and_job_words_find_every_industry(real_con):
+    for words in (["industries"], ["jobs"]):
+        found = {
+            e["indicator_id"] for e in call(Session(real_con), "search_indicators", words=words)["indicators"]
+        }
+        assert found >= set(INDUSTRIES), words
+    jobs = call(Session(real_con), "search_indicators", words=["jobs"])["indicators"]
+    assert {"unemployment_rate", "pct_in_labor_force"} <= {e["indicator_id"] for e in jobs}

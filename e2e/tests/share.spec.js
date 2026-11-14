@@ -1,6 +1,6 @@
 // Sharing a district: its own address with Back, Forward and refresh, Copy link, a one-page printout and a CSV download.
 import {test, expect} from '@playwright/test';
-import {DISTRICT, ask, chooseDistrict, offline} from './helpers.js';
+import {DISTRICT, ask, chooseDistrict, offline, showTab} from './helpers.js';
 
 test.beforeEach(async ({context}) => offline(context));
 
@@ -12,9 +12,12 @@ test('each district has its own address, which Back, Forward and a pasted link f
   await expect(page).toHaveURL(/\/district\/house-22$/);
   await expect(page).toHaveTitle(`${DISTRICT} – KLEAR`);
 
-  // Another district adds another address; a section link within the same district changes nothing.
-  await page.getByLabel('District, place, ZIP code, or street address').first().fill('House 23');
-  await page.getByRole('button', {name: 'Find district'}).first().click();
+  // Another district, chosen from the chat's own search, adds another address; a section link within the same
+  // district changes nothing.
+  await showTab(page, 'Ask');
+  await page.getByRole('button', {name: 'Change district'}).click();
+  await page.locator('#place').fill('House 23');
+  await page.locator('#lookup').getByRole('button', {name: 'Find district'}).click();
   await expect(page).toHaveURL(/\/district\/house-23$/);
   await page.getByRole('navigation', {name: 'Main navigation'}).getByRole('link', {name: 'Map'}).click();
   await expect(page).toHaveURL(/\/district\/house-23#district-map$/);
@@ -24,10 +27,12 @@ test('each district has its own address, which Back, Forward and a pasted link f
   await expect(page.locator('#district-title')).toHaveText(DISTRICT);
   await expect(page.locator('#profile-live')).toHaveText(`Profile for ${DISTRICT} loaded.`);
 
-  // Back to the page with no district: the starter questions return in place of the profile.
+  // Back to the home page: its photo band, heading and starter questions return in place of the district's page.
   await page.goBack();
   await expect(page).toHaveURL(/:\d+\/$/);
   await expect(page.locator('#district-title')).toHaveText('No district chosen yet');
+  await expect(page.locator('.band')).toBeVisible();
+  await expect(page.getByRole('heading', {level: 1})).toHaveText('Hawaiʻi legislative district data');
   await expect(page.locator('#profile')).toBeHidden();
   await expect(page.locator('#starter').getByRole('button', {name: 'Give me a socioeconomic profile of this district.'})).toBeVisible();
   await expect(page).toHaveTitle('KLEAR: Hawaiʻi legislative district data');
@@ -36,11 +41,15 @@ test('each district has its own address, which Back, Forward and a pasted link f
   await expect(page.locator('#district-title')).toHaveText(DISTRICT);
   await expect(page.locator('#starter')).toBeHidden();
 
-  // A pasted link opens the same district in a new tab.
+  // A pasted link opens the same district in a new tab, at the top of its page, with its name as the page heading.
   const pasted = await context.newPage();
   await pasted.goto('/district/house-22');
   await expect(pasted.locator('#district-title')).toHaveText(DISTRICT);
   await expect(pasted.locator('#profile-live')).toHaveText(`Profile for ${DISTRICT} loaded.`);
+  await expect(pasted.getByRole('heading', {level: 1})).toHaveText(DISTRICT);
+  await expect(pasted.locator('.band')).toBeHidden();
+  await expect(pasted.locator('#profile .profile-stats')).toBeInViewport();
+  expect(await pasted.evaluate(() => scrollY)).toBe(0);
 
   // A link to a district that does not exist lands on the page with no district and says why.
   await pasted.goto('/district/house-99');
@@ -67,8 +76,9 @@ test('a refresh keeps the district and its answers', async ({page}) => {
 test('a question still loading, or failed, when the page reloads waits in the box', async ({page}) => {
   await page.goto('/district/house-22');
   await expect(page.locator('#profile-live')).toHaveText(`Profile for ${DISTRICT} loaded.`);
-  // The answer never arrives; the reload cancels the request.
+  // The answer never arrives; the reload cancels the request. A reload keeps the Ask tab open.
   await page.route('**/api/chat', () => {});
+  await showTab(page, 'Ask');
   await page.getByLabel('Your question').fill('How many kūpuna live here?');
   await page.getByRole('button', {name: 'Ask KLEAR'}).click();
   await expect(page.locator('#log .pending')).toBeVisible();
@@ -125,8 +135,15 @@ test('printing gives a one-page summary with every source, year and address writ
   // Sources with their vintages, then the programs and the live profile, all as written-out addresses.
   const sources = sheet.locator('.sheet-sources li');
   await expect(sources.first()).toHaveText('American Community Survey 5-year, 2020-2024 https://example.org');
-  await expect(sources.last()).toContainText('2020 Census Redistricting Data (P.L. 94-171), population by block, 2020 Census');
-  await expect(sources.last()).toContainText('https://www.census.gov/programs-surveys/decennial-census/about/rdo/summary-files.html');
+  await expect(sources.nth(1)).toContainText('2020 Census Redistricting Data (P.L. 94-171), population by block, 2020 Census');
+  await expect(sources.nth(1)).toContainText('https://www.census.gov/programs-surveys/decennial-census/about/rdo/summary-files.html');
+  // The Commission's official description and permanent residents, cited to the report and its pages.
+  await expect(sources).toHaveCount(3);
+  await expect(sources.last()).toContainText('2021 Reapportionment Commission Final Report and Reapportionment Plan, Final report, February 25, 2022 https://example.org/reapportionment');
+  const plan = sheet.locator('.sheet-plan');
+  await expect(plan.first()).toHaveText('Official description The 22nd Representative District comprises the portion of the island of Oʻahu including Manoa. (source 3, report page D-017, PDF page 891)');
+  await expect(plan.last()).toContainText('Permanent residents in the 2022 plan 26,451 (source 3, report page 15, PDF page 23).');
+  await expect(plan.last()).toContainText('so it differs from the total population.');
   // No need figure in the fixture district sits above the state's, so the statewide programs print, six at most.
   const programs = sheet.locator('.sheet-programs');
   await expect(programs.locator('li')).toHaveCount(6);
@@ -158,6 +175,23 @@ test('the profile’s figures download as a CSV file', async ({page}) => {
   expect(csv).toContain('Income,Percent of people below the poverty level,House District 22,12.3,2.1,,,percent,American Community Survey 5-year,2020-2024,https://example.org,');
 });
 
+test('the profile gives the official description and permanent residents with their report pages', async ({page}) => {
+  await page.goto('/');
+  await chooseDistrict(page);
+  // The report's section comes after the figures; its link at the top of the profile opens it.
+  await page.locator('#profile').getByRole('navigation', {name: 'In this profile'}).getByRole('link', {name: 'Reapportionment plan'}).click();
+  const plan = page.locator('.profile-plan');
+  await expect(plan).toBeVisible();
+  await expect(plan).toContainText('Official description: The 22nd Representative District comprises the portion of the island of Oʻahu including Manoa. (report page D-017, PDF page 891)');
+  await expect(plan).toContainText('Permanent residents in the 2022 plan: 26,451 (report page 15, PDF page 23)');
+  await expect(plan).toContainText('So it is not the same as the total population above');
+  await expect(plan.getByRole('link', {name: /2021 Reapportionment Commission Final Report/})).toHaveAttribute('href', 'https://example.org/reapportionment');
+  // A count the build left out is not shown; the description still is.
+  await page.goto('/district/house-23');
+  await expect(page.locator('.profile-plan')).toContainText('The 23rd Representative District');
+  await expect(page.locator('.profile-plan')).not.toContainText('Permanent residents');
+});
+
 // Rewrite the profile the server sends, to stand in for an older server or an unexpected reply.
 async function editProfile(page, edit) {
   await page.unrouteAll();
@@ -170,9 +204,11 @@ async function editProfile(page, edit) {
 }
 
 test('the profile and its printout cope with missing or unexpected fields', async ({page}) => {
-  // Without programs, a build date or comparison sources, the summary still prints every figure it has.
+  // Without programs, a build date, the Commission's report or comparison sources, the summary still prints every
+  // figure it has.
   await editProfile(page, p => {
     delete p.programs;
+    delete p.plan;
     delete p.built;
     delete p.shares_source;
     for (const s of p.sections) for (const r of s.rows) for (const a of r.against) delete a.source;

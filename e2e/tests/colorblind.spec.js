@@ -9,10 +9,12 @@ const VISION = ['none', 'protanopia', 'deuteranopia', 'tritanopia', 'achromatops
 test.skip(({browserName, isMobile}) => browserName !== 'chromium' || isMobile, 'vision simulation needs desktop Chromium');
 
 test('chamber colors, charts, and the map under simulated color blindness', async ({context, page}, testInfo) => {
+  // Twenty screenshots take longer than the default limit on a busy machine.
+  test.slow();
   await offline(context);
   await page.emulateMedia({reducedMotion: 'reduce'});
   await page.goto('/');
-  const cdp = await context.newCDPSession(page);
+  const shoot = shooter(await context.newCDPSession(page), testInfo);
 
   await page.getByLabel('District, place, ZIP code, or street address').first().fill('Kāneʻohe');
   await page.getByRole('button', {name: 'Find district'}).first().click();
@@ -40,16 +42,51 @@ test('chamber colors, charts, and the map under simulated color blindness', asyn
   await page.locator('#map .district[data-geo="senate:017"]').hover();
   await expect(page.locator('#map .hover-line')).toHaveAttribute('d', /\S/);
   await shoot('map-senate', page.locator('.map-frame'));
+});
 
-  async function shoot(view, locator) {
+test('the map colored by a measure under simulated color blindness', async ({context, page}, testInfo) => {
+  // Four views, each shot under every vision type: allow for a loaded machine.
+  test.slow();
+  await offline(context);
+  await page.emulateMedia({reducedMotion: 'reduce'});
+  await page.goto('/');
+  const shoot = shooter(await context.newCDPSession(page), testInfo);
+  const map = page.locator('#district-map');
+  await expect(page.locator('#map .district').first()).toBeAttached();
+
+  // House: the two shades the fixture store has, dots on districts with no figure, a picked district, a ZIP code's
+  // dashed outline, and the hover outline.
+  await map.getByLabel('Color the map by').selectOption({label: 'People below the poverty level'});
+  await expect(page.locator('#map')).toHaveClass(/\bshaded\b/);
+  await map.getByRole('button', {name: 'Oʻahu', exact: true}).click();
+  await map.getByLabel('Highlight a ZIP code').fill('96744');
+  await map.getByRole('button', {name: 'Show on map'}).click();
+  await map.getByLabel('Or choose from a list').selectOption({label: 'House District 22'});
+  await page.locator('#map .district[data-geo="house:023"]').hover();
+  await expect(page.locator('#map .hover-line')).toHaveAttribute('d', /\S/);
+  await shoot('map-shaded-house', page.locator('.map-frame'));
+  await shoot('map-shaded-legend', page.locator('#map-legend'));
+
+  // Senate: stripes on an unreliable estimate, with the keyboard focus ring on it.
+  await map.getByLabel('Highlight a ZIP code').fill('');
+  await map.getByRole('button', {name: 'Senate'}).click();
+  await expect(page.locator('#map .marks .unreliable')).toHaveCount(1);
+  await map.getByRole('button', {name: 'Oʻahu', exact: true}).click();
+  await page.locator('#map .district[data-geo="senate:012"]').focus();
+  await shoot('map-shaded-senate', page.locator('.map-frame'));
+  await shoot('map-shaded-senate-legend', page.locator('#map-legend'));
+});
+
+// Saves a view as seen with each vision type, by name in the test results, which CI uploads, and in the HTML report.
+function shooter(cdp, testInfo) {
+  return async (view, locator) => {
     await locator.scrollIntoViewIfNeeded();
     for (const type of VISION) {
       await cdp.send('Emulation.setEmulatedVisionDeficiency', {type});
-      // Saved by name in the test results, which CI uploads, and attached to the HTML report.
       const path = testInfo.outputPath(`${view}-${type}.png`);
       await locator.screenshot({path, animations: 'disabled'});
       await testInfo.attach(`${view}-${type}.png`, {path, contentType: 'image/png'});
     }
     await cdp.send('Emulation.setEmulatedVisionDeficiency', {type: 'none'});
-  }
-});
+  };
+}

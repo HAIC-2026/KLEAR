@@ -120,7 +120,8 @@ class AnswerCache:
             if build_id(con) != build:
                 return None
             note = f"Prepared ahead of time from the data update of {build_date(build)}."
-            page = _payload(con, answer_from_json(row["answer"]), "assistant") | {"prepared": note}
+            selected = tuple(key[1].split(":"))
+            page = _payload(con, answer_from_json(row["answer"]), "assistant", selected) | {"prepared": note}
         except Exception:  # noqa: BLE001 - a prepared answer that no longer lays out is answered live
             return None
         with self._lock:
@@ -157,6 +158,12 @@ class AnswerCache:
                 return sum(self._lay_out(con, key, row, build) is not None for key, row in todo)
         except duckdb.Error:
             return 0
+
+    def count(self) -> int:
+        """How many prepared answers match the store's build."""
+        self._refresh()
+        with self._lock:
+            return len(self._rows)
 
     def summary(self, live: bool) -> str:
         """Startup line saying how many starter answers are prepared for the store's build."""

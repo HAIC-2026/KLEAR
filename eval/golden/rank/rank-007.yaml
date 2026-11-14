@@ -1,0 +1,23 @@
+id: rank-007
+category: rank
+question: Which House districts have the most kūpuna under 200% of poverty, for outreach about SSI and home care?
+ideal: Ranks Hawaiʻi House districts by kūpuna with income under twice the poverty level and names the first
+  tier together because their ranges overlap. Names the SSI federal payment and the state's home care program
+  for kūpuna, and says the count meets the income test only.
+tags:
+- outreach
+facts:
+- - kupuna_under_200pct_poverty
+  - house
+  - '004'
+- - kupuna_under_200pct_poverty
+  - house
+  - '028'
+must_say:
+- overlap
+- income test
+- kūpuna
+programs:
+- ssi_federal_2026
+- kupuna_care
+refusal: none

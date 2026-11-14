@@ -15,8 +15,27 @@
   const pointers = new Map();
   let gesture = null, dragged = false, area = null, waiting = null, labelInfo = [], districts = [], stop = null, fitted = null, frameSize = '';
   const zipStatus = document.getElementById('zip-status'), zipMatches = document.getElementById('zip-matches');
+  // Coloring the map by a measure: the figures for the chosen measure and chamber, by district, or null for the plain map.
+  const shadeSelect = document.getElementById('map-shade'), legend = document.getElementById('map-legend'), table = document.getElementById('map-table');
+  const shadeStatus = document.getElementById('shade-status'), shadeLive = document.getElementById('shade-live'), pickValue = document.getElementById('pick-value');
+  const SHADE_CLASSES = ['q1', 'q2', 'q3', 'q4', 'q5', 'none'], MISSING = 'not available', shadeCache = new Map();
+  let shading = null, figures = new Map(), shadeAsk = 0, marks = null;
 
   function el(tag, attrs) { const n = document.createElementNS(svgNS, tag); for (const [k, v] of Object.entries(attrs || {})) n.setAttribute(k, v); return n; }
+
+  // Stripes mark an unreliable estimate, ink on a light shade and white on a dark one, and dots a district with no
+  // figure. They are drawn over the district's fill and keep the same size on screen at any zoom (see sizeLabels).
+  const defs = el('defs');
+  const stripeSets = [['map-stripes', 'stripe'], ['map-stripes-light', 'stripe light']].map(([id, cls]) => {
+    const p = el('pattern', {id, patternUnits: 'userSpaceOnUse', width: 5, height: 5});
+    p.append(el('line', {class: cls, x1: 2.5, y1: 0, x2: 2.5, y2: 5}));
+    return p;
+  });
+  const dots = el('pattern', {id: 'map-dots', patternUnits: 'userSpaceOnUse', width: 5, height: 5});
+  dots.append(el('circle', {class: 'dot', cx: 2.5, cy: 2.5, r: 1}));
+  defs.append(...stripeSets, dots);
+  // Shades 4 and 5 are dark, so their borders and stripes are white (style.css).
+  const DARK_SHADE = 4;
 
   // Grow a box to the frame's aspect ratio so the viewBox is exactly what is visible.
   // With clear set on a narrow frame, fit the box left of the zoom buttons.
@@ -73,7 +92,10 @@
   function sizeLabels() {
     const r = svg.getBoundingClientRect();
     if (!view || !r.width) return;
-    svg.style.setProperty('--label', `${(12 * view[2] / r.width).toFixed(3)}px`);
+    const k = view[2] / r.width;
+    svg.style.setProperty('--label', `${(12 * k).toFixed(3)}px`);
+    for (const p of stripeSets) p.setAttribute('patternTransform', `scale(${k.toFixed(5)}) rotate(45)`);
+    dots.setAttribute('patternTransform', `scale(${k.toFixed(5)})`);
   }
 
   // Hide district numbers that the frame edge or zoom buttons would cut, or that would overlap one that matters more:
@@ -237,8 +259,10 @@
     picked = row;
     for (const p of svg.querySelectorAll('[data-geo]')) p.classList.toggle('picked', Boolean(row) && p.dataset.geo === row.geo);
     for (const d of districts) d.path.setAttribute('aria-pressed', String(d.row === row));
+    for (const p of pickMarks) p.setAttribute('d', row ? row.d : '');
     document.getElementById('pick-name').textContent = row ? row.name : 'Tap an area on the map';
     document.getElementById('pick-island').textContent = row ? row.islands : 'No district picked yet';
+    showPickValue();
     go.disabled = !row;
     list.value = row ? row.geo : '';
     declutter();
@@ -283,10 +307,14 @@
 
   // The keyboard focus ring and the mouse hover outline are drawn over every district, so neighbors drawn later never
   // cover half of them. The focus ring is a white halo under a dark line, which shows on light and dark fills alike;
-  // the hover outline is a thinner dark line, so the two never look the same.
+  // the hover outline is a thinner dark line, so the two never look the same. On a shaded map, where fills show figures,
+  // the picked district gets a white line edged in ink and a ZIP code's districts a dashed outline instead of new fills.
   const hoverLine = el('path', {class: 'hover-line'}), focusRing = [el('path', {class: 'ring-halo'}), el('path', {class: 'ring-line'})];
+  const pickMarks = [el('path', {class: 'pick-casing'}), el('path', {class: 'pick-line'})], zipLines = el('g');
+  // On a shaded map the hover line gets a white edge under it, so it shows on dark shades too.
+  const hoverHalo = el('path', {class: 'hover-halo'});
   const ring = el('g', {class: 'focus-ring', 'aria-hidden': 'true'});
-  ring.append(hoverLine, ...focusRing);
+  ring.append(zipLines, ...pickMarks, hoverHalo, hoverLine, ...focusRing);
   function showRing(path) {
     const on = Boolean(path) && path.matches(':focus-visible');
     for (const p of focusRing) p.setAttribute('d', on ? path.getAttribute('d') : '');
@@ -294,7 +322,7 @@
   // Only a mouse or pen hovers; a finger would leave the outline behind after a tap.
   function showHover(path, e) {
     if (e && e.pointerType === 'touch') return;
-    hoverLine.setAttribute('d', path ? path.getAttribute('d') : '');
+    for (const p of [hoverHalo, hoverLine]) p.setAttribute('d', path ? path.getAttribute('d') : '');
   }
 
   function draw() {
@@ -320,7 +348,8 @@
     }
     showRing(null);
     showHover(null);
-    svg.replaceChildren(shapes, ring, labels);
+    marks = el('g', {class: 'marks', 'aria-hidden': 'true'});
+    svg.replaceChildren(defs, shapes, marks, ring, labels);
     stop = null;
     districts = pairs.map(([path, , row]) => { const b = path.getBBox(); return {path, row, box: [b.x, b.y, b.width, b.height]}; });
     for (const d of districts) d.path.addEventListener('keydown', e => onKey(e, d));
@@ -336,6 +365,7 @@
     }
     pick(null);
     showArea();
+    loadShade();
   }
 
   const span = (text, className) => { const s = document.createElement('span'); s.textContent = text; if (className) s.className = className; return s; };
@@ -344,6 +374,7 @@
   // and zoom to them. The area holds its label and, for each chamber, [district, share of residents] pairs.
   function showArea() {
     zipMatches.replaceChildren();
+    zipLines.replaceChildren();
     for (const p of svg.querySelectorAll('.zip-hit')) p.classList.remove('zip-hit');
     svg.classList.toggle('zip-mode', Boolean(area));
     if (!area) { declutter(); return; }
@@ -355,6 +386,7 @@
     const main = hits.some(h => h.share >= 0.05) ? hits.filter(h => h.share >= 0.05) : hits;
     for (const {row, share} of hits) {
       for (const n of svg.querySelectorAll(`[data-geo="${row.geo}"]`)) n.classList.add('zip-hit');
+      zipLines.append(el('path', {class: 'zip-halo', d: row.d}), el('path', {class: 'zip-line', d: row.d}));
       const path = svg.querySelector(`.district[data-geo="${row.geo}"]`);
       const b = path.getBBox();
       if (main.some(h => h.row === row)) { x0 = Math.min(x0, b.x); y0 = Math.min(y0, b.y); x1 = Math.max(x1, b.x + b.width); y1 = Math.max(y1, b.y + b.height); }
@@ -389,6 +421,148 @@
     showArea();
   });
   document.getElementById('zip').addEventListener('input', e => { if (!e.target.value.trim() && area) { area = null; zipStatus.textContent = ''; showArea(); } });
+
+  const html = (name, text, className) => { const n = document.createElement(name); if (text) n.textContent = text; if (className) n.className = className; return n; };
+  // Fill an element with text, marking the Hawaiian words for groups of people so screen readers can pronounce them,
+  // as app.js does.
+  const HAWAIIAN = /(?<![\p{L}\p{M}])(kūpuna|keiki|ʻohana)(?![\p{L}\p{M}])/giu;
+  function says(n, text) {
+    let at = 0;
+    n.replaceChildren();
+    for (const m of text.matchAll(HAWAIIAN)) {
+      const word = html('span', m[0]);
+      word.lang = 'haw';
+      n.append(text.slice(at, m.index), word);
+      at = m.index + m[0].length;
+    }
+    n.append(text.slice(at));
+    return n;
+  }
+
+  // A source link opens in a new tab and says so.
+  function sourceLink(text, href) {
+    if (!href || !/^https?:\/\//.test(href)) return html('span', text);
+    const a = html('a', text, 'ext');
+    a.href = href; a.target = '_blank'; a.rel = 'noopener noreferrer';
+    a.append(html('span', ' (opens in a new tab)', 'visually-hidden'));
+    return a;
+  }
+
+  // A district's figure for the chosen measure. A district the store has no row for has no figure.
+  function figureOf(row) {
+    if (!shading) return null;
+    return figures.get(row.geo) || {geo: row.geo, name: row.name, value: MISSING, spread: '', status: MISSING, shade: null, reason: '', caution: '', text: `${shading.label}: no figure.`};
+  }
+
+  // Color the map by the chosen measure, for the chamber shown, or go back to the plain map.
+  function loadShade() {
+    const indicator = shadeSelect.value, ask = ++shadeAsk;
+    shadeStatus.textContent = '';
+    if (!indicator || !data) {
+      if (shading) shadeLive.textContent = 'The map is plain again.';
+      applyShade(null);
+      return;
+    }
+    const key = `${indicator} ${chamber}`;
+    if (shadeCache.has(key)) { applyShade(shadeCache.get(key)); return; }
+    applyShade(null);
+    shadeStatus.textContent = 'Loading the figures…';
+    fetch(`/api/map?indicator=${encodeURIComponent(indicator)}&chamber=${chamber}`)
+      .then(r => r.json().catch(() => ({})).then(body => { if (!r.ok || !body.districts) throw new Error(body.error || ''); return body; }))
+      .then(body => { shadeCache.set(key, body); if (ask === shadeAsk) { shadeStatus.textContent = ''; applyShade(body); } })
+      .catch(err => { if (ask === shadeAsk) shadeStatus.textContent = err.message || 'The figures could not load. Check your connection and try again.'; });
+  }
+
+  function applyShade(body) {
+    shading = body && body.chamber === chamber ? body : null;
+    figures = new Map(shading ? shading.districts.map(d => [d.geo, d]) : []);
+    svg.classList.toggle('shaded', Boolean(shading));
+    if (marks) marks.replaceChildren();
+    for (const d of districts) {
+      const fig = figureOf(d.row);
+      let name = `${d.row.name}, ${d.row.islands}`;
+      d.path.classList.remove(...SHADE_CLASSES);
+      if (fig) {
+        d.path.classList.add(fig.shade ? `q${fig.shade}` : 'none');
+        if (fig.status !== 'ok') marks.append(el('path', {d: d.row.d, class: fig.status !== 'unreliable' ? 'none' : fig.shade >= DARK_SHADE ? 'unreliable on-dark' : 'unreliable'}));
+        name += fig.status === MISSING ? ': no figure' : `: ${fig.value} ${fig.spread}`.trimEnd() + (fig.status === 'unreliable' ? ', unreliable estimate' : '');
+      }
+      d.path.setAttribute('aria-label', name);
+      d.path.querySelector('title').textContent = name;
+    }
+    showLegend();
+    showTable();
+    showPickValue();
+    if (shading) shadeLive.textContent = `${shading.title}, now shown on the map.`;
+  }
+
+  // Every district on the map with its figure: highest first, then those with no figure.
+  function allFigures() {
+    const rows = data.chambers[chamber], known = new Set(shading.districts.map(d => d.geo));
+    return [...shading.districts, ...rows.filter(r => !known.has(r.geo)).map(figureOf)];
+  }
+
+  function legendKey(swatch, text, spoken) {
+    const li = html('li'), mark = html('span', '', `swatch ${swatch}`);
+    mark.setAttribute('aria-hidden', 'true');
+    li.append(mark);
+    if (spoken) li.append(html('span', spoken, 'visually-hidden'));
+    li.append(text);
+    return li;
+  }
+
+  // The legend: each shade's range, low to high, the marks for unreliable estimates and missing figures, how to read
+  // the shades, and the source, year and state figure.
+  function showLegend() {
+    legend.hidden = !shading;
+    legend.replaceChildren();
+    if (!shading) return;
+    legend.dataset.ramp = shading.chamber;
+    const title = html('p', '', 'legend-title');
+    title.append(says(html('strong'), shading.label), `, by ${chamber === 'house' ? 'House' : 'Senate'} district`);
+    const keys = html('ul', '', 'legend-keys'), last = shading.shades.length - 1;
+    shading.shades.forEach((s, i) => keys.append(legendKey(`q${s.shade}`, s.text, i === 0 && last ? 'Lightest shade: ' : i === last && last ? 'Darkest shade: ' : `Shade ${i + 1}: `)));
+    const all = allFigures();
+    if (all.some(f => f.status === 'unreliable')) keys.append(legendKey('unreliable', 'Unreliable estimate'));
+    if (all.some(f => f.status === MISSING)) keys.append(legendKey('none', 'No figure'));
+    legend.append(title, keys, html('p', `${shading.how} ${shading.overlap}`, 'legend-note'));
+    for (const text of [shading.unreliable, shading.caveat]) if (text) legend.append(html('p', text, 'legend-note'));
+    const source = html('p', '', 'legend-source');
+    source.append('Source: ');
+    shading.sources.forEach((s, i) => source.append(...(i ? ['; '] : []), sourceLink(s.name, s.url), `, ${s.year}`));
+    source.append('.');
+    if (shading.state) source.append(` Hawaiʻi as a whole: ${`${shading.state.value} ${shading.state.spread}`.trim()}.`);
+    legend.append(source);
+  }
+
+  // The same figures as a table, folded under the map.
+  function showTable() {
+    table.hidden = !shading;
+    const body = document.getElementById('map-table-body');
+    body.replaceChildren();
+    if (!shading) return;
+    says(document.getElementById('map-table-caption'), `${shading.title}, highest first`);
+    const all = allFigures(), notes = all.some(f => f.status !== 'ok');
+    // The note column shows only when some district has an unreliable estimate or no figure.
+    document.getElementById('map-table-note').hidden = !notes;
+    for (const f of all) {
+      const tr = html('tr'), th = html('th', f.name);
+      th.scope = 'row';
+      const missing = f.status === MISSING, note = missing ? ['No figure', f.reason].filter(Boolean).join(': ') : f.caution;
+      tr.append(th, html('td', missing ? 'Not available' : f.value), html('td', missing ? '' : f.spread || 'None published'));
+      if (notes) tr.append(html('td', note, 'note'));
+      body.append(tr);
+    }
+  }
+
+  // The picked district's figure, margin and how it compares with the state, under its name. Screen readers hear it.
+  function showPickValue() {
+    const fig = picked && figureOf(picked);
+    says(pickValue, fig ? fig.text : '');
+    pickValue.hidden = !fig;
+  }
+
+  shadeSelect.addEventListener('change', loadShade);
 
   function setChamber(name) {
     chamber = name;
