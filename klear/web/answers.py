@@ -11,7 +11,16 @@ from klear.agent.answer import (
     tied_programs,
     unpublished_years,
 )
-from klear.agent.config import FIXED_INCOME, FIXED_INCOME_COMPARED, FIXED_INCOME_PROGRAMS, PROFILE_INDICATORS
+from klear.agent.config import (
+    EDUCATION,
+    FIXED_INCOME,
+    FIXED_INCOME_COMPARED,
+    FIXED_INCOME_PROGRAMS,
+    INDUSTRIES,
+    OCCUPATIONS,
+    PROFILE_INDICATORS,
+    PROFILE_LARGEST,
+)
 from klear.agent.tools import Session
 from klear.eval.contract import geo_display
 from klear.labels import in_sentence, meaning, short_label
@@ -160,6 +169,23 @@ PROGRAMS_NEED_DISTRICT = (
 KUPUNA = ("kūpuna", "kupuna", "senior", "older adult", "65")
 # Topics answered by one measure family, checked before the broad topics: stems a question must hold, then indicators.
 TOPICS = (
+    (
+        ("industr", "tourism", "tourist", "hotel", "construction", "public administration", "government job"),
+        INDUSTRIES,
+    ),
+    (
+        (
+            "occupation",
+            "kind of job",
+            "kinds of job",
+            "type of job",
+            "types of job",
+            "what jobs",
+            "which jobs",
+        ),
+        OCCUPATIONS,
+    ),
+    (("degree", "college", "educat", "diploma", "high school", "graduat"), EDUCATION),
     (("food insecur", "food-insecur", "hunger", "hungry"), ("places_food_insecurity", "pct_hh_snap")),
     (("housing insecur", "housing-insecur"), ("places_housing_insecurity", "pct_rent_burden_35_plus")),
     (("shut off", "shut-off", "shutoff", "utility", "utilities"), ("places_utility_shutoff_threat",)),
@@ -168,6 +194,18 @@ TOPICS = (
     (("voucher", "section 8"), ("hud_vouchers", "pct_rent_burden_35_plus")),
     (("snap", "food stamp"), ("pct_hh_snap", "hh_snap", "hh_poverty_no_snap")),
 )
+
+# Groups of shares answered as one list, largest first: the list's opening and what every share counts.
+GROUPS = {
+    INDUSTRIES: (
+        "Industries where working residents of {place} have jobs, largest share first",
+        "These shares count residents by the industry they work in, wherever the job is.",
+    ),
+    OCCUPATIONS: (
+        "Kinds of jobs working residents of {place} do, largest share first",
+        "These shares count the kind of work residents do, in any industry.",
+    ),
+}
 
 
 def _has(q, *stems):
@@ -293,6 +331,81 @@ def _comparison(session, fact: dict, others: list[dict], unit: str) -> str:
         if way := actual_direction(session.facts[fact["ref"]], theirs):
             ways.setdefault(way, []).append(f"{other['geo_name']} ({_plain(theirs, unit)})")
     return ", ".join(f"{DIRECTION_TEXT[w]} {_joined(p)}" for w, p in ways.items())
+
+
+def _places(con, question: str, district: tuple[str, str]) -> list[tuple[str, str]]:
+    """The district's main county and the state when the question asks to compare with them."""
+    q = question.casefold()
+    out = []
+    if "county" in q and (county := main_county(con, district)):
+        out.append(county)
+    if "compare" in q or "state" in q or "hawaiʻi" in q or "hawaii" in q:
+        out.append(("state", "15"))
+    return out
+
+
+def group_answer(con, question: str, district: tuple[str, str], shown: str, ids: tuple[str, ...]) -> dict:
+    """A group of shares, such as the industries residents work in, listed largest first, each beside the main
+    county and the state when the question asks for them."""
+    opening, counts = GROUPS[ids]
+    statewide = bool(STATEWIDE.search(question))
+    home = ("state", "15") if statewide else district
+    places = [] if statewide else _places(con, question, district)
+    if statewide:
+        shown = "Hawaiʻi"
+    session = Session(con)
+    order = session.largest(ids, home)
+    here = json.loads(session.run("get_facts", {"indicator_ids": order, "geos": [":".join(home)]}))
+    there = {"facts": []}
+    if places and order:
+        there = json.loads(
+            session.run("get_facts", {"indicator_ids": order, "geos": [":".join(p) for p in places]})
+        )
+    if "error" in here or "error" in there:
+        raise ValueError("Could not read district facts")
+    if not here["facts"]:
+        return {
+            "text": f"I do not have a published figure for that question in {shown}. I will not fill the gap with a guess.",
+            "refusal": "not_available",
+            "facts": [],
+            "programs": [],
+        }
+    units = dict(con.execute("SELECT indicator_id, unit FROM indicator").fetchall())
+    against: dict[str, list[dict]] = {}
+    for fact in there["facts"]:
+        against.setdefault(fact["indicator_id"], []).append(fact)
+    lines, shaky = [], []
+    for fact in here["facts"]:
+        name = short_label(fact["indicator_id"], fact["label"])
+        line = f"- {name}: {fact['value_text']}"
+        if fact["reliable"] is False:
+            line += ", an unreliable estimate"
+            shaky.append(in_sentence(name))
+        if said := _comparison(
+            session, fact, against.get(fact["indicator_id"], []), units[fact["indicator_id"]]
+        ):
+            line += f", {said}"
+        lines.append(line)
+    names = list(dict.fromkeys(f["geo_name"] for f in there["facts"]))
+    head = opening.format(place=shown) + (f", compared with {_joined(names)}" if names else "") + "."
+    lead = [head + "\n" + "\n".join(lines)]
+    caveats = [counts]
+    if shaky:
+        caveats.append(
+            f"The margin of error is large for {_joined(shaky)}, so treat "
+            f"{'these estimates' if len(shaky) > 1 else 'this estimate'} as unreliable. "
+            "A larger area, such as the county, gives a steadier figure."
+        )
+    facts = here["facts"] + there["facts"]
+    return {
+        "text": "\n\n".join(lead + caveats),
+        "refusal": "none",
+        "facts": _cards(con, facts),
+        "programs": [],
+        "fact_refs": [session.facts[f["ref"]] for f in facts],
+        "lead": lead,
+        "caveats": caveats,
+    }
 
 
 def fixed_income(con, district: tuple[str, str], shown: str) -> dict:
@@ -642,6 +755,8 @@ def _answer(con, question, district, earlier=()):
     ids = indicators(con, question)
     if not ids and earlier:
         ids = list(earlier[-1].indicators)
+    if tuple(ids) in GROUPS:
+        return group_answer(con, question, district, shown, tuple(ids))
     if not ids:
         return {
             "text": "I could not match that question to a published district measure. Try asking about population, kūpuna, income, poverty, housing, work, or health.",
@@ -651,11 +766,12 @@ def _answer(con, question, district, earlier=()):
         }
     statewide = bool(STATEWIDE.search(question)) or district == ("state", "15")
     geos = ["state:15"] if statewide else [f"{district[0]}:{district[1]}"]
-    if not statewide and "county" in q and (county := main_county(con, district)):
-        geos.append(":".join(county))
-    if not statewide and ("compare" in q or "state" in q or "hawaiʻi" in q or "hawaii" in q):
-        geos.append("state:15")
+    if not statewide:
+        geos += [":".join(p) for p in _places(con, question, district)]
     session = Session(con)
+    if asks_profile(q):
+        for group, n in PROFILE_LARGEST.values():
+            ids += [i for i in session.largest(group, ("state", "15") if statewide else district)[:n]]
     result = json.loads(session.run("get_facts", {"indicator_ids": ids, "geos": geos}))
     if "error" in result:
         raise ValueError("Could not read district facts")

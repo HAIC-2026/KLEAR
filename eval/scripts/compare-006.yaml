@@ -1,0 +1,53 @@
+# Scripted model turns for compare-006: resolve the district, fetch its industry shares, compare the largest with the state, then submit.
+- - type: tool_use
+    name: resolve_place
+    input:
+      text: House District 14
+  - type: tool_use
+    name: search_indicators
+    input:
+      words:
+      - industry
+- - type: tool_use
+    name: get_facts
+    input:
+      indicator_ids:
+      - pct_industry_agriculture
+      - pct_industry_construction
+      - pct_industry_manufacturing
+      - pct_industry_wholesale
+      - pct_industry_retail
+      - pct_industry_transportation
+      - pct_industry_information
+      - pct_industry_finance
+      - pct_industry_professional
+      - pct_industry_education_health
+      - pct_industry_arts_food
+      - pct_industry_other_services
+      - pct_industry_public_admin
+      geos:
+      - house:014
+- - type: tool_use
+    name: compare
+    input:
+      indicator_id: pct_industry_arts_food
+      geo: house:014
+- - type: tool_use
+    name: submit_answer
+    input:
+      resolved: house:014
+      refusal: none
+      blocks:
+      - 'The largest industry group for working residents of {geo:house:014} is {label:f11}: {fact:f11} ({vintage:f11}).
+        The next largest are {label:f10} at {fact:f10} and {label:f5} at {fact:f5}.'
+      - 'That share is higher than in {geo:county:15009}, {fact:f14}, and higher than in {geo:state:15}, {fact:f15}
+        ({vintage:f15}).'
+      facts:
+      - f11
+      - f10
+      - f5
+      - f14
+      - f15
+      programs: []
+      caveats:
+      - These shares count residents by the industry they work in, wherever the job is.

@@ -438,12 +438,15 @@ Choosing a district opens its own page, such as /district/house-22, with its pro
 profile is read straight from the store with no model call, through `GET /api/profile?district=house:022`.
 A district chosen while an answer is still loading shows its profile at once, and the chat switches to it after that answer.
 It names the district's counties, islands, Census places and the overlapping districts
-in the other chamber, then gives the district's official description and permanent residents from the
+in the other chamber, shows four headline figures, then 50 figures in nine sections:
+People, Income, Work and education, Housing, Health and access, Programs in use, Who may qualify,
+Modeled needs and Help sites. Work and education shows the district's three largest of 13 industry
+groups, each counting residents by the industry they work in, wherever the job is. A last section,
+Reapportionment plan, gives the district's official description and permanent residents from the
 2021 Reapportionment Commission Final Report, each with its report page. The profile says that the
 permanent-resident count, the one the district lines were drawn on, leaves out non-resident military
 members, their families and students, so it differs from the ACS total population. The printed
-summary carries both too. The profile then shows four headline figures, then 37 figures in seven sections:
-People, Income, Housing, Health and access, Programs in use, Modeled needs and Help sites.
+summary carries both too.
 Each figure shows its margin of error or range, is compared with the county that holds most
 of the district's population and with the state, flags an unreliable estimate, and is cited
 under its section. Rates are compared in plain sentences ("about 40 percent higher than the

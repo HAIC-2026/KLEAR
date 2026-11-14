@@ -872,7 +872,9 @@ class Session:
         }
         against = ([("county", by_county[0][0])] if by_county else []) + [("state", "15")]
         beside = sorted({b for b, _ in config.PROFILE_BESIDE.values() if b})
-        self._prefetch([i for _, ids in config.PROFILE_SECTIONS for i in ids] + beside, [geo, *against])
+        listed = [i for _, ids in config.PROFILE_SECTIONS for i in ids if i not in config.PROFILE_LARGEST]
+        groups = [i for group, _ in config.PROFILE_LARGEST.values() for i in group]
+        self._prefetch(listed + groups + beside, [geo, *against])
         out = {
             "district": self._geo(*geo),
             "counties": [self._geo("county", c, share=round(p / total, 4)) for c, p in by_county if p],
@@ -884,7 +886,7 @@ class Session:
         }
         for title, ids in config.PROFILE_SECTIONS:
             rows = []
-            for ind in ids:
+            for ind in [i for key in ids for i in self._profile_ids(key, geo)]:
                 mine = self._facts_for([ind], [geo])
                 out["missing"] += mine["missing"]
                 if mine["facts"]:
@@ -898,6 +900,22 @@ class Session:
                     rows.append(row)
             out["sections"].append({"title": title, "rows": rows})
         return self._noted(out, [geo])
+
+    def _profile_ids(self, key: str, geo: tuple[str, str]) -> list[str]:
+        """A profile row's indicator, or for a PROFILE_LARGEST key the district's largest figures of its group."""
+        if key not in config.PROFILE_LARGEST:
+            return [key]
+        group, n = config.PROFILE_LARGEST[key]
+        return self.largest(group, geo)[:n]
+
+    def largest(self, indicator_ids, geo: tuple[str, str]) -> list[str]:
+        """Indicators with a stored value for geo, largest value first, ties in the order given."""
+        values = {}
+        for ind in indicator_ids:
+            found = [r[2] for r in self._rows(ind, geo) if r[2] is not None]
+            if found:
+                values[ind] = found[0]
+        return sorted(values, key=lambda i: -values[i])
 
     def _beside(self, ind: str, geo: tuple[str, str]) -> dict | None:
         """The figure a profile row is shown next to, with how the two differ."""
@@ -1303,8 +1321,8 @@ TOOL_SPECS = [
         "district_profile",
         "The standard profile of a House or Senate district, the same one the website shows: its counties, "
         "Census places and overlapping districts in the other chamber with population shares, then sections "
-        "(People, Income, Housing, Health and access, Programs in use, Who may qualify, Modeled needs, Help sites). "
-        "Each row is a "
+        "(People, Income, Work and education, Housing, Health and access, Programs in use, Who may qualify, Modeled "
+        "needs, Help sites). Work and education lists the district's three largest industries. Each row is a "
         "fact with its ref, compared with the main county and the state: a direction for rates, and the "
         "district's share for totals. Use it when asked for a profile or overview of a district.",
         {"district": {**_GEO, "description": "House or Senate district as TYPE:ID, for example house:022."}},
