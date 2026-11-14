@@ -477,13 +477,14 @@ def _matched(cited: list[dict], facts, store: _Store) -> list[dict]:
     ]
 
 
-def place_caveats(con, geos, home=None) -> list[dict]:
-    """Rule-based caveats for the districts and counties among geos. One for another place than home names it."""
+def place_caveats(con, geos, home=None, name_every: bool = False) -> list[dict]:
+    """Rule-based caveats for the districts and counties among geos. One for another place than home, or every one
+    when name_every, names its place."""
     store = None
     out = []
     for c in caveats.for_places(con, geos):
         title = c["title"]
-        if home is not None and c["geo"] != f"{home[0]}:{home[1]}":
+        if name_every or (home is not None and c["geo"] != f"{home[0]}:{home[1]}"):
             store = store or _Store(con)
             title = f"{title}: {store.place(*geo_key(c['geo']))}"
         out.append({"id": c["id"], "title": title, "text": c["text"], "sources": c["sources"]})
@@ -554,7 +555,9 @@ def build(con, answer) -> dict:
         "sources": sources(answer, store),
         "caveats": plain_text(answer.caveats, answer, store),
         "members": member_cards(con, named),
-        "place_caveats": place_caveats(con, geos, answer.resolved) if answer.facts else [],
+        "place_caveats": place_caveats(con, geos, answer.resolved, name_every=answer.resolved is None)
+        if answer.facts
+        else [],
     } | verified(len(shown), len(cited), answer.refusal)
 
 
