@@ -336,13 +336,16 @@ def _joined(parts: list[str], word: str = "and") -> str:
     return parts[0] if len(parts) == 1 else f"{', '.join(parts[:-1])} {word} {parts[-1]}"
 
 
-def _comparison(session, fact: dict, others: list[dict], unit: str) -> str:
-    """How a district fact relates to each other place, like 'higher than Honolulu County (19.6%)'."""
+def _comparison(session, fact: dict, others: list[dict], unit: str, written: list[str] | None = None) -> str:
+    """How a district fact relates to each other place, like 'higher than Honolulu County (19.6%)'. Adds the refs
+    of the places it names to written."""
     ways: dict[str, list[str]] = {}
     for other in others:
         theirs = session.facts[other["ref"]]
         if way := actual_direction(session.facts[fact["ref"]], theirs):
             ways.setdefault(way, []).append(f"{other['geo_name']} ({_plain(theirs, unit)})")
+            if written is not None:
+                written.append(other["ref"])
     return ", ".join(f"{DIRECTION_TEXT[w]} {_joined(p)}" for w, p in ways.items())
 
 
@@ -387,15 +390,16 @@ def group_answer(con, question: str, district: tuple[str, str], shown: str, ids:
     against: dict[str, list[dict]] = {}
     for fact in there["facts"]:
         against.setdefault(fact["indicator_id"], []).append(fact)
-    lines, shaky = [], []
+    lines, shaky, written = [], [], []
     for fact in here["facts"]:
         name = short_label(fact["indicator_id"], fact["label"])
         line = f"- {name}: {fact['value_text']}"
+        written.append(fact["ref"])
         if fact["reliable"] is False:
             line += ", an unreliable estimate"
             shaky.append(in_sentence(name))
         if said := _comparison(
-            session, fact, against.get(fact["indicator_id"], []), units[fact["indicator_id"]]
+            session, fact, against.get(fact["indicator_id"], []), units[fact["indicator_id"]], written
         ):
             line += f", {said}"
         lines.append(line)
@@ -417,6 +421,7 @@ def group_answer(con, question: str, district: tuple[str, str], shown: str, ids:
         "programs": [],
         "fact_refs": [session.facts[f["ref"]] for f in facts],
         "lead": lead,
+        "written_refs": written,
         "caveats": caveats,
     }
 
@@ -453,7 +458,7 @@ def fixed_income(con, district: tuple[str, str], shown: str) -> dict:
     against: dict[str, list[dict]] = {}
     for fact in there["facts"]:
         against.setdefault(fact["indicator_id"], []).append(fact)
-    lines, notes, shaky = [], {}, []
+    lines, notes, shaky, written = [], {}, [], []
     for ind in FIXED_INCOME:
         name = short_label(ind, labels.get(ind, ind))
         if ind not in mine:
@@ -462,10 +467,11 @@ def fixed_income(con, district: tuple[str, str], shown: str) -> dict:
             continue
         fact = mine[ind]
         line = f"- {name}: {fact['value_text']}"
+        written.append(fact["ref"])
         if fact["reliable"] is False:
             line += ", an unreliable estimate"
             shaky.append(in_sentence(name))
-        if said := _comparison(session, fact, against.get(ind, []), units[ind]):
+        if said := _comparison(session, fact, against.get(ind, []), units[ind], written):
             line += f", {said}"
         lines.append(line)
         if note := fact.get("note"):
@@ -493,6 +499,7 @@ def fixed_income(con, district: tuple[str, str], shown: str) -> dict:
         "programs": chosen,
         "fact_refs": [session.facts[f["ref"]] for f in facts],
         "lead": lead,
+        "written_refs": written,
         "caveats": caveats,
     }
 

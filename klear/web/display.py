@@ -533,14 +533,16 @@ def shown_figures(answer, refs: set[str]) -> list:
     return [f for f in answer.facts if f.ref in refs and _has(f.value)]
 
 
-def build(con, answer) -> dict:
+def build(con, answer, written=()) -> dict:
+    """The answer laid out for the website. written holds the refs of figures the caller writes in its own lead,
+    so the figure line counts them too."""
     store = _Store(con)
     drawn, charted = charts(answer, store)
     tiled, more, tiled_refs = tiles(answer, store, charted)
     filled = {
         ref for t in [*answer.blocks, *answer.caveats] for kind, ref in MARKER.findall(t) if kind == "fact"
     }
-    shown = shown_figures(answer, charted | tiled_refs | filled)
+    shown = shown_figures(answer, charted | tiled_refs | filled | set(written))
     cited = {(s["name"], s["year"]) for s in (_source(f, store) for f in shown)}
     texts = " ".join([*answer.blocks, *answer.caveats])
     named = [geo_key(r) for k, r in MARKER.findall(texts) if k == "member" and geo_key(r)]

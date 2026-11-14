@@ -220,12 +220,12 @@ def basic(
 ) -> dict:
     """Free keyword lookup, laid out like an assistant answer when it found figures."""
     result = lookup(con, question, district, geocoder, earlier)
-    refs = result.pop("fact_refs", [])
+    refs, in_lead = result.pop("fact_refs", []), result.pop("written_refs", [])
     written, caveats, notes = result.pop("lead", []), result.pop("caveats", []), result.pop("notes", [])
     where, answered = result.pop("where", None), result.pop("district", district)
     if refs:
         answer = Answer(VERSION, answered, result["refusal"], [], refs, [], [])
-        result |= display.build(con, answer)
+        result |= display.build(con, answer, in_lead)
         profile = asks_profile(question)
         lead = "This is the standard profile for this district. The district profile on this page compares each figure with the county and the state."
         if written:
