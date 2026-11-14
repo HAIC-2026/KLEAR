@@ -126,10 +126,13 @@ def about(con, validation: Path) -> dict:
     month = build_month(con)
     sources = _sources(con, month)
     measures = con.execute("SELECT count(*) FROM indicator").fetchone()[0]
-    # sources of stored figures; a source used only to check figures is not counted
-    used = con.execute(
-        "SELECT count(DISTINCT source_id) FROM (SELECT source_id FROM fact UNION SELECT source_id FROM site)"
-    ).fetchone()[0]
+    # sources of stored figures, sites and the Commission's district plan; a source used only to check figures is
+    # not counted
+    tables = {r[0] for r in con.execute("SELECT table_name FROM information_schema.tables").fetchall()}
+    parts = ["SELECT source_id FROM fact", "SELECT source_id FROM site"]
+    if "district_plan" in tables:
+        parts.append("SELECT source_id FROM district_plan")
+    used = con.execute(f"SELECT count(DISTINCT source_id) FROM ({' UNION '.join(parts)})").fetchone()[0]
     house, senate = counts.get("house", 0), counts.get("senate", 0)
     facts = [
         f"{house} House and {senate} Senate districts",
