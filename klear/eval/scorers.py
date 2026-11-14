@@ -426,8 +426,11 @@ def answer_problems(
     return problems
 
 
-def _fidelity(g: Golden, a: Answer, con) -> Outcome:
-    return _verdict("fidelity", answer_problems(a, con, _allowed_geos(g, a, con), g.question))
+def _fidelity(g: Golden, a: Answer, con, seen=None) -> Outcome:
+    seen = seen or {}
+    allowed = _allowed_geos(g, a, con) | {k for r in seen.get("resolved", []) if (k := geo_key(r))}
+    problems = answer_problems(a, con, allowed, g.question, seen.get("names", []), seen.get("counts", []))
+    return _verdict("fidelity", problems)
 
 
 def _verdict(check: str, problems: list[str]) -> Outcome:
@@ -549,14 +552,15 @@ def _direction(g: Golden, a: Answer, low: str) -> Outcome:
     return _verdict("direction", problems)
 
 
-def score(g: Golden, a: Answer, con, programs: dict[str, str] | None = None) -> list[Outcome]:
+def score(g: Golden, a: Answer, con, programs: dict[str, str] | None = None, seen=None) -> list[Outcome]:
+    """Outcomes of every check; seen holds what the agent's tools returned, which the answer may name."""
     names = known_programs() if programs is None else programs
     try:
         text = render(a, con)
     except (ContractError, KeyError):
         text = "\n\n".join(MARKER.sub(" ", t) for t in [*a.blocks, *a.caveats])
     low = _plain(text)
-    out = [_fidelity(g, a, con)]
+    out = [_fidelity(g, a, con, seen)]
     if g.district is None:
         out.append(Outcome("district", None, "no expected district"))
     else:
