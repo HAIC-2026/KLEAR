@@ -2,7 +2,11 @@
 
 import json
 
+import pandas as pd
+
+from klear.store.db import add_facts, add_geographies
 from klear.web.about import about, geography
+from tests.fixtures.small_store import _fact
 
 BUILT = "2026-11-06 16:38:59 HST (2026-11-07T02:38:59Z UTC)"
 CHECKS = {"boundaries_house": "pass", "source_fidelity": "pass", "store": "pass"}
@@ -49,7 +53,19 @@ def test_counts_and_sources_come_from_the_store(small_con, tmp_path):
             "Final report, February 25, 2022",
         ),
     ]
-    assert set(data) == {"facts", "sources", "crosscheck"}
+    assert set(data) == {"facts", "sources", "crosscheck", "example"}
+
+
+def test_example_is_house_49_or_else_the_house_district_with_most_figures(small_con, tmp_path):
+    # The small store has no House 49, so the landing page's example is the House district it holds most figures for.
+    most = small_con.execute(
+        "SELECT geo_id FROM fact WHERE geo_type = 'house' GROUP BY geo_id ORDER BY count(*) DESC, geo_id LIMIT 1"
+    ).fetchall()[0][0]
+    assert about(small_con, tmp_path / "validation.json")["example"] == f"house:{most}"
+    geo = [("house", "049", "House District 49", "15003")]
+    add_geographies(small_con, pd.DataFrame(geo, columns=["geo_type", "geo_id", "name", "parent_county"]))
+    add_facts(small_con, pd.DataFrame([_fact("house", "049", "pop_65_plus", 6850.0, 580.0)]))
+    assert about(small_con, tmp_path / "validation.json")["example"] == "house:049"
 
 
 def test_build_date_cross_check_and_skipped_checks_are_stated(small_con, tmp_path):

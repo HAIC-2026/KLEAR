@@ -27,19 +27,23 @@ test('each district has its own address, which Back, Forward and a pasted link f
   await expect(page.locator('#district-title')).toHaveText(DISTRICT);
   await expect(page.locator('#profile-live')).toHaveText(`Profile for ${DISTRICT} loaded.`);
 
-  // Back to the home page: its photo band, heading and starter questions return in place of the district's page.
+  // Back to the home page: its band, heading, starter questions and example return in place of the district's page,
+  // and the district's suggestions leave the chat.
   await page.goBack();
   await expect(page).toHaveURL(/:\d+\/$/);
   await expect(page.locator('#district-title')).toHaveText('No district chosen yet');
   await expect(page.locator('.band')).toBeVisible();
-  await expect(page.getByRole('heading', {level: 1})).toHaveText('Hawaiʻi legislative district data');
+  await expect(page.getByRole('heading', {level: 1})).toHaveText('Who lives in my district, and what help is available?');
   await expect(page.locator('#profile')).toBeHidden();
-  await expect(page.locator('#starter').getByRole('button', {name: 'Give me a socioeconomic profile of this district.'})).toBeVisible();
+  await expect(page.locator('#starters').getByRole('button', {name: 'How many kūpuna live in Kāneʻohe?'})).toBeVisible();
+  await expect(page.locator('#suggest')).toBeHidden();
+  await expect(page.locator('#example')).toBeVisible();
   await expect(page).toHaveTitle('KLEAR: Hawaiʻi legislative district data');
 
   await page.goForward();
   await expect(page.locator('#district-title')).toHaveText(DISTRICT);
   await expect(page.locator('#starter')).toBeHidden();
+  await expect(page.locator('#example')).toBeHidden();
 
   // A pasted link opens the same district in a new tab, at the top of its page, with its name as the page heading.
   const pasted = await context.newPage();

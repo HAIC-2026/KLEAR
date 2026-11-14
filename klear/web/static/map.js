@@ -264,6 +264,7 @@
     document.getElementById('pick-island').textContent = row ? row.islands : 'No district picked yet';
     showPickValue();
     go.disabled = !row;
+    go.textContent = row ? `Ask about ${row.name}` : 'Ask about a district';
     list.value = row ? row.geo : '';
     declutter();
     updateStop();

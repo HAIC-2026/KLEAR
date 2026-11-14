@@ -47,7 +47,7 @@
   --header-h:64px;--stick:0px;
 
   /* Spacing */
-  --gutter:clamp(16px,3vw,32px);--card-pad:clamp(16px,2.4vw,28px);--section-y:clamp(48px,7vw,80px);
+  --gutter:clamp(16px,3vw,32px);--card-pad:clamp(16px,2.4vw,28px);--section-y:clamp(44px,5vw,64px);
   --head-gap:28px;--block-gap:24px;--measure:46rem;
 
   /* A district's page on wide screens. --header-h is the site header's height and --stick how much of it stays on screen
@@ -135,13 +135,12 @@ footer a[aria-current=page]{font-weight:700;text-decoration-thickness:3px}
 @media(max-width:359px){.site-header nav{font-size:var(--fs-sm)}.nav-links{gap:0}}
 @media print{.site-header{position:static}}
 
-/* Photo band with the district search */
-.band{position:relative;color:#fff;background:var(--band-bg) url('/background1.jpg') center 55%/cover no-repeat}
-.band:before{content:"";position:absolute;inset:0;background:linear-gradient(90deg,rgb(var(--band-rgb) / .88) 0%,rgb(var(--band-rgb) / .78) 45%,rgb(var(--band-rgb) / .35) 100%);pointer-events:none}
+/* Dark band with the page's question and the district search */
+.band{position:relative;color:#fff;background:var(--band-bg)}
 .band-inner{position:relative;z-index:1;padding-top:clamp(36px,5vw,56px);padding-bottom:clamp(40px,5vw,60px)}
-.band h1{font-size:var(--fs-h1);line-height:1.1;margin:0 0 16px;max-width:18ch}
-.lede{font-size:var(--fs-md);line-height:1.6;max-width:44rem;margin:0 0 var(--block-gap);color:var(--on-dark)}
-.find{max-width:40rem}
+.band h1{font-size:var(--fs-h1);line-height:1.1;margin:0 0 16px;max-width:24ch;text-wrap:balance}
+.lede{font-size:var(--fs-md);line-height:1.6;max-width:52rem;margin:0 0 var(--block-gap);color:var(--on-dark)}
+.find{max-width:48rem}
 .find label{color:#fff}
 .find .inputrow input{border-color:#fff}
 .find .inputrow button{border-color:var(--on-dark-control)}
@@ -151,7 +150,6 @@ footer a[aria-current=page]{font-weight:700;text-decoration-thickness:3px}
 .find .chamber-title{color:#fff;border-bottom-color:var(--house-hover)}.find .chamber-title.senate{border-bottom-color:var(--senate-hover)}
 .band :focus-visible{outline-color:#fff}
 #find-matches:not(:empty){margin-top:12px;padding:16px;background:rgb(var(--band-rgb) / .72);border-radius:var(--r-card)}
-.photo-credit{position:absolute;right:8px;bottom:8px;z-index:1;margin:0;padding:3px 8px;font-size:var(--fs-xs);color:#fff;background:rgb(var(--band-rgb) / .8);border-radius:var(--r-sm)}
 
 /* Whatever the page scrolls to stops below the part of the header that stays on screen: a section, a link's target, a
    new chat message, and whatever the keyboard moves focus to, so Shift+Tab back up the page never hides it. */
@@ -159,9 +157,9 @@ section,:target,#log>*{scroll-margin-top:calc(var(--stick) + 16px)}
 a[href],button,input,select,textarea,summary,[tabindex]{scroll-margin-top:calc(var(--stick) + 8px)}
 
 /* Sections: one padding, one heading block, and white and gray alternating so each reads as its own block. */
-.chat-section,.map-section,.how,.sources,.about{padding:var(--section-y) 0}
-.chat-section,.how,.about{background:var(--surface)}
-.map-section,.sources{background:var(--bg)}
+.chat-section,.map-section,.example,.closing{padding:var(--section-y) 0}
+.chat-section,.example{background:var(--surface)}
+.map-section,.closing{background:var(--bg)}
 .section-head{max-width:var(--measure);margin:0 0 var(--head-gap)}
 .section-head h2{margin:0 0 12px}
 .section-head p{margin:0;color:var(--muted);font-size:var(--fs-lead);line-height:1.6}
@@ -172,7 +170,7 @@ label,.small-label{display:block;color:var(--ink);font-weight:600;font-size:var(
 .inputrow,.question-row{display:flex;gap:8px}
 /* Search suggestions: a list under the search box that follows typing (an ARIA combobox) */
 .combo{position:relative;flex:1;min-width:0}
-/* The open list sits above the photo credit, which shares the hero's layer. */
+/* The open list sits above the section after the band. */
 .band-inner:has(.suggestions:not([hidden])){z-index:2}
 .suggestions{position:absolute;z-index:20;top:calc(100% + 4px);left:0;right:0;margin:0;padding:4px;list-style:none;background:#fff;border:1px solid var(--control);border-radius:var(--r-ctl);box-shadow:0 8px 24px rgb(0 0 0 / .18);max-height:min(24rem,60vh);overflow-y:auto}
 .suggestions li{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:2px 12px;padding:10px 12px;border-radius:var(--r-sm);color:var(--ink);cursor:pointer}
@@ -218,8 +216,6 @@ form:has(.map-nudge) .help:not(.privacy){display:none}
 .chat-card{display:flex;flex-direction:column;min-width:0;background:#fff;border:1px solid var(--line);border-radius:var(--r-card);scroll-margin-block:24px}
 .chat-card .inputrow button,.chat-card .question-row button{min-width:9rem}
 .district-bar{padding:18px var(--card-pad);background:var(--subtle);border-radius:calc(var(--r-card) - 1px) calc(var(--r-card) - 1px) 0 0;border-bottom:1px solid var(--line)}
-.district-bar.nudge{animation:nudge 1.2s ease-out}
-@keyframes nudge{0%,30%{background:var(--accent-soft)}100%{background:var(--subtle)}}
 .district-now{display:flex;justify-content:space-between;align-items:center;gap:16px}
 .district-now strong{display:block;font-size:var(--fs-xl);line-height:1.25;font-weight:700;color:var(--ink);text-wrap:balance}
 .district-now .textbutton{flex:none}
@@ -264,7 +260,7 @@ summary{font-weight:600;color:var(--accent);cursor:pointer}
 .pending .cancel{padding:4px 14px;border:1px solid var(--control);border-radius:var(--r-ctl);background:#fff;color:var(--ink);font-size:var(--fs-sm);font-weight:600;line-height:1.4}
 .pending:before{content:"";flex:none;width:16px;height:16px;border:2px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:turn .9s linear infinite}
 @keyframes turn{to{transform:rotate(360deg)}}
-@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}.district-bar.nudge,.pending:before{animation:none}.pending:before{border-color:var(--accent)}#map .district{transition:none}}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}.pending:before{animation:none}.pending:before{border-color:var(--accent)}#map .district{transition:none}}
 #question-form{padding:16px var(--card-pad) 0;border-top:1px solid var(--line)}
 .question-row{align-items:flex-end}
 .question-row textarea{display:block;resize:none;overflow-y:hidden;min-height:var(--control-h);max-height:192px}
@@ -276,6 +272,14 @@ summary{font-weight:600;color:var(--accent);cursor:pointer}
 .retry{margin-top:10px;padding:6px 18px;border:1px solid var(--error-ink);border-radius:var(--r-ctl);background:#fff;color:var(--error-ink);font-size:var(--fs-sm);font-weight:600;line-height:1.4}
 .chat-notes{margin:6px 0 0;font-size:var(--fs-xs);line-height:1.5;color:var(--muted)}
 .chat-aside h3{font-size:var(--fs-base);margin:0 0 12px}
+/* The home page's chat is only its question box until the first question; then the conversation shows above it. The
+   bar that names a district shows only on a district's page, so the band's search is the home page's only one. */
+body:not(.district-page) .district-bar,body:not(.district-page) .chat-card:not(.started) #messages{display:none}
+body:not(.district-page) .chat-card:not(.started) #question-form{border-top:0}
+/* On the home page the starters sit under the question box, written out in full and wrapping in rows. */
+body:not(.district-page) .chat-layout{grid-template-columns:minmax(0,1fr);gap:20px}
+body:not(.district-page) .chat-aside .examples{display:flex;flex-wrap:wrap;gap:8px}
+body:not(.district-page) .chat-aside .examples button{padding:8px 14px;border-color:var(--accent);border-radius:var(--r-pill);color:var(--accent-dark);font-size:var(--fs-sm);font-weight:600}
 .examples{display:grid;gap:8px}
 .examples button{border:1px solid var(--line);border-radius:var(--r-ctl);background:#fff;text-align:left;padding:12px 14px;color:var(--ink);font-size:var(--fs-base);line-height:1.4;text-wrap:pretty}
 /* A district's own page. The home page's photo band, the chat's introduction and the starter questions give way to the
@@ -283,8 +287,8 @@ summary{font-weight:600;color:var(--accent);cursor:pointer}
    and the sections, with big figures, plain labels, and comparisons written as sentences. On wide screens the chat
    sits beside the profile, as tall as the window, and stays in view while the profile scrolls; below 1200 px the two
    take turns behind tabs (see the end of this block). The page ends with the profile and the map: the home page's
-   How it works, Sources and About are a link away, in the profile's closing row and the header. */
-.district-page .band,.district-page #chat-head,.district-page .chat-aside,.district-page #how,.district-page #sources,.district-page #about{display:none}
+   example, sources summary and About are a link away, in the profile's closing row and the header. */
+.district-page .band,.district-page #chat-head,.district-page .chat-aside,.district-page #example,.district-page .closing{display:none}
 .district-page .chat-section{padding:var(--district-top) 0 var(--section-y)}
 .district-page .chat-section>.wrap{max-width:1440px}
 .district-head{min-width:0;scroll-margin-top:calc(var(--stick) + var(--district-top))}
@@ -581,8 +585,13 @@ article .elsewhere{font-size:var(--fs-sm)}
 @container (max-width:440px){.chart-bars{grid-template-columns:minmax(96px,1fr) fit-content(13em);row-gap:2px}.bar-place{grid-column:1/-1;margin-top:6px}.bar-spread{display:block}.chart.wide .bar-track,.chart.wide .bar-value{grid-column:1/-1}.chart.wide .bar-value{text-align:left}.chart.wide .bar-spread{display:inline-block}}
 
 /* Map */
-.map-layout{display:grid;grid-template-columns:minmax(220px,.7fr) minmax(400px,1.6fr);gap:0 clamp(28px,5vw,64px);align-items:start}
-.map-layout .section-head{margin-bottom:0}
+/* Wide: the introduction, the ZIP code highlight and the shading choice in a column beside the map card. */
+.map-layout{display:grid;grid-template-columns:minmax(220px,.7fr) minmax(400px,1.6fr);grid-template-rows:auto 1fr;gap:0 clamp(28px,5vw,64px);align-items:start}
+.map-layout .section-head{margin-bottom:var(--block-gap)}
+.map-tools{grid-column:1;min-width:0}
+.map-card{grid-area:1/2/3/3}
+.map-tools .zip-form{border-bottom:0;padding-bottom:0}
+.map-tools .shade-row select{max-width:none}
 .map-card{background:#fff;border:1px solid var(--line);border-radius:var(--r-card);padding:var(--card-pad);min-width:0}
 .zip-form{margin-bottom:20px;padding-bottom:20px;border-bottom:1px solid var(--line)}.zip-form .status{margin:12px 0 8px}.zip-form .status:empty{margin:0;min-height:0}
 #map.zip-mode:not(.shaded) .district:not(.zip-hit){fill:var(--map-dim);stroke:var(--control)}#map.zip-mode:not(.shaded) .district.zip-hit:not(.picked){fill:var(--zip)}#map.zip-mode .labels{display:inline}#map.zip-mode:not(.zoomed) .label:not(.zip-hit){display:none}#map.zip-mode .label:not(.zip-hit){fill:var(--muted);opacity:1}.zip-form .match{padding:7px 12px;font-size:var(--fs-xs)}
@@ -590,6 +599,8 @@ article .elsewhere{font-size:var(--fs-sm)}
 .segmented{display:inline-flex;border:1px solid var(--control);border-radius:var(--r-ctl);overflow:hidden}.segmented button{border:0;background:transparent;padding:8px 16px;font-size:var(--fs-sm);font-weight:600}.segmented [data-chamber=house]{color:var(--house)}.segmented [data-chamber=senate]{color:var(--senate)}.segmented [data-chamber=house][aria-pressed=true]{background:var(--house);color:#fff}.segmented [data-chamber=senate][aria-pressed=true]{background:var(--senate);color:#fff}
 .island-tabs{display:flex;flex-wrap:wrap;gap:6px}.island-tabs button{border:1px solid var(--line);background:#fff;color:var(--ink);border-radius:var(--r-ctl);padding:6px 10px;font-size:var(--fs-xs);font-weight:600}.island-tabs button[aria-pressed=true]{background:var(--house-soft);border-color:var(--house);color:var(--house-dark)}
 .map-frame{position:relative;overflow:hidden;background:var(--map-sea);border:1px solid var(--line);border-radius:var(--r-ctl);aspect-ratio:3/2}
+/* Wide screens: a flatter frame, which fits the island chain and keeps the map section short. */
+@media(min-width:1024px){.map-frame{aspect-ratio:16/9}}
 #map{display:block;width:100%;height:100%;--label:12px;touch-action:pan-y;user-select:none;-webkit-user-select:none}#map.free{touch-action:none;cursor:grab}#map.free:active{cursor:grabbing}
 #map .district,#map .label{--land:var(--house-land);--hover:var(--house-hover);--zip:var(--house-zip);--pick:var(--house);--pick-dark:var(--house-dark)}#map [data-geo^="senate:"]{--land:var(--senate-land);--hover:var(--senate-hover);--zip:var(--senate-zip);--pick:var(--senate);--pick-dark:var(--senate-dark)}
 #map .district{fill:var(--land);stroke:var(--pick);stroke-width:1px;stroke-linejoin:round;vector-effect:non-scaling-stroke;cursor:pointer;transition:fill .15s}
@@ -637,17 +648,22 @@ article .elsewhere{font-size:var(--fs-sm)}
 .pick-value{display:block;margin-top:6px;font-size:var(--fs-sm);line-height:1.45;color:var(--ink)}
 .map-table{margin-top:16px}.map-table tbody tr:first-child th{font-weight:400}.map-table td.note{color:var(--muted)}
 
-/* How it works */
-.steps{list-style:none;counter-reset:step;margin:0;padding:0;display:grid;gap:clamp(32px,5vw,56px)}
-.steps li{counter-increment:step;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.5fr);grid-template-rows:auto 1fr;column-gap:48px;align-items:start}
-.shot{grid-column:2;grid-row:1/3;margin:0;max-width:680px;padding:10px;background:var(--bg);border:1px dashed var(--control);border-radius:var(--r-card)}
-.shot figcaption{margin:0 0 10px;font-size:var(--fs-sm);color:var(--muted)}.shot figcaption strong{color:var(--ink)}
-.shot img{display:block;width:100%;height:auto;border:1px solid var(--line);border-radius:var(--r-ctl);background:#fff;pointer-events:none;user-select:none;-webkit-user-select:none;cursor:default}
-.steps h3{grid-column:1;margin:8px 0}
-.steps h3:before{content:counter(step) ". ";color:var(--accent)}
-.steps p{grid-column:1;max-width:var(--measure);margin:0;color:var(--muted);font-size:var(--fs-lead);line-height:1.6}
+/* The home page's worked example: the top of one district's page, built from its live profile. */
+.example-card{padding:var(--card-pad);background:#fff;border:1px solid var(--line);border-radius:var(--r-card)}
+.example-name{font-size:var(--fs-xl);line-height:1.25;margin:2px 0 4px}
+.example-card .profile-stats{margin:20px 0 0}
+.example-sub{margin:28px 0 0;font-size:var(--fs-md)}
+.example-why{margin:4px 0 0;color:var(--muted);font-size:var(--fs-sm)}
+.example-actions{margin:24px 0 0}
+.example-open{display:inline-flex;align-items:center;min-height:var(--control-h);padding:0 18px;background:var(--accent);color:#fff;border-radius:var(--r-ctl);font-weight:600;text-decoration:none}
 
-/* Data and sources */
+/* The home page's last band: the sources summary, three lines of counts, beside About. */
+.closing-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--section-y) 48px}
+.closing h2{margin:0}
+.about-lede{margin:12px 0 var(--block-gap);max-width:var(--measure);color:var(--muted)}
+.facts-list{margin:16px 0 0;padding-left:20px;max-width:var(--measure);font-size:var(--fs-lead)}
+.facts-list li{margin:0 0 6px}
+.sources-more{margin:16px 0 0;font-weight:600}
 .facts{max-width:52rem;margin:0 0 var(--block-gap);padding:12px 16px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-ctl);font-size:var(--fs-base);color:var(--ink)}
 .table-scroll{overflow-x:auto;border:1px solid var(--line);border-radius:var(--r-ctl);background:#fff}
 table{width:100%;border-collapse:collapse;font-size:var(--fs-base)}
@@ -676,7 +692,7 @@ td:last-child{white-space:nowrap}
 /* Where a source's figures can be checked: its tables on data.census.gov, or the methods page. */
 .source-links{display:block}
 
-/* About */
+/* About, and the full source table on the sources page */
 .about h3{margin:0}
 .about .team{margin-top:12px}
 .about .team-block+h3{margin-top:var(--block-gap)}
@@ -701,14 +717,12 @@ footer a{color:#fff}
    480 (small phone). */
 @media(max-width:1199px){.chat-layout{grid-template-columns:1fr}.examples{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:1023px){
-  .map-layout{grid-template-columns:1fr}.map-layout .section-head{margin-bottom:var(--head-gap)}
-  .steps li{display:block;max-width:40rem}.shot{margin-top:16px;max-width:none}
+  .map-layout{grid-template-columns:1fr}.map-layout .section-head{margin-bottom:var(--head-gap)}.map-card{grid-area:auto}
   .footer-inner{grid-template-columns:repeat(2,minmax(0,1fr))}.footer-brand{grid-column:1/-1}
+  .closing-grid{grid-template-columns:minmax(0,1fr)}
 }
 @media(max-width:640px){
   :root{--head-gap:24px;--block-gap:20px;--fs-lead:16px}
-  .band:before{background:rgb(var(--band-rgb) / .8)}
-  .band-inner{padding-bottom:52px}
   .inputrow,.question-row{flex-direction:column}
   .inputrow button,.question-row button{width:100%}
   /* The button sits under the box here, so the suggestions open below the button instead of covering it. */
