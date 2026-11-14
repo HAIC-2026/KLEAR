@@ -31,6 +31,8 @@ CATEGORY_LABELS = {
     "decline_partisan": "Declining partisan questions",
     "messy_input": "Typos and shorthand",
     "rank": "Ranking districts by a measure",
+    "follow_up": "Follow-up questions that keep their subject",
+    "no_district": "Questions asked with no district chosen",
 }
 LIMITS = [
     (

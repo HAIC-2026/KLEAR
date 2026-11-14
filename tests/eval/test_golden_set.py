@@ -178,6 +178,9 @@ def test_golden_county_facts_are_district_parent_county():
     for chamber, (archive, member) in sources.items():
         parent |= _plurality_counties(chamber, archive, member)
     for g in load_golden():
+        # A question about a county itself, with no district, cites that county.
+        if g.district is None and not any(t in ("house", "senate") for _, t, _ in g.facts):
+            continue
         for _, geo_type, geo_id in g.facts:
             if geo_type == "county":
                 assert g.district in parent, (g.id, g.district)

@@ -385,8 +385,9 @@ article .answer-programs summary+.program{margin-top:10px}
 .district-page .district-now strong{display:inline;font-size:var(--fs-base)}
 .district-page .district-now .textbutton{padding:2px 0}
 .district-page #messages{padding-top:16px}
-.district-page #question-form{padding-top:12px}
-.district-page #chat-status{padding-bottom:12px}
+/* Tight enough that the four-line note under the question box leaves an answer 600 px to be read in at 1440 by 900. */
+.district-page #question-form{padding-top:10px}
+.district-page #chat-status{padding-bottom:10px}
 /* Wide and tall enough: the profile on the left and the chat beside it, as tall as the window below the site header, so
    it stays in view while the profile scrolls and the conversation scrolls inside it. */
 @media(min-width:1200px){

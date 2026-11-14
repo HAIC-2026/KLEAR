@@ -225,7 +225,10 @@ def _ask(g, agent, con, mode, model, spend, prices, result, keep=None) -> tuple[
             result.stopped = f"spend cap: {e}"
             return Item(g, "unanswered", result.stopped), None
     try:
-        answer, usage = agent.answer(g.id, g.question, g.context)
+        # Only follow-up questions pass earlier questions, so agents that predate them still run.
+        answer, usage = agent.answer(
+            g.id, g.question, g.context, **({"earlier": g.earlier} if g.earlier else {})
+        )
     except ContractError as e:
         if reserved is not None:
             _settle_worst(result, spend, reserved, model, f"malformed answer: {e}", stop=False)

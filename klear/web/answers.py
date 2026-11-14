@@ -117,6 +117,53 @@ STOP = {
 }
 # Words that name a kind of measure rather than a topic, so they never match a label on their own.
 GENERIC = {"rate", "rates", "percent", "percentage", "share", "number", "total", "count", "median", "average"}
+# Words a follow-up uses to point back or to other places, which never name a measure.
+POINTING = {
+    "compare",
+    "compared",
+    "comparison",
+    "versus",
+    "vs",
+    "against",
+    "county",
+    "counties",
+    "state",
+    "statewide",
+    "hawaii",
+    "island",
+    "those",
+    "these",
+    "them",
+    "same",
+    "else",
+    "too",
+    "also",
+    "now",
+}
+# Questions that rank or compare every district, which only the assistant answers.
+RANKING = re.compile(
+    r"\b(?:which|what)\s+(?:(?:house|senate)\s+)?districts\b"
+    r"|\bdistricts?\s+(?:with|has|have)\s+the\s+(?:highest|lowest|most|fewest|largest|smallest)\b"
+    r"|\b(?:rank|ranks|ranked|ranking)\b.*\bdistricts\b|\btop\s+(?:\w+\s+)?districts\b",
+    re.IGNORECASE,
+)
+CHAMBERS = ("house", "senate")
+# A share of residents at or above this reads as all of them, and an island holding this much of a county's
+# residents is answered with the county's figures.
+WHOLE = 0.995
+ISLAND_COUNTY = 0.99
+NEEDS_ASSISTANT = (
+    "This question compares every district, which needs the KLEAR assistant. The basic lookup answers for "
+    "one district, town, ZIP code or county at a time."
+)
+NAME_A_PLACE = (
+    "Name a place in your question, such as a House or Senate district, a town, a ZIP code or a street "
+    "address, or choose a district above. KLEAR will answer for it."
+)
+PROGRAMS_NEED_DISTRICT = (
+    "Programs are matched to one House or Senate district. Choose a district above, or name one in your "
+    "question."
+)
 KUPUNA = ("kūpuna", "kupuna", "senior", "older adult", "65")
 # Topics answered by one measure family, checked before the broad topics: stems a question must hold, then indicators.
 TOPICS = (
@@ -202,7 +249,7 @@ def indicators(con, question):
         return ["pop_under_18", "pct_children_poverty", "pct_hh_with_children"]
     if _has(q, "population", "people", "residents"):
         return ["pop_total", "pop_under_18", "pop_65_plus"]
-    terms = set(WORDS.findall(q)) - STOP
+    terms = set(WORDS.findall(q)) - STOP - POINTING
     if not terms - GENERIC:
         return []
     rows = con.execute("SELECT indicator_id, label FROM indicator ORDER BY indicator_id").fetchall()
@@ -270,8 +317,8 @@ def _cards(con, facts: list[dict]) -> list[dict]:
     return out
 
 
-def _joined(parts: list[str]) -> str:
-    return parts[0] if len(parts) == 1 else f"{', '.join(parts[:-1])} and {parts[-1]}"
+def _joined(parts: list[str], word: str = "and") -> str:
+    return parts[0] if len(parts) == 1 else f"{', '.join(parts[:-1])} {word} {parts[-1]}"
 
 
 def _comparison(session, fact: dict, others: list[dict], unit: str) -> str:
@@ -363,16 +410,18 @@ def fixed_income(con, district: tuple[str, str], shown: str) -> dict:
     """Kūpuna count and share, income, poverty and household income sources for a district, with the rates and
     medians set against its main county and the state, and the programs for kūpuna on fixed incomes."""
     session = Session(con)
-    places = [g for g in (main_county(con, district), ("state", "15")) if g]
+    places = [g for g in (main_county(con, district), ("state", "15")) if g and g != district]
     here = json.loads(
         session.run("get_facts", {"indicator_ids": list(FIXED_INCOME), "geos": [":".join(district)]})
     )
-    there = json.loads(
-        session.run(
-            "get_facts",
-            {"indicator_ids": list(FIXED_INCOME_COMPARED), "geos": [":".join(p) for p in places]},
+    there = {"facts": []}
+    if places:
+        there = json.loads(
+            session.run(
+                "get_facts",
+                {"indicator_ids": list(FIXED_INCOME_COMPARED), "geos": [":".join(p) for p in places]},
+            )
         )
-    )
     if "error" in here or "error" in there:
         raise ValueError("Could not read district facts")
     if not here["facts"]:
@@ -406,11 +455,9 @@ def fixed_income(con, district: tuple[str, str], shown: str) -> dict:
         lines.append(line)
         if note := fact.get("note"):
             notes.setdefault(note, []).append(name)
-    names = [g["geo_name"] for g in there["facts"]]
-    lead = [
-        f"Kūpuna and fixed incomes in {shown}. Rates and medians are compared with "
-        f"{_joined(list(dict.fromkeys(names)))}.\n" + "\n".join(lines)
-    ]
+    names = list(dict.fromkeys(g["geo_name"] for g in there["facts"]))
+    against_text = f" Rates and medians are compared with {_joined(names)}." if names else ""
+    lead = [f"Kūpuna and fixed incomes in {shown}.{against_text}\n" + "\n".join(lines)]
     chosen = program_rows(list(FIXED_INCOME_PROGRAMS))
     lead.append(
         "Programs for kūpuna on fixed incomes, with official links below: "
@@ -470,14 +517,87 @@ def address_answer(con, question: str, address: str, geocoder) -> dict:
     asks = asks_fixed_income(q) or any(w in q for w in ("program", "benefit", "assistance", "support"))
     if not (asks or indicators(con, CHAMBER_WORDS.sub(" ", rest))):
         return {"text": where, "refusal": "none", "facts": [], "programs": [], "district": picked}
-    result = ask(con, rest, picked)
+    result = _answer(con, rest, picked)
     result["text"] = f"{where}\n\n{result['text']}"
     return result | {"where": where, "district": picked}
 
 
-def ask(con, question, district, geocoder=None):
-    """Free answer for the selected district, or for the district of a street address the question names;
-    geocoder finds that address's Census blocks, or is None when address lookup is off."""
+def _reply(text: str, **extra) -> dict:
+    """An answer with no figures, such as a request to name a place."""
+    return {"text": text, "refusal": "none", "facts": [], "programs": []} | extra
+
+
+def _match_name(match: dict) -> str:
+    return f"ZIP code {match['geo'].split(':')[1]}" if match["kind"] == "zcta" else match["name"]
+
+
+def place_of(con, question: str, selected, earlier=()) -> tuple[tuple[str, str] | None, str, dict | None]:
+    """The place to answer for: one the question names, else the selected district, else the whole state for a
+    statewide question, else the place of the last answer. Also a line saying where a named town lies, or a reply
+    to send instead of an answer: district choices when a named place spans several, or a request to name one."""
+    session = Session(con)
+    statewide = bool(STATEWIDE.search(question))
+    found = None if statewide else session.place_named(question, frozenset(STOP | GENERIC | POINTING))
+    if found is None:
+        last = next((x.district for x in reversed(earlier) if x.district), None)
+        subject = selected or (("state", "15") if statewide else last)
+        return subject, "", None if subject else _reply(NAME_A_PLACE)
+    matches = found.get("matches") or []
+    if not matches:
+        return None, "", _reply(f"{found.get('note') or 'KLEAR could not find that place.'} {NAME_A_PLACE}")
+    first = matches[0]
+    if whole := next((m for m in matches if m["kind"] in ("county", "state", "district")), None):
+        return tuple(whole["geo"].split(":")), "", None
+    if county := _island_county(first) if len(matches) == 1 else None:
+        geo, share = county
+        name = geo_display(*geo, _county_name(con, geo))
+        how = "all" if share >= WHOLE else "almost all"
+        return geo, f"{first['name']} holds {how} of {name}'s residents, so these are {name} figures.", None
+    words = set(WORDS.findall(question.casefold()))
+    chamber = next((c for c in CHAMBERS if c in words), selected[0] if selected else "house")
+    shares = {o["geo"]: o.get("share", 1.0) for m in matches for o in m.get("overlaps", [])}
+    if selected and (mine := ":".join(selected)) in shares:
+        return selected, _lies_in(first, selected, shares[mine]) if len(matches) == 1 else "", None
+    picked = [g for g in shares if g.startswith(f"{chamber}:")]
+    if len(picked) == 1 and len(matches) == 1:
+        geo = tuple(picked[0].split(":"))
+        return geo, _lies_in(first, geo, shares[picked[0]]), None
+    if not picked:
+        return None, "", _reply(NAME_A_PLACE)
+    lead = (
+        f"{_match_name(first)} spans more than one {chamber.title()} district."
+        if len(matches) == 1
+        else f"Your question could mean {_joined(list(dict.fromkeys(_match_name(m) for m in matches)), 'or')}."
+    )
+    return None, "", _reply(f"{lead} Choose a district below, and KLEAR will answer for it.", choices=matches)
+
+
+def _lies_in(match: dict, geo: tuple[str, str], share: float) -> str:
+    """Where a named place lies, like 'Kāneʻohe is partly in House District 49.'"""
+    how = "" if share >= WHOLE else "mostly " if share >= 0.5 else "partly "
+    return f"{_match_name(match)} is {how}in {geo_display(*geo, '')}."
+
+
+def _island_county(match: dict) -> tuple[tuple[str, str], float] | None:
+    """The county an island makes up nearly all of, such as Oʻahu and Honolulu County, with its share."""
+    if match["kind"] != "island":
+        return None
+    counties = [o for o in match["overlaps"] if o["geo"].startswith("county:")]
+    if len(counties) != 1 or counties[0].get("of_county", 0) < ISLAND_COUNTY:
+        return None
+    return tuple(counties[0]["geo"].split(":")), counties[0]["of_county"]
+
+
+def _county_name(con, geo: tuple[str, str]) -> str:
+    return con.execute("SELECT name FROM geography WHERE geo_type = ? AND geo_id = ?", list(geo)).fetchone()[
+        0
+    ]
+
+
+def ask(con, question, district, geocoder=None, earlier=()):
+    """Free answer for the place a question names, the selected district (None when none is chosen), or the
+    district of a street address in the question; geocoder finds that address's Census blocks, or is None when
+    address lookup is off. earlier holds the reader's last questions in this tab."""
     if PERSONAL.search(question):
         return {
             "text": "I can describe districts from public data, but I cannot find or judge any one person.",
@@ -494,6 +614,20 @@ def ask(con, question, district, geocoder=None):
         }
     if address := address_in(question):
         return address_answer(con, question, address, geocoder)
+    if RANKING.search(question):
+        return _reply(NEEDS_ASSISTANT)
+    subject, where, reply = place_of(con, question, district, earlier)
+    if reply is not None:
+        return reply
+    result = _answer(con, question, subject, earlier)
+    if where:
+        result["text"] = f"{where}\n\n{result['text']}"
+        result["where"] = where
+    return result | {"district": subject}
+
+
+def _answer(con, question, district, earlier=()):
+    """Free answer for one place: a House or Senate district, a county or the state."""
     name = con.execute("SELECT name FROM geography WHERE geo_type=? AND geo_id=?", list(district)).fetchone()[
         0
     ]
@@ -504,8 +638,12 @@ def ask(con, question, district, geocoder=None):
     if any(
         word in q for word in ("program", "benefit", "assistance", "support", "help available")
     ) and not any(_has(q, *stems) for stems, _ in TOPICS):
+        if district[0] not in CHAMBERS:
+            return _reply(PROGRAMS_NEED_DISTRICT)
         return program_answer(con, district, shown)
     ids = indicators(con, question)
+    if not ids and earlier:
+        ids = list(earlier[-1].indicators)
     if tuple(ids) in GROUPS:
         return group_answer(con, question, district, shown, tuple(ids))
     if not ids:
@@ -515,7 +653,7 @@ def ask(con, question, district, geocoder=None):
             "facts": [],
             "programs": [],
         }
-    statewide = bool(STATEWIDE.search(question))
+    statewide = bool(STATEWIDE.search(question)) or district == ("state", "15")
     geos = ["state:15"] if statewide else [f"{district[0]}:{district[1]}"]
     if not statewide:
         geos += [":".join(p) for p in _places(con, question, district)]
