@@ -435,6 +435,15 @@ article .answer-programs summary+.program{margin-top:10px}
 .tile-about{font-size:var(--fs-xs);font-weight:600;line-height:0;color:var(--muted)}
 .tile-label{font-size:var(--fs-sm);margin-top:4px}
 .tile-meta{font-size:var(--fs-xs);color:var(--muted);margin-top:auto;padding-top:6px;text-wrap:balance}
+/* The same measure in the other places compared, under the tile's own figure. */
+.tile-places{list-style:none;display:grid;gap:4px;margin:auto 0 0;padding:8px 0 0;font-size:var(--fs-xs);line-height:1.4;color:var(--muted)}
+.tile-meta~.tile-places{margin-top:8px;border-top:1px solid var(--line)}
+.tile-places~.meaning{margin-top:0}
+.tile-place{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:baseline;gap:0 8px}
+.tile-place-value{color:var(--ink);font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
+.tile-place-spread{display:block;color:var(--muted)}
+.tile-place .chip.caution{grid-column:1/-1;justify-self:start;padding:0 6px}
+.answer .more-figures{margin:-4px 0 16px}
 .chart{margin:0 0 20px;padding:0;font-size:var(--fs-sm)}
 .chart-head{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;font-weight:600;font-size:var(--fs-sm);margin-bottom:4px}
 .chart-summary{margin:0 0 10px;color:var(--muted);line-height:1.5}
@@ -475,6 +484,9 @@ article .place-notes .place-note-sources{padding-left:0}
 .chart-data th,.chart-data td{padding:6px 10px;white-space:normal;overflow-wrap:normal}
 .chart-data tbody th{font-weight:400;background:#fff}.chart-data tbody tr:first-child th{font-weight:700}
 .chart-data caption{text-align:left}
+.chart-data.more-figures tbody tr:first-child th{font-weight:400}
+.more-spread{display:block;font-size:var(--fs-xs);color:var(--muted)}
+.chart-data.more-figures tbody tr th.more-place{font-weight:700;background:var(--subtle)}
 .answer .caveat{font-size:var(--fs-sm);color:var(--muted);margin:0 0 10px}
 .source-line{font-size:var(--fs-xs);color:var(--muted);border-top:1px solid var(--line);padding-top:10px;margin:0}
 .answer .prepared{font-size:var(--fs-xs);color:var(--muted);margin:10px 0 0}

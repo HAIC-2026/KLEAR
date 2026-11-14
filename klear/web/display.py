@@ -404,34 +404,55 @@ def charts(answer, store: _Store) -> tuple[list[dict], set[str]]:
     return out, used
 
 
-def tiles(answer, store: _Store, skip: set[str]) -> tuple[list[dict], set[str]]:
-    """Up to MAX_TILES tiles for the facts no chart shows, and the refs they show. Each tile has its margin or
-    range, how it was estimated and whether to use it with caution. A district total shown with the state's names
-    its share of it."""
+def _figure_row(f, store: _Store) -> dict:
+    """One place's figure for a tile's place list or the table of more figures."""
+    unit = store.unit(f)
+    return {
+        "geography": store.place(f.geo_type, f.geo_id),
+        "value": _plain(f, unit),
+        "spread": _spread(f, unit),
+        "caution": store.caution(f),
+    }
+
+
+def tiles(answer, store: _Store, skip: set[str]) -> tuple[list[dict], list[dict], set[str]]:
+    """One tile per measure no chart shows, up to MAX_TILES, then a table row for each figure past them, and the
+    refs they show. A tile leads with the answer's district and lists the other places under it. Each figure has
+    its margin or range and whether to use it with caution. A district total shown with the state's names its
+    share of it."""
     home = answer.resolved
     states = {f.indicator_id: f for f in answer.facts if f.geo_type == "state"}
-    out, used = [], set()
+    groups: dict[str, list] = {}
     for f in answer.facts:
-        if f.ref in skip or len(out) == MAX_TILES:
+        if f.ref not in skip:
+            groups.setdefault(f.indicator_id, []).append(f)
+    out, more, used = [], [], set()
+    for indicator, facts in groups.items():
+        used.update(f.ref for f in facts)
+        label = store.short(indicator)
+        if len(out) == MAX_TILES:
+            more += [{"label": label} | _figure_row(f, store) for f in facts]
             continue
-        unit = store.unit(f)
-        here = (f.geo_type, f.geo_id)
-        state = states.get(f.indicator_id)
-        share = _share([f, state], home, store) if state else ""
-        used.add(f.ref)
+        facts.sort(key=lambda f: (f.geo_type, f.geo_id) != home)
+        lead = facts[0]
+        unit = store.unit(lead)
+        here = (lead.geo_type, lead.geo_id)
+        state = states.get(indicator)
+        share = _share([lead, state], home, store) if state else ""
         out.append(
             {
-                "value": _plain(f, unit),
-                "label": store.short(f.indicator_id),
-                "spread": _spread(f, unit),
-                "geography": "" if here == home else store.place(*here),
-                "meaning": store.meaning(f.indicator_id),
+                "value": _plain(lead, unit),
+                "label": label,
+                "spread": _spread(lead, unit),
+                "geography": "" if here == home and not facts[1:] else store.place(*here),
+                "meaning": store.meaning(indicator),
                 "share": f"{share} of the {store.place('state', '15')} total" if share else "",
-                "caution": store.caution(f),
-                "method": store.method(f),
+                "caution": store.caution(lead),
+                "method": next((m for f in facts if (m := store.method(f))), None),
+                "places": [_figure_row(f, store) for f in facts[1:]],
             }
         )
-    return out, used
+    return out, more, used
 
 
 def _matched(cited: list[dict], facts, store: _Store) -> list[dict]:
@@ -505,7 +526,7 @@ def shown_figures(answer, refs: set[str]) -> list:
 def build(con, answer) -> dict:
     store = _Store(con)
     drawn, charted = charts(answer, store)
-    tiled, tiled_refs = tiles(answer, store, charted)
+    tiled, more, tiled_refs = tiles(answer, store, charted)
     filled = {
         ref for t in [*answer.blocks, *answer.caveats] for kind, ref in MARKER.findall(t) if kind == "fact"
     }
@@ -518,6 +539,7 @@ def build(con, answer) -> dict:
     return {
         "lead": plain_text(answer.blocks, answer, store),
         "tiles": tiled,
+        **({"more": more} if more else {}),
         "charts": drawn,
         "sources": sources(answer, store),
         "caveats": plain_text(answer.caveats, answer, store),
