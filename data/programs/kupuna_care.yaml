@@ -12,3 +12,4 @@ needs: [pct_65_plus, pct_65_plus_poverty]
 verified: '2026-11-09'
 verification: Fetched the Executive Office on Aging services page, which lists each county office, and the resource center site it links (HTTP 200)
 level: state
+group: kupuna

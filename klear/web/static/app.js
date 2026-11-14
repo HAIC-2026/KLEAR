@@ -834,34 +834,98 @@ function profileSources(sources, compared = []) {
   return box;
 }
 
-// When a person last checked the program, marked once that is so long ago that the official page comes first.
-function checkedNote(p) {
-  return p.stale ? node('span', p.checked, 'program-stale') : p.checked;
+// The days a person checked these programs against their official pages, said once for the list. Stale rows say their
+// own date, so they are left out.
+const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
+function checkedLine(rows) {
+  const days = [...new Set(rows.filter(r => r && !r.stale && ISO_DAY.test(r.verified_on || '')).map(r => r.verified_on))].sort();
+  if (!days.length) return '';
+  const [a, b] = [days[0], days[days.length - 1]].map(d => new Date(`${d}T00:00:00Z`));
+  const say = (d, withYear) => d.toLocaleDateString('en-US', {timeZone: 'UTC', month: 'long', day: 'numeric', ...(withYear ? {year: 'numeric'} : {})});
+  let span = say(b, true);
+  if (a.getUTCFullYear() !== b.getUTCFullYear()) span = `${say(a, true)} to ${span}`;
+  else if (a.getUTCMonth() !== b.getUTCMonth()) span = `${say(a, false)} to ${span}`;
+  else if (a.getUTCDate() !== b.getUTCDate()) span = `${say(a, false)} to ${b.getUTCDate()}, ${b.getUTCFullYear()}`;
+  return `Program details checked ${span}.`;
+}
+const telHref = phone => 'tel:+' + (phone.startsWith('1-') ? '' : '1') + phone.replace(/\D/g, '');
+// A labeled line on a program row, such as who it is for.
+function programLine(label, text, className) {
+  const line = node('p', '', className);
+  line.append(node('b', `${label} `), says('span', text));
+  return line;
 }
 
-// One program: its name linked to the page to apply or learn more, the agency, why it is listed here, and how to call.
-function programRow(p, full) {
+// One program: its name and level, what it gives, who it is for, one income limit with its date, then its official
+// page and phone. A row marks when it was checked only once that is so long ago that the official page comes first.
+function programRow(p) {
   const row = node('div', '', 'program');
   const name = node('p', '', 'program-name');
-  name.append(link(p.name, p.url));
-  row.append(name, node('p', `${p.level} · ${p.agency}`, 'program-agency'));
-  if (full && p.description) row.append(node('p', p.description, 'program-about'));
-  if (p.reasons && p.reasons.length) {
-    const list = node('ul', '', 'program-reasons');
-    for (const r of p.reasons) { const li = says('li', r.text); if (r.caution) li.append(' ', cautionChip(r.caution)); list.append(li); }
-    row.append(list);
+  name.append(says('span', p.name));
+  if (p.level) name.append(' ', node('span', p.level, 'program-level'));
+  row.append(name);
+  if (p.description) row.append(says('p', p.description, 'program-about'));
+  if (p.serves) row.append(programLine('For', p.serves, 'program-for'));
+  if (p.limit && p.limit.text) row.append(programLine('Limit', `${p.limit.text}, in effect from ${p.limit.effective}.`, 'program-limit'));
+  const actions = node('p', '', 'program-actions');
+  if (p.url) {
+    const page = link('Official page', p.url);
+    // Screen readers hear which program the page is for, before the note that it opens a new tab.
+    page.firstChild.after(hidden(` for ${p.name}`));
+    actions.append(page);
   }
-  const contact = node('p', '', 'program-contact'), tel = node('a', p.phone);
-  tel.href = 'tel:+' + (p.phone.startsWith('1-') ? '' : '1') + p.phone.replace(/\D/g, '');
-  contact.append('Call ', tel, p.phone_label ? `, ${p.phone_label}.` : '.', ' ', checkedNote(p));
-  row.append(contact);
+  if (p.phone) {
+    const tel = node('a', `Call ${p.phone}`);
+    tel.href = telHref(p.phone);
+    const call = node('span', '');
+    call.append(tel);
+    if (p.phone_label) call.append(' ', node('span', p.phone_label, 'program-phone-label'));
+    actions.append(call);
+  }
+  row.append(actions);
+  if (p.stale && p.checked) row.append(node('p', p.checked, 'program-stale'));
   return row;
 }
 
-// Matched programs first, then the rest of the catalog under its own heading.
-function programList(matched, others, othersTitle) {
-  const out = matched.map(p => programRow(p, true));
-  if (others.length) out.push(node('p', othersTitle, 'program-subhead'), ...others.map(p => programRow(p, false)));
+// Programs side by side when there is room.
+function programGrid(rows) {
+  const grid = node('div', '', 'program-grid');
+  grid.append(...rows.map(programRow));
+  return grid;
+}
+
+// Programs in need groups: each group's heading, its district figure once, then its programs. Groups whose figure sits
+// above the state's stay open; the rest go in a closed disclosure that gives their count, unless no group stands out.
+function programGroups(rows, groups, othersTitle, headingTag) {
+  const byId = new Map(rows.map(r => [r.id, r]));
+  const block = g => {
+    const list = (g.programs || []).map(id => byId.get(id)).filter(Boolean);
+    if (!list.length) return null;
+    const box = node('section', '', 'program-group');
+    box.append(says(headingTag, g.title, 'program-group-title'));
+    if (g.figure && g.figure.text) {
+      const figure = says('p', g.figure.text, 'program-figure');
+      if (g.figure.caution) figure.append(' ', cautionChip(g.figure.caution));
+      box.append(figure);
+    }
+    box.append(programGrid(list));
+    return [box, list.length];
+  };
+  const above = groups.filter(g => g.above).map(block).filter(Boolean);
+  const rest = groups.filter(g => !g.above).map(block).filter(Boolean);
+  if (!above.length || !rest.length) return [...above, ...rest].map(([box]) => box);
+  const more = node('details', '', 'program-others');
+  const count = rest.reduce((n, [, size]) => n + size, 0);
+  more.append(node('summary', `${othersTitle} (${count})`), ...rest.map(([box]) => box));
+  return [...above.map(([box]) => box), more];
+}
+
+// A list of programs: in need groups when a district ranked them, otherwise one grid. The checked date leads it once.
+function programList(rows, groups, othersTitle, headingTag) {
+  const out = [], checked = checkedLine(rows);
+  if (checked) out.push(node('p', checked, 'program-checked'));
+  if (Array.isArray(groups) && groups.length) out.push(...programGroups(rows, groups, othersTitle, headingTag));
+  else if (rows.length) out.push(programGrid(rows));
   return out;
 }
 
@@ -876,12 +940,9 @@ const SHEET_PROGRAMS = 6, SHEET_MIN_PROGRAMS = 3;
 // little room for how the printer breaks the page.
 const SHEET_HEIGHT = 930;
 
-// Matched programs, then the rest of the catalog, each as a grid that shows two or more side by side when there is room.
+// The district's programs in need groups: those whose figure sits above the state's, then the others, closed.
 function profilePrograms(pr) {
-  const grid = (list, full) => { const g = node('div', '', 'program-grid'); g.append(...list.map(p => programRow(p, full))); return g; };
-  const content = [node('p', pr.intro, 'program-intro')];
-  if (pr.programs.length) content.push(grid(pr.programs, true));
-  if (pr.others.length) content.push(node('p', pr.others_title, 'program-subhead'), grid(pr.others, false));
+  const content = [node('p', pr.intro, 'program-intro'), ...programList([...pr.programs, ...pr.others], pr.groups, pr.others_title, 'h2')];
   content.push(node('p', pr.note, 'program-note'));
   if ((pr.sources || []).length) content.push(profileSources(pr.sources));
   const d = profileSection('programs', pr.title, content);
@@ -1303,23 +1364,45 @@ function sheetParts(p, limit = SHEET_PROGRAMS) {
     parts.push(section('About this district’s figures', 'sheet-notes', list));
   }
 
-  // The programs whose need figures here sit above the state's, or the statewide list when none does.
+  // The programs in the need groups whose figures here sit above the state's, or every group when none does, each
+  // group's figure said once and each program as on the profile, up to the limit.
   const matched = programsOf(p), shown = matched ? (matched.programs.length ? matched.programs : matched.others) : [];
-  const programs = shown.filter(g => g && g.name).slice(0, limit);
-  if (programs.length) {
+  const named = shown.filter(g => g && g.name), byProgram = new Map(named.map(g => [g.id, g]));
+  const needGroups = matched && Array.isArray(matched.groups) && matched.groups.length
+    ? matched.groups.filter(g => g.above === (matched.programs.length > 0))
+    : [{title: '', programs: named.map(g => g.id)}];
+  const blocks = [], printed = [];
+  for (const g of needGroups) {
+    const programs = (g.programs || []).map(id => byProgram.get(id)).filter(Boolean).slice(0, limit - printed.length);
+    if (!programs.length) continue;
+    printed.push(...programs);
+    if (g.title) {
+      const head = node('p', '', 'sheet-program-group');
+      head.append(says('b', `${g.title}.`));
+      if (g.figure && g.figure.text) head.append(' ', says('span', g.figure.text));
+      blocks.push(head);
+    }
     const list = node('ul', '', 'sheet-list');
-    for (const g of programs) {
+    for (const r of programs) {
       const li = document.createElement('li');
-      li.append(node('b', g.name));
-      if (g.level) li.append(` (${g.level})`);
-      if (g.description) li.append(': ', says('span', g.description));
-      if (g.agency) li.append(` (${g.agency})`);
-      if (g.url) li.append(' ', url(g.url));
+      li.append(node('b', r.name));
+      if (r.level) li.append(` (${r.level})`);
+      if (r.description) li.append(': ', says('span', r.description));
+      if (r.serves) li.append(' ', node('b', 'For'), ' ', says('span', r.serves));
+      if (r.limit && r.limit.text) li.append(' ', node('b', 'Limit'), ` ${r.limit.text}, in effect from ${r.limit.effective}.`);
+      // The page and the phone share one line, so a program takes as little of the page as it can.
+      const reach = [r.url, r.phone && `Call ${r.phone}`].filter(Boolean).join(' · ');
+      if (reach) li.append(' ', url(reach));
+      if (r.stale && r.checked) li.append(` ${r.checked}`);
       list.append(li);
     }
+    blocks.push(list);
+  }
+  if (printed.length) {
     const why = matched.programs.length ? 'Listed because this district’s need figures sit above the state’s, highest first.' : 'None of this district’s need figures sit clearly above the state’s, so these programs may help residents here.';
-    const more = shown.length > programs.length ? ' The live profile lists every program.' : '';
-    parts.push(section('Programs to explore', 'sheet-programs', list, node('p', `${why}${more} ${matched.note || ''}`.trim(), 'sheet-note')));
+    const more = named.length > printed.length ? ' The live profile lists every program.' : '';
+    const checked = checkedLine(printed);
+    parts.push(section('Programs to explore', 'sheet-programs', ...blocks, node('p', `${why}${more} ${checked} ${matched.note || ''}`.replace(/\s+/g, ' ').trim(), 'sheet-note')));
   }
   const list = node('ol', '', 'sheet-list');
   for (const s of sources) {
@@ -1780,7 +1863,7 @@ function basicAnswer(answer, name) {
     article.append(details);
   }
   if (answer.place_caveats && answer.place_caveats.length) article.append(placeNotes(answer.place_caveats, 'answer-notes'));
-  if (answer.programs && answer.programs.length) article.append(answerPrograms(answer.programs, answer.program_sources));
+  if (answer.programs && answer.programs.length) article.append(answerPrograms(answer.programs, answer.program_sources, answer.program_groups));
   return article;
 }
 
@@ -2021,7 +2104,7 @@ function renderAnswer(answer, name) {
     details.append(list);
     article.append(details);
   }
-  if (answer.programs && answer.programs.length) article.append(answerPrograms(answer.programs, answer.program_sources));
+  if (answer.programs && answer.programs.length) article.append(answerPrograms(answer.programs, answer.program_sources, answer.program_groups));
   if (answer.prepared) article.append(node('p', answer.prepared, 'prepared'));
   return article;
 }
@@ -2053,12 +2136,11 @@ async function loadAbout() {
 }
 loadAbout();
 // Programs named in an answer; a district lookup marks which ones its figures point to.
-function answerPrograms(programs, sources) {
+function answerPrograms(programs, sources, groups) {
   const details = node('details', '', 'answer-programs');
   details.open = true;
-  const matched = programs.filter(p => p.match !== false), others = programs.filter(p => p.match === false);
   const ranked = programs.some(p => 'match' in p);
-  details.append(node('summary', ranked ? 'Programs to explore here' : 'Program pages'), ...programList(matched, others, matched.length ? 'Also available here' : 'Available here'));
+  details.append(node('summary', ranked ? 'Programs to explore here' : 'Program pages'), ...programList(programs, groups, 'Other programs', 'h4'));
   if (sources && sources.length) details.append(profileSources(sources));
   return details;
 }

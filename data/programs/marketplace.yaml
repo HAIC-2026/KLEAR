@@ -12,3 +12,9 @@ needs: [pct_uninsured]
 verified: '2026-11-09'
 verification: Fetched the page (HTTP 200). It prints the phone
 level: federal
+group: health
+limit:
+  rule: aca_ptc_2026
+  value: income_cap_pct_of_poverty
+  unit: percent
+  text: 'Income up to {value} of the poverty level'

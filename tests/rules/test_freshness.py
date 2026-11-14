@@ -63,6 +63,7 @@ def program(**over) -> Program:
         needs=("pct_hh_snap",),
         verified=date(2026, 11, 9),
         verification="read from page",
+        group="food",
     )
     return replace(p, **over)
 

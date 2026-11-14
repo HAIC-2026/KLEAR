@@ -15,3 +15,4 @@ needs:
 verified: '2026-11-12'
 verification: Fetched the city Section 8 page (HTTP 200). It gives the waitlist status and prints the phone
   for questions. Information-only entry; no numeric eligibility rules are modeled.
+group: housing

@@ -12,3 +12,9 @@ needs: [eitc_share, pct_people_poverty, pct_rent_burden_35_plus]
 verified: '2026-11-09'
 verification: Fetched the tax information page, its EITC and food/excise credit flyers, and the contact page (HTTP 200)
 level: state
+group: taxes
+limit:
+  rule: hi_state_credits
+  value: renters_agi_limit
+  unit: dollars
+  text: 'Renters credit: Hawaiʻi adjusted gross income under {value}'

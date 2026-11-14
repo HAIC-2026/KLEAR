@@ -16,3 +16,4 @@ verified: '2026-11-12'
 verification: Fetched the state Executive Office on Aging page that lists each county's office on aging
   and its phone (HTTP 200). The county site blocks scripts (HTTP 403). Information-only entry; no numeric
   eligibility rules are modeled.
+group: kupuna

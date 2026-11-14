@@ -410,7 +410,7 @@ details.profile-member-about{margin:0;padding:0;border:0;font-size:var(--fs-xs);
 .profile-back{margin:0;padding:0 0 12px}
 .profile-scope{margin:0 0 12px;font-size:var(--fs-sm);line-height:1.5;color:var(--muted)}
 .profile-caution{margin:6px 0 0;font-size:var(--fs-xs);line-height:1.5;color:var(--muted)}
-.profile-beside .chip.caution,.program-reasons .chip.caution{padding:0 6px}
+.profile-beside .chip.caution,.program-figure .chip.caution{padding:0 6px}
 .profile-stats dd .chip.caution{vertical-align:.2em;letter-spacing:0}
 /* The reading sits under the label: the list reads term, value, reading, and the column is drawn in reverse. */
 .profile-stats .profile-reading{order:-1;margin-top:3px;line-height:1.35}
@@ -419,23 +419,33 @@ details.profile-member-about{margin:0;padding:0;border:0;font-size:var(--fs-xs);
 .profile-sources ul,.profile-sources ol{margin:0;padding-left:18px}.profile-sources ul{list-style:none;padding-left:0}
 .profile-sources ul+.profile-sources-title,.profile-sources ol+.profile-sources-title{margin-top:8px}
 .profile-source-year{display:block}.profile-sources li+li{margin-top:4px}
-/* Programs matched to a district: linked name, agency, reasons and a phone. */
-.program-intro{margin:0 0 6px;font-size:var(--fs-xs);line-height:1.5;color:var(--muted)}
-.program{padding:12px 0 14px;border-top:1px solid var(--line)}
-.program-name{margin:0;font-size:var(--fs-base);font-weight:600;line-height:1.35}
+/* Programs in need groups: each group's heading and district figure once, then one row per program with its level,
+   who it is for, one limit, and its page and phone. */
+.program-intro,.program-checked{margin:0 0 6px;font-size:var(--fs-xs);line-height:1.5;color:var(--muted)}
+.program-group{padding:12px 0 2px;border-top:1px solid var(--line)}
+.program-group-title{margin:0;font-size:var(--fs-base);font-weight:600;line-height:1.35}
+.program-figure{margin:2px 0 4px;font-size:var(--fs-xs);line-height:1.5;color:var(--muted)}
+.program{padding:10px 0 12px;border-top:1px solid var(--line)}
+.program-group .program-grid>.program{border-top-style:dashed}
+.program-name{margin:0;font-size:var(--fs-sm);font-weight:600;line-height:1.35}
 .program-name a{color:var(--accent-dark)}
+.program-level{margin-left:4px;font-size:var(--fs-xs);font-weight:400;color:var(--muted)}
 .program-agency,.program-contact{margin:2px 0 0;font-size:var(--fs-xs);line-height:1.45;color:var(--muted)}
 .program-contact{margin-top:6px}
 .program-contact a{white-space:nowrap}
-.program-stale{color:var(--ink);font-weight:600}
-.program-about{margin:6px 0 0;font-size:var(--fs-sm);line-height:1.5}
-.program-reasons{list-style:none;margin:6px 0 0;padding:0;font-size:var(--fs-xs);line-height:1.5;color:var(--muted)}
-.program-reasons li+li{margin-top:4px}
-.program-subhead{margin:4px 0 0;padding:14px 0 2px;border-top:1px solid var(--line);font-size:var(--fs-xs);font-weight:600}
-.program-subhead+.program{border-top:0}
+.program-about{margin:4px 0 0;font-size:var(--fs-sm);line-height:1.45}
+.program-for,.program-limit{margin:4px 0 0;font-size:var(--fs-xs);line-height:1.45;color:var(--muted)}
+.program-for b,.program-limit b{font-weight:600;color:var(--ink)}
+.program-actions{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 14px;margin:6px 0 0;font-size:var(--fs-xs);line-height:1.45}
+.program-actions a{white-space:nowrap}
+.program-phone-label{color:var(--muted)}
+.program-stale{margin:4px 0 0;font-size:var(--fs-xs);line-height:1.45;color:var(--ink);font-weight:600}
+.program-others{border-top:1px solid var(--line)}
+.program-others>summary{padding:12px 0;font-size:var(--fs-sm);font-weight:600;cursor:pointer}
+.program-others[open]>summary{padding-bottom:4px}
 .program-note{margin:0;padding:10px 0 8px;border-top:1px solid var(--line);font-size:var(--fs-xs);line-height:1.5;color:var(--muted)}
-article .answer-programs .program-reasons{padding-left:0}
-article .answer-programs summary+.program{margin-top:10px}
+article .answer-programs .program-checked{margin-top:10px}
+article .answer-programs summary+.program-grid{margin-top:10px}
 /* Income-eligible estimates: a second figure beside the row and a caveat line. */
 .profile-beside,.profile-caveat{margin:6px 0 0;font-size:var(--fs-xs);line-height:1.5;color:var(--muted)}
 .profile-beside b{font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums}
@@ -796,6 +806,7 @@ footer a{color:#fff}
 .sheet-list{margin:0;padding:0;list-style:none;font-size:var(--pt-sm)}
 ol.sheet-list{padding-left:12pt;list-style:decimal}
 .sheet-list li{margin:0 0 3pt;break-inside:avoid}
+.sheet-program-group{margin:4pt 0 2pt;font-size:var(--pt-sm);break-after:avoid}
 .sheet-url{display:block;font-size:var(--pt-xs);color:var(--muted);overflow-wrap:anywhere}
 .sheet-foot{margin-top:var(--pt-gap);padding-top:4pt;border-top:1px solid var(--line);font-size:var(--pt-xs);color:var(--muted)}
 

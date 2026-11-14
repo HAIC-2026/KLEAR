@@ -211,6 +211,8 @@ class Session:
         self.tiers: dict[str, str] = {}
         self.unreliable: set[str] = set()
         self.directions: list[tuple[str, str, str]] = []
+        # every need figure district_programs set against the state's, by district, for the website's layout
+        self.need_figures: dict[tuple[str, str], dict[str, dict]] = {}
         # names tools returned outside geography entries, and the sizes of the named lists they returned
         self.names: set[str] = set()
         self.counts: set[int] = set()
@@ -1205,6 +1207,7 @@ class Session:
             list(dict.fromkeys(i for n in needs for i in NEEDS[n].indicators)), [geo, ("state", "15")]
         )
         found = {n: self._need(n, geo) for n in needs}
+        self.need_figures[geo] = {n: r for n, r in found.items() if r}
         out = []
         for p in programs:
             reasons = sorted((r for n in p.needs if (r := found[n])), key=lambda r: -r["ratio"])

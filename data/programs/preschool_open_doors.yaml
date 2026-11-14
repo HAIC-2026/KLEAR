@@ -12,3 +12,9 @@ needs: [pct_children_poverty, pct_hh_with_children]
 verified: '2026-11-09'
 verification: Fetched the Child Care Program Office page and its October 2026 application update (HTTP 200)
 level: state
+group: keiki
+limit:
+  rule: preschool_open_doors
+  value: monthly_gross_income_limit_size3
+  unit: dollars
+  text: 'Gross monthly income up to {value} for a household of 3'

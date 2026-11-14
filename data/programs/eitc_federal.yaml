@@ -12,3 +12,9 @@ needs: [eitc_share, pct_families_poverty]
 verified: '2026-11-09'
 verification: Fetched the EITC page and the IRS help page (HTTP 200)
 level: federal
+group: taxes
+limit:
+  rule: eitc_federal_ty2026
+  value: agi_limit_single_2_children
+  unit: dollars
+  text: 'Income up to {value} for a single parent with 2 keiki, tax year 2026'
