@@ -124,6 +124,7 @@ class Sourced:
     text: str = ""
     numbers: frozenset[str] = frozenset()
     counts: frozenset[int] = frozenset()
+    phones: frozenset[str] = frozenset()
 
 
 def _tokens(text: str) -> str:
@@ -167,7 +168,9 @@ def sourced(a: Answer, con, question: str = "", texts=(), counts=()) -> Sourced:
         *(len(LIST_ITEM.findall(t)) for t in shown),
         *counts,
     }
-    return Sourced(text, frozenset(NUMBER.findall(text)), frozenset(sizes - {0}))
+    listed = set(a.programs)
+    phones = {_dialed(p.phone) for p in catalog() if listed & {p.program_id, *p.rules}}
+    return Sourced(text, frozenset(NUMBER.findall(text)), frozenset(sizes - {0}), frozenset(phones))
 
 
 NOTHING = Sourced()
@@ -222,6 +225,11 @@ def _markers(text: str) -> tuple[list[tuple[str, str]], list[tuple[str, str]]]:
     return shown, hidden
 
 
+def _dialed(phone: str) -> str:
+    """A phone number's ten digits."""
+    return re.sub(r"\D", "", phone)[-10:]
+
+
 def _number_problems(text: str, src: Sourced) -> list[str]:
     """Typed phone numbers, and numbers that no cited label, definition, vintage or the question holds."""
     for t in (text, _visible(text)):
@@ -229,7 +237,11 @@ def _number_problems(text: str, src: Sourced) -> list[str]:
             if unicodedata.numeric(c, None) is not None and not c.isascii():
                 return [f"unsourced number {c} (U+{ord(c):04X}): {NUMBER_FIX}"]
     shown = EMPHASIS.sub("", _visible(text))
-    out = [f"typed phone number {m.group().strip()!r}: {PHONE_FIX}" for m in PHONE.finditer(shown)]
+    out = [
+        f"typed phone number {m.group().strip()!r}: {PHONE_FIX}"
+        for m in PHONE.finditer(shown)
+        if _dialed(m.group()) not in src.phones
+    ]
     rest = PHONE.sub(" ", shown)
     for m in NUMBER.finditer(rest):
         unit = UNIT_WORD.match(re.sub(r"^[\s-]+", "", rest[m.end() : m.end() + 40]))
