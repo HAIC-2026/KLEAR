@@ -197,6 +197,16 @@ def _words(text: str) -> list[str]:
     return re.findall(r"[A-Za-z0-9]+", "".join(c for c in text if not unicodedata.combining(c)))
 
 
+def other_county_programs(session, resolved, programs) -> dict[str, str]:
+    """Listed program or rule ids whose program serves only counties the district has no residents in, with the
+    counties it serves."""
+    if resolved is None or resolved[0] not in ("house", "senate"):
+        return {}
+    owners = by_rule() | {p.program_id: p for p in catalog()}
+    here = {p.program_id for p in session.programs_for([resolved])}
+    return {x: owners[x].level_label for x in programs if x in owners and owners[x].program_id not in here}
+
+
 def _strings(args: dict, key: str) -> tuple[list[str], list[str]]:
     v = args.get(key)
     if isinstance(v, list) and all(isinstance(x, str) for x in v):
@@ -258,6 +268,11 @@ def build_answer(session, args: dict, context=None) -> tuple[Answer | None, list
     known = known_programs()
     problems += [
         f"unknown program id {x!r}, expected one of {sorted(known)}" for x in programs if x not in known
+    ]
+    problems += [
+        f"program {x} serves only {where}, where {resolved[0]}:{resolved[1]} has no residents; "
+        "list only programs list_programs or district_programs gives for this district"
+        for x, where in other_county_programs(session, resolved, programs).items()
     ]
     if refusal in NO_FACT_REFUSALS and (
         refs or any(k != "geo" for t in [*blocks, *caveats] for k, _ in MARKER.findall(t))
@@ -745,7 +760,8 @@ def template_answer(
     if compared:
         blocks.append("\n".join(compared))
     names = known_programs()
-    programs = [p for p in dict.fromkeys(programs) if p in names]
+    elsewhere = other_county_programs(session, resolved, programs)
+    programs = [p for p in dict.fromkeys(programs) if p in names and p not in elsewhere]
     programs += tied_programs(dict.fromkeys(f.indicator_id for f in facts), programs)
     if programs:
         blocks.append("Related programs: " + ", ".join(display_name(names[p]) for p in programs) + ".")

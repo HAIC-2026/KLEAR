@@ -8,6 +8,7 @@ import pandas as pd
 import pytest
 import yaml
 
+from klear.agent.answer import build_answer, template_answer
 from klear.agent.tools import Session
 from klear.eval.scorers import reliability
 from klear.programs import (
@@ -220,7 +221,7 @@ def test_need_above_the_state_ranks_first_with_its_reason(need_con):
     s = Session(need_con)
     out = call(s, "district_programs", district="house:022")
     ids = [p["program_id"] for p in out["programs"]]
-    assert len(ids) == len(set(ids)) == len(s._programs_for([("house", "022")]))
+    assert len(ids) == len(set(ids)) == len(s.programs_for([("house", "022")]))
     higher = [p["program_id"] for p in out["programs"] if p["need"] == "higher"]
     assert higher == ids[: len(higher)]
     assert {"kupuna_care", "medicare_savings", "eitc_federal", "hi_state_credits"} <= set(higher)
@@ -318,7 +319,7 @@ def test_contrasting_districts_get_different_ranked_lists(real_con):
         out = call(s, "district_programs", district=geo)
         laid = display.matched_programs(real_con, out, s)
         names = [p["name"] for p in laid["programs"] + laid["others"]]
-        assert len(names) == len(set(names)) == len(s._programs_for([tuple(geo.split(":"))]))
+        assert len(names) == len(set(names)) == len(s.programs_for([tuple(geo.split(":"))]))
         assert all(g["figure"] for g in laid["groups"] if g["above"])
         lists[geo] = [p["id"] for p in laid["programs"]]
     assert lists["house:022"] and lists["house:044"] and lists["house:022"] != lists["house:044"]
@@ -374,7 +375,7 @@ def test_basic_mode_answers_with_matched_programs(real_con):
     a = ask(real_con, "What support programs could residents of this district explore?", ("house", "022"))
     assert a["refusal"] == "none" and ELIGIBILITY_NOTE in a["text"]
     names = [p["name"] for p in a["programs"]]
-    assert len(names) == len(set(names)) == len(Session(real_con)._programs_for([("house", "022")]))
+    assert len(names) == len(set(names)) == len(Session(real_con).programs_for([("house", "022")]))
     assert a["programs"][0]["match"] and a["program_groups"][0]["above"] and a["program_groups"][0]["figure"]
     assert a["programs"][0]["name"] in a["text"]
     where = "source" if a["verified"]["sources"] == len(a["program_sources"]) == 1 else "sources"
@@ -466,3 +467,68 @@ def test_zero_population_does_not_offer_county_programs(small_con):
     assert "hawaii_aging" not in _by_id(call(s, "district_programs", district="house:022"))
     s.context = ("house", "023")
     assert "honolulu_home_exemption" in _by_id(call(s, "list_programs"))
+
+
+def _district_outside(con, counties, chamber="house") -> tuple[str, str]:
+    """A district with no 2020 residents in these counties."""
+    row = con.execute(
+        f"SELECT {chamber} FROM blocks GROUP BY 1 "
+        "HAVING sum(CASE WHEN list_contains(?, county) THEN pop2020 ELSE 0 END) = 0 ORDER BY 1 LIMIT 1",
+        [list(counties)],
+    ).fetchone()
+    return chamber, row[0]
+
+
+def _offered_everywhere(con, s, geo) -> set[str]:
+    """Program ids the tools, the website's basic answer and the agent's fallback answer give for a district."""
+    district = ":".join(geo)
+    ids = set(_by_id(call(s, "district_programs", district=district)))
+    ids |= set(_by_id(call(s, "list_programs", district=district)))
+    names = {p.name: p.program_id for p in catalog()}
+    basic = ask(con, "What support programs could residents of this district explore?", geo)
+    ids |= {names[p["name"]] for p in basic["programs"]}
+    every = [p.program_id for p in catalog()]
+    owners = {r: p.program_id for p in catalog() for r in p.rules} | {i: i for i in every}
+    fallback = template_answer(s, geo, "none", None, every)
+    assert fallback.programs
+    return ids | {owners[p] for p in fallback.programs}
+
+
+@pytest.mark.parametrize("district", ["001", "015"])
+def test_hawaii_and_kauai_districts_get_no_honolulu_only_programs(real_con, district):
+    honolulu = {p.program_id for p in catalog() if p.counties == ("15003",)}
+    assert {"honolulu_section8", "honolulu_aging", "honolulu_home_exemption"} <= honolulu
+    county = real_con.execute(
+        "SELECT DISTINCT county FROM blocks WHERE house = ? AND pop2020 > 0", [district]
+    ).fetchall()
+    assert county in ([("15001",)], [("15007",)])
+    s = Session(real_con)
+    assert not _offered_everywhere(real_con, s, ("house", district)) & honolulu
+    args = {
+        "resolved": f"house:{district}",
+        "refusal": "none",
+        "blocks": ["Honolulu housing choice vouchers help with rent."],
+        "facts": [],
+        "programs": ["honolulu_section8"],
+        "caveats": [],
+    }
+    answer, problems = build_answer(s, args)
+    assert answer is None
+    assert any("honolulu_section8" in p and "Honolulu County" in p for p in problems), problems
+
+
+def test_every_county_program_reaches_only_districts_with_residents_in_its_counties(real_con):
+    county = [p for p in catalog() if p.counties]
+    assert county and all(p.level == "county" for p in county)
+    for p in county:
+        for chamber in ("house", "senate"):
+            outside = _district_outside(real_con, p.counties, chamber)
+            assert p.program_id not in _offered_everywhere(real_con, Session(real_con), outside), (p, outside)
+            inside = real_con.execute(
+                f"SELECT {chamber} FROM blocks WHERE list_contains(?, county) GROUP BY 1 "
+                "HAVING sum(pop2020) > 0 ORDER BY 1 LIMIT 1",
+                [list(p.counties)],
+            ).fetchone()[0]
+            assert p.program_id in _by_id(
+                call(Session(real_con), "district_programs", district=f"{chamber}:{inside}")
+            )
