@@ -45,8 +45,8 @@ UNIT_K_BEFORE = re.compile(r"(?<!\w)k" + MARK_GAP + "$", re.IGNORECASE)
 CV_LIMIT = 0.30
 # Comparison words per direction and the words that contradict it.
 DIRECTION_WORDS = {
-    "higher": ("higher", "more", "greater", "above", "exceeds", "exceed"),
-    "lower": ("lower", "less", "fewer", "below"),
+    "higher": ("higher", "more", "greater", "bigger", "larger", "above", "exceeds", "exceed"),
+    "lower": ("lower", "less", "fewer", "smaller", "below"),
     "within_margin": (
         "within the margin",
         "not significant",
@@ -59,7 +59,16 @@ DIRECTION_WORDS = {
 FLIP = {"higher": "lower", "lower": "higher", "within_margin": "within_margin"}
 # Phrases that state a direction from the place before them to the place after them.
 COMPARE_PHRASES = {
-    "higher": ("higher than", "more than", "greater than", "larger than", "older than", "above", "exceeds"),
+    "higher": (
+        "higher than",
+        "more than",
+        "greater than",
+        "bigger than",
+        "larger than",
+        "older than",
+        "above",
+        "exceeds",
+    ),
     "lower": ("lower than", "less than", "fewer than", "smaller than", "younger than", "below"),
     "within_margin": ("within the margin of error of", "within the margin of"),
 }
@@ -70,6 +79,10 @@ CLAIM_TOKEN = re.compile(
     re.IGNORECASE,
 )
 PHRASE_DIRECTION = {p: d for d, ps in COMPARE_PHRASES.items() for p in ps}
+# A sentence that also says the gap is within the margin of error makes no higher or lower claim.
+HEDGE = re.compile(
+    r"(?<!not )(?<!outside )within the margin|not (?:statistically )?significant", re.IGNORECASE
+)
 BLOCK_COLUMN = {"house": "house", "senate": "senate", "zcta": "zcta", "tract": "tract"}
 HTML_SPAN = re.compile(r"<!--.*?(?:-->|$)|<\s*[!/?a-z][^>]*(?:>|$)", re.IGNORECASE | re.DOTALL)
 FENCE = re.compile(r"^[ \t]*(\u0060{3,}|~{3,}).*?(?:^[ \t]*\1|\Z)", re.MULTILINE | re.DOTALL)
@@ -378,6 +391,7 @@ def direction_claims(text: str) -> list[tuple[tuple[str, str], str, tuple[str, s
     claims, topic = [], None
     for sentence in re.split(r"[.!?;\n]+", text):
         subject = pending = first = None
+        start = len(claims)
         for m in CLAIM_TOKEN.finditer(sentence):
             if m.group(3):
                 subject = subject or topic
@@ -388,6 +402,8 @@ def direction_claims(text: str) -> list[tuple[tuple[str, str], str, tuple[str, s
             else:
                 subject = (m.group(1), m.group(2))
                 first = first or subject
+        if HEDGE.search(sentence):
+            claims[start:] = [(s, "within_margin", o) for s, _, o in claims[start:]]
         topic = first or topic
     return claims
 
