@@ -62,7 +62,8 @@ PROVES = {
         "every district has both, each table row adds up (population minus target is the deviation), equals "
         "statewide Tables 9 and 10, the districts of each island unit add up to the unit's total in Tables B "
         "and C, the units add up to the state's 1,348,054 permanent residents in Table D, and every count equals "
-        "the Commission's final plan files. A value that fails is left out of the profile."
+        "the Commission's final plan files. A value that fails is left out of the profile. If the plan files cannot "
+        "be read, the check is skipped, not passed."
     ),
     "blocks": (
         "Every 2020 Census block gets exactly one House and one Senate district from the Census Bureau "

@@ -4,7 +4,7 @@ import copy
 import pandas as pd
 import pytest
 
-from klear.etl import plan_report
+from klear.etl import build, plan_report
 from klear.etl.plan_report import SEATS, ordinal, parse_descriptions, parse_report, parse_tables
 from klear.validation.plan_report import check_plan_report
 from klear.validation.report import render_validation, summary, tables
@@ -190,10 +190,18 @@ def test_a_count_that_differs_from_the_plan_files_is_left_out(report, rows):
     assert "in 75 of 76 districts" in result.notes[-1] and not result.passed
 
 
-def test_without_the_plan_files_the_report_still_checks_itself(report):
-    result, out = check_plan_report(report, None, commission_problem="download failed")
-    assert result.passed and result.notes[-1] == "Commission plan files not compared: download failed"
-    assert out.permanent.notna().all()
+def test_without_the_plan_files_the_check_is_skipped_not_passed(report, monkeypatch):
+    def unreadable():
+        raise OSError("no plan files")
+
+    stored = []
+    monkeypatch.setattr(build.plan_report, "load_report", lambda: report)
+    monkeypatch.setattr(build, "load_commission", unreadable)
+    monkeypatch.setattr(build, "add_source", lambda *a, **k: None)
+    monkeypatch.setattr(build, "add_district_plan", lambda con, rows: stored.append(rows))
+    with pytest.raises(build.StepSkipped, match="Commission plan files download or read failed"):
+        build._plan_report(None)
+    assert stored == []
 
 
 def test_a_district_described_twice_or_missing_is_left_out(report, rows):
