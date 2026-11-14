@@ -1738,6 +1738,58 @@ function chartTable(c) {
   return details;
 }
 
+// The same measure in the other places the answer compares, listed under the tile's figure.
+function tilePlaces(places) {
+  const list = node('ul', '', 'tile-places');
+  for (const p of places) {
+    const item = node('li', '', 'tile-place');
+    const value = node('span', p.value, 'tile-place-value');
+    if (p.spread) value.append(node('span', p.spread, 'tile-place-spread'));
+    item.append(node('span', p.geography, 'tile-place-name'), value);
+    if (p.caution) item.append(cautionChip(p.caution));
+    list.append(item);
+  }
+  return list;
+}
+
+// Figures past the tiles, as a table collapsed under them, so the answer never drops one. Rows are grouped by
+// place, and each estimate has its margin or range under it, which keeps the table narrow enough for a phone.
+function moreFigures(rows) {
+  const details = node('details', '', 'chart-data more-figures');
+  details.append(node('summary', rows.length === 1 ? 'Show 1 more figure' : `Show ${rows.length} more figures`));
+  const places = new Map();
+  for (const r of rows) places.set(r.geography, [...(places.get(r.geography) || []), r]);
+  const only = places.size === 1 ? rows[0].geography : '';
+  const table = document.createElement('table'), head = document.createElement('tr');
+  for (const h of ['Measure', 'Estimate']) { const th = node('th', h); th.scope = 'col'; head.append(th); }
+  table.append(node('caption', only ? `More figures for ${only}` : 'More figures'), node('thead', ''));
+  table.tHead.append(head);
+  for (const [place, group] of places) {
+    const body = document.createElement('tbody');
+    if (!only) {
+      const row = document.createElement('tr'), th = node('th', place, 'more-place');
+      th.colSpan = 2;
+      th.scope = 'colgroup';
+      row.append(th);
+      body.append(row);
+    }
+    for (const r of group) {
+      const row = document.createElement('tr'), label = says('th', r.label);
+      label.scope = 'row';
+      const estimate = node('td', r.value);
+      if (r.spread) estimate.append(node('span', r.spread, 'more-spread'));
+      if (r.caution) estimate.append(' ', cautionChip(r.caution));
+      row.append(label, estimate);
+      body.append(row);
+    }
+    table.append(body);
+  }
+  const scroll = node('div', '', 'table-scroll');
+  scroll.append(table);
+  details.append(scroll);
+  return details;
+}
+
 const ruler = document.createElement('canvas').getContext('2d');
 function ems(text, weight) { ruler.font = `${weight} 100px "Public Sans", system-ui, sans-serif`; return ruler.measureText(text).width / 100; }
 
@@ -1775,6 +1827,7 @@ function renderAnswer(answer, name) {
       const meta = [t.geography, t.spread, t.share].filter(Boolean).join(', ');
       if (meta) tile.append(node('div', meta, 'tile-meta'));
       if (t.caution) { const flag = node('div', '', 'tile-caution'); flag.append(cautionChip(t.caution)); tile.append(flag); }
+      if (t.places && t.places.length) tile.append(tilePlaces(t.places));
       if (t.method) tile.append(methodLine(t.method));
       const about = meaning(t.label, t.meaning);
       if (about) tile.append(about);
@@ -1782,6 +1835,7 @@ function renderAnswer(answer, name) {
     }
     article.append(grid);
   }
+  if (answer.more && answer.more.length) article.append(moreFigures(answer.more));
   for (const c of answer.charts) article.append(chartFigure(c));
   for (const c of answer.caveats) article.append(says('p', c, 'caveat'));
   if ((answer.members || []).length) article.append(memberLinks(answer.members));
@@ -1789,11 +1843,12 @@ function renderAnswer(answer, name) {
   if (answer.elsewhere) article.append(elsewhereLine(answer.elsewhere));
   if (answer.sources.length) {
     const years = [...new Set(answer.sources.map(s => s.year))].join(', ');
-    const shown = [...answer.tiles.map(t => t.spread), ...answer.charts.flatMap(c => c.bars.map(b => b.text))].join(' ');
+    const figures = [...answer.tiles, ...answer.tiles.flatMap(t => t.places || []), ...(answer.more || [])];
+    const shown = [...figures.map(t => t.spread), ...answer.charts.flatMap(c => c.bars.map(b => b.text))].join(' ');
     const notes = [`${years}.`];
     if (shown.includes('±')) notes.push('± is the 90% margin of error.');
     if (shown.includes('range ')) notes.push('A range shows the low and high bounds of the estimate.');
-    if (answer.tiles.some(t => t.caution) || answer.charts.some(c => c.bars.some(b => b.caution))) notes.push('Use with caution marks an estimate with a large margin of error.');
+    if (figures.some(t => t.caution) || answer.charts.some(c => c.bars.some(b => b.caution))) notes.push('Use with caution marks an estimate with a large margin of error.');
     article.append(node('p', notes.join(' '), 'source-line'));
     if (answer.verified) article.append(node('p', answer.verified.text, 'verified'));
     const details = document.createElement('details');

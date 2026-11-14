@@ -108,9 +108,9 @@ def test_tiles_and_charts_carry_what_the_label_means(small_con):
     other = FactRef("f2", "pop_65_plus", "house", "023", "acs", 100.0, None, None, 80.0, "2020-2024")
     answer = _answer(["x"])
     answer.facts.append(other)
-    # Counts stay tiles, so both places get one.
+    # Counts stay tiles, one per measure with the other place listed under it.
     tiles = build(small_con, answer)["tiles"]
-    assert [t["label"] for t in tiles] == ["Kūpuna (65 and over)"] * 2
+    assert [t["label"] for t in tiles] == ["Kūpuna (65 and over)"] and len(tiles[0]["places"]) == 1
     assert tiles[0]["meaning"] == {
         "plain": "People age 65 or older.",
         "official": "Population 65 years and over",

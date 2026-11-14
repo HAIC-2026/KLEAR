@@ -4,11 +4,14 @@ import {DISTRICT, ask, chooseDistrict, offline} from './helpers.js';
 
 test.beforeEach(async ({context}) => offline(context));
 
-// Figures the answer draws: each tile with a value and each chart bar.
+// Figures the answer draws: each tile with a value, each other place under a tile, each row of the table of more
+// figures with a value, and each chart bar.
 async function shownFigures(answer) {
   const tiles = await answer.locator('.tile .tile-value:not(.none)').count();
+  const places = await answer.locator('.tile-place-value').filter({hasNotText: 'not available'}).count();
+  const more = await answer.locator('.more-figures tbody tr').filter({hasNotText: 'not available'}).count();
   const bars = await answer.locator('.chart .bar-row').count();
-  return tiles + bars;
+  return tiles + places + more + bars;
 }
 
 for (const [mode, question, badge] of [

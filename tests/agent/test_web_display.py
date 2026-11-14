@@ -58,6 +58,7 @@ def test_single_place_gets_plain_lead_and_tiles(small_con):
             "share": "",
             "caution": "",
             "method": None,
+            "places": [],
         }
     ]
     assert out["charts"] == []
@@ -91,9 +92,63 @@ def test_counts_stay_tiles_and_are_never_charted_against_the_county_or_state(sma
     others = fact("f4", "023", 100.0, 80.0)
     out = build(small_con, answer([fact("f1", "022", 1000.0, 100.0), county, state, others], ["x"]))
     assert out["charts"] == []
-    assert [t["geography"] for t in out["tiles"]] == ["", "Honolulu County", "Hawaiʻi", "House District 23"]
-    assert out["tiles"][0]["share"] == "2.0% of the Hawaiʻi total"
-    assert [t["share"] for t in out["tiles"][1:]] == ["", "", ""]
+    (tile,) = out["tiles"]
+    assert tile["geography"] == "House District 22" and tile["share"] == "2.0% of the Hawaiʻi total"
+    assert [p["geography"] for p in tile["places"]] == ["Honolulu County", "Hawaiʻi", "House District 23"]
+    assert tile["places"][2]["caution"] == CAUTION
+
+
+def test_counts_compared_with_the_county_and_state_show_every_place(small_con):
+    add_indicators(
+        small_con,
+        pd.DataFrame(
+            [("pop_total", "Total population", "count", "persons", None, True)],
+            columns=["indicator_id", "label", "unit", "universe", "acs_var", "additive"],
+        ),
+    )
+    places = [("house", "022"), ("county", "15003"), ("state", "15")]
+    facts = [
+        FactRef(f"f{i}{j}", ind, *geo, "acs", 1000.0 * (j + 1), None, None, 10.0, "2020-2024")
+        for i, ind in enumerate(["pop_total", "pop_under_18", "pop_65_plus"])
+        for j, geo in enumerate(places)
+    ]
+    out = build(small_con, answer(facts, ["x"]))
+    assert out["charts"] == [] and "more" not in out
+    assert [t["label"] for t in out["tiles"]] == [
+        "Total population",
+        "Keiki (under 18)",
+        "Kūpuna (65 and over)",
+    ]
+    assert all(t["geography"] == "House District 22" and t["value"] == "1,000" for t in out["tiles"])
+    for t in out["tiles"]:
+        assert [(p["geography"], p["value"], p["spread"]) for p in t["places"]] == [
+            ("Honolulu County", "2,000", "± 10"),
+            ("Hawaiʻi", "3,000", "± 10"),
+        ]
+    assert out["verified"]["figures"] == 9
+
+
+def test_figures_past_the_tile_limit_go_in_a_table(small_con):
+    facts = [
+        FactRef(f"t{i}", f"ind_{i}", "house", "022", "acs", float(i + 1), None, None, None, "2020-2024")
+        for i in range(7)
+    ]
+    state = FactRef("s1", "pop_65_plus", "state", "15", "acs", 50000.0, None, None, 500.0, "2020-2024")
+    out = build(small_con, answer([*facts, fact("f1", "022", 1000.0, 100.0), state], ["x"]))
+    assert len(out["tiles"]) == 6
+    kupuna = "Kūpuna (65 and over)"
+    assert out["more"] == [
+        {"label": "ind_6", "geography": "House District 22", "value": "7", "spread": "", "caution": ""},
+        {
+            "label": kupuna,
+            "geography": "House District 22",
+            "value": "1,000",
+            "spread": "± 100",
+            "caution": "",
+        },
+        {"label": kupuna, "geography": "Hawaiʻi", "value": "50,000", "spread": "± 500", "caution": ""},
+    ]
+    assert out["verified"]["figures"] == 9
 
 
 def test_unreliable_estimates_carry_a_caution_on_tiles_bars_and_chart_sentences(small_con):
@@ -107,8 +162,8 @@ def test_unreliable_estimates_carry_a_caution_on_tiles_bars_and_chart_sentences(
     )
     # A zero with a margin of error is unreliable too; a figure without a margin cannot be judged.
     zero, plain = fact("f3", "023", 0.0, 12.0), fact("f4", "022", 7.0, None)
-    tiles = build(small_con, answer([zero, plain, fact("f5", "022", 1000.0, 100.0)], ["x"]))["tiles"]
-    assert [t["caution"] for t in tiles] == [CAUTION, "", ""]
+    (tile,) = build(small_con, answer([zero, plain, fact("f5", "022", 1000.0, 100.0)], ["x"]))["tiles"]
+    assert [tile["caution"], *(p["caution"] for p in tile["places"])] == ["", "", CAUTION]
 
 
 def test_apportioned_and_modeled_figures_say_how_they_were_estimated(small_con):
@@ -465,16 +520,14 @@ def test_figure_line_counts_each_figure_the_answer_shows(small_con):
     assert one["verified"]["text"] == "The 1 figure in this answer comes from the cited source below."
 
 
-def test_figure_line_skips_missing_values_and_unshown_facts(small_con):
+def test_figure_line_skips_missing_values(small_con):
     missing = fact("f0", "022", None, None)
     tiled = [
         FactRef(f"t{i}", f"ind_{i}", "house", "022", "acs", float(i), None, None, None, "2020-2024")
         for i in range(8)
     ]
     out = build(small_con, answer([missing, *tiled], ["{fact:f0} kūpuna."]))
-    assert len(out["tiles"]) == 6 and out["verified"]["figures"] == 5
-    marked = build(small_con, answer([missing, *tiled], ["{fact:t7} is the last."]))
-    assert marked["verified"]["figures"] == 6
+    assert len(out["tiles"]) == 6 and len(out["more"]) == 3 and out["verified"]["figures"] == 8
 
 
 def test_no_figure_line_without_figures_or_on_declines(small_con):
