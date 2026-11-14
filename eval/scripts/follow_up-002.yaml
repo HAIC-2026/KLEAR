@@ -1,0 +1,26 @@
+# Scripted model turns for follow_up-002: no district is chosen, so the earlier answer gives the place.
+- - type: tool_use
+    name: resolve_place
+    input:
+      text: senate:003
+- - type: tool_use
+    name: compare
+    input:
+      indicator_id: median_household_income
+      geo: senate:003
+- - type: tool_use
+    name: submit_answer
+    input:
+      resolved: senate:003
+      refusal: none
+      blocks:
+      - '{label:f1} in {geo:senate:003} is {fact:f1} ({vintage:f1}).'
+      - '* Lower than {geo:state:15}, at {fact:f3}
+
+        * Within the margin of error of {geo:county:15001}, at {fact:f2}'
+      facts:
+      - f1
+      - f2
+      - f3
+      programs: []
+      caveats: []

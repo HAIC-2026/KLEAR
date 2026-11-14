@@ -98,9 +98,14 @@ def build_store(path: Path) -> None:
     con.close()
 
 
-def _question(messages: list[dict]) -> str:
+def _message(messages: list[dict]) -> str:
     first = messages[0]["content"]
     return " ".join(b.get("text", "") for b in first if isinstance(b, dict)).lower()
+
+
+def _question(messages: list[dict]) -> str:
+    """The question alone, without the selected district or earlier questions that follow it."""
+    return _message(messages).split("\n\n")[0]
 
 
 def _refs(messages: list[dict]) -> list[str]:
@@ -131,6 +136,10 @@ class _Messages:
             if len(messages) == 1:
                 return turn(tool("find_member", {"district": DISTRICT}))
             return turn(tool("submit_answer", _member(), "tu_submit"))
+        if "kāneʻohe" in question and "selected district" not in _message(messages):
+            if len(messages) == 1:
+                return turn(tool("resolve_place", {"text": "Kāneʻohe"}))
+            return turn(tool("submit_answer", _spans(), "tu_submit"))
         if "1 test st" in question:
             if len(messages) == 1:
                 return turn(tool("resolve_place", {"text": "1 Test St, Kāneʻohe"}))
@@ -193,6 +202,18 @@ def _member() -> dict:
         "resolved": DISTRICT,
         "refusal": "none",
         "blocks": ["{geo:house:022} is represented by {member:house:022}."],
+        "facts": [],
+        "programs": [],
+        "caveats": [],
+    }
+
+
+def _spans() -> dict:
+    """A town that spans two districts, asked about with none chosen: no district to answer for."""
+    return {
+        "resolved": None,
+        "refusal": "none",
+        "blocks": ["Kāneʻohe spans more than one House district. Choose one to see its kūpuna figures."],
         "facts": [],
         "programs": [],
         "caveats": [],

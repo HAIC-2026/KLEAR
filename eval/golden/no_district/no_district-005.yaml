@@ -1,0 +1,15 @@
+id: no_district-005
+category: no_district
+question: What share of people in Senate District 14 are unemployed?
+ideal: Asked with no district chosen. Answers for the Senate district the question names with its unemployment rate,
+  margin of error and ACS vintage, as a Hawaiʻi Senate district.
+district:
+- senate
+- '014'
+facts:
+- - unemployment_rate
+  - senate
+  - '014'
+must_say:
+- 2020-2024
+refusal: none

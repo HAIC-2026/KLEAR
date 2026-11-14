@@ -1,0 +1,31 @@
+id: follow_up-004
+category: follow_up
+question: Is it higher there than in Honolulu County?
+ideal: Reads there as the earlier House district and it as the rent burden share from the earlier answer. Compares
+  the district with Honolulu County and says the gap is within the margin of error, so it cannot be called higher
+  on Oʻahu.
+context:
+- house
+- '040'
+earlier:
+- question: How many renters in House District 40 pay 35% or more of their income on rent?
+  district:
+  - house
+  - '040'
+  indicators:
+  - pct_rent_burden_35_plus
+district:
+- house
+- '040'
+facts:
+- - pct_rent_burden_35_plus
+  - house
+  - '040'
+- - pct_rent_burden_35_plus
+  - county
+  - '15003'
+must_say:
+- 2020-2024
+- margin of error
+direction: within_margin
+refusal: none

@@ -18,6 +18,7 @@ from urllib.parse import parse_qs, urlsplit
 import duckdb
 
 from klear.agent.config import CHAMBER_TYPES, DEFAULT_MODEL, OUTREACH_DEFAULT, OUTREACH_PAIRS
+from klear.agent.earlier import parse_earlier
 from klear.agent.tools import Session, ToolError
 from klear.config import ROOT, MissingSecretError, load_secret
 from klear.eval.contract import geo_key
@@ -68,6 +69,8 @@ READY = ("/readyz", "/api/ready")
 DISTRICT_PAGE = re.compile(r"/district/(?:house|senate)-[0-9]{1,2}")
 BUSY = threading.BoundedSemaphore(3)
 PER_MINUTE = 6
+# Largest chat request: a question, the last two questions and their indicator ids.
+CHAT_BYTES = 16384
 _RECENT = defaultdict(deque)
 _RECENT_LOCK = threading.Lock()
 
@@ -403,7 +406,7 @@ class Handler(SimpleHTTPRequestHandler):
             )
         try:
             length = int(self.headers.get("Content-Length", "0"))
-            if not 0 < length <= 8192:
+            if not 0 < length <= CHAT_BYTES:
                 raise ValueError()
             data = json.loads(self.rfile.read(length))
             if not isinstance(data, dict):
@@ -412,12 +415,11 @@ class Handler(SimpleHTTPRequestHandler):
             district = data.get("district")
             if not isinstance(question, str) or not 1 <= len(question.strip()) <= 2000:
                 raise ValueError()
-            if not isinstance(district, str):
+            # No district means the question names its own place, or asks about the whole state.
+            if district is not None and not isinstance(district, str):
                 raise TypeError()
         except (ValueError, TypeError):
-            return self.reply(
-                400, {"error": "Choose a district and enter a question of up to 2,000 characters."}
-            )
+            return self.reply(400, {"error": "Enter a question of up to 2,000 characters."})
         if not _allowed(self.client_address[0]):
             return self.reply(
                 429, {"error": "Too many questions at once. Please wait a minute and try again."}
@@ -433,13 +435,20 @@ class Handler(SimpleHTTPRequestHandler):
         try:
             with self.connect() as con:
                 try:
-                    selected = _district(con, district)
+                    selected = None if district is None else _district(con, district)
                 except ValueError:
                     return self.reply(400, {"error": "Choose a valid stored House or Senate district."})
+                # Earlier questions from this tab are checked here, used for this answer only and never kept.
+                try:
+                    earlier = parse_earlier(con, data.get("earlier"))
+                except ValueError:
+                    return self.reply(400, {"error": "Reload the page, then ask again."})
                 if self.assistant is None:
-                    result = basic(con, question.strip(), selected, geocoder=self.geocoder)
+                    result = basic(con, question.strip(), selected, geocoder=self.geocoder, earlier=earlier)
                 else:
-                    result = self.assistant.ask(con, question.strip(), selected, geocoder=self.geocoder)
+                    result = self.assistant.ask(
+                        con, question.strip(), selected, geocoder=self.geocoder, earlier=earlier
+                    )
             self.reply(200, result)
         except Exception:  # noqa: BLE001 - redact internal errors at the HTTP boundary
             self.reply(

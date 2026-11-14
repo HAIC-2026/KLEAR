@@ -1,0 +1,29 @@
+# Scripted model turns for follow_up-003: the question names a new district and keeps the earlier measures.
+- - type: tool_use
+    name: resolve_place
+    input:
+      text: House District 8
+- - type: tool_use
+    name: get_facts
+    input:
+      indicator_ids:
+      - pop_65_plus
+      - pct_65_plus
+      geos:
+      - house:008
+- - type: tool_use
+    name: submit_answer
+    input:
+      resolved: house:008
+      refusal: none
+      blocks:
+      - 'Kūpuna in {geo:house:008} ({vintage:f1}):
+
+        * {label:f1}: {fact:f1}
+
+        * {label:f2}: {fact:f2}'
+      facts:
+      - f1
+      - f2
+      programs: []
+      caveats: []
