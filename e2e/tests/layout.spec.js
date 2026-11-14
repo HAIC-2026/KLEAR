@@ -169,6 +169,20 @@ test.describe('a district at 1440 by 900', () => {
   });
 });
 
+// A district's page ends where the district ends: its profile, then the map, then the footer. The home page's How it
+// works, Sources and About are left out, and the page stays under 7,000 px at 1280 wide with the default sections open.
+test.describe('a district at 1280 wide', () => {
+  test.skip(({isMobile}) => isMobile, 'a laptop screen');
+  test.use({viewport: {width: 1280, height: 800}});
+  test('ends with the map', async ({page}) => {
+    await page.goto('/district/house-22');
+    await expect(page.locator('#profile-live')).toHaveText(`Profile for ${DISTRICT} loaded.`);
+    for (const id of ['how', 'sources', 'about']) await expect(page.locator(`#${id}`), id).toBeHidden();
+    await expect(page.locator('#district-map')).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollHeight)).toBeLessThan(7000);
+  });
+});
+
 // On a phone, Profile and Ask are each one tap from the top of a district's page.
 test.describe('a district at 390 by 844', () => {
   test.use({viewport: {width: 390, height: 844}});

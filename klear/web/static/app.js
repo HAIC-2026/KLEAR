@@ -1198,8 +1198,24 @@ function renderProfile(p) {
   out.push(profileJumps(sections), profileActions(p));
   // The outreach groups this district leads come just before the sections.
   if (p.outreach && Array.isArray(p.outreach.items)) out.push(profileOutreach(p.outreach));
-  out.push(...sections);
+  out.push(...sections, profileEnd());
   return out;
+}
+
+// The row that closes the profile. A district's page leaves out the home page's sources, checks and search, so these
+// lead to them.
+function profileEnd() {
+  const nav = node('nav', '', 'profile-end'), title = node('p', 'More from KLEAR', 'profile-end-title'), list = node('ul', '');
+  title.id = 'profile-end-title';
+  nav.setAttribute('aria-labelledby', title.id);
+  for (const [text, href] of [['Sources and methods', '/#sources'], ['How we check KLEAR', '/checks.html'], ['Find another district', '/#find']]) {
+    const li = document.createElement('li'), a = node('a', text);
+    a.href = href;
+    li.append(a);
+    list.append(li);
+  }
+  nav.append(title, list);
+  return nav;
 }
 
 // The one-page summary that prints in place of the page: key figures beside the county and the state, programs to

@@ -75,6 +75,45 @@ test('the home page sections a link opens start below the header', async ({page}
   expect(await belowHeader(page, page.locator('#cv'))).toBeGreaterThanOrEqual(0);
 });
 
+// A district's page leaves out the home page's sections, so a link on it never points at one of them: every link to a
+// part of the same page leads to something that shows, and the header's Sources and About open the home page.
+test('no link on a district page leads to a hidden section', async ({page}) => {
+  await page.goto('/district/house-22');
+  await expect(page.locator('#profile .profile-end')).toBeVisible();
+  const dead = await page.locator('a[href]').evaluateAll(all => all.filter(a => {
+    const url = new URL(a.href);
+    if (!url.hash || url.origin !== location.origin || url.pathname !== location.pathname || !a.checkVisibility()) return false;
+    const target = document.getElementById(decodeURIComponent(url.hash.slice(1)));
+    return !target || !target.checkVisibility();
+  }).map(a => `${a.textContent.trim()} → ${a.getAttribute('href')}`));
+  expect(dead).toEqual([]);
+
+  for (const [name, target] of [['Sources', '#sources'], ['About', '#about']]) {
+    await page.goto('/district/house-22');
+    if (name === 'Sources') await menuButton(page).click();
+    await nav(page).getByRole('link', {name}).click();
+    await expect(page).toHaveURL(new RegExp(`/${target}$`));
+    await expect(page.locator(target)).toBeInViewport();
+  }
+});
+
+// The profile closes with a row that leads on: to the sources, to how KLEAR is checked, and to another district.
+test('a district profile ends with links to the sources, the checks and another district', async ({page}) => {
+  await page.goto('/district/house-22');
+  const end = page.getByRole('navigation', {name: 'More from KLEAR'});
+  await expect(end.getByRole('link')).toHaveText(['Sources and methods', 'How we check KLEAR', 'Find another district']);
+  await end.getByRole('link', {name: 'Sources and methods'}).click();
+  await expect(page).toHaveURL(/\/#sources$/);
+  await expect(page.locator('#sources')).toBeInViewport();
+  await page.goBack();
+  await page.getByRole('navigation', {name: 'More from KLEAR'}).getByRole('link', {name: 'Find another district'}).click();
+  await expect(page).toHaveURL(/\/#find$/);
+  await expect(page.getByLabel('District, place, ZIP code, or street address').first()).toBeInViewport();
+  await page.goBack();
+  await page.getByRole('navigation', {name: 'More from KLEAR'}).getByRole('link', {name: 'How we check KLEAR'}).click();
+  await expect(page).toHaveURL(/\/checks\.html$/);
+});
+
 test.describe('the menu', () => {
   test('closes on Escape, after a link on the same page, and on a click elsewhere', async ({page}) => {
     await page.goto('/');
