@@ -215,6 +215,7 @@ The DuckDB store in data/build/klear.duckdb has these tables (schema in klear/st
 - site: public housing, LIHTC and health center points with their House and Senate district, the meters the point was snapped to reach it, and source.
 - place and place_overlap: Census 2020 places (CDPs) with Hawaiian names, and the share of each place's 2020 residents in each county, House and Senate district and ZIP code area.
 - area, area_overlap and area_alias: what district search finds beyond Census places. Islands, Honolulu neighborhood board areas (City and County of Honolulu) on Oʻahu and Census county divisions (TIGER 2020) on the other islands, each with its main island and its residents' shares in each county, district, ZIP code area and place. Each 2020 block counts in the area holding its internal point. area_alias holds other names people use, such as Kona, upcountry Maui or Lanikai, from data/places/areas.yaml.
+- district_plan: each House and Senate district's official area description (Appendix D) and permanent-resident population (Tables 1 to 8) from the 2021 Reapportionment Commission Final Report and Reapportionment Plan, with the report page and PDF page each was read from. The build downloads the report from the Office of Elections into data/raw/reapportionment/ and records its URL, time and hash. The plan_report check compares each count with the report's statewide tables, its island unit and state totals and the Commission's plan files, and leaves out any value that fails.
 
 Sources beyond the Census Bureau, each moved to House and Senate districts with a range: IRS SOI tax year 2023 returns and earned income tax credit by ZIP code, CMS 2026 marketplace enrollment by ZIP code, HUD housing choice vouchers by tract, CDC PLACES 2025 modeled need by tract and HUD CHAS 2018-2022 cost burden by tract. HUD public housing, LIHTC projects and HRSA health center sites are stored as points with their districts.
 
@@ -417,7 +418,11 @@ Choosing a district opens its own page, such as /district/house-22, with its pro
 profile is read straight from the store with no model call, through `GET /api/profile?district=house:022`.
 A district chosen while an answer is still loading shows its profile at once, and the chat switches to it after that answer.
 It names the district's counties, islands, Census places and the overlapping districts
-in the other chamber, shows four headline figures, then 37 figures in seven sections:
+in the other chamber, then gives the district's official description and permanent residents from the
+2021 Reapportionment Commission Final Report, each with its report page. The profile says that the
+permanent-resident count, the one the district lines were drawn on, leaves out non-resident military
+members, their families and students, so it differs from the ACS total population. The printed
+summary carries both too. The profile then shows four headline figures, then 37 figures in seven sections:
 People, Income, Housing, Health and access, Programs in use, Modeled needs and Help sites.
 Each figure shows its margin of error or range, is compared with the county that holds most
 of the district's population and with the state, flags an unreliable estimate, and is cited

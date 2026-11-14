@@ -12,6 +12,7 @@ from klear.store.db import (
     add_areas,
     add_blocks,
     add_coverage,
+    add_district_plan,
     add_facts,
     add_geographies,
     add_indicators,
@@ -134,6 +135,24 @@ def build_small_store(path: Path):
         "INSERT INTO site VALUES ('s1', 'lihtc', 'Aloha Apts', '1 Main St', 21.4, -157.8, '022', '012', 1.0, 10, 'hud')"
     )
     add_small_members(con)
+    add_source(
+        con, "plan", "2021 Reapportionment Commission Final Report and Reapportionment Plan", "Office of Elections",
+        "https://example.org/report.pdf", "Final report, February 25, 2022", "public record",
+        page_url="https://example.org/reapportionment",
+    )  # fmt: skip
+    # House 22 has both; House 23's count failed the report's totals and was left out.
+    words = "Representative District comprises the portion of the island of Oʻahu including"
+    plan = pd.DataFrame(
+        [
+            ("house", "022", f"The 22nd {words} Manoa.", "D-017", 891, 26451, "15", 23, "plan"),
+            ("house", "023", f"The 23rd {words} Moiliili-McCully.", "D-017", 891, None, None, None, "plan"),
+        ],
+        columns=[
+            "geo_type", "geo_id", "description", "description_page", "description_pdf_page", "permanent",
+            "permanent_page", "permanent_pdf_page", "source_id",
+        ],
+    )  # fmt: skip
+    add_district_plan(con, plan.astype({"permanent": "Int64", "permanent_pdf_page": "Int64"}))
     return con
 
 

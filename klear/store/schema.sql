@@ -194,3 +194,19 @@ CREATE TABLE IF NOT EXISTS area_alias (
     target_id VARCHAR NOT NULL,
     PRIMARY KEY (plain, target_type, target_id)
 );
+
+-- Each House and Senate district's official area description and permanent-resident population from the 2021
+-- Reapportionment Commission Final Report, with the report page (as printed, such as D-001 or 15) and the PDF page
+-- each was read from. A value that failed the report's own totals is left out (NULL).
+CREATE TABLE IF NOT EXISTS district_plan (
+    geo_type VARCHAR NOT NULL CHECK (geo_type IN ('house', 'senate')),
+    geo_id VARCHAR NOT NULL,
+    description VARCHAR,
+    description_page VARCHAR,
+    description_pdf_page INTEGER,
+    permanent BIGINT CHECK (permanent > 0),
+    permanent_page VARCHAR,
+    permanent_pdf_page INTEGER,
+    source_id VARCHAR NOT NULL REFERENCES source (source_id),
+    PRIMARY KEY (geo_type, geo_id)
+);
