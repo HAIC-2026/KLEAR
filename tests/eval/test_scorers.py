@@ -830,6 +830,25 @@ def test_direction_claims_read_subject_and_object_per_sentence():
     ]
 
 
+def test_direction_claim_hedged_in_the_same_sentence_is_within_margin():
+    hedged = "{geo:senate:011} is higher than {geo:county:15003}, but the difference is within the margin of error."
+    assert direction_claims(hedged) == [(("senate", "011"), "within_margin", ("county", "15003"))]
+    firm = "{geo:house:015} is higher than {geo:state:15}, and not within the margin of error."
+    assert direction_claims(firm) == [(("house", "015"), "higher", ("state", "15"))]
+
+
+def test_bigger_and_smaller_count_as_direction_words(eval_store):
+    pair = [("x", "senate", "025"), ("x", "senate", "024")]
+    got = _ok(
+        _ans(["{geo:senate:025} has a bigger share of kūpuna."]), eval_store, direction="higher", facts=pair
+    )
+    assert got["direction"].passed is True
+    got = _ok(
+        _ans(["{geo:senate:025} has a smaller share of kūpuna."]), eval_store, direction="higher", facts=pair
+    )
+    assert got["direction"].passed is False
+
+
 def test_direction_scores_the_asked_pair_only(eval_store):
     pair = [("x", "house", "022"), ("x", "state", "15")]
     cases = [
