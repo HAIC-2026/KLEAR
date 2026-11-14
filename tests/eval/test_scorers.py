@@ -1,5 +1,6 @@
 # Tests for the deterministic eval scorers.
 import pandas as pd
+import pytest
 
 from klear.eval.contract import Answer, FactRef
 from klear.eval.golden import Golden
@@ -898,3 +899,26 @@ def test_label_numbers_need_their_own_unit_phrase(eval_store):
         )
     )
     assert o["fidelity"].passed is True
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        (
+            "In {geo:senate:024} it is {fact:f2}. The gap is larger than the margins of error for both districts, "
+            "so {geo:senate:025} has the bigger share."
+        ),
+        (
+            "{geo:senate:024} is higher than the county figure, as the profile notes for every district, and "
+            "{geo:senate:025} too."
+        ),
+    ],
+)
+def test_a_comparison_with_no_place_right_after_it_claims_nothing(text):
+    assert direction_claims(text) == []
+
+
+def test_a_comparison_names_the_place_a_few_words_on():
+    assert direction_claims("{geo:house:022} is higher than the rate in {geo:county:15003}.") == [
+        (("house", "022"), "higher", ("county", "15003"))
+    ]
