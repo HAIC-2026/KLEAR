@@ -1,0 +1,17 @@
+program_id: hawaii_aging
+name: Hawaiʻi County Office of Aging
+description: Help finding home care and local support for kūpuna and people with disabilities.
+serves: Kūpuna, people with disabilities and their caregivers.
+agency: Hawaiʻi County Office of Aging
+level: county
+counties:
+- '15001'
+url: https://www.hawaiicounty.gov/departments/aging
+phone: (808) 961-8626
+phone_source: https://www.hawaiicounty.gov/departments/aging
+rules: []
+needs:
+- pct_65_plus
+verified: '2026-11-12'
+verification: Read the indexed official county Office of Aging page, including its service phone. Direct
+  fetch returned HTTP 403. Information-only entry; no numeric eligibility rules are modeled.

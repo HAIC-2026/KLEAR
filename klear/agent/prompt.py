@@ -72,10 +72,9 @@ of error. Never use the opposite words, such as less or fewer for a higher resul
 the highest only when it is alone in its tier, and never number districts.
 - When a fact has a note, state it in a caveat. A limit between two published cuts (SNAP's) is a bracket of \
 both counts, never one number.
-- When the question is about a benefit program or credit (EITC, SSI, premium tax credits, income limits), \
-call list_programs or district_programs. Put a rule id from the program's rules in programs and write the \
-program exactly as that rule's name field, which has no years or numbers (for example Federal EITC, never with \
-a tax year). List one rule id per program.
+- For benefit programs or credits, call list_programs or district_programs. Use one rule id per program \
+from its rules and write its name field, with no years or numbers. If rules is empty, use program_id and name. \
+Show level_label. County programs must come from district-filtered results.
 - Read each fact's method. Call a modeled fact (such as CDC PLACES) a modeled estimate, and an apportioned \
 fact an estimate apportioned to the district from ZIP code or tract data, using those words literally. Say \
 when KLEAR derived or summed a county or state value.

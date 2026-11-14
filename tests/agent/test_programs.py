@@ -101,7 +101,11 @@ def test_loader_accepts_a_good_entry(tmp_path):
         ({"url": "http://humanservices.hawaii.gov/"}, ".gov"),
         ({"phone": "808 555 0100"}, "phone"),
         ({"rules": ["nope"]}, "unknown rule"),
-        ({"rules": []}, "non-empty list"),
+        ({"rules": "snap"}, "non-empty list"),
+        ({"level": "city"}, "invalid level"),
+        ({"counties": ["15099"]}, "unknown county"),
+        ({"counties": "15001"}, "non-empty list"),
+        ({"counties": ["15001", "15001"]}, "twice"),
         ({"needs": ["pct_cats"]}, "unknown needs"),
         ({"needs": ["pct_hh_snap", "pct_hh_snap"]}, "twice"),
         ({"program_id": "food"}, "file name"),
@@ -168,7 +172,7 @@ def test_need_above_the_state_ranks_first_with_its_reason(need_con):
     s = Session(need_con)
     out = call(s, "district_programs", district="house:022")
     ids = [p["program_id"] for p in out["programs"]]
-    assert len(ids) == len(set(ids)) == len(catalog())
+    assert len(ids) == len(set(ids)) == len(s._programs_for([("house", "022")]))
     higher = [p["program_id"] for p in out["programs"] if p["need"] == "higher"]
     assert higher == ids[: len(higher)]
     assert {"kupuna_care", "medicare_savings", "eitc_federal", "hi_state_credits"} <= set(higher)
@@ -198,7 +202,7 @@ def test_gaps_within_the_margin_read_as_about_the_same(need_con):
     out = call(s, "district_programs", district="house:023")
     assert not [p for p in out["programs"] if p["need"] == "higher"]
     laid = display.matched_programs(need_con, out, s)
-    assert laid["programs"] == [] and laid["others_title"] == "Available statewide"
+    assert laid["programs"] == [] and laid["others_title"] == "Available here"
     assert laid["intro"].startswith("None of House District 23's need figures sit clearly above the state's")
     kupuna = next(p for p in laid["others"] if p["id"] == "kupuna_care")
     assert [r["text"] for r in kupuna["reasons"]] == [
@@ -248,7 +252,7 @@ def test_contrasting_districts_get_different_ranked_lists(real_con):
         out = call(s, "district_programs", district=geo)
         laid = display.matched_programs(real_con, out, s)
         names = [p["name"] for p in laid["programs"] + laid["others"]]
-        assert len(names) == len(set(names)) == len(catalog())
+        assert len(names) == len(set(names)) == len(s._programs_for([tuple(geo.split(":"))]))
         assert all(p["reasons"] for p in laid["programs"])
         lists[geo] = [p["id"] for p in laid["programs"]]
     assert lists["house:022"] and lists["house:044"] and lists["house:022"] != lists["house:044"]
@@ -291,7 +295,7 @@ def test_basic_mode_answers_with_matched_programs(real_con):
     a = ask(real_con, "What support programs could residents of this district explore?", ("house", "022"))
     assert a["refusal"] == "none" and ELIGIBILITY_NOTE in a["text"]
     names = [p["name"] for p in a["programs"]]
-    assert len(names) == len(set(names)) == len(catalog())
+    assert len(names) == len(set(names)) == len(Session(real_con)._programs_for([("house", "022")]))
     assert a["programs"][0]["match"] and a["programs"][0]["reasons"]
     assert a["programs"][0]["name"] in a["text"]
     where = "source" if a["verified"]["sources"] == len(a["program_sources"]) == 1 else "sources"
@@ -304,3 +308,77 @@ def test_basic_mode_answers_with_matched_programs(real_con):
     assert [p["name"] for p in other["programs"] if p["match"]] != [
         p["name"] for p in a["programs"] if p["match"]
     ]
+
+
+def test_information_only_entries_keep_verification_required(tmp_path):
+    entry = GOOD | {"rules": [], "level": "county", "counties": ["15001"]}
+    (p,) = load_programs(_write(tmp_path, snap=entry), RULES)
+    assert p.rules == () and p.level_label == "Hawaiʻi County"
+    for field in ("verified", "verification"):
+        with pytest.raises(ValueError, match="missing fields"):
+            load_programs(_write(tmp_path, snap={k: v for k, v in entry.items() if k != field}), RULES)
+
+
+def test_county_programs_use_any_residents_not_majority(small):
+    mixed = _by_id(call(small, "district_programs", district="house:022"))
+    assert {"hawaii_aging", "honolulu_home_exemption"} <= mixed.keys()
+    assert "maui_aging" not in mixed
+    only_oahu = _by_id(call(small, "list_programs", district="house:023"))
+    assert "honolulu_home_exemption" in only_oahu and "hawaii_aging" not in only_oahu
+    assert all(p["level_label"] for p in mixed.values())
+
+
+def test_list_programs_without_a_place_does_not_offer_county_entries(small):
+    assert all(not p["counties"] for p in call(small, "list_programs")["programs"])
+    call(small, "resolve_place", text="House District 23")
+    assert "honolulu_home_exemption" in _by_id(call(small, "list_programs"))
+    assert "error" in call(small, "list_programs", district="county:15001")
+
+
+def test_hilo_gets_hawaii_county_and_no_honolulu_programs(real_con):
+    s = Session(real_con)
+    out = call(s, "district_programs", district="house:002")
+    assert "hawaii_aging" in _by_id(out)
+    assert all(not p["counties"] or p["counties"] == ["15001"] for p in out["programs"])
+    assert _by_id(call(s, "list_programs", district="house:002")).keys() == _by_id(out).keys()
+    laid = display.matched_programs(real_con, out, s)
+    rows = laid["programs"] + laid["others"]
+    assert all(p["level"] for p in rows)
+    assert next(p for p in rows if p["id"] == "hawaii_aging")["level"] == "Hawaiʻi County"
+    assert display.program_rows(["hawaii_aging"])[0]["level"] == "Hawaiʻi County"
+
+
+def test_all_entries_have_levels_and_county_entries_are_verified():
+    assert all(p.level in {"federal", "state", "county"} for p in catalog())
+    county = [p for p in catalog() if p.level == "county"]
+    assert 6 <= len(county) <= 10
+    assert all(p.counties and p.verified and p.verification and p.phone_source for p in county)
+
+
+@pytest.mark.parametrize(("number", "district", "county"), [("007", "002", "15001"), ("008", "010", "15009")])
+def test_neighbor_island_golden_scripts_replay(small_con, number, district, county):
+    from klear.config import ROOT
+    from klear.eval.agents import ScriptedAgent
+    from klear.eval.golden import load_golden
+    from klear.eval.scorers import score
+
+    small_con.execute(
+        "INSERT INTO geography VALUES ('house', ?, ?, NULL)", [district, f"House District {int(district)}"]
+    )
+    small_con.execute("UPDATE blocks SET house = ?, county = ?", [district, county])
+    offered = call(Session(small_con), "district_programs", district=f"house:{district}")["programs"]
+    assert all(not p["counties"] or p["counties"] == [county] for p in offered)
+    g = next(g for g in load_golden() if g.id == f"programs_gap-{number}")
+    answer, _ = ScriptedAgent(small_con, ROOT / "eval/scripts").answer(g.id, g.question, g.context)
+    assert answer.programs == g.programs
+    outcomes = score(g, answer, small_con)
+    assert all(o.passed is not False for o in outcomes), outcomes
+    assert all(p["level"] for p in display.program_rows(answer.programs))
+
+
+def test_zero_population_does_not_offer_county_programs(small_con):
+    small_con.execute("UPDATE blocks SET pop2020 = 0 WHERE county = '15001'")
+    s = Session(small_con)
+    assert "hawaii_aging" not in _by_id(call(s, "district_programs", district="house:022"))
+    s.context = ("house", "023")
+    assert "honolulu_home_exemption" in _by_id(call(s, "list_programs"))

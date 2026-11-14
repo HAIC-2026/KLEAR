@@ -11,3 +11,4 @@ rules: [aca_ptc_2026]
 needs: [pct_uninsured]
 verified: '2026-11-09'
 verification: Fetched the page (HTTP 200). It prints the phone
+level: federal

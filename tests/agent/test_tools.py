@@ -300,7 +300,7 @@ def test_find_sites_and_kind_filter(small):
 
 
 def test_programs_and_source(small):
-    assert len(call(small, "list_programs")["programs"]) == len(catalog())
+    assert len(call(small, "list_programs")["programs"]) == sum(not p.counties for p in catalog())
     p = call(small, "list_programs", words=["kupuna"])["programs"]
     assert [x["program_id"] for x in p] == ["kupuna_care"] and p[0]["agency"] and p[0]["rules"][0]["status"]
     s = call(small, "explain_source", source_id="hud")

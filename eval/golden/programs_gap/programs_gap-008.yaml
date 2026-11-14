@@ -1,0 +1,15 @@
+id: programs_gap-008
+category: programs_gap
+question: Which county office helps kūpuna find care in House District 10?
+ideal: Name the county aging office that serves this Hawaiʻi district. Explain that
+  district data do not show who can get services.
+district:
+- house
+- '010'
+programs:
+- maui_aging
+programs_forbidden:
+- honolulu_home_exemption
+must_say:
+- Maui County Office on Aging
+refusal: none

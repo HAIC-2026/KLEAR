@@ -211,7 +211,7 @@ test('Ctrl+Enter sends the question, and Enter alone starts a new line', async (
   await chooseDistrict(page);
   await showTab(page, 'Ask');
   const box = page.getByLabel('Your question');
-  await expect(box).toHaveAccessibleDescription('Press Ctrl+Enter to send.');
+  await expect(box).toHaveAccessibleDescription(/^Press (Ctrl|⌘)\+Enter to send\.$/);
   await box.fill('How many kūpuna');
   await box.press('Enter');
   await box.pressSequentially('live here?');

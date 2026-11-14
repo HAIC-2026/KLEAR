@@ -27,7 +27,14 @@ REQUIRED = (
     "verified",
     "verification",
 )
-OPTIONAL = ("phone_label",)
+OPTIONAL = ("phone_label", "level", "counties")
+COUNTIES = {
+    "15001": "Hawaiʻi County",
+    "15003": "Honolulu County",
+    "15005": "Kalawao County",
+    "15007": "Kauaʻi County",
+    "15009": "Maui County",
+}
 PHONE = re.compile(r"^(?:\(\d{3}\) |1-\d{3}-)\d{3}-\d{4}$")
 # A program last checked by a person longer ago than this sends readers to its official page.
 STALE_AFTER_DAYS = 90
@@ -71,6 +78,10 @@ NEEDS = {
         ("pct_rent_burden_35_plus",),
         "In {place}, {value} of renter households pay 35% or more of income on rent",
     ),
+    "pct_owner_cost_burden_35_plus": Need(
+        ("pct_owner_cost_burden_35_plus",),
+        "In {place}, {value} of owner households spend 35% or more of income on housing",
+    ),
     "pct_severe_overcrowding": Need(
         ("pct_severe_overcrowding",), "In {place}, {value} of homes are severely overcrowded"
     ),
@@ -100,6 +111,14 @@ class Program:
     verified: date
     verification: str
     phone_label: str = ""
+    level: str = ""
+    counties: tuple[str, ...] = ()
+
+    @property
+    def level_label(self) -> str:
+        if self.level == "county":
+            return ", ".join(COUNTIES[c] for c in self.counties) or "County"
+        return self.level.title() or "Government"
 
 
 def _https(value, gov: bool) -> bool:
@@ -109,8 +128,12 @@ def _https(value, gov: bool) -> bool:
     return parts.scheme == "https" and bool(parts.hostname) and (not gov or parts.hostname.endswith(".gov"))
 
 
-def _ids(name: str, field: str, value) -> tuple[str, ...]:
-    if not isinstance(value, list) or not value or not all(isinstance(x, str) and x for x in value):
+def _ids(name: str, field: str, value, *, empty: bool = False) -> tuple[str, ...]:
+    if (
+        not isinstance(value, list)
+        or (not value and not empty)
+        or not all(isinstance(x, str) and x for x in value)
+    ):
         raise ValueError(f"{name}: {field} must be a non-empty list of ids")
     if len(set(value)) != len(value):
         raise ValueError(f"{name}: {field} lists an id twice")
@@ -124,7 +147,7 @@ def _program(f: Path, d: dict, rule_ids: set[str]) -> Program:
         raise ValueError(f"{name}: missing fields {missing}")
     if extra := sorted(set(d) - set(REQUIRED) - set(OPTIONAL)):
         raise ValueError(f"{name}: unknown fields {extra}")
-    text = [k for k in (*REQUIRED, *OPTIONAL) if k not in ("rules", "needs") and k in d]
+    text = [k for k in (*REQUIRED, *OPTIONAL) if k not in ("rules", "needs", "counties") and k in d]
     if bad := [k for k in text if not isinstance(d[k], str) or not d[k].strip()]:
         raise ValueError(f"{name}: {bad} must be non-empty text")
     if d["program_id"] != f.stem:
@@ -135,7 +158,12 @@ def _program(f: Path, d: dict, rule_ids: set[str]) -> Program:
         raise ValueError(f"{name}: phone_source must be an https page")
     if not PHONE.match(d["phone"]):
         raise ValueError(f"{name}: phone {d['phone']!r} must look like (808) 555-0100 or 1-800-555-0100")
-    rules = _ids(name, "rules", d["rules"])
+    rules = _ids(name, "rules", d["rules"], empty=True)
+    if "level" in d and d["level"] not in ("federal", "state", "county"):
+        raise ValueError(f"{name}: invalid level")
+    counties = _ids(name, "counties", d.get("counties", []), empty=True)
+    if any(c not in COUNTIES for c in counties):
+        raise ValueError(f"{name}: unknown county code")
     if unknown := [r for r in rules if r not in rule_ids]:
         raise ValueError(f"{name}: unknown rule ids {unknown}")
     needs = _ids(name, "needs", d["needs"])
@@ -147,7 +175,7 @@ def _program(f: Path, d: dict, rule_ids: set[str]) -> Program:
         raise ValueError(f"{name}: verified must be a date like 2026-11-09") from None
     if verified > date.today():
         raise ValueError(f"{name}: verified date {verified} is in the future")
-    return Program(**(d | {"rules": rules, "needs": needs, "verified": verified}))
+    return Program(**(d | {"rules": rules, "needs": needs, "verified": verified, "counties": counties}))
 
 
 def load_programs(path: Path = PROGRAMS_DIR, rule_ids=None) -> list[Program]:

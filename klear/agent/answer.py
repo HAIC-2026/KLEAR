@@ -36,7 +36,10 @@ SUBMIT_SPEC = _spec(
         "refusal": {"type": "string", "enum": list(REFUSALS), "description": "none unless declining."},
         "blocks": {**_STRS, "description": "Answer paragraphs with markers."},
         "facts": {**_STRS, "description": "Every fN ref cited by a marker, for example f1."},
-        "programs": {**_STRS, "description": "Rule ids of the programs the answer names."},
+        "programs": {
+            **_STRS,
+            "description": "Rule ids or information-only catalog program ids the answer names.",
+        },
         "caveats": {**_STRS, "description": "Short caveat sentences with markers."},
     },
     ["resolved", "refusal", "blocks", "facts", "programs", "caveats"],

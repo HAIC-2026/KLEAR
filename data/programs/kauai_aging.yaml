@@ -1,0 +1,17 @@
+program_id: kauai_aging
+name: Kauaʻi County Agency on Elderly Affairs
+description: Help finding long-term care and support to keep living at home.
+serves: Older adults, people with disabilities and family caregivers.
+agency: Kauaʻi County Agency on Elderly Affairs
+level: county
+counties:
+- '15007'
+url: https://www.kauai.gov/Government/Departments-Agencies/Agency-on-Elderly-Affairs
+phone: (808) 241-4470
+phone_source: https://www.kauai.gov/Government/Departments-Agencies/Agency-on-Elderly-Affairs
+rules: []
+needs:
+- pct_65_plus
+verified: '2026-11-12'
+verification: Read the official county page and its listed phone. Information-only entry; use the linked
+  page for current terms, services and application steps.

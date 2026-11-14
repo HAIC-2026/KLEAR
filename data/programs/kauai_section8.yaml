@@ -1,0 +1,17 @@
+program_id: kauai_section8
+name: Kauaʻi County housing choice vouchers
+description: Federal rent aid run by the county. Check the county page for waitlist details.
+serves: Households with low income. The county checks who can get help.
+agency: Kauaʻi County Housing Agency
+level: county
+counties:
+- '15007'
+url: https://www.kauai.gov/Government/Departments-Agencies/Housing-Agency/Section-8-Rental-Assistance
+phone: (808) 241-4440
+phone_source: https://www.kauai.gov/Government/Departments-Agencies/Housing-Agency/Section-8-Rental-Assistance
+rules: []
+needs:
+- pct_rent_burden_35_plus
+verified: '2026-11-12'
+verification: Read the official county page and its listed phone. Information-only entry; use the linked
+  page for current terms, services and application steps.

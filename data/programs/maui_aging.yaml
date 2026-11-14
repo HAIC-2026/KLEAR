@@ -1,0 +1,17 @@
+program_id: maui_aging
+name: Maui County Office on Aging
+description: Help finding care, services and local support for kūpuna.
+serves: Kūpuna and their families.
+agency: Maui County Office on Aging
+level: county
+counties:
+- '15009'
+url: https://www.mauicounty.gov/255/Office-on-Aging
+phone: (808) 270-7774
+phone_source: https://www.mauicounty.gov/255/Office-on-Aging
+rules: []
+needs:
+- pct_65_plus
+verified: '2026-11-12'
+verification: Read the official county page and its listed phone. Information-only entry; use the linked
+  page for current terms, services and application steps.

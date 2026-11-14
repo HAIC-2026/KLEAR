@@ -688,7 +688,7 @@ function programRow(p, full) {
   const row = node('div', '', 'program');
   const name = node('p', '', 'program-name');
   name.append(link(p.name, p.url));
-  row.append(name, node('p', p.agency, 'program-agency'));
+  row.append(name, node('p', `${p.level} · ${p.agency}`, 'program-agency'));
   if (full && p.description) row.append(node('p', p.description, 'program-about'));
   if (p.reasons && p.reasons.length) {
     const list = node('ul', '', 'program-reasons');
@@ -1148,13 +1148,13 @@ function sheetParts(p, limit = SHEET_PROGRAMS) {
     const list = node('ul', '', 'sheet-list');
     for (const g of programs) {
       const li = document.createElement('li');
-      li.append(node('b', g.name));
+      li.append(node('b', g.name), ` (${g.level})`);
       if (g.description) li.append(': ', says('span', g.description));
       if (g.agency) li.append(` (${g.agency})`);
       if (g.url) li.append(' ', url(g.url));
       list.append(li);
     }
-    const why = matched.programs.length ? 'Listed because this district’s need figures sit above the state’s, highest first.' : 'None of this district’s need figures sit clearly above the state’s, so these programs serve residents statewide.';
+    const why = matched.programs.length ? 'Listed because this district’s need figures sit above the state’s, highest first.' : 'None of this district’s need figures sit clearly above the state’s, so these programs may help residents here.';
     const more = shown.length > programs.length ? ' The live profile lists every program.' : '';
     parts.push(section('Programs to explore', 'sheet-programs', list, node('p', `${why}${more} ${matched.note || ''}`.trim(), 'sheet-note')));
   }
@@ -1839,7 +1839,7 @@ function answerPrograms(programs, sources) {
   details.open = true;
   const matched = programs.filter(p => p.match !== false), others = programs.filter(p => p.match === false);
   const ranked = programs.some(p => 'match' in p);
-  details.append(node('summary', ranked ? 'Programs to explore here' : 'Program pages'), ...programList(matched, others, matched.length ? 'Also available statewide' : 'Available statewide'));
+  details.append(node('summary', ranked ? 'Programs to explore here' : 'Program pages'), ...programList(matched, others, matched.length ? 'Also available here' : 'Available here'));
   if (sources && sources.length) details.append(profileSources(sources));
   return details;
 }

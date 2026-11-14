@@ -11,3 +11,4 @@ rules: [snap_fy2027]
 needs: [pct_hh_snap, pct_people_poverty]
 verified: '2026-11-09'
 verification: Fetched the page (HTTP 200). It links the online application and prints the phone
+level: state

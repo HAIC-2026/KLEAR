@@ -7,6 +7,7 @@ import yaml
 from klear.agent.earlier import INDICATORS_MAX, MOST, QUESTION_MAX, Exchange
 from klear.eval.agents import GOLDEN_ID
 from klear.eval.contract import REFUSALS
+from klear.programs import catalog
 from klear.store.db import GEO_TYPES
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -90,7 +91,9 @@ def _earlier(raw) -> tuple[Exchange, ...]:
 
 
 def rule_ids(rules: Path = RULES) -> set[str]:
-    return {yaml.safe_load(p.read_text(encoding="utf-8"))["rule_id"] for p in Path(rules).glob("*.yaml")}
+    return {yaml.safe_load(p.read_text(encoding="utf-8"))["rule_id"] for p in Path(rules).glob("*.yaml")} | {
+        p.program_id for p in catalog() if not p.rules
+    }
 
 
 def _parse(path: Path, rules: set[str]) -> Golden:
@@ -125,7 +128,7 @@ def _parse(path: Path, rules: set[str]) -> Golden:
         if k in data:
             kw[k] = list(_strings(k, data[k], None))
     if unknown := [p for p in kw.get("programs", []) + kw.get("programs_forbidden", []) if p not in rules]:
-        raise ValueError(f"program {unknown[0]} is not a rule_id in data/rules")
+        raise ValueError(f"program {unknown[0]} is not a known rule or information-only program id")
     if "allowed_geos" in data:
         if not isinstance(data["allowed_geos"], list):
             raise ValueError("allowed_geos must be a list")

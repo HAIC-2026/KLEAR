@@ -11,3 +11,4 @@ rules: [preschool_open_doors]
 needs: [pct_children_poverty, pct_hh_with_children]
 verified: '2026-11-09'
 verification: Fetched the Child Care Program Office page and its October 2026 application update (HTTP 200)
+level: state

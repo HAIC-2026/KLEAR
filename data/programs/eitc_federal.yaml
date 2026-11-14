@@ -11,3 +11,4 @@ rules: [eitc_federal_ty2025, eitc_federal_ty2026]
 needs: [eitc_share, pct_families_poverty]
 verified: '2026-11-09'
 verification: Fetched the EITC page and the IRS help page (HTTP 200)
+level: federal

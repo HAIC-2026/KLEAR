@@ -9,6 +9,7 @@ import pytest
 import yaml
 
 from klear.eval.golden import CATEGORIES, ROOT, load_golden
+from klear.programs import catalog
 
 # Keep these IDs aligned with the built stage two store.
 STAGE_TWO_IDS = {
@@ -187,10 +188,11 @@ def test_golden_county_facts_are_district_parent_county():
                 assert geo_id == parent[g.district], (g.id, geo_id, parent[g.district])
 
 
-def test_golden_programs_are_rule_ids():
+def test_golden_programs_are_rule_or_information_only_ids():
     rules = {
         yaml.safe_load(p.read_text(encoding="utf-8"))["rule_id"] for p in (ROOT / "data/rules").glob("*.yaml")
     }
+    rules.update(p.program_id for p in catalog() if not p.rules)
     for g in load_golden():
         for program in g.programs + g.programs_forbidden:
             assert program in rules, (g.id, program)
