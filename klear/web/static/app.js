@@ -761,6 +761,7 @@ function profileSection(key, title, content) {
 function dataSection(sec) {
   const rows = node('div', '', 'profile-rows'), content = [];
   rows.append(...sec.rows.map(profileRow));
+  if (sec.intro) content.push(node('p', sec.intro, 'profile-caveat lead'));
   if (sec.caveat) content.push(node('p', sec.caveat, 'profile-caveat lead'));
   if (sec.method) content.push(methodLine(sec.method));
   content.push(rows, profileSources(sec.sources, sec.compared));
@@ -942,11 +943,13 @@ function renderProfile(p) {
   return out;
 }
 
-// The one-page summary that prints in place of the page: twelve key figures beside the county and the state, programs
-// to explore, and every source with its vintage. Paper cannot follow links, so every address is written out.
+// The one-page summary that prints in place of the page: key figures beside the county and the state, programs to
+// explore, and every source with its vintage. Paper cannot follow links, so every address is written out. A
+// group's name in p.largest stands for the district's largest figures of that group, at most the number given.
 const PRINT_GROUPS = [
   ['People', ['pop_total', 'pct_65_plus', 'pop_under_18']],
   ['Income and poverty', ['median_household_income', 'pct_people_poverty', 'pct_children_poverty', 'pct_65_plus_poverty']],
+  ['Work and education', ['unemployment_rate', ['largest_industries', 1], 'pct_bachelors_plus']],
   ['Housing', ['pct_renter_occupied', 'median_gross_rent', 'pct_rent_burden_35_plus']],
   ['Health and assistance', ['pct_uninsured', 'pct_hh_snap']],
 ];
@@ -1014,7 +1017,8 @@ function sheetParts(p, limit = SHEET_PROGRAMS) {
     return s;
   };
   const byId = new Map(p.sections.flatMap(s => s.rows.map(r => [r.id, r])));
-  const groups = PRINT_GROUPS.map(([title, ids]) => [title, ids.map(id => byId.get(id)).filter(Boolean)]).filter(([, rows]) => rows.length);
+  const expand = id => Array.isArray(id) ? ((p.largest || {})[id[0]] || []).slice(0, id[1]) : [id];
+  const groups = PRINT_GROUPS.map(([title, ids]) => [title, ids.flatMap(expand).map(id => byId.get(id)).filter(Boolean)]).filter(([, rows]) => rows.length);
   const against = (r, kind) => (r.against || []).find(a => String(a.geo || '').startsWith(`${kind}:`));
   const placeOf = kind => (groups.flatMap(([, rows]) => rows).map(r => against(r, kind)).find(a => a && a.place) || {}).place;
   // A column pair (estimate, then margin) for the district, then its county and the state when the profile has them.
@@ -1397,11 +1401,14 @@ function showMode(article, mode) {
 const TOPICS = [
   {key: 'programs', match: /program|benefit|assistance|support|help available/, ask: d => `What support programs could residents of ${d} explore?`, next: ['poverty', 'housing']},
   {key: 'profile', match: /\b(profile|socioeconomic|overview)/, ask: d => `Give me a socioeconomic profile of ${d}.`, next: ['kupuna', 'housing', 'programs']},
+  {key: 'industries', match: /\b(industr|tourism|tourist|hotel|construction|public administration|government job)/, compare: 'the largest industries', ask: d => `What industries do residents of ${d} work in?`, more: d => `What kinds of jobs do residents of ${d} have?`, next: ['education', 'income']},
+  {key: 'jobs', match: /\b(occupation|kinds? of jobs?|types? of jobs?|what jobs|which jobs)/, ask: d => `What kinds of jobs do residents of ${d} have?`, next: ['industries', 'education']},
+  {key: 'education', match: /\b(degree|college|educat|diploma|high school|graduat)/, compare: 'college graduates', ask: d => `What share of adults in ${d} have a college degree?`, next: ['industries', 'income']},
   {key: 'kupuna', match: /\b(kūpuna|kupuna|senior|older adult|65)/, compare: 'kūpuna', ask: d => `How many kūpuna live in ${d}?`, more: d => `How many kūpuna in ${d} live below the poverty level?`, next: ['health', 'programs']},
   {key: 'poverty', match: /\b(poverty|low income)/, compare: 'poverty', ask: d => `How many people in ${d} live below the poverty level?`, more: d => `How many keiki in ${d} live below the poverty level?`, next: ['income', 'programs']},
   {key: 'housing', match: /\b(housing|rent|cost burden)/, compare: 'housing costs', ask: d => `What does the data say about housing needs in ${d}?`, more: d => `How many renters in ${d} pay 35% or more of their income on rent?`, next: ['income', 'programs']},
   {key: 'income', match: /\b(income|wage|earn)/, compare: 'household income', ask: d => `What is the median household income in ${d}?`, more: d => `What is the per capita income in ${d}?`, next: ['poverty', 'housing']},
-  {key: 'work', match: /\b(unemploy|jobs|work)/, compare: 'unemployment', ask: d => `How many people in ${d} are unemployed?`, more: d => `How many people in ${d} work from home?`, next: ['income', 'poverty']},
+  {key: 'work', match: /\b(unemploy|jobs|work)/, compare: 'unemployment', ask: d => `How many people in ${d} are unemployed?`, more: d => `How many people in ${d} work from home?`, next: ['industries', 'income']},
   {key: 'health', match: /\b(health|uninsured|disabil)/, compare: 'health insurance coverage', ask: d => `How many people in ${d} have no health insurance?`, more: d => `How many people in ${d} have a disability?`, next: ['kupuna', 'programs']},
   {key: 'keiki', match: /\b(child|keiki|young)/, compare: 'keiki', ask: d => `How many keiki live in ${d}?`, more: d => `How many households in ${d} have children?`, next: ['poverty', 'programs']},
   {key: 'people', match: /\b(population|people|residents)/, ask: d => `How many people live in ${d}?`, next: ['kupuna', 'keiki', 'income']},

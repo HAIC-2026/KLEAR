@@ -5,7 +5,7 @@ import time
 
 import pytest
 
-from klear.agent.config import FIXED_INCOME, PROFILE_SECTIONS
+from klear.agent.config import FIXED_INCOME, INDUSTRIES, PROFILE_SECTIONS
 from klear.agent.tools import TOOL_SPECS, Session, _dedupe, _Named
 from klear.eval.golden import load_golden
 from klear.programs import catalog
@@ -640,3 +640,25 @@ def test_suggestions_on_the_built_store(session):
             assert out, (text, s)
             if s["kind"] in ("place", "island", "neighborhood", "division"):
                 assert [m["name"] for m in out] == [s["label"]], (text, s)
+
+
+@pytest.mark.parametrize(("words", "first"), [
+    (["tourism"], "pct_industry_arts_food"),
+    (["hotels"], "pct_industry_arts_food"),
+    (["government"], "pct_industry_public_admin"),
+    (["construction"], "pct_industry_construction"),
+    (["college", "degree"], "pct_bachelors_plus"),
+    (["education"], "pct_hs_grad_plus"),
+])  # fmt: skip
+def test_work_and_education_words_find_their_measures(real_con, words, first):
+    assert call(Session(real_con), "search_indicators", words=words)["indicators"][0]["indicator_id"] == first
+
+
+def test_industry_and_job_words_find_every_industry(real_con):
+    for words in (["industries"], ["jobs"]):
+        found = {
+            e["indicator_id"] for e in call(Session(real_con), "search_indicators", words=words)["indicators"]
+        }
+        assert found >= set(INDUSTRIES), words
+    jobs = call(Session(real_con), "search_indicators", words=["jobs"])["indicators"]
+    assert {"unemployment_rate", "pct_in_labor_force"} <= {e["indicator_id"] for e in jobs}

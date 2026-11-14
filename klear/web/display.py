@@ -7,7 +7,13 @@ from datetime import datetime
 
 from klear import caveats
 from klear.agent.answer import actual_direction
-from klear.agent.config import OUTREACH_NOTE_LIMIT, OUTREACH_PAIRS, PROFILE_HEADLINE
+from klear.agent.config import (
+    OUTREACH_NOTE_LIMIT,
+    OUTREACH_PAIRS,
+    PROFILE_HEADLINE,
+    PROFILE_LARGEST,
+    PROFILE_SECTIONS,
+)
 from klear.config import CURRENT_LAYER
 from klear.eval.contract import MARKER, _has, _number, geo_display, geo_key, short_name
 from klear.eval.scorers import reliability
@@ -433,6 +439,13 @@ def elsewhere(refusal: str, has_figures: bool) -> dict:
 
 
 NOUNS = {"percent": "rate", "dollars": "amount"}
+# A line under the title of a section that shows a group's largest figures (PROFILE_LARGEST).
+LARGEST_INTROS = {
+    "largest_industries": (
+        "The industry rows are the district's three largest of 13 industry groups. They count residents by the "
+        "industry they work in, wherever the job is."
+    ),
+}
 
 
 def _compared(mine, theirs, unit: str, direction: str | None) -> str:
@@ -581,6 +594,8 @@ def profile(
         r["fact"]["indicator_id"]: _profile_row(r, session, store) for s in raw["sections"] for r in s["rows"]
     }
     headline = [_public(rows[i]) for i in PROFILE_HEADLINE if i in rows]
+    largest = _largest(raw)
+    keys = {title: [k for k in ids if k in PROFILE_LARGEST] for title, ids in PROFILE_SECTIONS}
     sections = [
         _linked(
             _section(s["title"], [rows[r["fact"]["indicator_id"]] for r in s["rows"]]),
@@ -588,6 +603,7 @@ def profile(
             session,
             store,
         )
+        | {"intro": " ".join(LARGEST_INTROS[k] for k in keys.get(s["title"], []) if largest.get(k))}
         for s in raw["sections"]
     ]
     where = ", ".join([*(c["name"] for c in raw["counties"]), *([islands] if islands else [])])
@@ -600,6 +616,7 @@ def profile(
         "overlaps": [{"name": o["name"], "share": _percent(o["share"])} for o in raw["overlaps"]],
         "headline": headline,
         "sections": sections,
+        "largest": largest,
         "shares_source": SHARES_SOURCE,
         "plan": plan(con, raw["district"]["geo"]),
         "programs": matched_programs(con, matched, session) if matched else None,
@@ -607,6 +624,12 @@ def profile(
         "built": build_date(con),
         "caveats": place_caveats(con, [geo_key(raw["district"]["geo"])]),
     }
+
+
+def _largest(raw: dict) -> dict[str, list[str]]:
+    """The indicators each PROFILE_LARGEST group shows in the profile, largest first."""
+    shown = [r["fact"]["indicator_id"] for s in raw["sections"] for r in s["rows"]]
+    return {key: [i for i in shown if i in group] for key, (group, _) in PROFILE_LARGEST.items()}
 
 
 # How the Commission's permanent-resident count differs from the ACS total population in the profile.

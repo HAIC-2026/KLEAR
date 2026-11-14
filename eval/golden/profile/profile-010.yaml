@@ -1,0 +1,14 @@
+id: profile-010
+category: profile
+question: What industries do residents of House District 22 work in?
+ideal: Gives the share of employed residents of this Hawaiʻi House district in each industry group, largest first,
+  with margins of error and the ACS vintage. Says the shares count residents by the industry they work in, wherever the
+  job is.
+tags: [work]
+district: [house, "022"]
+facts:
+  - [pct_industry_education_health, house, "022"]
+  - [pct_industry_professional, house, "022"]
+  - [pct_industry_retail, house, "022"]
+must_say: ["2020-2024"]
+refusal: none
