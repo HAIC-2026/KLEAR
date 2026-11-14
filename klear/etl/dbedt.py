@@ -15,6 +15,15 @@ DBEDT_URLS = {
     "county": BASE_URL + "acs2024_5yr_counties_hi.xlsx",
     "state": BASE_URL + "acs2024_5yr_state_hi.xlsx",
 }
+# registered as the second publication that stored Census profile facts are checked against
+SOURCE_ID = "dbedt_acs2024_5yr_profiles"
+SOURCE = (
+    "American Community Survey 5-year data profiles for Hawaiʻi House and Senate districts, counties and the state",
+    "Hawaiʻi Department of Business, Economic Development and Tourism (DBEDT)",
+    BASE_URL,
+    "2020-2024 ACS 5-year",
+    "https://census.hawaii.gov/acs/acs-2024/",
+)
 SUBHEADERS = ("Estimate", "Margin of Error", "Percent", "Percent Margin of Error")
 COLUMNS = [
     "geo_type", "geo_id", "sheet", "row_no", "label", "section",

@@ -24,7 +24,9 @@ from klear.validation import CheckResult
 from klear.validation import chas as chas_check
 from klear.validation.report import render_validation
 from klear.validation.rules import HUD_COLUMNS, HUD_COUNTIES, HUD_FILE, HUD_URL
+from tests.etl.test_bls import reply as bls_reply
 from tests.etl.test_dbedt import make_workbook
+from tests.etl.test_dotax import make_tables
 from tests.fixtures.make_chas_sample import table8
 from tests.fixtures.make_plan_report import plan_rows, report_pdf
 
@@ -47,8 +49,8 @@ PROFILE_LABELS = {
 }
 CHECKS = [
     "source_fidelity", "boundaries_house", "boundaries_senate", "blocks", "population", "apportionment", "irs_state",
-    "irs_county", "cms_county", "hud_hcv", "sites", "members", "places", "chas", "gazetteer", "areas", "plan_report",
-    "rules", "district_sums", "admin_counts", "store", "raw_files",
+    "irs_county", "cms_county", "hud_hcv", "sites", "members", "places", "chas", "bls", "dotax", "gazetteer", "areas",
+    "plan_report", "rules", "district_sums", "admin_counts", "store", "raw_files",
 ]  # fmt: skip
 NEW_TITLES = [
     "irs_state",
@@ -456,6 +458,7 @@ class Stub:
             "cwsq-ngmh.csv": _places(),
             "swc5-untb.csv": _places_county(),
             "smoke_page": RULE_PAGE.encode(),
+            "2023credit_tables.xlsx": make_tables(tmp / "credits.xlsx").read_bytes(),
         }
 
     def _census(self, request):
@@ -501,6 +504,8 @@ class Stub:
             raise httpx.ConnectError("network disabled in test")
         if request.url.host == "api.census.gov":
             return self._census(request)
+        if request.url.host == "api.bls.gov":
+            return httpx.Response(200, json=bls_reply())
         if request.url.host == "services.arcgis.com":
             return httpx.Response(200, content=_arcgis(request.url.path))
         if request.url.host == "geodata.hawaii.gov":
@@ -611,7 +616,8 @@ def test_build_creates_store_outputs_and_report(env, capsys):
     build = env.tmp / "build"
     con = duckdb.connect(str(build / "klear.duckdb"), read_only=True)
     sources = {r[0] for r in con.execute("SELECT source_id FROM source").fetchall()}
-    assert len(sources) == 2 + 12
+    # ACS, twelve other sources, BLS and the Department of Taxation, and DBEDT for the cross-check
+    assert len(sources) == 2 + 12 + 3
     geos = dict(con.execute("SELECT geo_type, count(*) FROM geography GROUP BY 1").fetchall())
     assert geos == {"state": 1, "county": 5, "senate": 25, "house": 51, "tract": len(TRACTS), "zcta": 2}
     n_facts, n_unsourced = con.execute(
@@ -628,7 +634,19 @@ def test_build_creates_store_outputs_and_report(env, capsys):
         ).fetchall()
     )
     assert licenses.pop(plan_report.SOURCE_ID) == "Public record of the State of Hawaiʻi"
-    assert set(licenses.values()) == {"Public domain, U.S. Government work"}
+    assert set(licenses.values()) == {
+        "Public domain, U.S. Government work",
+        "Public data of the State of Hawaiʻi",
+    }
+    assert con.execute("SELECT count(*) FROM fact WHERE tier = 'C'").fetchone()[0] == 15 + 30
+    marks = con.execute("SELECT DISTINCT geo_type, match_source_id FROM fact_match").fetchall()
+    assert {g for g, _ in marks} == {"state", "county", "senate", "house"}
+    assert {m for _, m in marks} == {"dbedt_acs2024_5yr_profiles"}
+    n_marked = con.execute("SELECT count(*) FROM fact_match").fetchone()[0]
+    assert (
+        n_marked
+        == con.execute("SELECT count(*) FROM fact WHERE source_id = 'acs2024_5yr_profile'").fetchone()[0]
+    )
     plan = con.execute(
         "SELECT count(*), count(description), sum(permanent), min(description_page) FROM district_plan"
     ).fetchone()

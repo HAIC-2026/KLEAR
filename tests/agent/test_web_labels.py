@@ -6,8 +6,10 @@ import re
 import pandas as pd
 import pytest
 
+from klear.etl.bls import laus_indicator_rows
 from klear.etl.chas import chas_indicator_rows
 from klear.etl.cms import cms_indicator_rows
+from klear.etl.dotax import credit_indicator_rows
 from klear.etl.hud import hud_indicator_rows
 from klear.etl.irs import irs_indicator_rows
 from klear.etl.places import PLACES_MEASURES
@@ -43,6 +45,8 @@ def built_indicators() -> set[str]:
             hud_indicator_rows(),
             site_indicator_rows(),
             chas_indicator_rows(),
+            laus_indicator_rows(),
+            credit_indicator_rows(),
         ]
     )
     return (

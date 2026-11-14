@@ -1,17 +1,19 @@
 """Website answers show a plain lead, number tiles, comparison charts and one source list."""
 
 import json
+from types import SimpleNamespace
 
 import pandas as pd
 
 from klear.agent.config import INDUSTRIES, PROFILE_BESIDE
 from klear.agent.tools import Session
 from klear.config import CURRENT_LAYER
+from klear.etl import bls, dotax
 from klear.eval.contract import Answer, FactRef
 from klear.labels import plain_labels
 from klear.store.db import add_facts, add_indicators, add_source
-from klear.web.display import CAUTION, METHODS_PAGE, build, profile, profile_csv
-from tests.fixtures.small_store import _fact
+from klear.web.display import CAUTION, METHODS_PAGE, build, figure_links, profile, profile_csv
+from tests.fixtures.small_store import _fact, add_county_context
 
 
 def fact(ref, geo_id, value, moe, low=None, high=None):
@@ -304,6 +306,103 @@ def test_profile_download_keeps_a_place_with_no_figure_and_says_why(small_con):
     )
     assert rows[1].endswith("not published for county geographies")
     assert rows[2].endswith("not published for state geographies")
+
+
+def test_figures_that_match_dbedt_say_so_in_their_source_and_link_its_profile(small_con):
+    add_county_context(small_con)
+    district = {"text": "House District 22", "url": "https://example.org/dbedt/house.xlsx"}
+    (acs,) = build(small_con, answer([fact("f1", "022", 1000.0, 100.0)], ["x"]))["sources"]
+    assert acs["match"] == {"text": "Matches DBEDT's published district profile", "places": [district]}
+    county = FactRef("f3", "pop_65_plus", "county", "15003", "acs", 5000.0, None, None, 50.0, "2020-2024")
+    (acs,) = build(small_con, answer([fact("f1", "022", 1000.0, 100.0), county], ["x"]))["sources"]
+    assert acs["match"]["text"] == "Matches DBEDT's published district and county profiles"
+    assert [p["text"] for p in acs["match"]["places"]] == ["House District 22", "Honolulu County"]
+    # House 23 was not compared, so it is never named
+    (acs,) = build(
+        small_con, answer([fact("f1", "022", 1000.0, 100.0), fact("f2", "023", 100.0, 80.0)], ["x"])
+    )["sources"]
+    assert acs["match"]["places"] == [district]
+    (acs,) = build(small_con, answer([fact("f2", "023", 100.0, 80.0)], ["x"]))["sources"]
+    assert "match" not in acs
+
+
+def test_profile_match_names_only_places_where_every_figure_matched(small_con):
+    add_county_context(small_con)
+    facts = {
+        "f1": fact("f1", "022", 1000.0, 100.0),
+        "f2": FactRef("f2", "pop_65_plus", "county", "15003", "acs", 5000.0, None, None, 50.0, "2020-2024"),
+        "f3": FactRef("f3", "pop_65_plus", "state", "15", "acs", 9000.0, None, None, None, "2020-2024"),
+        "f4": FactRef("f4", "pop_under_18", "house", "022", "acs", 10.0, None, None, 1.0, "2020-2024"),
+    }
+
+    def row(ref, against=()):
+        shown = {"ref": ref, "indicator_id": facts[ref].indicator_id, "label": "x", "vintage": "2020-2024",
+                 "source": "ACS", "reliable": None}  # fmt: skip
+        return {
+            "fact": shown,
+            "against": [
+                {"ref": r, "geo": f"{facts[r].geo_type}:{facts[r].geo_id}", "geo_name": "x", "share": "1%"}
+                for r in against
+            ],
+        }
+
+    raw = {
+        "district": {"geo": "house:022", "name": "House District 22"},
+        "counties": [], "places": [], "overlaps": [],
+        "sections": [{"title": "People", "rows": [row("f1", ["f2", "f3"])]},
+                     {"title": "Mixed", "rows": [row("f1", ["f2", "f3"]), row("f4")]}],
+    }  # fmt: skip
+    people, mixed = profile(small_con, raw, SimpleNamespace(facts=facts))["sections"]
+    match = people["sources"][0]["match"]
+    assert match["text"] == "Matches DBEDT's published district and county profiles"
+    assert [p["text"] for p in match["places"]] == ["House District 22", "Honolulu County"]
+    # a district figure in the same citation that DBEDT did not match leaves only the county
+    assert [p["text"] for p in mixed["sources"][0]["match"]["places"]] == ["Honolulu County"]
+
+
+def test_county_level_figures_link_their_series_and_table_and_say_they_cover_the_county(small_con):
+    add_county_context(small_con)
+    rate = [
+        FactRef(
+            "f1", "bls_unemployment_rate", "county", "15003", bls.SOURCE_ID, 3.0, None, None, None, "Sep"
+        ),
+        FactRef("f2", "bls_unemployment_rate", "state", "15", bls.SOURCE_ID, 3.2, None, None, None, "Sep"),
+    ]
+    out = build(small_con, answer(rate, ["x"]))
+    (chart,) = out["charts"]
+    assert chart["label"] == "Unemployment rate (county-level)"
+    (source,) = out["sources"]
+    assert source["links"] == [
+        {
+            "text": "BLS data series for Honolulu County",
+            "url": "https://data.bls.gov/timeseries/LAUCN150030000000003",
+        },
+        {
+            "text": "BLS data series for Hawaiʻi",
+            "url": "https://data.bls.gov/timeseries/LAUST150000000000003",
+        },
+    ]
+    assert "match" not in source
+    assert figure_links(dotax.SOURCE_ID, "C", "A-4", "county", "15003", "Honolulu County") == [
+        {"text": "Department of Taxation table A\u2060-\u20604", "url": dotax.REPORT_URL}
+    ]
+    raw = {
+        "district": {"geo": "house:022", "name": "House District 22"},
+        "counties": [], "places": [], "overlaps": [],
+        "sections": [{"title": "County-level figures", "geo": "county:15003", "rows": [
+            {"fact": {"ref": "f1", "indicator_id": "bls_unemployment_rate", "label": "x", "vintage": "Sep",
+                      "source": "BLS", "reliable": None},
+             "against": [{"ref": "f2", "geo": "state:15", "geo_name": "Hawaiʻi", "direction": "lower"}]}]}],
+    }  # fmt: skip
+    (section,) = profile(small_con, raw, SimpleNamespace(facts={f.ref: f for f in rate}))["sections"]
+    assert (
+        section["scope"]
+        == "These figures cover all of Honolulu County. They are not published for House District 22."
+    )
+    (row,) = section["rows"]
+    assert row["label"] == "Unemployment rate (county-level)" and row["value"] == "3.0%"
+    assert row["against"][0]["lead"] == "a little lower than"
+    assert row["against"][0]["rest"] == "the rate in Hawaiʻi: 3.2%"
 
 
 def test_work_section_shows_the_three_largest_industries(real_con):

@@ -29,6 +29,9 @@ TIERS = {"D", "A", "P", "M", "S", "C"}
 RANGE_TIERS = {"A", "M"}
 # summed facts carry a range only when some of their parts were suppressed
 OPTIONAL_RANGE_TIERS = {"S"}
+# county-level context facts, published only for counties and the state
+CONTEXT_TIER = "C"
+CONTEXT_GEO_TYPES = {"state", "county"}
 SITE_KINDS = {"public_housing", "lihtc", "health_center"}
 LAT_RANGE = (18.0, 23.0)
 LON_RANGE = (-161.0, -154.0)
@@ -48,6 +51,7 @@ AREA_KINDS = {"island", "neighborhood", "division"}
 AREA_OVERLAP_COLS = ["area_id", "geo_type", "geo_id", "pop2020", "share"]
 AREA_OVERLAP_TYPES = OVERLAP_TYPES | {"place"}
 ALIAS_COLS = ["plain", "name", "target_type", "target_id"]
+MATCH_COLS = ["geo_type", "geo_id", "indicator_id", "source_id", "match_source_id", "match_url"]
 MEMBER_COLS = ["geo_type", "geo_id", "name", "profile_url", "listed_on", "retrieved_on", "source_id"]
 PLAN_COLS = [
     "geo_type", "geo_id", "description", "description_page", "description_pdf_page", "permanent", "permanent_page",
@@ -233,12 +237,28 @@ def add_facts(con, df: pd.DataFrame) -> None:
     _fail("facts", "value_low without moe_status range", df, (ms != "range") & low.notna())
     _fail("facts", f"tier {sorted(RANGE_TIERS)} with a value needs moe_status range", df,
           df["tier"].isin(RANGE_TIERS) & value.notna() & (ms != "range"))  # fmt: skip
+    _fail("facts", f"tier {CONTEXT_TIER} outside {sorted(CONTEXT_GEO_TYPES)}", df,
+          (df["tier"] == CONTEXT_TIER) & _not_in(df, "geo_type", CONTEXT_GEO_TYPES))  # fmt: skip
     _fail("facts", "unknown source_id", df, _known(con, "source", "source_id", df))
     _fail("facts", "unknown indicator_id", df, _known(con, "indicator", "indicator_id", df))
     geos = {tuple(r) for r in con.execute("SELECT geo_type, geo_id FROM geography").fetchall()}
     keys = pd.Series(list(zip(df["geo_type"], df["geo_id"], strict=True)), index=df.index)
     _fail("facts", "unknown geography (geo_type, geo_id)", df, ~keys.isin(geos))
     _insert(con, "fact", df)
+
+
+def add_fact_matches(con, df: pd.DataFrame) -> None:
+    # stored facts that equal a second publication, with the page or file that publishes it
+    df = _require_columns(df, MATCH_COLS, "fact matches")
+    _fail("fact matches", "match_url not https", df, ~df["match_url"].str.startswith("https://"))
+    sources = {r[0] for r in con.execute("SELECT source_id FROM source").fetchall()}
+    _fail("fact matches", "unknown match_source_id", df, ~df["match_source_id"].isin(sources))
+    facts = {
+        tuple(r) for r in con.execute("SELECT geo_type, geo_id, indicator_id, source_id FROM fact").fetchall()
+    }
+    keys = pd.Series(list(df[MATCH_COLS[:4]].itertuples(index=False, name=None)), index=df.index)
+    _fail("fact matches", "no stored fact", df, ~keys.isin(facts))
+    _insert(con, "fact_match", df)
 
 
 def add_sites(con, df: pd.DataFrame) -> None:

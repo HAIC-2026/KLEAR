@@ -8,11 +8,13 @@ from pathlib import Path
 
 import pandas as pd
 
+from klear.etl import bls, dbedt
 from klear.store.db import (
     add_areas,
     add_blocks,
     add_coverage,
     add_district_plan,
+    add_fact_matches,
     add_facts,
     add_geographies,
     add_indicators,
@@ -217,3 +219,73 @@ def add_outreach(con) -> None:
         _fact("state", "15", "hh_snap", 60000.0, 2000.0),
     ]
     add_facts(con, pd.DataFrame(rows))
+
+
+def add_county_context(con):
+    """DBEDT match marks on the kūpuna counts of House 22 and Honolulu County, and a county-level BLS
+    unemployment rate for Honolulu County and the state, as the build writes them."""
+    add_source(
+        con, dbedt.SOURCE_ID, "ACS 5-year profiles", "Hawaiʻi DBEDT", "https://example.org/dbedt", "2020-2024",
+        "state", page_url="https://example.org/dbedt",
+    )  # fmt: skip
+    add_source(
+        con, bls.SOURCE_ID, "Local Area Unemployment Statistics (county-level)", "U.S. Bureau of Labor Statistics",
+        "https://example.org/bls", "September 2026 (preliminary)", "pd", page_url="https://example.org/bls",
+    )  # fmt: skip
+    add_indicators(
+        con,
+        pd.DataFrame(
+            [
+                (
+                    "bls_unemployment_rate",
+                    "Unemployment rate (county-level, monthly)",
+                    "percent",
+                    "labor force",
+                    None,
+                    False,
+                )
+            ],
+            columns=["indicator_id", "label", "unit", "universe", "acs_var", "additive"],
+        ),
+    )
+    add_coverage(
+        con, pd.DataFrame([("bls_unemployment_rate", "county"), ("bls_unemployment_rate", "state")],
+                          columns=["indicator_id", "geo_type"])
+    )  # fmt: skip
+    context = {"moe_status": "not_applicable", "tier": "C", "source_id": bls.SOURCE_ID}
+    add_facts(
+        con,
+        pd.DataFrame(
+            [
+                _fact(
+                    "county",
+                    "15003",
+                    "bls_unemployment_rate",
+                    3.0,
+                    None,
+                    table_id="LAUCN150030000000003",
+                    **context,
+                ),
+                _fact(
+                    "state",
+                    "15",
+                    "bls_unemployment_rate",
+                    3.2,
+                    None,
+                    table_id="LAUST150000000000003",
+                    **context,
+                ),
+            ]
+        ),
+    )
+    marks = [
+        ("house", "022", "pop_65_plus", "acs", dbedt.SOURCE_ID, "https://example.org/dbedt/house.xlsx"),
+        ("county", "15003", "pop_65_plus", "acs", dbedt.SOURCE_ID, "https://example.org/dbedt/counties.xlsx"),
+    ]
+    add_fact_matches(
+        con,
+        pd.DataFrame(
+            marks, columns=["geo_type", "geo_id", "indicator_id", "source_id", "match_source_id", "match_url"]
+        ),
+    )
+    return con

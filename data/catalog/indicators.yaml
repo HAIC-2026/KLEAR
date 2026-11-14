@@ -776,3 +776,32 @@ other_sources:
   - indicator_id: chas_owner_lowinc_burdened
     short_label: "Low-income owners with high housing costs"
     plain: "Owner households with income at or below 80% of the area median income that spend more than 30% of it on housing."
+  # BLS county unemployment, county-level only (klear/etl/bls.py)
+  - indicator_id: bls_unemployment_rate
+    short_label: "Unemployment rate (county-level)"
+    plain: "The share of the county's workers who have no job and are looking for one, from the latest monthly BLS count."
+  - indicator_id: bls_unemployed
+    short_label: "Unemployed people (county-level)"
+    plain: "People in the county who have no job and are looking for one, from the latest monthly BLS count."
+  - indicator_id: bls_labor_force
+    short_label: "Labor force (county-level)"
+    plain: "People 16 and over in the county who have a job or are looking for one, from the latest monthly BLS count."
+  # Hawaiʻi Department of Taxation credits, county-level only (klear/etl/dotax.py)
+  - indicator_id: dotax_eitc_claims
+    short_label: "State EITC claims (county-level)"
+    plain: "Hawaiʻi tax returns from the county that claimed the state earned income tax credit, a state tax break for people who work."
+  - indicator_id: dotax_eitc_dollars
+    short_label: "State EITC dollars (county-level)"
+    plain: "The total Hawaiʻi earned income tax credit claimed on tax returns from the county, in dollars."
+  - indicator_id: dotax_food_excise_claims
+    short_label: "Food/excise credit claims (county-level)"
+    plain: "Hawaiʻi tax returns from the county that claimed the food/excise tax credit, which gives back some of the tax on food and other costs."
+  - indicator_id: dotax_food_excise_dollars
+    short_label: "Food/excise credit dollars (county-level)"
+    plain: "The total food/excise tax credit claimed on Hawaiʻi tax returns from the county, in dollars."
+  - indicator_id: dotax_renters_claims
+    short_label: "Renters credit claims (county-level)"
+    plain: "Hawaiʻi tax returns from the county that claimed the credit for renters with low income."
+  - indicator_id: dotax_renters_dollars
+    short_label: "Renters credit dollars (county-level)"
+    plain: "The total renters credit claimed on Hawaiʻi tax returns from the county, in dollars."

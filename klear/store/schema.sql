@@ -78,6 +78,10 @@ CREATE TABLE IF NOT EXISTS build_info (
 --                   available, treat as uncertain".
 --   not_applicable  moe is NULL, no margin of error applies. Do not give a margin.
 --   range           moe is NULL, value_low and value_high bound the value. Say "about X (range L to H)".
+--
+-- tier
+--   D direct, A apportioned, P counted from points, M modeled, C county-level context: published only for
+--   counties and the state, so a C fact is never stored for a district, tract or ZIP code.
 CREATE TABLE IF NOT EXISTS fact (
     geo_type VARCHAR NOT NULL,
     geo_id VARCHAR NOT NULL,
@@ -104,7 +108,22 @@ CREATE TABLE IF NOT EXISTS fact (
     -- tier S (summed) carries a range only when some of its parts were suppressed
     CHECK (tier = 'S' OR (tier IN ('A', 'M') AND value IS NOT NULL) = (value_low IS NOT NULL)),
     CHECK ((moe_status = 'range') = (value_low IS NOT NULL)),
-    CHECK (tier NOT IN ('A', 'M') OR value IS NULL OR moe_status = 'range')
+    CHECK (tier NOT IN ('A', 'M') OR value IS NULL OR moe_status = 'range'),
+    CHECK (tier <> 'C' OR geo_type IN ('state', 'county'))
+);
+
+-- Stored facts that equal a second publication of the same figure (value, margin of error and both
+-- statuses), with the page or file that publishes it. The build writes a row only for a fact it compared.
+CREATE TABLE IF NOT EXISTS fact_match (
+    geo_type VARCHAR NOT NULL,
+    geo_id VARCHAR NOT NULL,
+    indicator_id VARCHAR NOT NULL,
+    source_id VARCHAR NOT NULL,
+    match_source_id VARCHAR NOT NULL REFERENCES source (source_id),
+    match_url VARCHAR NOT NULL CHECK (match_url LIKE 'https://%'),
+    PRIMARY KEY (geo_type, geo_id, indicator_id, source_id, match_source_id),
+    FOREIGN KEY (geo_type, geo_id, indicator_id, source_id) REFERENCES fact (geo_type, geo_id, indicator_id, source_id),
+    CHECK (match_source_id <> source_id)
 );
 
 CREATE TABLE IF NOT EXISTS site (

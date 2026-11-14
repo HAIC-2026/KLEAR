@@ -239,6 +239,18 @@ OUTREACH_PAIRS = {
 OUTREACH_DEFAULT = "snap"
 # A district profile names at most this many pairs whose top tier holds the district.
 OUTREACH_NOTE_LIMIT = 2
+# County-level figures the profile shows for the district's main county, compared with the state. Their sources
+# publish them only for counties, so they are never the district's own figures.
+COUNTY_SECTION = (
+    "County-level figures",
+    (
+        "bls_unemployment_rate",
+        "dotax_eitc_claims",
+        "dotax_eitc_dollars",
+        "dotax_food_excise_claims",
+        "dotax_renters_claims",
+    ),
+)
 # Profile figures to show first, before the full sections.
 PROFILE_HEADLINE = ("pop_total", "median_household_income", "pct_people_poverty", "pct_65_plus")
 PROFILE_INDICATORS = tuple(
@@ -296,6 +308,14 @@ MEASURES = {
     "eitc_federal_ty2025": ("irs_eitc_returns", "irs_eitc_dollars"),
     "eitc_federal_ty2026": ("irs_eitc_returns", "irs_eitc_dollars"),
     "hud_il_fy2026_hi": ("hud_vouchers",),
+    "hi_state_credits": (
+        "dotax_eitc_claims",
+        "dotax_eitc_dollars",
+        "dotax_food_excise_claims",
+        "dotax_food_excise_dollars",
+        "dotax_renters_claims",
+        "dotax_renters_dollars",
+    ),
     "snap_fy2027": ("pct_hh_snap", "hh_snap", "places_received_snap"),
     "ssi_federal_2026": ("pct_hh_ssi", "hh_ssi"),
     "ssi_hi_supplement": ("pct_hh_ssi", "hh_ssi"),

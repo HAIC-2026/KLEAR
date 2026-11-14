@@ -56,7 +56,7 @@
       <div class="wrap">
         <div class="section-head" id="chat-head">
           <h2 id="chat-title">Ask about a district</h2>
-          <p>KLEAR answers only from its public data store. Each figure lists its source, survey years, and margin of error. Where it helps, KLEAR also shows the state value for comparison. Answers describe communities, not individuals. KLEAR declines personal and partisan requests.</p>
+          <p>KLEAR answers only from its public data store. Each figure lists its source, survey years, and margin of error. Where it helps, KLEAR also shows the county and state values for comparison. Answers describe communities, not individuals. KLEAR declines personal and partisan requests.</p>
         </div>
         <div class="chat-layout">
           <!-- On a district's address the page starts here, with the district's name as its heading. Below 1200 px the
@@ -128,7 +128,7 @@
         <ol class="steps">
           <li><h3>Pick a district</h3><p>Search by district number, town, neighborhood, island, ZIP code, or street address, or tap the district on the map. When a place spans districts, KLEAR lists the House and Senate districts separately and shows how its residents split.</p><figure class="shot"><figcaption><strong>Screenshot</strong>, not clickable</figcaption><img src="/shots/step-1.png" width="1394" height="833" loading="lazy" draggable="false" alt="The district search with Kāneʻohe entered. KLEAR lists the matches in two groups. House districts 49, 50, and 48 hold 67, 18, and 14 percent of Kāneʻohe residents. Senate districts 24 and 23 hold 92 and 8 percent. A line below suggests finding the district on the map."></figure></li>
           <li><h3>Ask a question</h3><p>Ask in plain words about residents, housing, income, or programs, or start from a suggested question.</p><figure class="shot"><figcaption><strong>Screenshot</strong>, not clickable</figcaption><img src="/shots/step-2.png" width="1442" height="996" loading="lazy" draggable="false" alt="The question box with “How does poverty here compare with the state?” typed in, above five suggested questions to try."></figure></li>
-          <li><h3>Check the numbers</h3><p>Each figure shows its margin of error or range, the state value for comparison, and the source and survey years behind it.</p><figure class="shot"><figcaption><strong>Screenshot</strong>, not clickable</figcaption><img src="/shots/step-3.png" width="1370" height="1079" loading="lazy" draggable="false" alt="KLEAR’s answer for House District 49: three bar charts compare the district’s poverty rates for all residents, children, and people 65 and over with the state. Each shows its margin of error and is marked within the margin of error. Below them are the survey years and a Sources link."></figure></li>
+          <li><h3>Check the numbers</h3><p>Each figure shows its margin of error or range, the county or state value for comparison where it helps, and the source and survey years behind it.</p><figure class="shot"><figcaption><strong>Screenshot</strong>, not clickable</figcaption><img src="/shots/step-3.png" width="1370" height="1079" loading="lazy" draggable="false" alt="KLEAR’s answer for House District 49: three bar charts compare the district’s poverty rates for all residents, children, and people 65 and over with the state. Each shows its margin of error and is marked within the margin of error. Below them are the survey years and a Sources link."></figure></li>
         </ol>
       </div>
     </section>
@@ -137,13 +137,15 @@
       <div class="wrap">
         <div class="section-head">
           <h2 id="sources-title">Data and sources</h2>
-          <p>Every figure KLEAR shows comes from one of these public sources. Survey years and district coverage vary by measure.</p>
+          <p>Every figure KLEAR shows comes from one of these public sources. Survey years vary by measure. The Geography column says whether a source publishes figures for each district, KLEAR estimates them for districts, or the source covers only counties.</p>
         </div>
         <p class="facts" id="facts" hidden></p>
-        <div class="table-scroll" id="source-wrap" hidden><table id="source-table"><caption class="visually-hidden">Public sources in the KLEAR data store</caption><thead><tr><th scope="col">Source</th><th scope="col">Publisher</th><th scope="col">Years</th></tr></thead><tbody></tbody></table></div>
+        <div class="table-scroll" id="source-wrap" hidden><table id="source-table"><caption class="visually-hidden">Public sources in the KLEAR data store</caption><thead><tr><th scope="col">Source</th><th scope="col">Publisher</th><th scope="col">Years</th><th scope="col">Geography</th></tr></thead><tbody></tbody></table></div>
         <p id="sources-missing" class="muted">The source list appears here once the data store is built.</p>
         <ul class="notes">
           <li id="crosscheck" hidden></li>
+          <li>Where a Census figure equals the one in DBEDT’s published district, county, or state profile, its source says so and links to that profile.</li>
+          <li>Unemployment from the U.S. Bureau of Labor Statistics and state tax credit claims from the Hawaiʻi Department of Taxation are published only for counties. KLEAR labels them county-level and never shows them as a district’s figure.</li>
           <li>Where a figure comes from ZIP code or census tract data estimated for a district, KLEAR shows a range, not a single number.</li>
           <li>Modeled health and needs estimates from CDC PLACES are shown as ranges too. <a href="/methods.html">How KLEAR estimates these ranges</a>.</li>
           <li>Missing data stays missing. KLEAR does not fill gaps with guesses.</li>

@@ -15,6 +15,7 @@ from klear.agent.config import (
     PROFILE_SECTIONS,
 )
 from klear.config import CURRENT_LAYER
+from klear.etl import bls, dbedt, dotax
 from klear.eval.contract import (
     MARKER,
     MEMBER_MARKERS,
@@ -53,6 +54,9 @@ METHODS_PAGE = "/methods.html"
 METHOD_TIERS = {"A", "M"}
 METHODS_TEXT = "How KLEAR estimates district ranges"
 VINTAGE_NOTE = re.compile(r"\s*\(\{vintage:\w+\}\)")
+# Who publishes the same figure again, as a match note names them, and what each geography's profile is called.
+MATCH_NAMES = {dbedt.SOURCE_ID: "DBEDT"}
+MATCH_KINDS = {"house": "district", "senate": "district", "county": "county", "state": "state"}
 # Why an estimate carries a "Use with caution" chip.
 CAUTION = "The margin of error is large compared with the estimate."
 # The same flag where it stands alone without a chip: the map, its table and the CSV download.
@@ -86,6 +90,12 @@ class _Store:
         }
         self.month = build_month(con)
         self.universes = dict(con.execute("SELECT indicator_id, universe FROM indicator").fetchall())
+        self._matches = {
+            tuple(r[:4]): (r[4], r[5])
+            for r in con.execute(
+                "SELECT geo_type, geo_id, indicator_id, source_id, match_source_id, match_url FROM fact_match"
+            ).fetchall()
+        }
 
     def place(self, geo_type: str, geo_id: str) -> str:
         row = self.con.execute(
@@ -112,6 +122,27 @@ class _Store:
         """Where a fact can be checked: its ACS table for that place, or the methods page."""
         tier, table = self.kind(f)
         return figure_links(f.source_id, tier, table, f.geo_type, f.geo_id, self.place(f.geo_type, f.geo_id))
+
+    def matched(self, facts) -> dict | None:
+        """Where another publisher prints the same figures: each place where every one of these figures was
+        compared with that publication and found equal, with a link to it."""
+        found: dict[tuple, tuple] = {}
+        missed = set()
+        for f in facts:
+            key = (f.geo_type, f.geo_id)
+            if hit := self._matches.get((*key, f.indicator_id, f.source_id)):
+                found.setdefault(key, hit)
+            else:
+                missed.add(key)
+        places = [(key, hit) for key, hit in found.items() if key not in missed]
+        if not places:
+            return None
+        kinds = list(dict.fromkeys(MATCH_KINDS.get(key[0], "") for key, _ in places))
+        name = MATCH_NAMES.get(places[0][1][0], places[0][1][0])
+        return {
+            "text": f"Matches {name}'s published {_listed(kinds)} profile{'s' if len(kinds) > 1 else ''}",
+            "places": [{"text": self.place(*key), "url": hit[1]} for key, hit in places],
+        }
 
     def caution(self, f) -> str:
         """Why the fact is unreliable, or '' when it is not."""
@@ -172,6 +203,15 @@ def year_text(vintage: str, month: str) -> str:
     return f"Current list as of {month}" if month else "Current list"
 
 
+def _listed(words: list[str]) -> str:
+    return words[0] if len(words) == 1 else f"{', '.join(words[:-1])} and {words[-1]}"
+
+
+def _unbroken(text: str) -> str:
+    """Text with word joiners around each hyphen, so a browser never breaks the line there."""
+    return text.replace("-", "\u2060-\u2060")
+
+
 def figure_links(
     source_id: str, tier: str | None, table_id: str | None, geo_type: str, geo_id: str, place: str
 ) -> list[dict]:
@@ -182,6 +222,10 @@ def figure_links(
 
     if url := table_page(source_id, table_id, geo_type, geo_id):
         return [{"text": f"Table {table_id} for {place}", "url": url}]
+    if source_id == bls.SOURCE_ID and table_id:
+        return [{"text": f"BLS data series for {place}", "url": bls.series_url(table_id)}]
+    if source_id == dotax.SOURCE_ID and table_id:
+        return [{"text": f"Department of Taxation table {_unbroken(table_id)}", "url": dotax.REPORT_URL}]
     if tier in METHOD_TIERS:
         return [{"text": METHODS_TEXT, "url": f"{METHODS_PAGE}#{source_id}"}]
     return []
@@ -390,6 +434,18 @@ def tiles(answer, store: _Store, skip: set[str]) -> tuple[list[dict], set[str]]:
     return out, used
 
 
+def _matched(cited: list[dict], facts, store: _Store) -> list[dict]:
+    """Citations with a note on the places where another publisher prints every figure they cover there."""
+    by_source: dict[tuple, list] = {}
+    for f in facts:
+        source = _source(f, store)
+        by_source.setdefault((source["name"], source["year"]), []).append(f)
+    return [
+        c | ({"match": m} if (m := store.matched(by_source.get((c["name"], c["year"]), []))) else {})
+        for c in cited
+    ]
+
+
 def place_caveats(con, geos, home=None) -> list[dict]:
     """Rule-based caveats for the districts and counties among geos. One for another place than home names it."""
     store = None
@@ -404,7 +460,8 @@ def place_caveats(con, geos, home=None) -> list[dict]:
 
 
 def sources(answer, store: _Store) -> list[dict]:
-    return _cited([_source(f, store) | {"links": store.links(f)} for f in answer.facts])
+    cited = _cited([_source(f, store) | {"links": store.links(f)} for f in answer.facts])
+    return _matched(cited, answer.facts, store)
 
 
 def member_cards(con, geos) -> list[dict]:
@@ -639,6 +696,7 @@ def profile(
             session,
             store,
         )
+        | _scope(s, raw, store)
         | {"intro": " ".join(LARGEST_INTROS[k] for k in keys.get(s["title"], []) if largest.get(k))}
         for s in raw["sections"]
     ]
@@ -661,6 +719,15 @@ def profile(
         "built": build_date(con),
         "caveats": place_caveats(con, [geo_key(raw["district"]["geo"])]),
     }
+
+
+def _scope(section: dict, raw: dict, store: _Store) -> dict:
+    """For a section of county-level figures, a line that says they cover the whole county, not the district."""
+    key = geo_key(section.get("geo", ""))
+    if key is None:
+        return {}
+    county, district = store.place(*key), raw["district"]["name"]
+    return {"scope": f"These figures cover all of {county}. They are not published for {district}."}
 
 
 def _largest(raw: dict) -> dict[str, list[str]]:
@@ -725,7 +792,10 @@ def _linked(section: dict, raw_rows: list[dict], session, store: _Store) -> dict
     sources = [
         x | {"links": links[k]} if (k := (x["name"], x["year"])) in links else x for x in section["sources"]
     ]
-    return section | {"sources": sources}
+    # the district's figures and the county and state figures beside them
+    shown = [session.facts[r["fact"]["ref"]] for r in raw_rows]
+    shown += [session.facts[a["ref"]] for r in raw_rows for a in r["against"] if "ref" in a]
+    return section | {"sources": _matched(sources, shown, store)}
 
 
 def _percent(share: float) -> str:
@@ -1111,11 +1181,10 @@ def profile_csv(con, raw: dict, session) -> str:
     out = io.StringIO()
     writer = csv.writer(out)
     writer.writerow(CSV_COLUMNS)
-    district = raw["district"]["name"]
     for section in raw["sections"]:
         for row in section["rows"]:
             fact = row["fact"]
-            places = [(session.facts[fact["ref"]], district, _unreliable_note(fact))]
+            places = [(session.facts[fact["ref"]], fact["geo_name"], _unreliable_note(fact))]
             for a in row["against"]:
                 theirs = session.facts.get(a.get("ref"))
                 shaky = theirs is not None and reliability(theirs) is False
