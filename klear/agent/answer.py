@@ -10,12 +10,16 @@ from klear.eval.contract import MARKER, MEMBER_MARKERS, REFUSALS, VERSION, Answe
 from klear.eval.scorers import (
     EMPHASIS,
     FLIP,
+    _has,
+    _plain,
+    _text_problems,
     answer_problems,
     counties,
     direction_claims,
     known_programs,
     program_named,
     program_names,
+    sourced,
 )
 from klear.members import members_of
 from klear.programs import by_rule
@@ -89,6 +93,10 @@ NUMBER_HINT = (
     "write every place with a geo marker such as {geo:house:009}, never a typed district number, "
     "and every value with a fact marker"
 )
+GEO_MARKER = re.compile(r"\{geo:[^{}\s]+\}")
+FACT_AS_GEO = re.compile(r"\{fact:(\w+)\}")
+# Sentence breaks inside one line of a block.
+SENTENCE = re.compile(r"(?<=[.!?])[ \t]+")
 DIRECTION_TEXT = {
     "higher": "higher than",
     "lower": "lower than",
@@ -138,14 +146,21 @@ def _typed_places(session, texts: list[str], allowed: set[tuple[str, str]]) -> l
     names |= {n for n, c in config.COUNTY_NAMES.items() if ("county", c) in allowed}
     known = {r[0] for r in session.con.execute("SELECT plain FROM place").fetchall()}
     known |= set(config.COUNTY_NAMES)
+    returned = f" {' '.join(w.casefold() for n in session.names for w in _words(n))} "
     words = _words(MARKER.sub(" ", " ".join(texts)))
     lower = [w.casefold() for w in words]
     found = []
     for n in sorted(known - names - {"hawaii"}):
+        if f" {n} " in returned:
+            continue
         parts = n.split()
         for i in range(len(words) - len(parts) + 1):
             if lower[i : i + len(parts)] == parts and all(w[0].isupper() for w in words[i : i + len(parts)]):
-                found.append(f"names place {n} that was not resolved; use resolve_place or a geo marker")
+                shown = " ".join(words[i : i + len(parts)])
+                found.append(
+                    f"names place {n} that was not resolved: delete {shown!r}, or call resolve_place for it "
+                    "and name it as returned"
+                )
                 break
     return found
 
@@ -217,11 +232,9 @@ def build_answer(session, args: dict, context=None) -> tuple[Answer | None, list
     ):
         problems.append(f"{refusal} answers must cite no facts and use only geo markers")
     if refusal == "decline_partisan":
-        low = " ".join(_words(" ".join([*blocks, *caveats]))).casefold()
         problems += [
-            f"decline_partisan answers must not say {w!r}"
-            for w in PARTISAN_WORDS
-            if re.search(rf"(?<!\w){w}(?!\w)", low)
+            f"decline_partisan answers must not say {w!r}: delete it"
+            for w in _partisan(" ".join([*blocks, *caveats]))
         ]
     if problems:
         return None, problems
@@ -229,9 +242,7 @@ def build_answer(session, args: dict, context=None) -> tuple[Answer | None, list
         VERSION, resolved, refusal, blocks, [replace(session.facts[r]) for r in refs], programs, caveats
     )
     allowed = allowed_geos(session, resolved, context)
-    problems = answer_problems(answer, session.con, allowed) + _typed_places(
-        session, [*blocks, *caveats], allowed
-    )
+    problems = _checked(session, answer, allowed)
     problems += _member_problems(session, [*blocks, *caveats])
     if any(p.startswith("unsourced number") for p in problems):
         problems.append(NUMBER_HINT)
@@ -239,12 +250,29 @@ def build_answer(session, args: dict, context=None) -> tuple[Answer | None, list
         text = render(answer, session.con)
         problems = [
             f"program {p} is listed but not named in the text; write it as {display_name(known[p])!r}"
+            + _lacking(text, known[p])
             for p in programs
             if not program_named(text, known[p])
         ]
         problems += _missing_required(session, answer) + _measured_not_available(answer)
         problems += _wrong_directions(answer) + _missing_group_words(session, text)
     return (None if problems else finish(session, answer)), problems
+
+
+def _lacking(text: str, name: str) -> str:
+    """The words of a program name that the text leaves out, as a hint."""
+    low = _plain(text)
+    words = re.findall(r"[^\W\d_]+", _plain(re.sub(r"\([^)]*\)", " ", name)))
+    missing = list(dict.fromkeys(w for w in words if not _has(low, w)))
+    return f"; the text lacks {', '.join(repr(w) for w in missing)}" if missing else ""
+
+
+def _checked(session, answer: Answer, allowed: set[tuple[str, str]]) -> list[str]:
+    """Fidelity problems of an answer, which may quote the question and the names tools returned."""
+    problems = answer_problems(
+        answer, session.con, allowed, session.question, sorted(session.names), session.counts
+    )
+    return problems + _typed_places(session, [*answer.blocks, *answer.caveats], allowed)
 
 
 def spelled(text: str) -> str:
@@ -440,21 +468,47 @@ def actual_direction(a, b) -> str | None:
     return "higher" if mine[0] > theirs[1] else "lower"
 
 
+def _direction_problem(s: str, said: str, o: str, found: set) -> str | None:
+    """The fix for a higher or lower claim of s against o that the cited facts contradict, or None."""
+    if said not in ("higher", "lower") or not found or s == o:
+        return None
+    if found <= {FLIP[said]}:
+        return (
+            f"the text says {s} is {said} than {o}, but the facts show it is {FLIP[said]}; "
+            "use the direction compare returns"
+        )
+    if found == {"within_margin"}:
+        return (
+            f"the text says {s} is {said} than {o}, but their margins of error overlap; write that {s} is "
+            f"within the margin of error of {o} and do not call either {said}"
+        )
+    return None
+
+
 def _wrong_directions(answer: Answer) -> list[str]:
-    """Higher or lower claims that the cited facts show the other way round."""
+    """Higher or lower claims between places or facts that the cited facts show the other way round, or as
+    within the margin of error."""
     by_geo: dict[tuple[str, str], dict[str, object]] = {}
     for f in answer.facts:
         by_geo.setdefault((f.geo_type, f.geo_id), {}).setdefault(f.indicator_id, f)
-    out = []
-    for s, said, o in direction_claims("\n".join([*answer.blocks, *answer.caveats])):
+    text = "\n".join([*answer.blocks, *answer.caveats])
+    out, claimed = [], set()
+    for s, said, o in direction_claims(text):
+        claimed.add((s, o))
         mine, theirs = by_geo.get(s, {}), by_geo.get(o, {})
-        found = {actual_direction(mine[i], theirs[i]) for i in mine.keys() & theirs.keys()}
-        if said in ("higher", "lower") and found and found <= {FLIP[said]}:
-            out.append(
-                f"the text says {{geo:{s[0]}:{s[1]}}} is {said} than {{geo:{o[0]}:{o[1]}}}, but the facts "
-                f"show it is {FLIP[said]}; use the direction compare returns"
-            )
-    return out
+        found = {actual_direction(mine[i], theirs[i]) for i in mine.keys() & theirs.keys()} - {None}
+        out.append(_direction_problem(f"{{geo:{s[0]}:{s[1]}}}", said, f"{{geo:{o[0]}:{o[1]}}}", found))
+    facts = {f.ref: f for f in answer.facts}
+    as_geos = FACT_AS_GEO.sub(r"{geo:fact:\1}", GEO_MARKER.sub(" ", text))
+    for (_, a), said, (_, b) in direction_claims(as_geos):
+        x, y = facts.get(a), facts.get(b)
+        if x is None or y is None or x.indicator_id != y.indicator_id:
+            continue
+        if ((x.geo_type, x.geo_id), (y.geo_type, y.geo_id)) in claimed:
+            continue
+        found = {actual_direction(x, y)} - {None}
+        out.append(_direction_problem(f"{{fact:{a}}}", said, f"{{fact:{b}}}", found))
+    return list(dict.fromkeys(p for p in out if p))
 
 
 def asked_group_words(session) -> list[str]:
@@ -485,6 +539,89 @@ def _measured_not_available(answer: Answer) -> list[str]:
     return [
         f"the answer cites {names}, a measure of a listed program, so set refusal none and say plainly what those figures do not show"
     ]
+
+
+def _partisan(text: str) -> list[str]:
+    low = " ".join(_words(text)).casefold()
+    return [w for w in PARTISAN_WORDS if re.search(rf"(?<!\w){w}(?!\w)", low)]
+
+
+def _trimmed(session, args: dict, context=None) -> dict | None:
+    """The submit_answer arguments without every sentence or list line that fails a check of its own, and
+    without the sentences, refs and programs that only those relied on; None when nothing is left."""
+    blocks, caveats, refs, programs = (args.get(k) for k in ("blocks", "caveats", "facts", "programs"))
+    if not all(isinstance(x, list) and all(isinstance(t, str) for t in x) for x in (blocks, caveats, refs)):
+        return None
+    names = program_names()
+    programs = [p for p in programs if p in names] if isinstance(programs, list) else []
+    refs = [r for r in dict.fromkeys(refs) if r in session.facts]
+    resolved = stored_district(session, args.get("resolved"))
+    draft = Answer(
+        VERSION, resolved, args.get("refusal"), blocks, [session.facts[r] for r in refs], programs, caveats
+    )
+    allowed = allowed_geos(session, resolved, context)
+    src = sourced(draft, session.con, session.question, sorted(session.names), session.counts)
+
+    def ok(unit: str) -> bool:
+        marks = MARKER.findall(unit)
+        return not (
+            any(k != "geo" and r not in refs for k, r in marks)
+            or any(k == "geo" and geo_key(r) not in allowed for k, r in marks)
+            or _text_problems(unit, src)
+            or _typed_places(session, [unit], allowed)
+            or (args.get("refusal") == "decline_partisan" and _partisan(unit))
+        )
+
+    def kept(group: list[str]) -> list[list[list[str]]]:
+        return [
+            [[u for u in SENTENCE.split(line) if u.strip() and ok(u)] for line in t.split("\n")]
+            for t in group
+        ]
+
+    texts, notes = kept(blocks), kept(caveats)
+    while True:
+        units = [u for t in [*texts, *notes] for line in t for u in line]
+        shown = {r for u in units for k, r in MARKER.findall(u) if k == "fact"}
+        orphan = [
+            u
+            for u in units
+            if any(k in ("label", "vintage") and r not in shown for k, r in MARKER.findall(u))
+        ]
+        if not orphan:
+            break
+        texts, notes = (
+            [[[u for u in line if u not in orphan] for line in t] for t in group] for group in (texts, notes)
+        )
+
+    def joined(group) -> list[str]:
+        out = ["\n".join(" ".join(line) for line in t if line) for t in group]
+        return [t for t in out if t.strip()]
+
+    blocks, caveats = joined(texts), joined(notes)
+    if not blocks:
+        return None
+    rendered = render(replace(draft, blocks=blocks, caveats=caveats), session.con)
+    return args | {
+        "blocks": blocks,
+        "caveats": caveats,
+        "facts": [r for r in refs if r in shown],
+        "programs": [p for p in programs if program_named(rendered, names[p])],
+    }
+
+
+def salvage(session, args, context=None) -> Answer | None:
+    """The model's answer with only its failing sentences removed, when the rest passes every check."""
+    for _ in range(3):
+        if not isinstance(args, dict):
+            return None
+        answer, _ = build_answer(session, args, context)
+        if answer is not None:
+            return answer
+        trimmed = _trimmed(session, args, context)
+        if trimmed == args:
+            return None
+        args = trimmed
+    return None
 
 
 def template_answer(

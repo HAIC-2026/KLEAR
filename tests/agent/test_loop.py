@@ -566,3 +566,11 @@ def test_max_call_cost_adds_review_calls(small_con):
     review_cost = 2 * (6000 * 0.10 + 300 * 0.50)
     got = KlearAgent(small_con, review=True).max_call_cost("claude-haiku-5-5", "q", PRICES)
     assert got == pytest.approx((answer + review_cost) / 1e6)
+
+
+def test_last_answer_is_salvaged_before_the_bare_fallback(small_con):
+    noisy = ok(blocks=[GOOD + " About 23 percent are new."])
+    agent = KlearAgent(small_con, client=FakeClient([FACTS] + [submit(noisy)] * (MAX_CALLS - 1)))
+    ans, _ = agent.answer("x", "How many seniors live in House 22?", None)
+    assert agent.trace[-1] == {"stop": "salvaged"}
+    assert ans.blocks == [GOOD] and [f.ref for f in ans.facts] == ["f1"]

@@ -115,6 +115,8 @@ DISTRICT_IN = re.compile(
 ZIP_IN = re.compile(r"(?<!\d)(96[78]\d{2})(?!\d)")
 # Longest place name, in words, looked for inside a question.
 NAME_WORDS = 5
+# Keys of tool results whose text an answer may name: sites, places, programs and agencies.
+NAME_KEYS = ("name", "agency", "program")
 
 
 class _Named(NamedTuple):
@@ -209,6 +211,9 @@ class Session:
         self.tiers: dict[str, str] = {}
         self.unreliable: set[str] = set()
         self.directions: list[tuple[str, str, str]] = []
+        # names tools returned outside geography entries, and the sizes of the named lists they returned
+        self.names: set[str] = set()
+        self.counts: set[int] = set()
         self._refs: dict[tuple[str, str, str, str], str] = {}
         self._rules = None
         self._notes: dict[str, str] | None = None
@@ -231,7 +236,23 @@ class Session:
             out = {"error": str(e)}
         except Exception as e:  # noqa: BLE001
             out = {"error": f"{tool} failed: {type(e).__name__}: {e}"}
+        self._remember(out)
         return json.dumps(out, ensure_ascii=False)
+
+    def _remember(self, out) -> None:
+        """Record the names and named-list sizes a tool result holds, so an answer may name and count them."""
+        if isinstance(out, dict):
+            if "geo" not in out:
+                self.names |= {v for k, v in out.items() if k in NAME_KEYS and isinstance(v, str)}
+            if isinstance(out.get("site_total"), int):
+                self.counts.add(out["site_total"])
+            for v in out.values():
+                self._remember(v)
+        elif isinstance(out, list):
+            if any(isinstance(x, dict) and "name" in x for x in out):
+                self.counts.add(len(out))
+            for x in out:
+                self._remember(x)
 
     # geography helpers
 
