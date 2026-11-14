@@ -43,6 +43,8 @@ from klear.programs import (
 from klear.store.methods import place_note
 
 MAX_TILES = 6
+# Tiles kept, when tiles run out, for figures of another place that stand in for the answer's own (county-level).
+STAND_IN_TILES = 2
 # Pointer to datatrove.ai, a HAIC sponsor with Hawaiʻi public data not published by district. KLEAR only links to it.
 ELSEWHERE = {
     "text": "For other Hawaiʻi public data on this topic, try",
@@ -252,14 +254,23 @@ def _cited(sources: list[dict]) -> list[dict]:
     return list(out.values())
 
 
-def _share(facts, home, store: _Store) -> str:
-    """The district's share, like '1.9%', when a total is set against the whole state, else ''."""
-    here, other = facts
-    if (
-        (here.geo_type, here.geo_id) != home
-        or other.geo_type != "state"
-        or here.indicator_id not in store.additive
-    ):
+def _stand_ins(answer) -> set[str]:
+    """Refs of figures for another place than the answer's own and the state, on measures the answer has no
+    figure of its own place for, like county-level figures in a district answer."""
+    home = answer.resolved
+    if home is None:
+        return set()
+    own = {f.indicator_id for f in answer.facts if (f.geo_type, f.geo_id) == home}
+    return {
+        f.ref
+        for f in answer.facts
+        if (f.geo_type, f.geo_id) != home and f.geo_type != "state" and f.indicator_id not in own
+    }
+
+
+def _share(here, other, store: _Store) -> str:
+    """A place's share, like '1.9%', when its total is set against the whole state, else ''."""
+    if here.geo_type == "state" or other.geo_type != "state" or here.indicator_id not in store.additive:
         return ""
     if not _has(here.value) or not _has(other.value) or other.value <= 0:
         return ""
@@ -426,21 +437,25 @@ def _figure_row(f, store: _Store) -> dict:
 
 
 def tiles(answer, store: _Store, skip: set[str]) -> tuple[list[dict], list[dict], set[str]]:
-    """One tile per measure no chart shows, up to MAX_TILES, then a table row for each figure past them, and the
-    refs they show. A tile leads with the answer's district and lists the other places under it. Each figure has
-    its margin or range and whether to use it with caution. A district total shown with the state's names its
-    share of it."""
+    """One tile per measure no chart shows, up to MAX_TILES with STAND_IN_TILES kept for measures whose figures
+    stand in for the answer's place, then a table row for each other figure, and the refs they show.
+    A tile leads with the answer's district and lists the other places under it. Each figure has its margin or
+    range and whether to use it with caution. A total of the answer's place, or of a place standing in for it,
+    shown with the state's names its share of it."""
     home = answer.resolved
     states = {f.indicator_id: f for f in answer.facts if f.geo_type == "state"}
+    stand_ins = _stand_ins(answer)
     groups: dict[str, list] = {}
     for f in answer.facts:
         if f.ref not in skip:
             groups.setdefault(f.indicator_id, []).append(f)
+    standing = [i for i, facts in groups.items() if any(f.ref in stand_ins for f in facts)][:STAND_IN_TILES]
+    tiled = set(standing) | set([i for i in groups if i not in standing][: MAX_TILES - len(standing)])
     out, more, used = [], [], set()
     for indicator, facts in groups.items():
         used.update(f.ref for f in facts)
         label = store.short(indicator)
-        if len(out) == MAX_TILES:
+        if indicator not in tiled:
             more += [{"label": label} | _figure_row(f, store) for f in facts]
             continue
         facts.sort(key=lambda f: (f.geo_type, f.geo_id) != home)
@@ -448,7 +463,7 @@ def tiles(answer, store: _Store, skip: set[str]) -> tuple[list[dict], list[dict]
         unit = store.unit(lead)
         here = (lead.geo_type, lead.geo_id)
         state = states.get(indicator)
-        share = _share([lead, state], home, store) if state else ""
+        share = _share(lead, state, store) if state and (here == home or lead.ref in stand_ins) else ""
         out.append(
             {
                 "value": _plain(lead, unit),
@@ -490,9 +505,9 @@ def place_caveats(con, geos, home=None) -> list[dict]:
     return out
 
 
-def sources(answer, store: _Store) -> list[dict]:
-    cited = _cited([_source(f, store) | {"links": store.links(f)} for f in answer.facts])
-    return _matched(cited, answer.facts, store)
+def sources(facts, store: _Store) -> list[dict]:
+    cited = _cited([_source(f, store) | {"links": store.links(f)} for f in facts])
+    return _matched(cited, facts, store)
 
 
 def member_cards(con, geos) -> list[dict]:
@@ -533,25 +548,40 @@ def shown_figures(answer, refs: set[str]) -> list:
     return [f for f in answer.facts if f.ref in refs and _has(f.value)]
 
 
-def build(con, answer) -> dict:
-    store = _Store(con)
+def _laid_out(
+    answer, store: _Store, stated=frozenset()
+) -> tuple[list[dict], list[dict], list[dict], set[str]]:
+    """The answer's charts, its tiles, its table of more figures, and the refs that they or its text show. stated holds refs a written lead
+    gives without markers."""
     drawn, charted = charts(answer, store)
     tiled, more, tiled_refs = tiles(answer, store, charted)
     filled = {
         ref for t in [*answer.blocks, *answer.caveats] for kind, ref in MARKER.findall(t) if kind == "fact"
     }
-    shown = shown_figures(answer, charted | tiled_refs | filled)
+    return drawn, tiled, more, charted | tiled_refs | filled | set(stated)
+
+
+def shown_refs(con, answer, stated=frozenset()) -> set[str]:
+    """Refs of the facts the answer's layout shows."""
+    return _laid_out(answer, _Store(con), stated)[3]
+
+
+def build(con, answer, stated=frozenset()) -> dict:
+    """The answer's layout. Sources and place caveats cover only the facts it shows."""
+    store = _Store(con)
+    drawn, tiled, more, refs = _laid_out(answer, store, stated)
+    shown = shown_figures(answer, refs)
     cited = {(s["name"], s["year"]) for s in (_source(f, store) for f in shown)}
     texts = " ".join([*answer.blocks, *answer.caveats])
     named = [geo_key(r) for k, r in MARKER.findall(texts) if k == "member" and geo_key(r)]
     geos = [answer.resolved] if answer.resolved else []
-    geos += [(f.geo_type, f.geo_id) for f in answer.facts]
+    geos += [(f.geo_type, f.geo_id) for f in answer.facts if f.ref in refs]
     return {
         "lead": plain_text(answer.blocks, answer, store),
         "tiles": tiled,
         **({"more": more} if more else {}),
         "charts": drawn,
-        "sources": sources(answer, store),
+        "sources": sources([f for f in answer.facts if f.ref in refs], store),
         "caveats": plain_text(answer.caveats, answer, store),
         "members": member_cards(con, named),
         "place_caveats": place_caveats(con, geos, answer.resolved) if answer.facts else [],

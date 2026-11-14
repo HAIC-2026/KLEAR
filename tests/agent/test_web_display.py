@@ -220,6 +220,29 @@ def test_district_total_against_the_state_reads_as_a_share(small_con):
     assert out["charts"] == [] and out["tiles"][0]["share"] == "2.0% of the Hawaiʻi total"
 
 
+def test_county_total_standing_in_for_the_district_reads_as_its_share(small_con):
+    county = FactRef("f1", "pop_65_plus", "county", "15003", "acs", 5000.0, None, None, 50.0, "2020-2024")
+    state = FactRef("f2", "pop_65_plus", "state", "15", "acs", 50000.0, None, None, 500.0, "2020-2024")
+    out = build(small_con, answer([county, state], ["Kūpuna in the county."]))
+    (tile,) = out["tiles"]
+    assert (tile["geography"], tile["share"]) == ("Honolulu County", "10.0% of the Hawaiʻi total")
+    assert [p["geography"] for p in tile["places"]] == ["Hawaiʻi"]
+
+
+def test_full_tiles_keep_room_for_figures_standing_in_for_the_district(small_con, monkeypatch):
+    monkeypatch.setattr("klear.web.display.MAX_TILES", 2)
+    monkeypatch.setattr("klear.web.display.STAND_IN_TILES", 1)
+    own = [
+        FactRef("d1", "pop_under_18", "house", "022", "acs", 100.0, None, None, 10.0, "2020-2024"),
+        FactRef("d2", "sites_lihtc", "house", "022", "hud", 3.0, None, None, None, "2025"),
+    ]
+    county = FactRef("c1", "pop_65_plus", "county", "15003", "acs", 5000.0, None, None, 50.0, "2020-2024")
+    out = build(small_con, answer([*own, county], ["x"]))
+    assert [t["geography"] for t in out["tiles"]] == ["", "Honolulu County"]
+    assert [m["geography"] for m in out["more"]] == ["House District 22"]
+    assert len(out["sources"]) == out["verified"]["sources"]
+
+
 def test_layers_downloaded_by_the_build_read_as_a_current_list(small_con):
     add_source(
         small_con,
