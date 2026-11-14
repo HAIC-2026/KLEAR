@@ -42,6 +42,8 @@ WRITING = (
     "Read each fact's method",
     "modeled estimate",
     "apportioned to the district from ZIP code or tract data",
+    "place_caveats",
+    "never restate them",
     "measure of the same program at that place",
     "names a group with a Hawaiian word (kūpuna, keiki, ʻohana)",
     "In an answer with facts, put it alongside the {label:fN} marker",

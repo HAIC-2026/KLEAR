@@ -115,8 +115,8 @@ test('motion stops when the device asks for reduced motion', async ({page}) => {
   await page.emulateMedia({reducedMotion: 'reduce'});
   await page.goto('/');
   expect(await page.evaluate(() => getComputedStyle(document.documentElement).scrollBehavior)).toBe('auto');
-  await page.getByLabel('Your question').fill('How many kūpuna?');
-  await page.getByRole('button', {name: 'Ask KLEAR'}).click();
+  // A starter about this district asks for one first, with a nudge on the district bar.
+  await page.locator('#examples').getByRole('button', {name: /kūpuna live in this district/}).click();
   await expect(page.locator('#district-bar')).toHaveClass(/nudge/);
   expect(await page.locator('#district-bar').evaluate(el => getComputedStyle(el).animationName)).toBe('none');
 });
@@ -127,10 +127,13 @@ const onScreen = (page, selector) => page.locator(selector).evaluateAll(all => a
   return el.checkVisibility() && r.height > 0 && r.top >= 0 && r.bottom <= innerHeight;
 }).length);
 
-// A profile the size of a real one: the fixture district has one headline figure and a few rows, so they repeat.
+// A profile the size of a real one: the fixture district has one headline figure and a few rows, so they repeat. The
+// fixture district reaches into Kalawao County, which no real one beside it does, so its place note is left out: most
+// districts carry none, and one that does gives up a row of figures on the first screen to it.
 async function fullProfile(page) {
   await page.route('**/api/profile?*', async route => {
     const response = await route.fetch(), p = await response.json();
+    p.caveats = [];
     const [first] = p.headline;
     p.headline = ['Total population', 'Median household income', first.label, 'Share who are kūpuna'].map(label => ({...first, label}));
     const people = p.sections.find(s => s.title === 'People');

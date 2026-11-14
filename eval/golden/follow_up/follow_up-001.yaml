@@ -1,0 +1,35 @@
+id: follow_up-001
+category: follow_up
+question: And how does that compare with the county?
+ideal: Keeps the poverty rate and the House district from the earlier answer and compares it with Honolulu County
+  and Hawaiʻi. Uses the same ACS vintage and says both gaps are within the margin of error.
+context:
+- house
+- '022'
+earlier:
+- question: How many people in House District 22 live below the poverty level?
+  district:
+  - house
+  - '022'
+  indicators:
+  - pct_people_poverty
+  - pct_children_poverty
+  - pct_65_plus_poverty
+district:
+- house
+- '022'
+facts:
+- - pct_people_poverty
+  - house
+  - '022'
+- - pct_people_poverty
+  - county
+  - '15003'
+- - pct_people_poverty
+  - state
+  - '15'
+must_say:
+- 2020-2024
+- Honolulu
+direction: within_margin
+refusal: none

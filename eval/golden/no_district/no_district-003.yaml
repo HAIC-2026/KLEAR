@@ -1,0 +1,13 @@
+id: no_district-003
+category: no_district
+question: How many keiki live in Maui County?
+ideal: Asked with no district chosen. Answers for Maui County itself with the count of keiki, its margin of error
+  and the ACS vintage, and spells Hawaiʻi place names correctly.
+facts:
+- - pop_under_18
+  - county
+  - '15009'
+must_say:
+- 2020-2024
+- keiki
+refusal: none

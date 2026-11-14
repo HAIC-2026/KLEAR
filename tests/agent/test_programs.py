@@ -8,6 +8,7 @@ import pytest
 import yaml
 
 from klear.agent.tools import Session
+from klear.eval.scorers import reliability
 from klear.programs import (
     ELIGIBILITY_NOTE,
     NEEDS,
@@ -181,14 +182,19 @@ def test_need_above_the_state_ranks_first_with_its_reason(need_con):
     laid = display.matched_programs(need_con, out, s)
     kupuna = next(p for p in laid["programs"] if p["id"] == "kupuna_care")
     assert kupuna["reasons"] == [
-        "Kūpuna are 22.8% of House District 22 residents (± 1.8 points), compared with 20.5% statewide."
+        {
+            "text": "Kūpuna are 22.8% of House District 22 residents (± 1.8 points), compared with 20.5% statewide.",
+            "caution": "",
+        }
     ]
     eitc = next(p for p in laid["programs"] if p["id"] == "eitc_federal")
     shown = "In House District 22, an estimated 30.0% of tax returns claim the EITC (range 23.8% to 36.8%), "
-    assert eitc["reasons"] == [shown + "compared with 12.0% statewide."]
+    assert eitc["reasons"] == [{"text": shown + "compared with 12.0% statewide.", "caution": ""}]
     assert kupuna["verified"] and kupuna["agency"] and kupuna["url"].startswith("https://")
     assert laid["title"] == "Programs to explore here" and laid["note"] == ELIGIBILITY_NOTE
     assert {x["name"] for x in laid["sources"]} == {"American Community Survey 5-year", "Public Housing"}
+    # The kūpuna share and the EITC share, each for the district and the state, however many programs repeat them.
+    assert laid["figures"] == 4
 
 
 def test_gaps_within_the_margin_read_as_about_the_same(need_con):
@@ -199,11 +205,12 @@ def test_gaps_within_the_margin_read_as_about_the_same(need_con):
     assert laid["programs"] == [] and laid["others_title"] == "Available here"
     assert laid["intro"].startswith("None of House District 23's need figures sit clearly above the state's")
     kupuna = next(p for p in laid["others"] if p["id"] == "kupuna_care")
-    assert kupuna["reasons"] == [
+    assert [r["text"] for r in kupuna["reasons"]] == [
         "Kūpuna are 21.0% of House District 23 residents (± 1.8 points), about the same as the 20.5% statewide."
     ]
     eitc = next(p for p in laid["others"] if p["id"] == "eitc_federal")
-    assert "the possible range is very wide" in eitc["reasons"][0] and "about the same" in eitc["reasons"][0]
+    said = eitc["reasons"][0]["text"]
+    assert "the possible range is very wide" in said and "about the same" in said
     snap = next(p for p in laid["others"] if p["id"] == "snap")
     assert snap["reasons"] == [] and snap["phone"]
 
@@ -264,9 +271,24 @@ def test_every_district_gets_a_ranked_list(real_con):
         text = json.dumps(laid, ensure_ascii=False)
         assert "·" not in text and "—" not in text
         for p in laid["programs"]:
-            assert all("compared with" in r for r in p["reasons"]), p
+            assert all("compared with" in r["text"] for r in p["reasons"]), p
         seen.add(tuple(p["id"] for p in laid["programs"]))
     assert len(seen) >= 10
+
+
+def test_unreliable_need_figures_carry_a_caution(real_con):
+    flagged = 0
+    for geo_id in ("010", "014", "022", "036", "044"):
+        s = Session(real_con)
+        out = call(s, "district_programs", district=f"house:{geo_id}")
+        raw = {e["program_id"]: e for e in out["programs"]}
+        laid = display.matched_programs(real_con, out, s)
+        for p in laid["programs"] + laid["others"]:
+            for r, e in zip(p["reasons"], raw[p["id"]]["reasons"]):
+                shaky = any(reliability(s.facts[ref]) is False for ref in e["refs"])
+                assert bool(r["caution"]) == shaky, (geo_id, p["id"])
+                flagged += shaky
+    assert flagged
 
 
 def test_basic_mode_answers_with_matched_programs(real_con):
@@ -276,6 +298,12 @@ def test_basic_mode_answers_with_matched_programs(real_con):
     assert len(names) == len(set(names)) == len(Session(real_con)._programs_for([("house", "022")]))
     assert a["programs"][0]["match"] and a["programs"][0]["reasons"]
     assert a["programs"][0]["name"] in a["text"]
+    where = "source" if a["verified"]["sources"] == len(a["program_sources"]) == 1 else "sources"
+    assert a["verified"]["text"] == (
+        f"All {a['verified']['figures']} figures in this answer come from the cited {where} below."
+    )
+    shown = {r["text"] for p in a["programs"] for r in p["reasons"]}
+    assert 2 <= a["verified"]["figures"] <= 2 * len(shown)
     other = ask(real_con, "Which assistance programs fit this district?", ("house", "044"))
     assert [p["name"] for p in other["programs"] if p["match"]] != [
         p["name"] for p in a["programs"] if p["match"]

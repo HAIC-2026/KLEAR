@@ -1,0 +1,81 @@
+# Scripted model turns for profile-010: resolve the district, find the industry shares, fetch them all, then submit.
+- - type: tool_use
+    name: resolve_place
+    input:
+      text: House District 22
+  - type: tool_use
+    name: search_indicators
+    input:
+      words:
+      - industries
+- - type: tool_use
+    name: get_facts
+    input:
+      indicator_ids:
+      - pct_industry_agriculture
+      - pct_industry_construction
+      - pct_industry_manufacturing
+      - pct_industry_wholesale
+      - pct_industry_retail
+      - pct_industry_transportation
+      - pct_industry_information
+      - pct_industry_finance
+      - pct_industry_professional
+      - pct_industry_education_health
+      - pct_industry_arts_food
+      - pct_industry_other_services
+      - pct_industry_public_admin
+      geos:
+      - house:022
+- - type: tool_use
+    name: submit_answer
+    input:
+      resolved: house:022
+      refusal: none
+      blocks:
+      - 'Industries where working residents of {geo:house:022} have jobs, largest share first ({vintage:f10}):
+
+
+        * {label:f10}: {fact:f10}
+
+        * {label:f9}: {fact:f9}
+
+        * {label:f5}: {fact:f5}
+
+        * {label:f8}: {fact:f8}
+
+        * {label:f11}: {fact:f11}
+
+        * {label:f13}: {fact:f13}
+
+        * {label:f6}: {fact:f6}
+
+        * {label:f2}: {fact:f2}
+
+        * {label:f12}: {fact:f12}
+
+        * {label:f3}: {fact:f3}
+
+        * {label:f4}: {fact:f4}
+
+        * {label:f7}: {fact:f7}
+
+        * {label:f1}: {fact:f1}'
+      facts:
+      - f10
+      - f9
+      - f5
+      - f8
+      - f11
+      - f13
+      - f6
+      - f2
+      - f12
+      - f3
+      - f4
+      - f7
+      - f1
+      programs: []
+      caveats:
+      - These shares count residents by the industry they work in, wherever the job is.
+      - The margin of error is large for {label:f1}, so treat it as an unreliable estimate.

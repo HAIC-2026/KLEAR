@@ -4,6 +4,7 @@ from pathlib import Path
 
 import yaml
 
+from klear.agent.earlier import INDICATORS_MAX, MOST, QUESTION_MAX, Exchange
 from klear.eval.agents import GOLDEN_ID
 from klear.eval.contract import REFUSALS
 from klear.programs import catalog
@@ -23,6 +24,8 @@ CATEGORIES = (
     "decline_partisan",
     "messy_input",
     "rank",
+    "follow_up",
+    "no_district",
 )
 REQUIRED = ("id", "category", "question", "ideal")
 DIRECTIONS = ("higher", "lower", "within_margin")
@@ -51,6 +54,7 @@ class Golden:
     refusal: str = "none"
     allowed_geos: list[tuple[str, str]] = field(default_factory=list)
     direction: str | None = None
+    earlier: tuple[Exchange, ...] = ()
 
 
 def _strings(name: str, v, n: int | None) -> tuple[str, ...]:
@@ -64,6 +68,26 @@ def _strings(name: str, v, n: int | None) -> tuple[str, ...]:
 def _geo_type(name: str, geo_type: str) -> None:
     if geo_type not in GEO_TYPES:
         raise ValueError(f"{name} geo_type {geo_type!r} not in {sorted(GEO_TYPES)}")
+
+
+def _earlier(raw) -> tuple[Exchange, ...]:
+    """Earlier questions in the conversation, as the website sends them: question, district and indicators."""
+    if not isinstance(raw, list) or not 1 <= len(raw) <= MOST:
+        raise ValueError(f"earlier must be a list of one to {MOST} exchanges")
+    out = []
+    for x in raw:
+        if not isinstance(x, dict) or "question" not in x or set(x) - {"question", "district", "indicators"}:
+            raise ValueError("an earlier exchange holds a question and an optional district and indicators")
+        if not isinstance(x["question"], str) or not 1 <= len(x["question"].strip()) <= QUESTION_MAX:
+            raise ValueError(f"an earlier question must be text of up to {QUESTION_MAX} characters")
+        district = _strings("earlier district", x["district"], 2) if x.get("district") is not None else None
+        if district is not None:
+            _geo_type("earlier district", district[0])
+        ids = _strings("earlier indicators", x.get("indicators", []), None)
+        if len(ids) > INDICATORS_MAX:
+            raise ValueError(f"earlier indicators may list at most {INDICATORS_MAX} ids")
+        out.append(Exchange(x["question"].strip(), district, ids))
+    return tuple(out)
 
 
 def rule_ids(rules: Path = RULES) -> set[str]:
@@ -118,6 +142,8 @@ def _parse(path: Path, rules: set[str]) -> Golden:
         if data["direction"] not in DIRECTIONS:
             raise ValueError(f"direction {data['direction']!r} not in {DIRECTIONS}")
         kw["direction"] = data["direction"]
+    if "earlier" in data:
+        kw["earlier"] = _earlier(data["earlier"])
     if "facts" in data:
         facts = data["facts"]
         if not isinstance(facts, list):
@@ -149,9 +175,12 @@ def load_golden(root: Path = ROOT / "eval" / "golden", rules: Path = RULES) -> l
 def pending_reason(g: Golden, con) -> str | None:
     indicators = {r[0] for r in con.execute("SELECT indicator_id FROM indicator").fetchall()}
     geos = {tuple(r) for r in con.execute("SELECT geo_type, geo_id FROM geography").fetchall()}
-    for geo in (g.district, g.context):
+    for geo in (g.district, g.context, *(x.district for x in g.earlier)):
         if geo is not None and geo not in geos:
             return f"geography {geo[0]} {geo[1]} not in store"
+    for indicator_id in (i for x in g.earlier for i in x.indicators):
+        if indicator_id not in indicators:
+            return f"indicator {indicator_id} not in store"
     have = {
         tuple(r)
         for r in con.execute(

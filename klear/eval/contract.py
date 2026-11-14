@@ -3,14 +3,20 @@ import math
 import re
 from dataclasses import asdict, dataclass, fields
 
+from klear.members import members_of, mention, timing
 from klear.store.db import GEO_TYPES
 
 VERSION = "1"
 REFUSALS = ("none", "decline_individual", "decline_partisan", "not_available", "out_of_scope")
 # Markers: {fact:REF} renders the cited value, {vintage:REF} its vintage and source, {label:REF} its
-# indicator label, {geo:TYPE:ID} a place name. render() writes the official label, which the eval and the review
-# step read; the website writes the short label from the catalog instead (klear/web/display.py, klear/labels.py).
-MARKER = re.compile(r"\{(fact|vintage|label|geo):([^{}\s]+)\}")
+# indicator label, {geo:TYPE:ID} a place name, {member:TYPE:ID} the district's listed legislator with where and
+# when it was listed, and {listing:TYPE:ID} when that listing may predate the election results. render() writes
+# the official label, which the eval and the review step read; the website writes the short label from the
+# catalog instead (klear/web/display.py, klear/labels.py).
+MARKER = re.compile(r"\{(fact|vintage|label|geo|member|listing):([^{}\s]+)\}")
+# Markers that name a place or its member rather than cite a fact.
+PLACE_MARKERS = ("geo", "member", "listing")
+MEMBER_MARKERS = ("member", "listing")
 TEXT_FIELDS = ("ref", "indicator_id", "geo_type", "geo_id", "source_id", "vintage")
 NUMBER_FIELDS = ("value", "value_low", "value_high", "moe")
 # Short source names by prefix of the stored source name.
@@ -25,6 +31,8 @@ SHORT_NAMES = (
     ("Health Center", "HRSA"),
     ("PLACES", "PLACES"),
     ("Comprehensive Housing Affordability Strategy", "CHAS"),
+    ("Local Area Unemployment Statistics", "BLS"),
+    ("Tax Credits Claimed by Hawaiʻi Taxpayers", "Hawaiʻi Department of Taxation"),
 )
 
 
@@ -135,7 +143,9 @@ def answer_from_json(d: dict) -> Answer:
         for kind, ref in MARKER.findall(text):
             if kind == "geo" and geo_key(ref) is None:
                 raise ContractError(f"marker {{geo:{ref}}} needs TYPE:ID with TYPE in {sorted(GEO_TYPES)}")
-            if kind != "geo" and ref not in refs:
+            if kind in MEMBER_MARKERS and (geo_key(ref) or ("",))[0] not in ("house", "senate"):
+                raise ContractError(f"marker {{{kind}:{ref}}} needs a district as house:ID or senate:ID")
+            if kind not in PLACE_MARKERS and ref not in refs:
                 raise ContractError(f"marker {{{kind}:{ref}}} has no fact ref")
     return a
 
@@ -179,6 +189,16 @@ def fill_value(f: FactRef, unit: str) -> str:
     return out
 
 
+def member_text(con, kind: str, ref: str) -> str:
+    """A member marker's text: the listed name with its as-listed note, or when that listing may predate the
+    election results."""
+    key = geo_key(ref)
+    listed = members_of(con, *key) if key and key[0] in ("house", "senate") else []
+    if not listed:
+        raise ContractError(f"no member is listed for {ref}")
+    return mention(listed) if kind == "member" else timing(listed[0])
+
+
 def render(a: Answer, con) -> str:
     by_ref = {f.ref: f for f in a.facts}
     units = dict(con.execute("SELECT indicator_id, unit FROM indicator").fetchall())
@@ -186,6 +206,8 @@ def render(a: Answer, con) -> str:
     sources = dict(con.execute("SELECT source_id, name FROM source").fetchall())
 
     def sub(m: re.Match) -> str:
+        if m.group(1) in MEMBER_MARKERS:
+            return member_text(con, m.group(1), m.group(2))
         if m.group(1) == "geo":
             row = None
             if (key := geo_key(m.group(2))) is not None:

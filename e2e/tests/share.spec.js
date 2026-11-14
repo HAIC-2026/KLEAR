@@ -135,8 +135,15 @@ test('printing gives a one-page summary with every source, year and address writ
   // Sources with their vintages, then the programs and the live profile, all as written-out addresses.
   const sources = sheet.locator('.sheet-sources li');
   await expect(sources.first()).toHaveText('American Community Survey 5-year, 2020-2024 https://example.org');
-  await expect(sources.last()).toContainText('2020 Census Redistricting Data (P.L. 94-171), population by block, 2020 Census');
-  await expect(sources.last()).toContainText('https://www.census.gov/programs-surveys/decennial-census/about/rdo/summary-files.html');
+  await expect(sources.nth(1)).toContainText('2020 Census Redistricting Data (P.L. 94-171), population by block, 2020 Census');
+  await expect(sources.nth(1)).toContainText('https://www.census.gov/programs-surveys/decennial-census/about/rdo/summary-files.html');
+  // The Commission's official description and permanent residents, cited to the report and its pages.
+  await expect(sources).toHaveCount(3);
+  await expect(sources.last()).toContainText('2021 Reapportionment Commission Final Report and Reapportionment Plan, Final report, February 25, 2022 https://example.org/reapportionment');
+  const plan = sheet.locator('.sheet-plan');
+  await expect(plan.first()).toHaveText('Official description The 22nd Representative District comprises the portion of the island of Oʻahu including Manoa. (source 3, report page D-017, PDF page 891)');
+  await expect(plan.last()).toContainText('Permanent residents in the 2022 plan 26,451 (source 3, report page 15, PDF page 23).');
+  await expect(plan.last()).toContainText('so it differs from the total population.');
   // No need figure in the fixture district sits above the state's, so the statewide programs print, six at most.
   const programs = sheet.locator('.sheet-programs');
   await expect(programs.locator('li')).toHaveCount(6);
@@ -166,6 +173,23 @@ test('the profile’s figures download as a CSV file', async ({page}) => {
   const csv = await (await page.request.get(await link.getAttribute('href'))).text();
   expect(csv.split('\r\n')[0]).toBe('﻿Section,Measure,Geography,Estimate,Margin of error (90%),Range low,Range high,Unit,Source,Vintage,Source URL,Note');
   expect(csv).toContain('Income,Percent of people below the poverty level,House District 22,12.3,2.1,,,percent,American Community Survey 5-year,2020-2024,https://example.org,');
+});
+
+test('the profile gives the official description and permanent residents with their report pages', async ({page}) => {
+  await page.goto('/');
+  await chooseDistrict(page);
+  // The report's section comes after the figures; its link at the top of the profile opens it.
+  await page.locator('#profile').getByRole('navigation', {name: 'In this profile'}).getByRole('link', {name: 'Reapportionment plan'}).click();
+  const plan = page.locator('.profile-plan');
+  await expect(plan).toBeVisible();
+  await expect(plan).toContainText('Official description: The 22nd Representative District comprises the portion of the island of Oʻahu including Manoa. (report page D-017, PDF page 891)');
+  await expect(plan).toContainText('Permanent residents in the 2022 plan: 26,451 (report page 15, PDF page 23)');
+  await expect(plan).toContainText('So it is not the same as the total population above');
+  await expect(plan.getByRole('link', {name: /2021 Reapportionment Commission Final Report/})).toHaveAttribute('href', 'https://example.org/reapportionment');
+  // A count the build left out is not shown; the description still is.
+  await page.goto('/district/house-23');
+  await expect(page.locator('.profile-plan')).toContainText('The 23rd Representative District');
+  await expect(page.locator('.profile-plan')).not.toContainText('Permanent residents');
 });
 
 // Rewrite the profile the server sends, to stand in for an older server or an unexpected reply.
@@ -201,9 +225,11 @@ test('the printout drops programs from the end until it fits on one page', async
 });
 
 test('the profile and its printout cope with missing or unexpected fields', async ({page}) => {
-  // Without programs, a build date or comparison sources, the summary still prints every figure it has.
+  // Without programs, a build date, the Commission's report or comparison sources, the summary still prints every
+  // figure it has.
   await editProfile(page, p => {
     delete p.programs;
+    delete p.plan;
     delete p.built;
     delete p.shares_source;
     for (const s of p.sections) for (const r of s.rows) for (const a of r.against) delete a.source;

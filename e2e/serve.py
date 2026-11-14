@@ -20,11 +20,11 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from klear.store.db import add_coverage, add_facts, add_indicators, add_source
+from klear.store.db import add_blocks, add_coverage, add_facts, add_indicators, add_source
 from klear.web import __main__ as web
 from klear.web.assistant import Assistant, DailyBudget
 from tests.agent.fake_client import tool, turn
-from tests.fixtures.small_store import _fact, add_outreach, build_small_store
+from tests.fixtures.small_store import _fact, add_county_context, add_outreach, build_small_store
 
 DISTRICT = "house:022"
 PARTISAN = ("vote", "candidate", "campaign", "party")
@@ -33,8 +33,16 @@ PARTISAN = ("vote", "candidate", "campaign", "party")
 def build_store(path: Path) -> None:
     """The pytest small store plus a poverty rate, so answers can compare a percent with the county and state.
     The profile also gets a median age from an ACS data profile table, which links to that table for each place on
-    data.census.gov, and an EITC count moved to the district from ZIP codes, which links to the methods page."""
+    data.census.gov, and an EITC count moved to the district from ZIP codes, which links to the methods page, plus
+    a county-level unemployment rate and DBEDT match marks, so pages show those notes. A kūpuna count with a large
+    margin of error and a Kalawao block in House 22 make answers and the profile show a caution chip and a district
+    caveat."""
     con = build_small_store(path)
+    # Before the DBEDT match marks, which refer to this fact and so stop it changing.
+    con.execute(
+        "UPDATE fact SET moe = 600 WHERE indicator_id = 'pop_65_plus' AND geo_type = 'house' AND geo_id = '022'"
+    )
+    add_county_context(con)
     add_source(
         con, "acs2024_5yr_profile", "ACS 5-year Data Profiles", "Census", "https://example.org/api",
         "2020-2024 ACS 5-year", "pd", page_url="https://example.org/profiles",
@@ -87,12 +95,20 @@ def build_store(path: Path) -> None:
     add_facts(con, pd.DataFrame(rows))
     # The SNAP outreach pair, so the outreach page and the profile's outreach note have figures.
     add_outreach(con)
+    block = {"block": "150050001001000", "county": "15005", "tract": "15005000100", "zcta": "96744",
+             "house": "022", "senate": "012", "pop2020": 2}  # fmt: skip
+    add_blocks(con, pd.DataFrame([block]))
     con.close()
 
 
-def _question(messages: list[dict]) -> str:
+def _message(messages: list[dict]) -> str:
     first = messages[0]["content"]
     return " ".join(b.get("text", "") for b in first if isinstance(b, dict)).lower()
+
+
+def _question(messages: list[dict]) -> str:
+    """The question alone, without the selected district or earlier questions that follow it."""
+    return _message(messages).split("\n\n")[0]
 
 
 def _refs(messages: list[dict]) -> list[str]:
@@ -114,8 +130,19 @@ class _Messages:
         question = _question(messages)
         if any(word in question for word in PARTISAN):
             return turn(tool("submit_answer", _decline(), "tu_submit"))
+        if "basic lookup" in question:
+            # The model is down, so the site answers with its free basic lookup.
+            raise RuntimeError("scripted outage")
         if "wic" in question:
             return turn(tool("submit_answer", _not_available(), "tu_submit"))
+        if "represents" in question:
+            if len(messages) == 1:
+                return turn(tool("find_member", {"district": DISTRICT}))
+            return turn(tool("submit_answer", _member(), "tu_submit"))
+        if "kāneʻohe" in question and "selected district" not in _message(messages):
+            if len(messages) == 1:
+                return turn(tool("resolve_place", {"text": "Kāneʻohe"}))
+            return turn(tool("submit_answer", _spans(), "tu_submit"))
         if "1 test st" in question:
             if len(messages) == 1:
                 return turn(tool("resolve_place", {"text": "1 Test St, Kāneʻohe"}))
@@ -128,7 +155,13 @@ class _Messages:
             )
         if len(messages) == 3:
             # A count shown for one place only becomes a tile beside the charts.
-            return turn(tool("get_facts", {"indicator_ids": ["sites_lihtc"], "geos": [DISTRICT]}, "tu_sites"))
+            return turn(
+                tool(
+                    "get_facts",
+                    {"indicator_ids": ["sites_lihtc", "irs_eitc_returns"], "geos": [DISTRICT]},
+                    "tu_sites",
+                )
+            )
         return turn(tool("submit_answer", _answer(_refs(messages)), "tu_submit"))
 
 
@@ -142,7 +175,8 @@ def _answer(refs: list[str]) -> dict:
             (
                 "- Poverty rate: {fact:f1} here, {fact:f3} in the county, and {fact:f5} statewide.\n"
                 "- Kūpuna: {fact:f2} here, {fact:f4} in the county, and {fact:f6} statewide.\n"
-                "- Low-income housing tax credit projects: {fact:f7}."
+                "- Low-income housing tax credit projects: {fact:f7}.\n"
+                "- Returns with the earned income tax credit: {fact:f8}."
             ),
         ],
         "facts": refs,
@@ -160,6 +194,29 @@ def _address(messages: list[dict]) -> dict:
         "resolved": geos[0] if geos else None,
         "refusal": "none",
         "blocks": blocks,
+        "facts": [],
+        "programs": [],
+        "caveats": [],
+    }
+
+
+def _member() -> dict:
+    return {
+        "resolved": DISTRICT,
+        "refusal": "none",
+        "blocks": ["{geo:house:022} is represented by {member:house:022}."],
+        "facts": [],
+        "programs": [],
+        "caveats": [],
+    }
+
+
+def _spans() -> dict:
+    """A town that spans two districts, asked about with none chosen: no district to answer for."""
+    return {
+        "resolved": None,
+        "refusal": "none",
+        "blocks": ["Kāneʻohe spans more than one House district. Choose one to see its kūpuna figures."],
         "facts": [],
         "programs": [],
         "caveats": [],

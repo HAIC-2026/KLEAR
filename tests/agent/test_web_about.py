@@ -2,7 +2,7 @@
 
 import json
 
-from klear.web.about import about
+from klear.web.about import about, geography
 
 BUILT = "2026-11-06 16:38:59 HST (2026-11-07T02:38:59Z UTC)"
 CHECKS = {"boundaries_house": "pass", "source_fidelity": "pass", "store": "pass"}
@@ -32,11 +32,22 @@ def _report(path, built_at=BUILT):
 
 def test_counts_and_sources_come_from_the_store(small_con, tmp_path):
     data = about(small_con, tmp_path / "validation.json")
-    assert data["facts"] == ["2 House and 1 Senate districts", "3 measures from 2 public sources"]
+    assert data["facts"] == ["2 House and 1 Senate districts", "3 measures from 3 public sources"]
     assert data["crosscheck"] is None
     assert [(s["name"], s["publisher"], s["years"]) for s in data["sources"]] == [
         ("American Community Survey 5-year", "Census", "2020-2024"),
         ("Public Housing", "HUD", "2025"),
+        (
+            "Representatives at a Glance, Thirty-Third Legislature, 2025-2026",
+            "LRB",
+            "Listing dated October 5, 2026",
+        ),
+        ("Senators at a Glance, Thirty-Third Legislature, 2025-2026", "LRB", "Listing dated October 5, 2026"),
+        (
+            "2021 Reapportionment Commission Final Report and Reapportionment Plan",
+            "Office of Elections",
+            "Final report, February 25, 2022",
+        ),
     ]
     assert set(data) == {"facts", "sources", "crosscheck"}
 
@@ -46,11 +57,11 @@ def test_build_date_cross_check_and_skipped_checks_are_stated(small_con, tmp_pat
     data = about(small_con, _report(tmp_path / "validation.json"))
     assert data["facts"][2:] == [
         "Built Nov 6, 2026",
-        "177,776 published values cross-checked, 0 mismatches",
+        "177,776 DBEDT values cross-checked, 0 mismatches",
         "3 checks passed, 2 waiting on HUD files",
     ]
     assert "177,776 values, 0 mismatches" in data["crosscheck"]
-    assert "3,854 stored figures" in data["crosscheck"]
+    assert "3,854 stored Census figures that DBEDT's profiles also publish match" in data["crosscheck"]
 
 
 def test_report_from_another_build_is_not_quoted(small_con, tmp_path):
@@ -67,3 +78,14 @@ def test_failed_and_other_skipped_checks_are_counted(small_con, tmp_path):
         [{"name": "chas", "manual": True}, {"name": "x", "manual": False}],
     )
     assert about(small_con, tmp_path / "missing.json")["facts"][-1] == "1 check passed, 1 failed, 2 skipped"
+
+
+def test_each_source_says_how_its_figures_reach_a_district():
+    assert geography({"C"}, {"county", "state"}, False) == "Counties and the state only (county-level)"
+    assert geography({"M"}, {"county", "state"}, False) == "Counties and the state, for comparison"
+    assert geography({"M"}, {"tract", "house", "senate"}, False) == "Census tracts, modeled for districts"
+    assert geography({"A", "S"}, {"zcta", "house", "county"}, False) == "ZIP codes, estimated for districts"
+    assert geography({"D"}, {"house", "senate", "county", "state"}, False) == "Published for each district"
+    assert (
+        geography(set(), set(), True) == "Used to check Census figures for districts, counties and the state"
+    )

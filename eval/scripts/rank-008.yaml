@@ -1,0 +1,33 @@
+# Scripted model turns for rank-008: find the industry share, rank the House districts, then submit.
+- - type: tool_use
+    name: search_indicators
+    input:
+      words:
+      - hotels
+      - tourism
+- - type: tool_use
+    name: rank_districts
+    input:
+      indicator: pct_industry_arts_food
+      chamber: house
+- - type: tool_use
+    name: submit_answer
+    input:
+      resolved: null
+      refusal: none
+      blocks:
+      - 'These House districts have the largest share of working residents in hotels, restaurants and recreation, counted
+        as {label:f14}. Their ranges overlap, so the data cannot put them in order ({vintage:f14}):
+
+        * {geo:house:014}: {fact:f14}
+
+        * {geo:house:009}: {fact:f9}
+
+        * {geo:house:011}: {fact:f11}'
+      facts:
+      - f14
+      - f9
+      - f11
+      programs: []
+      caveats:
+      - These shares count residents where they live, by the industry they work in, wherever the job is.

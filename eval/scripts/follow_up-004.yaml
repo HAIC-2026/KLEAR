@@ -1,0 +1,24 @@
+# Scripted model turns for follow_up-004: there and it come from the earlier rent burden answer.
+- - type: tool_use
+    name: resolve_place
+    input:
+      text: house:040
+- - type: tool_use
+    name: compare
+    input:
+      indicator_id: pct_rent_burden_35_plus
+      geo: house:040
+- - type: tool_use
+    name: submit_answer
+    input:
+      resolved: house:040
+      refusal: none
+      blocks:
+      - '{label:f1} in {geo:house:040}: {fact:f1} ({vintage:f1}).'
+      - That is within the margin of error of {geo:county:15003}, at {fact:f2}, so the data cannot say the district
+        is higher.
+      facts:
+      - f1
+      - f2
+      programs: []
+      caveats: []

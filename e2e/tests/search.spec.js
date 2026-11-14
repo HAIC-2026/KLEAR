@@ -34,7 +34,7 @@ test('a street address in a chat question gets its own district, and the questio
   await page.goto('/');
   await chooseDistrict(page);
   await showTab(page, 'Ask');
-  await expect(page.locator('#question-form .chat-privacy')).toHaveText('A street address in a question goes to the U.S. Census Bureau only to find its district. KLEAR does not store or log it. Assistant answers send the question to the AI model provider.');
+  await expect(page.locator('#question-form .chat-privacy')).toHaveText('An AI model answers from KLEAR’s data. Questions, with your last two in this tab, go to its provider, Anthropic, so leave out personal details. Addresses go to the Census Bureau only to find a district.');
   await expect(page.locator('#question-form .chat-privacy')).toBeVisible();
   const answer = await ask(page, 'Which House and Senate district is 1 Test St, Kāneʻohe in?');
   await expect(answer).toContainText('That address is in House District 23 and Senate District 12.');

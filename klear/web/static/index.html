@@ -49,21 +49,22 @@
           <div id="find-matches"></div>
         </form>
       </div>
-      <p class="photo-credit">Photo: [credit needed: place, photographer, license]</p>
+      <!-- Photo credit: write the place, photographer and license after "Photo:", then delete the hidden attribute. -->
+      <p class="photo-credit" hidden>Photo: </p>
     </section>
 
     <section class="chat-section" id="chat" aria-labelledby="chat-title">
       <div class="wrap">
         <div class="section-head" id="chat-head">
           <h2 id="chat-title">Ask about a district</h2>
-          <p>KLEAR answers only from its public data store. Each figure lists its source, survey years, and margin of error. Where it helps, KLEAR also shows the state value for comparison. Answers describe communities, not individuals. KLEAR declines personal and partisan requests.</p>
+          <p>KLEAR answers only from its public data store. Each figure lists its source, survey years, and margin of error. Where it helps, KLEAR also shows the county and state values for comparison. Answers describe communities, not individuals. KLEAR declines personal and partisan requests.</p>
         </div>
         <div class="chat-layout">
           <!-- On a district's address the page starts here, with the district's name as its heading. Below 1200 px the
                profile and the chat take turns behind two tabs; wider, the chat sits beside the profile. -->
           <div class="district-head" id="district-head" hidden>
             <p class="small-label">District profile</p>
-            <h1 id="district-name" tabindex="-1"></h1>
+            <div class="district-title"><h1 id="district-name" tabindex="-1"></h1><div id="district-member"></div></div>
             <div id="district-about"></div>
             <a class="skip-ask" id="skip-ask" href="#question">Skip to the question box</a>
             <div class="view-tabs" id="view-tabs" role="tablist" aria-label="District page"><button type="button" role="tab" id="tab-profile" aria-controls="profile" aria-selected="true">Profile</button><button type="button" role="tab" id="tab-ask" aria-controls="chat-card" aria-selected="false" tabindex="-1">Ask <span class="tab-new" id="tab-new" hidden>New answer</span></button></div>
@@ -75,11 +76,11 @@
               <form id="lookup" hidden><label for="place">District, place, ZIP code, or street address</label><div class="inputrow"><div class="combo"><input id="place" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="place-list" required maxlength="160" placeholder="e.g. House 22, Waikīkī, Kona, or 96744" autocomplete="off"><ul id="place-list" class="suggestions" role="listbox" aria-label="Suggestions" hidden></ul></div><button type="submit">Find district</button></div><p id="place-count" class="visually-hidden" role="status"></p><p class="help">Not sure which district is yours? <a href="#district-map">Find it on the map</a>.</p><p class="help privacy">A street address goes to the U.S. Census Bureau only to find its district. KLEAR does not store or log it.</p><p id="lookup-status" class="status" role="status"></p><div id="matches"></div></form>
             </div>
             <div id="messages">
-              <div class="bot-msg welcome"><p class="sender">KLEAR</p><p id="welcome-text">Ask about this district.</p></div>
+              <div class="bot-msg welcome"><p class="sender">KLEAR</p><p id="welcome-text">Ask about a district, a town or ZIP code, or all of Hawaiʻi.</p></div>
               <div id="log"></div>
               <div id="suggest" class="suggest" role="group" aria-label="Suggested questions" hidden></div>
             </div>
-            <form id="question-form"><label for="question" class="visually-hidden">Your question</label><div class="question-row"><textarea id="question" rows="1" required maxlength="2000" placeholder="Type your question here" aria-describedby="send-hint"></textarea><button id="send" type="submit">Ask KLEAR</button></div><p class="chat-notes"><span id="send-hint" class="send-hint">Press Ctrl+Enter to send.</span> <span class="chat-privacy">A street address in a question goes to the U.S. Census Bureau only to find its district. KLEAR does not store or log it. Assistant answers send the question to the AI model provider.</span></p></form>
+            <form id="question-form"><label for="question" class="visually-hidden">Your question</label><div class="question-row"><textarea id="question" rows="1" required maxlength="2000" placeholder="Type your question here" aria-describedby="send-hint"></textarea><button id="send" type="submit">Ask KLEAR</button></div><p class="chat-notes"><span id="send-hint" class="send-hint">Press Ctrl+Enter to send.</span> <span class="chat-privacy">An AI model answers from KLEAR’s data. Questions, with your last two in this tab, go to its provider, Anthropic, so leave out personal details. Addresses go to the Census Bureau only to find a district.</span></p></form>
             <p id="chat-status" class="status" role="status"></p>
           </div>
           <aside class="chat-aside" aria-labelledby="examples-title">
@@ -128,7 +129,7 @@
         <ol class="steps">
           <li><h3>Pick a district</h3><p>Search by district number, town, neighborhood, island, ZIP code, or street address, or tap the district on the map. When a place spans districts, KLEAR lists the House and Senate districts separately and shows how its residents split.</p><figure class="shot"><figcaption><strong>Screenshot</strong>, not clickable</figcaption><img src="/shots/step-1.png" width="1394" height="833" loading="lazy" draggable="false" alt="The district search with Kāneʻohe entered. KLEAR lists the matches in two groups. House districts 49, 50, and 48 hold 67, 18, and 14 percent of Kāneʻohe residents. Senate districts 24 and 23 hold 92 and 8 percent. A line below suggests finding the district on the map."></figure></li>
           <li><h3>Ask a question</h3><p>Ask in plain words about residents, housing, income, or programs, or start from a suggested question.</p><figure class="shot"><figcaption><strong>Screenshot</strong>, not clickable</figcaption><img src="/shots/step-2.png" width="1442" height="996" loading="lazy" draggable="false" alt="The question box with “How does poverty here compare with the state?” typed in, above five suggested questions to try."></figure></li>
-          <li><h3>Check the numbers</h3><p>Each figure shows its margin of error or range, the state value for comparison, and the source and survey years behind it.</p><figure class="shot"><figcaption><strong>Screenshot</strong>, not clickable</figcaption><img src="/shots/step-3.png" width="1370" height="1079" loading="lazy" draggable="false" alt="KLEAR’s answer for House District 49: three bar charts compare the district’s poverty rates for all residents, children, and people 65 and over with the state. Each shows its margin of error and is marked within the margin of error. Below them are the survey years and a Sources link."></figure></li>
+          <li><h3>Check the numbers</h3><p>Each figure shows its margin of error or range, the county or state value for comparison where it helps, and the source and survey years behind it.</p><figure class="shot"><figcaption><strong>Screenshot</strong>, not clickable</figcaption><img src="/shots/step-3.png" width="1370" height="1079" loading="lazy" draggable="false" alt="KLEAR’s answer for House District 49: three bar charts compare the district’s poverty rates for all residents, children, and people 65 and over with the state. Each shows its margin of error and is marked within the margin of error. Below them are the survey years and a Sources link."></figure></li>
         </ol>
       </div>
     </section>
@@ -137,13 +138,15 @@
       <div class="wrap">
         <div class="section-head">
           <h2 id="sources-title">Data and sources</h2>
-          <p>Every figure KLEAR shows comes from one of these public sources. Survey years and district coverage vary by measure.</p>
+          <p>Every figure KLEAR shows comes from one of these public sources. Survey years vary by measure. The Geography column says whether a source publishes figures for each district, KLEAR estimates them for districts, or the source covers only counties.</p>
         </div>
         <p class="facts" id="facts" hidden></p>
-        <div class="table-scroll" id="source-wrap" hidden><table id="source-table"><caption class="visually-hidden">Public sources in the KLEAR data store</caption><thead><tr><th scope="col">Source</th><th scope="col">Publisher</th><th scope="col">Years</th></tr></thead><tbody></tbody></table></div>
+        <div class="table-scroll" id="source-wrap" hidden><table id="source-table"><caption class="visually-hidden">Public sources in the KLEAR data store</caption><thead><tr><th scope="col">Source</th><th scope="col">Publisher</th><th scope="col">Years</th><th scope="col">Geography</th></tr></thead><tbody></tbody></table></div>
         <p id="sources-missing" class="muted">The source list appears here once the data store is built.</p>
         <ul class="notes">
           <li id="crosscheck" hidden></li>
+          <li>Where a Census figure equals the one in DBEDT’s published district, county, or state profile, its source says so and links to that profile.</li>
+          <li>Unemployment from the U.S. Bureau of Labor Statistics and state tax credit claims from the Hawaiʻi Department of Taxation are published only for counties. KLEAR labels them county-level and never shows them as a district’s figure.</li>
           <li>Where a figure comes from ZIP code or census tract data estimated for a district, KLEAR shows a range, not a single number.</li>
           <li>Modeled health and needs estimates from CDC PLACES are shown as ranges too. <a href="/methods.html">How KLEAR estimates these ranges</a>.</li>
           <li>Missing data stays missing. KLEAR does not fill gaps with guesses.</li>
@@ -151,6 +154,8 @@
           <li>For Hawaiʻi public data that is not published by district, such as crime, schools, energy or state budgets, try <a class="ext" href="https://datatrove.ai/">datatrove.ai<span class="visually-hidden"> (external site)</span></a>, a HAIC 2026 sponsor.</li>
         </ul>
         <p class="validation-link">Every check, the build date, and the checks still waiting on files are listed in the <a class="ext" href="https://github.com/HAIC-2026/KLEAR/blob/main/docs/VALIDATION.md">validation report<span class="visually-hidden"> (external site)</span></a>.</p>
+        <h3 class="terms-title">Terms of use</h3>
+        <p class="terms">Most of this data comes from U.S. government agencies and is free for anyone to use. Each source’s terms are linked in the <a class="ext" href="https://github.com/HAIC-2026/KLEAR#services-and-data-klear-depends-on">KLEAR project notes<span class="visually-hidden"> (external site)</span></a>. This product uses the Census Bureau Data API but is not endorsed or certified by the Census Bureau.</p>
       </div>
     </section>
 
@@ -160,14 +165,11 @@
           <h2 id="about-title">About KLEAR</h2>
           <p>Made for HAIC 2026. Challenge champion: DBEDT Research and Economic Analysis Division. Not an official State of Hawaiʻi product.</p>
         </div>
-        <h3>Team</h3>
-        <ul class="team">
-          <li>[Name], [role], [GitHub profile]</li>
-          <li>[Name], [role], [GitHub profile]</li>
-          <li>[Name], [role], [GitHub profile]</li>
-          <li>[Name], [role], [GitHub profile]</li>
-          <li>[Name], [role], [GitHub profile]</li>
-        </ul>
+        <!-- Team: add one row per member, like <li>Full name, role, <a class="ext" href="https://github.com/USERNAME">GitHub<span class="visually-hidden"> (external site)</span></a></li>, then delete the hidden attribute below. -->
+        <div class="team-block" hidden>
+          <h3>Team</h3>
+          <ul class="team"></ul>
+        </div>
         <h3>Partner resource</h3>
         <p class="partner">For Hawaiʻi data beyond district figures, <a class="ext" href="https://datatrove.ai/">datatrove.ai<span class="visually-hidden"> (external site)</span></a>, a HAIC 2026 sponsor, has its own chat over thousands of public datasets.</p>
       </div>

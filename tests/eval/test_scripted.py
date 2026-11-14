@@ -115,7 +115,7 @@ def test_example_script_passes_scoring():
         con.close()
 
 
-@pytest.mark.parametrize("golden_id", [f"rank-{n:03}" for n in range(1, 8)])
+@pytest.mark.parametrize("golden_id", [f"rank-{n:03}" for n in range(1, 9)])
 def test_rank_scripts_pass_scoring(golden_id):
     if not STORE.exists():
         pytest.skip("Build the store to replay the rank scripts")
@@ -127,7 +127,8 @@ def test_rank_scripts_pass_scoring(golden_id):
         assert failed == []
         # A district alone in the first tier may be called the highest; a tier of several must say they overlap.
         assert len(g.facts) == 1 or "overlap" in " ".join(answer.blocks)
-        assert len(answer.facts) == len(g.facts) and answer.programs == list(g.programs)
+        # Programs tied to the ranked measure are added to the answer, so the golden ones are a subset.
+        assert len(answer.facts) == len(g.facts) and set(g.programs) <= set(answer.programs)
     finally:
         con.close()
 
@@ -141,6 +142,7 @@ def test_fixed_income_script_passes_scoring():
         answer, _ = ScriptedAgent(con, SCRIPTS).answer(g.id, g.question, g.context)
         failed = [o for o in score(g, answer, con) if o.passed is False]
         assert failed == []
-        assert len(answer.facts) == len(g.facts) and answer.programs == list(g.programs)
+        # Programs tied to the ranked measure are added to the answer, so the golden ones are a subset.
+        assert len(answer.facts) == len(g.facts) and set(g.programs) <= set(answer.programs)
     finally:
         con.close()

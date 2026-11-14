@@ -300,6 +300,24 @@ summary{font-weight:600;color:var(--accent);cursor:pointer}
 .view-tabs [role=tab]:focus-visible{outline-offset:-6px}.view-tabs [role=tab][aria-selected=true]:focus-visible{outline-color:#fff}
 .tab-new{margin-left:8px;padding:1px 8px;border-radius:var(--r-pill);background:var(--accent-soft);color:var(--accent-dark);font-size:var(--fs-xs);font-weight:600}
 .profile{min-width:0;background:#fff;border:1px solid var(--line);border-radius:var(--r-card);padding:20px var(--card-pad) 4px}
+/* The district's legislator as listed, on one line beside the district's name, or under it where there is no room.
+   Where and when the name was read opens beneath it. */
+.district-title{display:flex;flex-wrap:wrap;align-items:baseline;column-gap:24px}
+.district-title h1{min-width:0}
+.profile-member{display:flex;flex-wrap:wrap;align-items:baseline;gap:0 14px;margin:0 0 4px}
+.profile-member-name{margin:0;font-size:var(--fs-sm);line-height:1.5}
+.profile-member-title{font-weight:600}
+details.profile-member-about{margin:0;padding:0;border:0;font-size:var(--fs-xs);line-height:1.5;color:var(--muted)}
+.profile-member-about[open]{flex-basis:100%}
+.profile-member-about summary{padding:4px 0}
+.profile-member-note{margin:0 0 4px;max-width:var(--measure)}
+.member-links{margin:0 0 12px;font-size:var(--fs-sm);color:var(--muted);line-height:1.5}
+.member-links p{margin:0 0 4px}
+/* The Commission's official description and permanent residents, each with its report page, in a section of its own. */
+.profile-plan{max-width:var(--measure);padding-bottom:4px}
+.profile-plan p{margin:0 0 8px;font-size:var(--fs-sm);line-height:1.5}
+.profile-plan-label{font-weight:600}
+.profile-plan-cite,.profile-plan .profile-plan-note{color:var(--muted)}
 .profile-status{margin:0 0 16px;font-size:var(--fs-sm);color:var(--muted)}
 .profile-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px 20px;margin:0}
 .profile-stats div{display:flex;flex-direction:column-reverse;justify-content:flex-end;min-width:0}
@@ -318,6 +336,7 @@ summary{font-weight:600;color:var(--accent);cursor:pointer}
 .profile-rows{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(14.5rem,100%),1fr));column-gap:24px}
 .program-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(18rem,100%),1fr));column-gap:24px}
 .profile-back{margin:0;padding:0 0 12px}
+.profile-scope{margin:0 0 12px;font-size:var(--fs-sm);line-height:1.5;color:var(--muted)}
 .profile-row{padding:12px 0 14px;border-top:1px solid var(--line)}
 .profile-figure{margin:0;line-height:1.2;font-variant-numeric:tabular-nums}
 .profile-figure .num{font-size:var(--fs-lg);letter-spacing:-.015em}
@@ -327,7 +346,9 @@ summary{font-weight:600;color:var(--accent);cursor:pointer}
 .profile-against{list-style:none;margin:6px 0 0;padding:0;font-size:var(--fs-xs);line-height:1.5;color:var(--muted)}
 .profile-against li+li{margin-top:2px}
 .profile-against b{font-weight:600;color:var(--ink)}
-.profile-caution{margin:4px 0 0;font-size:var(--fs-xs);color:var(--error-ink)}
+.profile-caution{margin:6px 0 0;font-size:var(--fs-xs);line-height:1.5;color:var(--muted)}
+.profile-against .chip.caution,.profile-beside .chip.caution,.program-reasons .chip.caution{padding:0 6px}
+.profile-stats dd .chip.caution{vertical-align:.2em;letter-spacing:0}
 .profile-sources{border-top:1px solid var(--line);padding:10px 0 14px;font-size:var(--fs-xs);line-height:1.5;color:var(--muted)}
 .profile-sources-title{margin:0 0 2px;font-weight:600;color:var(--ink)}
 .profile-sources ul,.profile-sources ol{margin:0;padding-left:18px}.profile-sources ul{list-style:none;padding-left:0}
@@ -378,8 +399,9 @@ article .answer-programs summary+.program{margin-top:10px}
 .district-page .district-now strong{display:inline;font-size:var(--fs-base)}
 .district-page .district-now .textbutton{padding:2px 0}
 .district-page #messages{padding-top:16px}
-.district-page #question-form{padding-top:12px}
-.district-page #chat-status{padding-bottom:12px}
+/* Tight enough that the four-line note under the question box leaves an answer 600 px to be read in at 1440 by 900. */
+.district-page #question-form{padding-top:10px}
+.district-page #chat-status{padding-bottom:10px}
 /* Wide and tall enough: the profile on the left and the chat beside it, as tall as the window below the site header, so
    it stays in view while the profile scrolls and the conversation scrolls inside it. */
 @media(min-width:1200px){
@@ -419,6 +441,21 @@ article .answer-programs summary+.program{margin-top:10px}
 .chart-bars{display:grid;grid-template-columns:fit-content(150px) minmax(96px,1fr) fit-content(13em);align-items:center;gap:6px 12px}
 .chip{font-weight:400;font-size:var(--fs-xs);color:var(--muted);border:1px solid var(--line);border-radius:var(--r-pill);padding:1px 8px;background:#fff}
 .chip.strong{color:var(--accent-dark);border-color:var(--accent)}
+/* Uncertainty: a chip on unreliable estimates, and how apportioned and modeled figures are estimated. */
+.chip.caution{display:inline-block;font-weight:600;line-height:1.5;color:var(--error-ink);border-color:var(--error-line);background:var(--error-bg);white-space:nowrap}
+.method{margin:6px 0 0;font-size:var(--fs-xs);line-height:1.5;color:var(--muted)}
+.profile-section>.method{margin:0 0 10px}
+.bar-value .chip.caution{display:table;margin:2px 0 0 auto}
+.chart-note{margin:8px 0 0;font-size:var(--fs-xs);line-height:1.5;color:var(--muted)}
+.chart-data td .chip.caution{margin-top:2px}
+/* Notes for districts with a known caveat, such as the Maui wildfires. */
+.place-notes{display:grid;gap:10px;margin:0 0 12px;padding:12px 14px;border:1px solid var(--line);border-left:4px solid var(--accent);border-radius:var(--r-ctl);background:#fff;font-size:var(--fs-sm);line-height:1.5}
+.place-note-text{margin:0}
+.place-note-text b{font-weight:700}
+.place-note-sources{list-style:none;margin:4px 0 0;padding:0;font-size:var(--fs-xs);color:var(--muted)}
+.place-note-sources li+li{margin-top:2px}
+.profile-notes{margin:12px 0 4px;background:var(--subtle)}
+article .place-notes .place-note-sources{padding-left:0}
 .bar-row{display:contents}
 .bar-place{min-width:0;overflow-wrap:break-word}.bar-place.home{font-weight:700}
 .bar-track{position:relative;height:18px}
@@ -441,6 +478,8 @@ article .answer-programs summary+.program{margin-top:10px}
 .answer .caveat{font-size:var(--fs-sm);color:var(--muted);margin:0 0 10px}
 .source-line{font-size:var(--fs-xs);color:var(--muted);border-top:1px solid var(--line);padding-top:10px;margin:0}
 .answer .prepared{font-size:var(--fs-xs);color:var(--muted);margin:10px 0 0}
+/* How many figures an answer shows, each from a cited source. */
+article .verified{font-size:var(--fs-sm);color:var(--ink);margin:6px 0 0}
 /* The datatrove.ai pointer after an answer with no figures. */
 article .elsewhere{font-size:var(--fs-sm)}
 .answer .elsewhere{margin:0 0 10px}
@@ -526,6 +565,8 @@ td:last-child{white-space:nowrap}
 .notes,.team{margin:var(--block-gap) 0 0;padding-left:20px;max-width:var(--measure)}
 .notes li,.team li{margin:0 0 8px}
 .validation-link{margin:var(--block-gap) 0 0;max-width:var(--measure)}
+.terms-title{margin:var(--block-gap) 0 0}
+.terms{margin:12px 0 0;max-width:var(--measure)}
 /* The methods page, linked from every figure KLEAR moved to districts or CDC modeled. */
 .methods{padding:var(--section-y) 0;background:var(--surface)}
 .methods h1{font-size:var(--fs-h1);line-height:1.1;margin:4px 0 16px}
@@ -545,7 +586,7 @@ td:last-child{white-space:nowrap}
 /* About */
 .about h3{margin:0}
 .about .team{margin-top:12px}
-.about .team+h3{margin-top:var(--block-gap)}
+.about .team-block+h3{margin-top:var(--block-gap)}
 .about .partner{margin:12px 0 0;max-width:var(--measure)}
 
 /* Footer */
@@ -634,8 +675,9 @@ footer a{color:#fff}
   body.has-sheet>:not(.print-sheet){display:none!important}
   body.has-sheet .print-sheet{display:block}
 }
-/* The summary's layout applies on screen too, so it can be measured off screen at the printed width before printing. */
-.print-sheet.sheet-measure{display:block;position:absolute;top:0;left:-10000px;width:7.5in;visibility:hidden}
+/* The summary's own layout holds on screen too, so the page can lay it out unseen at the printed width (7.5in, a
+   Letter page inside its margins) and fit it to one page before it prints. */
+.print-sheet.measure{display:block;position:absolute;top:0;left:-9999px;width:7.5in;visibility:hidden}
 .print-sheet{font-family:var(--sans);font-size:var(--pt-base);line-height:1.35;color:var(--ink);-webkit-print-color-adjust:exact;print-color-adjust:exact}
 .print-sheet p{margin:0}
 .print-sheet h1{margin:1pt 0 0;font-size:var(--pt-title);line-height:1.1}
@@ -645,11 +687,15 @@ footer a{color:#fff}
 .sheet-head{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6pt 18pt;align-items:end;padding-bottom:6pt;border-bottom:2.5pt solid var(--rule)}
 .sheet-kicker{font-size:var(--pt-xs);font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
 .sheet-where{margin-top:2pt;font-size:var(--pt-md)}
+.sheet-member{margin-top:2pt;font-size:var(--pt-sm)}
+.sheet-member b{font-weight:600}
 .sheet-live{max-width:3.2in;padding:4pt 8pt;border:1pt solid var(--rule);border-radius:4pt;font-size:var(--pt-xs);color:var(--muted)}
 .print-sheet .sheet-live .sheet-url{font-size:var(--pt-sm);font-weight:700;color:var(--ink)}
 .sheet-dates{margin-top:2pt}
 .sheet-about{margin-top:5pt;font-size:var(--pt-sm);color:var(--muted)}
 .sheet-about b{font-weight:600;color:var(--ink)}
+/* The Commission's description can run long, so it takes the smallest print size. */
+.sheet-about .sheet-plan{font-size:var(--pt-xs)}
 .sheet-section{margin-top:var(--pt-gap);break-inside:avoid}
 
 /* Key figures: an estimate column and a margin column for each place, the district's tinted, sources last */
@@ -688,6 +734,8 @@ details.meaning{margin:6px 0 0;padding:0;border:0;font-size:var(--fs-xs);line-he
 .meaning-more a{display:inline-block;padding:4px 0;color:var(--accent);font-weight:600}
 .tile .meaning{margin-top:auto;padding-top:6px}
 .tile-meta+.meaning{margin-top:0}
+/* The lines under a tile's label sit together at its foot. */
+.tile>:nth-child(n+3){margin-top:0;padding-top:4px}.tile>:nth-child(3){margin-top:auto;padding-top:6px}
 .fact .meaning span:not(.visually-hidden){display:inline;margin:0;font-size:inherit;color:inherit}
 @media print{.meaning{display:none}}
 
@@ -738,6 +786,7 @@ details.meaning{margin:6px 0 0;padding:0;border:0;font-size:var(--fs-xs);line-he
 .outreach-result .moe{font-size:var(--fs-sm);color:var(--muted)}
 .outreach-caution{color:var(--error-ink);font-size:var(--fs-sm)}
 td .outreach-caution{display:block;margin-top:2px;font-size:var(--fs-xs)}
+td .outreach-flag{display:block;margin-top:4px;font-size:var(--fs-xs);line-height:1.5;color:var(--muted)}
 .outreach-result details.meaning{max-width:var(--measure)}
 .outreach-caveat{max-width:var(--measure);margin:16px 0 0;padding:12px 16px;background:var(--subtle);border-left:4px solid var(--accent);border-radius:var(--r-sm);font-size:var(--fs-sm);line-height:1.5}
 .outreach-caveat p{margin:0}.outreach-caveat p+p{margin-top:6px}

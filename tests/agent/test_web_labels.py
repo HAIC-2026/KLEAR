@@ -6,8 +6,10 @@ import re
 import pandas as pd
 import pytest
 
+from klear.etl.bls import laus_indicator_rows
 from klear.etl.chas import chas_indicator_rows
 from klear.etl.cms import cms_indicator_rows
+from klear.etl.dotax import credit_indicator_rows
 from klear.etl.hud import hud_indicator_rows
 from klear.etl.irs import irs_indicator_rows
 from klear.etl.places import PLACES_MEASURES
@@ -17,6 +19,7 @@ from klear.eval.contract import Answer, FactRef, render
 from klear.labels import MAX_SHORT, in_sentence, plain_labels
 from klear.web import __main__ as web
 from klear.web.display import build
+from tests.agent.test_web_display import add_rate, rate
 
 # The terms the glossary must explain, by anchor.
 GLOSSARY_TERMS = (
@@ -42,6 +45,8 @@ def built_indicators() -> set[str]:
             hud_indicator_rows(),
             site_indicator_rows(),
             chas_indicator_rows(),
+            laus_indicator_rows(),
+            credit_indicator_rows(),
         ]
     )
     return (
@@ -103,13 +108,19 @@ def test_tiles_and_charts_carry_what_the_label_means(small_con):
     other = FactRef("f2", "pop_65_plus", "house", "023", "acs", 100.0, None, None, 80.0, "2020-2024")
     answer = _answer(["x"])
     answer.facts.append(other)
-    (chart,) = build(small_con, answer)["charts"]
-    assert chart["label"] == "Kūpuna (65 and over)"
-    assert chart["meaning"] == {
+    # Counts stay tiles, so both places get one.
+    tiles = build(small_con, answer)["tiles"]
+    assert [t["label"] for t in tiles] == ["Kūpuna (65 and over)"] * 2
+    assert tiles[0]["meaning"] == {
         "plain": "People age 65 or older.",
         "official": "Population 65 years and over",
         "universe": "persons",
     }
+    add_rate(small_con)
+    rates = [rate("f1", "house", "022", 20.0, 1.0), rate("f2", "state", "15", 21.0, 0.5)]
+    (chart,) = build(small_con, Answer("1", ("house", "022"), "none", ["x"], rates, [], []))["charts"]
+    assert chart["label"] == "Share who are kūpuna (65 and over)"
+    assert chart["meaning"]["plain"] == "The percent of all residents who are 65 or older."
 
 
 def test_profile_rows_carry_the_official_label_and_universe(real_con):

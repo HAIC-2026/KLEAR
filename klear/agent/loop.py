@@ -27,6 +27,7 @@ from klear.agent.config import (
     REVIEW_INPUT_CAP,
     REVIEW_MAX_TOKENS,
 )
+from klear.agent.earlier import Exchange, earlier_block
 from klear.agent.prompt import SYSTEM
 from klear.agent.review import REVIEW_FIX, REVIEW_SPEC, REVIEW_SYSTEM, review_flags, review_messages
 from klear.agent.tools import TOOL_SPECS, Session
@@ -129,14 +130,19 @@ class KlearAgent:
         review = self.reviews * (REVIEW_INPUT_CAP * rate["input"] + REVIEW_MAX_TOKENS * rate["output"])
         return (answer + review) / 1e6
 
-    def _prompt(self, question: str, context: tuple[str, str] | None) -> str:
-        if context is None:
-            return question
-        row = self.con.execute(
-            "SELECT name FROM geography WHERE geo_type = ? AND geo_id = ?", list(context)
-        ).fetchone()
-        shown = geo_display(*context, row[0]) if row else f"{context[0]}:{context[1]}"
-        return f"{question}\n\nSelected district: {shown} ({context[0]}:{context[1]})"
+    def _prompt(
+        self, question: str, context: tuple[str, str] | None, earlier: tuple[Exchange, ...] = ()
+    ) -> str:
+        parts = [question]
+        if context is not None:
+            row = self.con.execute(
+                "SELECT name FROM geography WHERE geo_type = ? AND geo_id = ?", list(context)
+            ).fetchone()
+            shown = geo_display(*context, row[0]) if row else f"{context[0]}:{context[1]}"
+            parts.append(f"Selected district: {shown} ({context[0]}:{context[1]})")
+        if block := earlier_block(self.con, earlier):
+            parts.append(block)
+        return "\n\n".join(parts)
 
     @staticmethod
     def _fallback(session: Session, context, tried: dict) -> Answer:
@@ -193,8 +199,8 @@ class KlearAgent:
                 self._sleep(delay)
         return fn(**req)
 
-    def _run(self, session: Session, question: str, context) -> tuple[Answer, list[int]]:
-        messages = [{"role": "user", "content": _text(self._prompt(question, context))}]
+    def _run(self, session: Session, question: str, context, earlier=()) -> tuple[Answer, list[int]]:
+        messages = [{"role": "user", "content": _text(self._prompt(question, context, earlier))}]
         totals = [0, 0, 0, 0]
         tried: dict = {}
         settings = REQUEST_SETTINGS[self.model]
@@ -267,11 +273,18 @@ class KlearAgent:
         flags = self._review(session, answer, totals) if reviews < self.reviews else []
         return self._final(session, answer, flags), totals
 
-    def answer(self, golden_id: str, question: str, context: tuple[str, str] | None) -> tuple[Answer, Usage]:
+    def answer(
+        self,
+        golden_id: str,
+        question: str,
+        context: tuple[str, str] | None,
+        earlier: tuple[Exchange, ...] = (),
+    ) -> tuple[Answer, Usage]:
+        """earlier holds the reader's last questions in this tab, which only resolve words like that or there."""
         start = time.monotonic()
         self.trace: list[dict] = []
         session = Session(self.con, self.geocoder)
         session.context = context
         session.question = question
-        answer, (inp, out, write, read) = self._run(session, question, context)
+        answer, (inp, out, write, read) = self._run(session, question, context, earlier)
         return answer, Usage(inp, out, time.monotonic() - start, write, read)

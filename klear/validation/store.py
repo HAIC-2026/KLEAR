@@ -2,7 +2,14 @@
 import pandas as pd
 
 from klear.etl.profile import DETAILED, PROFILE, SOURCE_BY_DATASET
-from klear.store.db import MOE_STATUSES, RANGE_TIERS, VALUE_STATUSES
+from klear.store.db import (
+    CONTEXT_GEO_TYPES,
+    CONTEXT_TIER,
+    MATCH_COLS,
+    MOE_STATUSES,
+    RANGE_TIERS,
+    VALUE_STATUSES,
+)
 from klear.validation import CheckResult
 
 EXPECTED_GEOS = {"state": 1, "county": 5, "senate": 25, "house": 51}
@@ -14,9 +21,10 @@ GEO_WORDS = {
 }  # fmt: skip
 MAX_LISTED = 20
 VALUE_COLS = ["value", "moe", "value_status", "moe_status"]
+MATCH_KEYS = MATCH_COLS[:4]
 TIER_WORDS = {
     "D": "direct", "A": "apportioned with a range", "P": "counted from points", "M": "modeled with a range",
-    "S": "summed from published parts", "C": "context",
+    "S": "summed from published parts", "C": "county-level context",
 }  # fmt: skip
 SITE_WORDS = {"public_housing": "public housing", "lihtc": "LIHTC", "health_center": "health center"}
 RULE_WORDS = {"confirmed": "confirmed", "needs_manual": "needing a manual check"}
@@ -53,8 +61,8 @@ def _same(a: pd.Series, b: pd.Series) -> pd.Series:
     return (a.isna() & b.isna()) | (a == b)
 
 
-def compare_values(facts: pd.DataFrame, dbedt_aligned: pd.DataFrame) -> list[dict]:
-    # every stored fact against the DBEDT cell for the same variable and geography
+def _merged(facts: pd.DataFrame, dbedt_aligned: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series]:
+    # stored facts beside their DBEDT cell, and which facts have one
     m = facts.merge(
         dbedt_expected(dbedt_aligned).rename(columns={c: f"dbedt_{c}" for c in VALUE_COLS}),
         on=["geo_type", "geo_id", "acs_var"],
@@ -62,7 +70,20 @@ def compare_values(facts: pd.DataFrame, dbedt_aligned: pd.DataFrame) -> list[dic
         indicator="_dbedt",
         validate="1:1",
     )
-    found = m["_dbedt"] == "both"
+    return m, m["_dbedt"] == "both"
+
+
+def matched_facts(facts: pd.DataFrame, dbedt_aligned: pd.DataFrame) -> pd.DataFrame:
+    """Keys of the stored facts whose value, margin of error and both statuses equal their DBEDT cell."""
+    m, found = _merged(facts, dbedt_aligned)
+    for c in VALUE_COLS:
+        found &= _same(m[c], m[f"dbedt_{c}"])
+    return m.loc[found, MATCH_KEYS].reset_index(drop=True)
+
+
+def compare_values(facts: pd.DataFrame, dbedt_aligned: pd.DataFrame) -> list[dict]:
+    # every stored fact against the DBEDT cell for the same variable and geography
+    m, found = _merged(facts, dbedt_aligned)
     out = []
     for c in VALUE_COLS:
         bad = m[found & ~_same(m[c], m[f"dbedt_{c}"])]
@@ -151,9 +172,30 @@ def check_store(
     api_only = int((facts["source_id"] == DETAILED_SOURCE).sum())
     other = len(facts) - len(compared) - api_only
     value_problems = None
+    marks = con.execute(f"SELECT {', '.join(MATCH_KEYS)} FROM fact_match").df()
+    marked = set(marks.itertuples(index=False, name=None))
     if dbedt_aligned is not None:
         value_problems = compare_values(compared, dbedt_aligned)
         details += value_problems
+        proven = set(matched_facts(compared, dbedt_aligned).itertuples(index=False, name=None))
+        details += [
+            {"check": "unproven_match", **dict(zip(MATCH_KEYS, k, strict=True))}
+            for k in sorted(marked - proven)
+        ]
+    elif marked:
+        details.append({"check": "unproven_match", "n": len(marked)})
+    geo_list = ", ".join(f"'{g}'" for g in sorted(CONTEXT_GEO_TYPES))
+    context_out = con.execute(
+        f"SELECT geo_type, geo_id, indicator_id FROM fact WHERE tier = '{CONTEXT_TIER}' "
+        f"AND geo_type NOT IN ({geo_list}) ORDER BY 1, 2, 3"
+    ).fetchall()
+    details += [
+        {"check": "context_below_county", "geo_type": t, "geo_id": g, "indicator": i}
+        for t, g, i in context_out
+    ]
+    n_context, n_context_ids = con.execute(
+        f"SELECT count(*), count(DISTINCT indicator_id) FROM fact WHERE tier = '{CONTEXT_TIER}'"
+    ).fetchone()
 
     c = store_counts(con)
     value_counts = facts["value_status"].value_counts()
@@ -189,12 +231,23 @@ def check_store(
             f"{len(compared):,} stored Census API data profile facts compared with the DBEDT workbook cell "
             f"(value, margin of error and both statuses), {len(value_problems):,} differ"
         )
+    notes.append(
+        f"{len(marked):,} stored facts are marked as matching DBEDT's published profile, and the site says so in "
+        "their source lists. A mark is allowed only on a fact compared above and equal to its DBEDT cell"
+    )
+    notes.append(
+        f"{n_context:,} county-level facts (tier C) for {n_context_ids:,} indicators, "
+        f"{len(context_out):,} of them stored for a geography other than a county or the state"
+    )
     notes += [
         (
             f"{api_only:,} facts from the Census API detailed tables (B and C tables) are Census API only, "
             "with no second source to compare against"
         ),
-        f"{other:,} facts from the enrollment, site and need sources are checked by their own sections below",
+        (
+            f"{other:,} facts from the tax, enrollment, site, need and county-level sources are checked by "
+            "their own sections below"
+        ),
         "values, with the phrase the agent uses: "
         + ", ".join(f'{v:,} "{VALUE_STATUSES.get(k, k)}"' for k, v in value_counts.items()),
         "margins of error, with the phrase the agent uses: "

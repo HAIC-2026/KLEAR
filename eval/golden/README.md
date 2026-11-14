@@ -7,7 +7,7 @@ One YAML file per question, in a folder named for its category. Loaded and valid
 | Field | Required | Meaning |
 |---|---|---|
 | id | yes | Unique across all files, for example profile-001. Letters, digits, hyphen and underscore only, and equal to the file name. |
-| category | yes | One of profile, compare, find_district, programs_gap, help_sites, modeled_need, small_groups, no_data, decline_individual, decline_partisan, messy_input, rank. Must match the folder name. rank questions ask where a measure is highest across districts and list the first tier's districts in facts. |
+| category | yes | One of profile, compare, find_district, programs_gap, help_sites, modeled_need, small_groups, no_data, decline_individual, decline_partisan, messy_input, rank, follow_up, no_district. Must match the folder name. rank questions ask where a measure is highest across districts and list the first tier's districts in facts. follow_up questions lean on earlier questions for their place or measure, such as "how does that compare with the county?". no_district questions are asked with no district chosen, so they name their own place or ask about every district. |
 | question | yes | Exact user text, typos and missing ʻokina included where the category calls for it. |
 | ideal | yes | Short paragraph a human reviewer reads, saying what a perfect answer covers. Not compared word for word. |
 | context | no | District already picked in the UI, as [geo_type, geo_id]. Default none. |
@@ -20,6 +20,7 @@ One YAML file per question, in a folder named for its category. Loaded and valid
 | programs_forbidden | no | Programs the answer must not list, as rule_id values from data/rules. |
 | allowed_geos | no | Extra geographies a correct answer may name, as a list of [geo_type, geo_id], for example every district a named town spans. |
 | direction | no | For compare questions: higher, lower or within_margin, read from the store (within_margin when the district's margin of error range overlaps any comparison's). |
+| earlier | no | One or two earlier questions in the same conversation, oldest first, as the website sends them: question, an optional district as [geo_type, geo_id] (the place its answer was about) and optional indicators (the indicator ids it showed). Never answer text. Used by follow_up questions. |
 | refusal | no | none (default), decline_individual, decline_partisan, not_available or out_of_scope. |
 
 Program ids are checked against the rule_id values in data/rules when the set loads. Files must sit at <category>/<id>.yaml, any other .yaml or .yml file under this folder is an error. Quote geography ids ("022"). Unquoted, YAML reads 022 as a number and the loader rejects it. A question whose indicator, geography or required fact value is not in the store is pending, reported as skipped, and never counts as passed.
@@ -34,6 +35,8 @@ Answers (contract version 1) never type a digit. Every number, vintage and place
 | {vintage:REF} | The vintage of fact ref REF followed by its source's short name, for example 2020-2024 ACS or Tax year 2023 IRS SOI. The short name is left off when the vintage already contains it (2020-2024 ACS 5-year). |
 | {label:REF} | The store label of fact ref REF's indicator, for example Population 65 years and over, so a definition such as an age threshold needs no typed digits. |
 | {geo:TYPE:ID} | A clean display name: House District 22, Senate District 12, ZIP code area 96744, Census tract 15003010100, Honolulu County or Hawaiʻi, for example {geo:house:022}, {geo:county:15003} or {geo:zcta:96744}. TYPE is a store geography type and ID is the stored id. |
+| {member:TYPE:ID} | The title and name of the legislator listed for a House or Senate district, with where and when it was listed, for example Representative DOE, Jane (as listed on the Legislative Reference Bureau's Representatives at a Glance on November 12, 2026). The agent may use it only for a member its find_member or district_profile tool returned. |
+| {listing:TYPE:ID} | When that member listing may predate the general election results. The answer builder adds it as a caveat to every answer that names a member. |
 
 Short names come from the source's stored name by prefix (klear.eval.contract.SHORT_NAMES, for example American Community Survey gives ACS and IRS Statistics of Income gives IRS SOI). A source with no listed prefix uses its full name.
 

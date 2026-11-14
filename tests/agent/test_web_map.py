@@ -201,7 +201,9 @@ def test_map_figures_match_each_district_profile(every_site):
         _, raw = request(every_site, "GET", f"/api/profile?district={d['geo']}")
         rows = {r["id"]: r for s in json.loads(raw)["sections"] for r in s["rows"]}
         row = rows[POVERTY]
-        assert (row["value"], row["spread"], row["caution"]) == (d["value"], d["spread"], d["caution"])
+        assert (row["value"], row["spread"]) == (d["value"], d["spread"])
+        # The profile flags with a chip and its reason, the map with a note that stands alone.
+        assert bool(row["caution"]) == bool(d["caution"]), d["geo"]
         state = row["against"][-1]
         assert f" {state['lead'][0].upper()}{state['lead'][1:]} {state['rest']}." in d["text"]
 
