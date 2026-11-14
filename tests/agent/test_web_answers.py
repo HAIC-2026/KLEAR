@@ -220,7 +220,10 @@ def test_basic_figures_that_match_dbedt_link_its_profile(small_con):
     ("What kinds of jobs do residents have?", OCCUPATIONS),
     ("What share of adults here have a college degree?", EDUCATION),
     ("How many adults finished high school?", EDUCATION),
-    ("How many people are unemployed?", ("unemployment_rate", "pct_in_labor_force", "pct_work_from_home")),
+    (
+        "How many people are unemployed?",
+        ("unemployment_rate", "bls_unemployment_rate", "pct_in_labor_force", "pct_work_from_home"),
+    ),
 ])  # fmt: skip
 def test_work_and_education_questions_get_their_measures(con, question, ids):
     assert tuple(indicators(con, question)) == ids
