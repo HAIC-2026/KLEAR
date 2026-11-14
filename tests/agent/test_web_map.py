@@ -224,6 +224,17 @@ def test_map_requests_name_a_listed_measure_and_chamber(every_site):
     assert status == 200 and len(json.loads(body)["districts"]) == 25
 
 
+def test_a_crash_while_ranking_is_logged_not_shown_as_missing_figures(every_site, monkeypatch, capsys):
+    def missing(*_):
+        raise FileNotFoundError("data/places/caveats.yaml")
+
+    monkeypatch.setattr("klear.caveats.grouped", missing)
+    status, body = request(every_site, "GET", f"/api/map?indicator={POVERTY}&chamber=house")
+    assert status == 503 and json.loads(body)["error"].startswith("The map figures are unavailable")
+    logged = capsys.readouterr().err
+    assert "KLEAR error in map: RuntimeError" in logged and "map_view" in logged
+
+
 def test_map_without_a_store_says_so(tmp_path):
     server = web.Server(("127.0.0.1", 0), partial(web.Handler, store=tmp_path / "none.duckdb"))
     thread = threading.Thread(target=server.serve_forever, daemon=True)

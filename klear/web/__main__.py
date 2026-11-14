@@ -6,8 +6,10 @@ import json
 import re
 import socket
 import socketserver
+import sys
 import threading
 import time
+import traceback
 import webbrowser
 from collections import defaultdict, deque
 from functools import partial
@@ -73,6 +75,17 @@ PER_MINUTE = 6
 CHAT_BYTES = 16384
 _RECENT = defaultdict(deque)
 _RECENT_LOCK = threading.Lock()
+
+
+def log_failure(where: str) -> None:
+    """Print the handled exception's type and stack to stderr, leaving out its message, which may quote a question."""
+    kind, _, tb = sys.exc_info()
+    frames = "".join(traceback.format_list(traceback.extract_tb(tb)))
+    print(
+        f"KLEAR error in {where}: {kind.__name__ if kind else 'unknown'}\n{frames}",
+        file=sys.stderr,
+        flush=True,
+    )
 
 
 class Server(ThreadingHTTPServer):
@@ -258,6 +271,7 @@ class Handler(SimpleHTTPRequestHandler):
                     result = self.resolve(Session(con, self.geocoder), text)
                 return self.reply(200, result)
             except Exception:  # noqa: BLE001 - redact internal errors at the HTTP boundary
+                log_failure("district lookup")
                 return self.reply(
                     503,
                     {"error": "District lookup is unavailable. The operator needs to build the data store."},
@@ -271,6 +285,7 @@ class Handler(SimpleHTTPRequestHandler):
                 with self.connect() as con:
                     return self.reply(200, {"suggestions": Session(con).suggest(text)})
             except Exception:  # noqa: BLE001 - redact internal errors at the HTTP boundary
+                log_failure("suggestions")
                 return self.reply(503, {"error": "Suggestions are unavailable."})
         if path.path in ("/api/profile", "/api/profile.csv"):
             district = parse_qs(path.query).get("district", [""])[0]
@@ -300,6 +315,7 @@ class Handler(SimpleHTTPRequestHandler):
                 with self.connect() as con:
                     return self.reply(200, about(con, self.store.parent / "validation.json"))
             except Exception:  # noqa: BLE001 - redact internal errors at the HTTP boundary
+                log_failure("sources")
                 return self.reply(
                     503,
                     {"error": "The source list is unavailable right now. Please try again later."},
@@ -308,6 +324,7 @@ class Handler(SimpleHTTPRequestHandler):
             try:
                 return self.reply(200, checks_report(self.store.parent / "validation.json"))
             except Exception:  # noqa: BLE001 - redact internal errors at the HTTP boundary
+                log_failure("checks")
                 return self.reply(
                     503,
                     {"error": "No checked build yet. The results appear here once the data build has run."},
@@ -341,6 +358,7 @@ class Handler(SimpleHTTPRequestHandler):
                 503, {"error": "The data store has no figures for this measure yet. Try another one."}
             )
         except Exception:  # noqa: BLE001 - redact internal errors at the HTTP boundary
+            log_failure("map")
             return self.reply(
                 503, {"error": "The map figures are unavailable right now. Please try again later."}
             )
@@ -372,6 +390,7 @@ class Handler(SimpleHTTPRequestHandler):
                 islands = _islands().get(":".join(geo), "")
                 return self.reply(200, display.profile(con, raw, session, islands, matched, tops))
         except Exception:  # noqa: BLE001 - redact internal errors at the HTTP boundary
+            log_failure("profile")
             return self.reply(503, {"error": "The district profile is unavailable right now."})
 
     def outreach(self, pair: str, chamber: str):
@@ -391,6 +410,7 @@ class Handler(SimpleHTTPRequestHandler):
                     )
                 return self.reply(200, display.outreach(con, raw, session))
         except Exception:  # noqa: BLE001 - redact internal errors at the HTTP boundary
+            log_failure("outreach")
             return self.reply(
                 503, {"error": "The outreach figures are unavailable right now. Please try again later."}
             )
@@ -451,6 +471,7 @@ class Handler(SimpleHTTPRequestHandler):
                     )
             self.reply(200, result)
         except Exception:  # noqa: BLE001 - redact internal errors at the HTTP boundary
+            log_failure("chat")
             self.reply(
                 503,
                 {
