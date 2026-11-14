@@ -329,7 +329,13 @@ def program_names(rules: Path = RULES) -> dict[str, str]:
     return {
         (d := yaml.safe_load(p.read_text(encoding="utf-8")))["rule_id"]: d["program"]
         for p in Path(rules).glob("*.yaml")
-    } | {p.program_id: p.name for p in catalog() if not p.rules}
+    }
+
+
+@cache
+def known_programs(rules: Path = RULES) -> dict[str, str]:
+    """Names of every id an answer may list: rule ids plus information-only catalog program ids."""
+    return program_names(rules) | {p.program_id: p.name for p in catalog() if not p.rules}
 
 
 def _plain(text: str) -> str:
@@ -434,7 +440,7 @@ def _direction(g: Golden, a: Answer, low: str) -> Outcome:
 
 
 def score(g: Golden, a: Answer, con, programs: dict[str, str] | None = None) -> list[Outcome]:
-    names = program_names() if programs is None else programs
+    names = known_programs() if programs is None else programs
     try:
         text = render(a, con)
     except (ContractError, KeyError):

@@ -10,7 +10,8 @@ from klear.agent.prompt import SYSTEM
 from klear.agent.tools import TOOL_NAMES, Session
 from klear.eval.contract import MARKER, REFUSALS
 from klear.eval.golden import load_golden
-from klear.eval.scorers import _names_program, _plain, _text_problems, program_names
+from klear.eval.scorers import _names_program, _plain, _text_problems, known_programs, program_names
+from klear.programs import catalog
 
 # One or more phrases per bullet of eval/README.md "What the system prompt must teach"; the last bullet (max_call_cost)
 # is a code rule, not a prompt rule.
@@ -235,6 +236,53 @@ def test_program_name_field_passes_build_and_scorer(real_con, rule_id):
     answer, problems = build_answer(session, args, None)
     assert problems == [] and answer is not None
     assert _names_program(_plain(text), program_names()[rule_id])
+
+
+COUNTY_PROGRAMS = sorted(p.program_id for p in catalog() if p.counties)
+
+
+def _resident_counties(con) -> dict[str, set[str]]:
+    """Counties with residents in each House district."""
+    out = {
+        r[0]: set() for r in con.execute("SELECT geo_id FROM geography WHERE geo_type = 'house'").fetchall()
+    }
+    for house, county in con.execute(
+        "SELECT house, county FROM blocks GROUP BY house, county HAVING sum(pop2020) > 0"
+    ).fetchall():
+        out[house].add(county)
+    return out
+
+
+def test_county_programs_are_offered_only_in_their_counties(real_con):
+    for district, counties in _resident_counties(real_con).items():
+        want = {p.program_id for p in catalog() if counties & set(p.counties)}
+        session = Session(real_con)
+        for tool in ("district_programs", "list_programs"):
+            got = json.loads(session.run(tool, {"district": f"house:{district}"}))["programs"]
+            assert {p["program_id"] for p in got} & set(COUNTY_PROGRAMS) == want, (tool, district)
+
+
+@pytest.mark.parametrize("program_id", COUNTY_PROGRAMS)
+def test_county_program_id_passes_build_and_scorer(real_con, program_id):
+    program = next(p for p in catalog() if p.program_id == program_id)
+    inside = sorted(d for d, c in _resident_counties(real_con).items() if c & set(program.counties))
+    outside = sorted(d for d, c in _resident_counties(real_con).items() if not c & set(program.counties))
+    assert inside and outside
+    session = Session(real_con)
+    session.run("district_programs", {"district": f"house:{inside[0]}"})
+    text = f"The {program.name} may help."
+    args = {
+        "resolved": f"house:{inside[0]}",
+        "refusal": "none",
+        "blocks": [text],
+        "facts": [],
+        "programs": [program_id],
+        "caveats": [],
+    }
+    answer, problems = build_answer(session, args, None)
+    assert problems == [] and answer is not None and program_id in answer.programs
+    assert program_id not in program_names()
+    assert _names_program(_plain(text), known_programs()[program_id])
 
 
 def test_prompt_states_the_call_budget_and_parallel_calls():

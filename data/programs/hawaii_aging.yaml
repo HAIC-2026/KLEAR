@@ -6,12 +6,13 @@ agency: Hawaiʻi County Office of Aging
 level: county
 counties:
 - '15001'
-url: https://www.hawaiicounty.gov/departments/aging
+url: https://health.hawaii.gov/eoa/home/aging-network/
 phone: (808) 961-8626
-phone_source: https://www.hawaiicounty.gov/departments/aging
+phone_source: https://health.hawaii.gov/eoa/home/aging-network/
 rules: []
 needs:
 - pct_65_plus
 verified: '2026-11-12'
-verification: Read the indexed official county Office of Aging page, including its service phone. Direct
-  fetch returned HTTP 403. Information-only entry; no numeric eligibility rules are modeled.
+verification: Fetched the state Executive Office on Aging page that lists each county's office on aging
+  and its phone (HTTP 200). The county site blocks scripts (HTTP 403). Information-only entry; no numeric
+  eligibility rules are modeled.

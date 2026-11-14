@@ -1,7 +1,7 @@
 program_id: honolulu_home_exemption
 name: Honolulu home exemption
-description: Lowers the value of a home that is taxed. Older homeowners may get a larger exemption.
-serves: Homeowners who meet the county home exemption rules.
+description: Lowers the taxable value of a home you own and live in. Owners 65 and older get a larger exemption.
+serves: Homeowners who live in their own home on Oʻahu.
 agency: Honolulu Real Property Assessment Division
 level: county
 counties:
@@ -13,5 +13,5 @@ rules: []
 needs:
 - pct_owner_cost_burden_35_plus
 verified: '2026-11-12'
-verification: Read the official county page and its listed phone. Information-only entry; use the linked
-  page for current terms, services and application steps.
+verification: Fetched the county FAQ page (HTTP 200). It lists the home exemption rules, a larger amount for
+  owners 65 and older, and the office phone. Information-only entry; no numeric eligibility rules are modeled.

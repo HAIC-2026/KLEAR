@@ -1,0 +1,17 @@
+program_id: kauai_home_exemption
+name: Kauaʻi home exemption
+description: Lowers the taxable value of a home you own and live in. Owners 60 and older get a larger exemption.
+serves: Homeowners who live in their own home on Kauaʻi.
+agency: Kauaʻi County Real Property Assessment
+level: county
+counties:
+- '15007'
+url: https://www.kauai.gov/Government/Departments-Agencies/Finance/Real-Property-Tax/Assessment/ExemptionTax-Relief-Information
+phone: (808) 241-4224
+phone_source: https://www.kauai.gov/Government/Departments-Agencies/Finance/Real-Property-Tax/Assessment
+rules: []
+needs:
+- pct_owner_cost_burden_35_plus
+verified: '2026-11-12'
+verification: Fetched the county exemption page and the Assessment Section page that prints its phone
+  (HTTP 200). Information-only entry; no numeric eligibility rules are modeled.

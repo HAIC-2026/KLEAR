@@ -1148,7 +1148,8 @@ function sheetParts(p, limit = SHEET_PROGRAMS) {
     const list = node('ul', '', 'sheet-list');
     for (const g of programs) {
       const li = document.createElement('li');
-      li.append(node('b', g.name), ` (${g.level})`);
+      li.append(node('b', g.name));
+      if (g.level) li.append(` (${g.level})`);
       if (g.description) li.append(': ', says('span', g.description));
       if (g.agency) li.append(` (${g.agency})`);
       if (g.url) li.append(' ', url(g.url));
