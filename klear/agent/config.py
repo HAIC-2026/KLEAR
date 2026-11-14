@@ -1,7 +1,7 @@
 # Limits, defaults and lookup tables for the KLEAR agent and its tools.
 MAX_CALLS = 6
 MAX_TOKENS = 1500
-INPUT_CAP = 30000
+INPUT_CAP = 60000
 DEFAULT_MODEL = "claude-haiku-5-5"
 CLIENT_MAX_RETRIES = 0
 CLIENT_TIMEOUT_S = 60

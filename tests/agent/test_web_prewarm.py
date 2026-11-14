@@ -162,7 +162,7 @@ def test_failed_questions_are_left_to_answer_live(store, capsys):
     out = capsys.readouterr().out
     assert "15 failed" in out and "0 of 15 starter answers are ready" in out
     # A failed call costs its full reservation.
-    assert spend.SpendLog().total() == pytest.approx(15 * 0.027)
+    assert spend.SpendLog().total() == pytest.approx(15 * 0.0495)
 
 
 def test_prewarm_drops_answers_from_an_older_build(ready):
