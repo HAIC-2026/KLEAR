@@ -1,0 +1,18 @@
+id: find_district-006
+category: find_district
+question: Which district does Representative Andrew Takuya Garrett represent?
+ideal: Name the Hawaiʻi House district the Legislature's member listing gives for this representative. Say where
+  and when the name was listed, and that the listing may predate the general election results. Give no party,
+  voting record or opinion.
+district:
+- house
+- '022'
+tags:
+- member
+must_say:
+- as listed on
+- Representatives at a Glance
+must_not_say:
+- Democrat
+- Republican
+refusal: none

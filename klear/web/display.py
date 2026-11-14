@@ -7,12 +7,28 @@ from datetime import datetime
 
 from klear import caveats
 from klear.agent.answer import actual_direction
-from klear.agent.config import OUTREACH_NOTE_LIMIT, OUTREACH_PAIRS, PROFILE_HEADLINE
+from klear.agent.config import (
+    OUTREACH_NOTE_LIMIT,
+    OUTREACH_PAIRS,
+    PROFILE_HEADLINE,
+    PROFILE_LARGEST,
+    PROFILE_SECTIONS,
+)
 from klear.config import CURRENT_LAYER
 from klear.etl import bls, dbedt, dotax
-from klear.eval.contract import MARKER, _has, _number, geo_display, geo_key, short_name
+from klear.eval.contract import (
+    MARKER,
+    MEMBER_MARKERS,
+    _has,
+    _number,
+    geo_display,
+    geo_key,
+    member_text,
+    short_name,
+)
 from klear.eval.scorers import reliability
 from klear.labels import in_sentence, meaning, short_label
+from klear.members import as_listed, members_of, timing
 from klear.programs import ELIGIBILITY_NOTE, NEEDS, Program, by_rule, catalog, is_stale
 from klear.store.methods import place_note
 
@@ -272,6 +288,8 @@ def plain_text(texts: list[str], answer, store: _Store) -> list[str]:
 
     def sub(m):
         kind, ref = m.groups()
+        if kind in MEMBER_MARKERS:
+            return member_text(store.con, kind, ref)
         if kind == "geo":
             key = geo_key(ref)
             return store.place(*key) if key else ref
@@ -446,6 +464,27 @@ def sources(answer, store: _Store) -> list[dict]:
     return _matched(cited, answer.facts, store)
 
 
+def member_cards(con, geos) -> list[dict]:
+    """Each listed member of the districts with their official page, the listing they were read from and its
+    notes, for the links under an answer and on the profile."""
+    out = []
+    for geo in dict.fromkeys(geos):
+        for m in members_of(con, *geo):
+            out.append(
+                {
+                    "title": m.title,
+                    "name": m.name,
+                    "district": geo_display(m.geo_type, m.geo_id, ""),
+                    "url": m.profile_url,
+                    "source": f"Legislative Reference Bureau, {m.listing}",
+                    "source_url": m.page_url,
+                    "listed": as_listed(m),
+                    "timing": timing(m),
+                }
+            )
+    return out
+
+
 def verified(figures: int, sources: int, refusal: str = "none") -> dict:
     """The line under an answer saying how many figures it shows and that each comes from a cited source."""
     if not figures or refusal not in ANSWERED:
@@ -472,6 +511,8 @@ def build(con, answer) -> dict:
     }
     shown = shown_figures(answer, charted | tiled_refs | filled)
     cited = {(s["name"], s["year"]) for s in (_source(f, store) for f in shown)}
+    texts = " ".join([*answer.blocks, *answer.caveats])
+    named = [geo_key(r) for k, r in MARKER.findall(texts) if k == "member" and geo_key(r)]
     geos = [answer.resolved] if answer.resolved else []
     geos += [(f.geo_type, f.geo_id) for f in answer.facts]
     return {
@@ -480,6 +521,7 @@ def build(con, answer) -> dict:
         "charts": drawn,
         "sources": sources(answer, store),
         "caveats": plain_text(answer.caveats, answer, store),
+        "members": member_cards(con, named),
         "place_caveats": place_caveats(con, geos, answer.resolved) if answer.facts else [],
     } | verified(len(shown), len(cited), answer.refusal)
 
@@ -490,6 +532,13 @@ def elsewhere(refusal: str, has_figures: bool) -> dict:
 
 
 NOUNS = {"percent": "rate", "dollars": "amount"}
+# A line under the title of a section that shows a group's largest figures (PROFILE_LARGEST).
+LARGEST_INTROS = {
+    "largest_industries": (
+        "The industry rows are the district's three largest of 13 industry groups. They count residents by the "
+        "industry they work in, wherever the job is."
+    ),
+}
 
 
 def _compared(mine, theirs, unit: str, direction: str | None) -> str:
@@ -638,6 +687,8 @@ def profile(
         r["fact"]["indicator_id"]: _profile_row(r, session, store) for s in raw["sections"] for r in s["rows"]
     }
     headline = [_public(rows[i]) for i in PROFILE_HEADLINE if i in rows]
+    largest = _largest(raw)
+    keys = {title: [k for k in ids if k in PROFILE_LARGEST] for title, ids in PROFILE_SECTIONS}
     sections = [
         _linked(
             _section(s["title"], [rows[r["fact"]["indicator_id"]] for r in s["rows"]]),
@@ -646,6 +697,7 @@ def profile(
             store,
         )
         | _scope(s, raw, store)
+        | {"intro": " ".join(LARGEST_INTROS[k] for k in keys.get(s["title"], []) if largest.get(k))}
         for s in raw["sections"]
     ]
     where = ", ".join([*(c["name"] for c in raw["counties"]), *([islands] if islands else [])])
@@ -656,8 +708,10 @@ def profile(
         "county": raw["counties"][0]["name"] if raw["counties"] else "",
         "places": [{"name": p["name"], "share": _percent(p["share"])} for p in raw["places"]],
         "overlaps": [{"name": o["name"], "share": _percent(o["share"])} for o in raw["overlaps"]],
+        "members": member_cards(con, [tuple(raw["district"]["geo"].split(":"))]),
         "headline": headline,
         "sections": sections,
+        "largest": largest,
         "shares_source": SHARES_SOURCE,
         "plan": plan(con, raw["district"]["geo"]),
         "programs": matched_programs(con, matched, session) if matched else None,
@@ -674,6 +728,12 @@ def _scope(section: dict, raw: dict, store: _Store) -> dict:
         return {}
     county, district = store.place(*key), raw["district"]["name"]
     return {"scope": f"These figures cover all of {county}. They are not published for {district}."}
+
+
+def _largest(raw: dict) -> dict[str, list[str]]:
+    """The indicators each PROFILE_LARGEST group shows in the profile, largest first."""
+    shown = [r["fact"]["indicator_id"] for s in raw["sections"] for r in s["rows"]]
+    return {key: [i for i in shown if i in group] for key, (group, _) in PROFILE_LARGEST.items()}
 
 
 # How the Commission's permanent-resident count differs from the ACS total population in the profile.

@@ -427,6 +427,168 @@ indicators:
     universe: "Workers 16 years and over"
     acs_var: DP03_0024P
     dataset: acs/acs5/profile
+  # Industry groups count employed residents by the industry they work in, wherever the job is (DP03 INDUSTRY)
+  - indicator_id: pct_industry_agriculture
+    label: "Percent of civilian employed population 16 years and over in the agriculture, forestry, fishing and hunting, and mining industry"
+    short_label: "Work in farming, fishing, forestry or mining"
+    plain: "The percent of working residents who work in farming, fishing, forestry or mining, wherever the job is."
+    unit: percent
+    universe: &employed "Civilian employed population 16 years and over"
+    acs_var: DP03_0033P
+    dataset: acs/acs5/profile
+  - indicator_id: pct_industry_construction
+    label: "Percent of civilian employed population 16 years and over in the construction industry"
+    short_label: "Work in construction"
+    plain: "The percent of working residents who work in construction, wherever the job is."
+    unit: percent
+    universe: *employed
+    acs_var: DP03_0034P
+    dataset: acs/acs5/profile
+  - indicator_id: pct_industry_manufacturing
+    label: "Percent of civilian employed population 16 years and over in the manufacturing industry"
+    short_label: "Work in manufacturing"
+    plain: "The percent of working residents who make goods, such as food and drinks, wherever the job is."
+    unit: percent
+    universe: *employed
+    acs_var: DP03_0035P
+    dataset: acs/acs5/profile
+  - indicator_id: pct_industry_wholesale
+    label: "Percent of civilian employed population 16 years and over in the wholesale trade industry"
+    short_label: "Work in wholesale trade"
+    plain: "The percent of working residents who sell goods in bulk to stores, wherever the job is."
+    unit: percent
+    universe: *employed
+    acs_var: DP03_0036P
+    dataset: acs/acs5/profile
+  - indicator_id: pct_industry_retail
+    label: "Percent of civilian employed population 16 years and over in the retail trade industry"
+    short_label: "Work in retail trade"
+    plain: "The percent of working residents who work in retail, such as stores and car dealers, wherever the job is."
+    unit: percent
+    universe: *employed
+    acs_var: DP03_0037P
+    dataset: acs/acs5/profile
+  - indicator_id: pct_industry_transportation
+    label: "Percent of civilian employed population 16 years and over in the transportation and warehousing, and utilities industry"
+    short_label: "Work in transport, warehousing or utilities"
+    plain: "The percent of working residents who work in moving people or goods, or in power and water, wherever the job is."
+    unit: percent
+    universe: *employed
+    acs_var: DP03_0038P
+    dataset: acs/acs5/profile
+  - indicator_id: pct_industry_information
+    label: "Percent of civilian employed population 16 years and over in the information industry"
+    short_label: "Work in information, media or telecom"
+    plain: "The percent of working residents who work in news, film, phone or internet firms, wherever the job is."
+    unit: percent
+    universe: *employed
+    acs_var: DP03_0039P
+    dataset: acs/acs5/profile
+  - indicator_id: pct_industry_finance
+    label: "Percent of civilian employed population 16 years and over in the finance and insurance, and real estate and rental and leasing industry"
+    short_label: "Work in finance, insurance or real estate"
+    plain: "The percent of working residents who work in banks, insurance, real estate or rentals, wherever the job is."
+    unit: percent
+    universe: *employed
+    acs_var: DP03_0040P
+    dataset: acs/acs5/profile
+  - indicator_id: pct_industry_professional
+    label: "Percent of civilian employed population 16 years and over in the professional, scientific, and management, and administrative and waste management services industry"
+    short_label: "Work in professional or business services"
+    plain: "The percent of working residents who work in law, design, office help, cleaning or trash pickup, wherever the job is."
+    unit: percent
+    universe: *employed
+    acs_var: DP03_0041P
+    dataset: acs/acs5/profile
+  - indicator_id: pct_industry_education_health
+    label: "Percent of civilian employed population 16 years and over in the educational services, and health care and social assistance industry"
+    short_label: "Work in education, health or social services"
+    plain: "The percent of working residents who work in schools, health care or social services, wherever the job is."
+    unit: percent
+    universe: *employed
+    acs_var: DP03_0042P
+    dataset: acs/acs5/profile
+  - indicator_id: pct_industry_arts_food
+    label: "Percent of civilian employed population 16 years and over in the arts, entertainment, and recreation, and accommodation and food services industry"
+    short_label: "Work in hotels, restaurants or recreation"
+    plain: "The percent of working residents who work in hotels, restaurants, bars, the arts or recreation, wherever the job is."
+    unit: percent
+    universe: *employed
+    acs_var: DP03_0043P
+    dataset: acs/acs5/profile
+  - indicator_id: pct_industry_other_services
+    label: "Percent of civilian employed population 16 years and over in the other services, except public administration industry"
+    short_label: "Work in other services, such as repair"
+    plain: "The percent of working residents who work in other services, such as repair shops and hair salons, wherever the job is."
+    unit: percent
+    universe: *employed
+    acs_var: DP03_0044P
+    dataset: acs/acs5/profile
+  - indicator_id: pct_industry_public_admin
+    label: "Percent of civilian employed population 16 years and over in the public administration industry"
+    short_label: "Work in government (public administration)"
+    plain: "The percent of working residents who work in government offices, such as courts and police, wherever the job is."
+    unit: percent
+    universe: *employed
+    acs_var: DP03_0045P
+    dataset: acs/acs5/profile
+  # Occupation groups count employed residents by the kind of work they do, in any industry (DP03 OCCUPATION)
+  - indicator_id: pct_occupation_management
+    label: "Percent of civilian employed population 16 years and over in management, business, science, and arts occupations"
+    short_label: "Management, business, science or arts jobs"
+    plain: "The percent of working residents who are managers, teachers, nurses, artists and the like, in any industry."
+    unit: percent
+    universe: *employed
+    acs_var: DP03_0027P
+    dataset: acs/acs5/profile
+  - indicator_id: pct_occupation_service
+    label: "Percent of civilian employed population 16 years and over in service occupations"
+    short_label: "Service jobs"
+    plain: "The percent of working residents who are cooks, maids, aides, guards and the like, in any industry."
+    unit: percent
+    universe: *employed
+    acs_var: DP03_0028P
+    dataset: acs/acs5/profile
+  - indicator_id: pct_occupation_sales_office
+    label: "Percent of civilian employed population 16 years and over in sales and office occupations"
+    short_label: "Sales and office jobs"
+    plain: "The percent of working residents who are cashiers, sales agents, clerks and the like, in any industry."
+    unit: percent
+    universe: *employed
+    acs_var: DP03_0029P
+    dataset: acs/acs5/profile
+  - indicator_id: pct_occupation_natural_resources
+    label: "Percent of civilian employed population 16 years and over in natural resources, construction, and maintenance occupations"
+    short_label: "Construction, farming and repair jobs"
+    plain: "The percent of working residents who are builders, farm workers, fishers, mechanics and the like, in any industry."
+    unit: percent
+    universe: *employed
+    acs_var: DP03_0030P
+    dataset: acs/acs5/profile
+  - indicator_id: pct_occupation_production
+    label: "Percent of civilian employed population 16 years and over in production, transportation, and material moving occupations"
+    short_label: "Production, transportation and moving jobs"
+    plain: "The percent of working residents who are factory workers, drivers, movers and the like, in any industry."
+    unit: percent
+    universe: *employed
+    acs_var: DP03_0031P
+    dataset: acs/acs5/profile
+  - indicator_id: pct_hs_grad_plus
+    label: "Percent of population 25 years and over who are high school graduates or higher"
+    short_label: "High school graduates (adults 25 and over)"
+    plain: "The percent of adults 25 or older who finished high school or got a GED, or went on to more school."
+    unit: percent
+    universe: &adults_25 "Population 25 years and over"
+    acs_var: DP02_0067P
+    dataset: acs/acs5/profile
+  - indicator_id: pct_bachelors_plus
+    label: "Percent of population 25 years and over with a bachelor's degree or higher"
+    short_label: "College graduates (adults 25 and over)"
+    plain: "The percent of adults 25 or older who have a four-year college degree or a higher one, such as a master's."
+    unit: percent
+    universe: *adults_25
+    acs_var: DP02_0068P
+    dataset: acs/acs5/profile
   - indicator_id: pct_broadband
     label: "Percent of households with a broadband Internet subscription"
     short_label: "Households with broadband"

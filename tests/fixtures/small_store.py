@@ -18,6 +18,7 @@ from klear.store.db import (
     add_facts,
     add_geographies,
     add_indicators,
+    add_members,
     add_places,
     add_source,
     open_store,
@@ -135,6 +136,7 @@ def build_small_store(path: Path):
     con.execute(
         "INSERT INTO site VALUES ('s1', 'lihtc', 'Aloha Apts', '1 Main St', 21.4, -157.8, '022', '012', 1.0, 10, 'hud')"
     )
+    add_small_members(con)
     add_source(
         con, "plan", "2021 Reapportionment Commission Final Report and Reapportionment Plan", "Office of Elections",
         "https://example.org/report.pdf", "Final report, February 25, 2022", "public record",
@@ -154,6 +156,33 @@ def build_small_store(path: Path):
     )  # fmt: skip
     add_district_plan(con, plan.astype({"permanent": "Int64", "permanent_pdf_page": "Int64"}))
     return con
+
+
+def add_small_members(con) -> None:
+    """Sample legislators, one per district, from two listings dated before the 2026 general election."""
+    page = "https://lrb.hawaii.gov/par/current-legislature/"
+    for sid, title in (("lrb_par_house", "Representatives"), ("lrb_par_senate", "Senators")):
+        add_source(
+            con, sid, f"{title} at a Glance, Thirty-Third Legislature, 2025-2026", "LRB",
+            f"https://example.org/{sid}.pdf", "Listing dated October 5, 2026", "public", page_url=page,
+        )  # fmt: skip
+    rows = [
+        ("house", "022", "KAʻAI, Leilani M.", "lrb_par_house"),
+        ("house", "023", "PALAKIKO, Kawika", "lrb_par_house"),
+        ("senate", "012", "KAʻAI, Noelani", "lrb_par_senate"),
+    ]
+    add_members(
+        con,
+        pd.DataFrame(
+            [
+                {
+                    "geo_type": t, "geo_id": g, "name": n, "listed_on": "2026-10-05", "retrieved_on": "2026-11-12",
+                    "profile_url": f"https://example.org/member/{t}{g}", "source_id": sid,
+                }
+                for t, g, n, sid in rows
+            ]
+        ),
+    )  # fmt: skip
 
 
 def add_outreach(con) -> None:

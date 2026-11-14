@@ -1,0 +1,31 @@
+# Scripted model turns for compare-007: resolve the district, find the college degree share, compare it, then submit.
+- - type: tool_use
+    name: resolve_place
+    input:
+      text: House District 30
+  - type: tool_use
+    name: search_indicators
+    input:
+      words:
+      - college
+      - degree
+- - type: tool_use
+    name: compare
+    input:
+      indicator_id: pct_bachelors_plus
+      geo: house:030
+- - type: tool_use
+    name: submit_answer
+    input:
+      resolved: house:030
+      refusal: none
+      blocks:
+      - '{label:f1} in {geo:house:030}: {fact:f1} ({vintage:f1}).'
+      - 'That share is lower than in {geo:county:15003}, {fact:f2}, and lower than in {geo:state:15}, {fact:f3}
+        ({vintage:f2}).'
+      facts:
+      - f1
+      - f2
+      - f3
+      programs: []
+      caveats: []

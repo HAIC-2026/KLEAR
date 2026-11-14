@@ -5,7 +5,7 @@ from types import SimpleNamespace
 
 import pandas as pd
 
-from klear.agent.config import PROFILE_BESIDE
+from klear.agent.config import INDUSTRIES, PROFILE_BESIDE
 from klear.agent.tools import Session
 from klear.config import CURRENT_LAYER
 from klear.etl import bls, dotax
@@ -403,6 +403,31 @@ def test_county_level_figures_link_their_series_and_table_and_say_they_cover_the
     assert row["label"] == "Unemployment rate (county-level)" and row["value"] == "3.0%"
     assert row["against"][0]["lead"] == "a little lower than"
     assert row["against"][0]["rest"] == "the rate in Hawaiʻi: 3.2%"
+
+
+def test_work_section_shows_the_three_largest_industries(real_con):
+    session = Session(real_con)
+    raw = json.loads(session.run("district_profile", {"district": "house:022"}))
+    out = profile(real_con, raw, session)
+    sec = next(s for s in out["sections"] if s["title"] == "Work and education")
+    largest = out["largest"]["largest_industries"]
+    assert [r["id"] for r in sec["rows"]] == [
+        "unemployment_rate",
+        "pct_in_labor_force",
+        *largest,
+        "pct_bachelors_plus",
+    ]
+    values = dict(
+        real_con.execute(
+            "SELECT indicator_id, value FROM fact WHERE geo_type = 'house' AND geo_id = '022' "
+            "AND indicator_id IN (SELECT unnest(?))",
+            [list(INDUSTRIES)],
+        ).fetchall()
+    )
+    assert largest == sorted(values, key=lambda i: -values[i])[:3]
+    assert all(len(r["against"]) == 2 and r["source"]["name"] for r in sec["rows"])
+    assert "three largest of 13 industry groups" in sec["intro"]
+    assert next(s for s in out["sections"] if s["title"] == "Income")["intro"] == ""
 
 
 def test_profile_rows_flag_unreliable_estimates_and_sections_share_their_method(real_con):

@@ -1,0 +1,13 @@
+id: rank-008
+category: rank
+question: Which House districts have the largest share of working residents in hotels, restaurants and recreation?
+ideal: Ranks Hawaiʻi House districts by the share of employed residents who work in arts, entertainment, recreation,
+  lodging and food services, and names the first tier together because their ranges overlap. Says the shares count
+  residents by where they live, not where the job is.
+tags: [work]
+facts:
+  - [pct_industry_arts_food, house, "014"]
+  - [pct_industry_arts_food, house, "009"]
+  - [pct_industry_arts_food, house, "011"]
+must_say: ["overlap", "2020-2024"]
+refusal: none

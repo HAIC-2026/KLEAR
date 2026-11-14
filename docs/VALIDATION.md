@@ -41,6 +41,7 @@ KLEAR rebuilds every number it serves about Hawaiʻi's legislative districts fro
 | cms_districts | yes | PASS | 4 chamber and indicator totals reconciled, 0 problems |
 | hud_hcv | yes | PASS | 3 totals reconciled, 0 mismatches |
 | sites | yes | PASS | 264 sites, 0 problems |
+| members | yes | PASS | 76 districts checked for one listed member each, 0 problems |
 | places | yes | PASS | 3,012 tract and district values checked against their ranges, 0 problems |
 | places_county | yes | PASS | 36 county and state values checked, 0 problems |
 | chas | yes | PASS | 2,148 totals reconciled, 0 mismatches |
@@ -331,6 +332,17 @@ Key numbers:
 - 264 sites checked, snapping limit 1,000 m
 - sites by county: 15001 54, 15003 150, 15007 22, 15009 38
 
+## Legislators listed for each district
+
+**members: PASS** (gated). 76 districts checked for one listed member each, 0 problems.
+
+The Legislative Reference Bureau Public Access Room's Representatives at a Glance and Senators at a Glance list exactly one member for each of the 51 House and 25 Senate districts, with no unknown district and no name listed twice. Names are stored as printed, with an official page and the date on the listing. Party is never stored. A listing dated before a general election may not show members elected in it.
+
+Key numbers:
+
+- House: 51 members for 51 districts, listing dated 2026-10-05, 50 with their own page on capitol.hawaii.gov, the rest linked to the profiles PDF
+- Senate: 25 members for 25 districts, listing dated 2026-09-03, 24 with their own page on capitol.hawaii.gov, the rest linked to the profiles PDF
+
 ## CDC PLACES modeled need by tract
 
 **places: PASS** (gated). 3,012 tract and district values checked against their ranges, 0 problems.
@@ -587,7 +599,7 @@ The assistant is scored with the answer checks in klear/eval on two sets of ques
 | --- | --- | --- |
 | Model | claude-haiku-5-5 | claude-haiku-5-5 |
 | Run | 2026-11-01 18:35 HST, rescored with this build | 2026-11-03 HST |
-| Questions | 70 | 100 |
+| Questions | 75 | 100 |
 | Answered correctly | 48 of 50 (96%) | 89 of 100 (89%) |
 | Numbers taken only from the data store | 50 of 50 (100%) | 100 of 100 (100%) |
 | Found the right district | 40 of 40 (100%) | not published |

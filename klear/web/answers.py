@@ -13,19 +13,25 @@ from klear.agent.answer import (
 )
 from klear.agent.config import (
     COUNTY_SECTION,
+    EDUCATION,
     FIXED_INCOME,
     FIXED_INCOME_COMPARED,
     FIXED_INCOME_PROGRAMS,
+    INDUSTRIES,
+    OCCUPATIONS,
     PROFILE_INDICATORS,
+    PROFILE_LARGEST,
 )
 from klear.agent.tools import Session
 from klear.eval.contract import geo_display
 from klear.labels import in_sentence, meaning, short_label
+from klear.members import as_listed, members_of, named_in, timing
 from klear.web.display import (
     CAUTION,
     _plain,
     build_month,
     matched_programs,
+    member_cards,
     place_caveats,
     program_rows,
     verified,
@@ -164,6 +170,23 @@ PROGRAMS_NEED_DISTRICT = (
 KUPUNA = ("kūpuna", "kupuna", "senior", "older adult", "65")
 # Topics answered by one measure family, checked before the broad topics: stems a question must hold, then indicators.
 TOPICS = (
+    (
+        ("industr", "tourism", "tourist", "hotel", "construction", "public administration", "government job"),
+        INDUSTRIES,
+    ),
+    (
+        (
+            "occupation",
+            "kind of job",
+            "kinds of job",
+            "type of job",
+            "types of job",
+            "what jobs",
+            "which jobs",
+        ),
+        OCCUPATIONS,
+    ),
+    (("degree", "college", "educat", "diploma", "high school", "graduat"), EDUCATION),
     (("food insecur", "food-insecur", "hunger", "hungry"), ("places_food_insecurity", "pct_hh_snap")),
     (("housing insecur", "housing-insecur"), ("places_housing_insecurity", "pct_rent_burden_35_plus")),
     (("shut off", "shut-off", "shutoff", "utility", "utilities"), ("places_utility_shutoff_threat",)),
@@ -172,6 +195,18 @@ TOPICS = (
     (("voucher", "section 8"), ("hud_vouchers", "pct_rent_burden_35_plus")),
     (("snap", "food stamp"), ("pct_hh_snap", "hh_snap", "hh_poverty_no_snap")),
 )
+
+# Groups of shares answered as one list, largest first: the list's opening and what every share counts.
+GROUPS = {
+    INDUSTRIES: (
+        "Industries where working residents of {place} have jobs, largest share first",
+        "These shares count residents by the industry they work in, wherever the job is.",
+    ),
+    OCCUPATIONS: (
+        "Kinds of jobs working residents of {place} do, largest share first",
+        "These shares count the kind of work residents do, in any industry.",
+    ),
+}
 
 
 def _has(q, *stems):
@@ -310,6 +345,81 @@ def _comparison(session, fact: dict, others: list[dict], unit: str) -> str:
     return ", ".join(f"{DIRECTION_TEXT[w]} {_joined(p)}" for w, p in ways.items())
 
 
+def _places(con, question: str, district: tuple[str, str]) -> list[tuple[str, str]]:
+    """The district's main county and the state when the question asks to compare with them."""
+    q = question.casefold()
+    out = []
+    if "county" in q and (county := main_county(con, district)):
+        out.append(county)
+    if "compare" in q or "state" in q or "hawaiʻi" in q or "hawaii" in q:
+        out.append(("state", "15"))
+    return out
+
+
+def group_answer(con, question: str, district: tuple[str, str], shown: str, ids: tuple[str, ...]) -> dict:
+    """A group of shares, such as the industries residents work in, listed largest first, each beside the main
+    county and the state when the question asks for them."""
+    opening, counts = GROUPS[ids]
+    statewide = bool(STATEWIDE.search(question))
+    home = ("state", "15") if statewide else district
+    places = [] if statewide else _places(con, question, district)
+    if statewide:
+        shown = "Hawaiʻi"
+    session = Session(con)
+    order = session.largest(ids, home)
+    here = json.loads(session.run("get_facts", {"indicator_ids": order, "geos": [":".join(home)]}))
+    there = {"facts": []}
+    if places and order:
+        there = json.loads(
+            session.run("get_facts", {"indicator_ids": order, "geos": [":".join(p) for p in places]})
+        )
+    if "error" in here or "error" in there:
+        raise ValueError("Could not read district facts")
+    if not here["facts"]:
+        return {
+            "text": f"I do not have a published figure for that question in {shown}. I will not fill the gap with a guess.",
+            "refusal": "not_available",
+            "facts": [],
+            "programs": [],
+        }
+    units = dict(con.execute("SELECT indicator_id, unit FROM indicator").fetchall())
+    against: dict[str, list[dict]] = {}
+    for fact in there["facts"]:
+        against.setdefault(fact["indicator_id"], []).append(fact)
+    lines, shaky = [], []
+    for fact in here["facts"]:
+        name = short_label(fact["indicator_id"], fact["label"])
+        line = f"- {name}: {fact['value_text']}"
+        if fact["reliable"] is False:
+            line += ", an unreliable estimate"
+            shaky.append(in_sentence(name))
+        if said := _comparison(
+            session, fact, against.get(fact["indicator_id"], []), units[fact["indicator_id"]]
+        ):
+            line += f", {said}"
+        lines.append(line)
+    names = list(dict.fromkeys(f["geo_name"] for f in there["facts"]))
+    head = opening.format(place=shown) + (f", compared with {_joined(names)}" if names else "") + "."
+    lead = [head + "\n" + "\n".join(lines)]
+    caveats = [counts]
+    if shaky:
+        caveats.append(
+            f"The margin of error is large for {_joined(shaky)}, so treat "
+            f"{'these estimates' if len(shaky) > 1 else 'this estimate'} as unreliable. "
+            "A larger area, such as the county, gives a steadier figure."
+        )
+    facts = here["facts"] + there["facts"]
+    return {
+        "text": "\n\n".join(lead + caveats),
+        "refusal": "none",
+        "facts": _cards(con, facts),
+        "programs": [],
+        "fact_refs": [session.facts[f["ref"]] for f in facts],
+        "lead": lead,
+        "caveats": caveats,
+    }
+
+
 def fixed_income(con, district: tuple[str, str], shown: str) -> dict:
     """Kūpuna count and share, income, poverty and household income sources for a district, with the rates and
     medians set against its main county and the state, and the programs for kūpuna on fixed incomes."""
@@ -384,6 +494,113 @@ def fixed_income(con, district: tuple[str, str], shown: str) -> dict:
         "lead": lead,
         "caveats": caveats,
     }
+
+
+# Who holds a district's seat, or which district a named member holds.
+REPRESENTS = re.compile(
+    r"\b(?:represent\w*|reps?|senators?|legislators?|lawmakers?|members? of the (?:house|senate|legislature))\b",
+    re.IGNORECASE,
+)
+ASKS_WHO = re.compile(r"\b(?:who|whom|who's|name of)\b", re.IGNORECASE)
+ASKS_WHICH = re.compile(r"\b(?:which|what)\s+(?:house\s+|senate\s+)?district", re.IGNORECASE)
+NAMED_DISTRICT = re.compile(
+    r"\b(house|senate|hd|sd)\s*(?:district\s*)?(?:no\.?\s*|number\s*|#\s*)?(\d{1,2})\b", re.IGNORECASE
+)
+
+
+def _named_district(con, question: str) -> tuple[str, str] | None:
+    """A House or Senate district the question names, such as House District 22 or SD 5."""
+    m = NAMED_DISTRICT.search(question)
+    if m is None:
+        return None
+    chamber = "senate" if m.group(1).casefold() in ("senate", "sd") else "house"
+    geo = (chamber, f"{int(m.group(2)):03d}")
+    found = con.execute("SELECT 1 FROM geography WHERE geo_type = ? AND geo_id = ?", list(geo)).fetchone()
+    return geo if found else None
+
+
+SELECTED = re.compile(r"\b(?:my|our|this|here|selected|current)\b", re.IGNORECASE)
+MEMBER_WORDS = {
+    "house",
+    "senate",
+    "state",
+    "hawaii",
+    "is",
+    "are",
+    "who",
+    "whom",
+    "s",
+    "name",
+    "of",
+    "currently",
+}
+
+
+def _about_selected(question: str) -> bool:
+    """Whether a question about a member asks about the chosen district: it says my or this district, or names
+    nothing else."""
+    if SELECTED.search(question):
+        return True
+    words = set(WORDS.findall(question.casefold())) - STOP - MEMBER_WORDS
+    return all(REPRESENTS.fullmatch(w) for w in words)
+
+
+def _member_line(m, lead: str) -> str:
+    return f"{lead}, {as_listed(m)}."
+
+
+def member_answer(con, question: str, district: tuple[str, str]) -> dict | None:
+    """Who a Legislature listing names for a district, or the district of a member named exactly, with where and
+    when it was listed and whether the listing may predate the election results. None when not asked."""
+    if not REPRESENTS.search(question):
+        return None
+    named = named_in(con, question)
+    if not named and not ASKS_WHO.search(question):
+        if not ASKS_WHICH.search(question):
+            return None
+        text = (
+            "I could not find a listed member with that exact name. Names must match as the Legislature lists "
+            "them, such as a full last name, and I do not guess near spellings."
+        )
+        return {"text": text, "refusal": "none", "facts": [], "programs": []}
+    if named:
+        lines = []
+        for m in named:
+            where = geo_display(m.geo_type, m.geo_id, "")
+            lines.append(_member_line(m, f"{m.title} {m.name} represents {where}"))
+        if len(named) > 1:
+            text = "Several listed members match that name:\n" + "\n".join(f"- {line}" for line in lines)
+        else:
+            text = lines[0]
+        notes = list(dict.fromkeys(timing(m) for m in named))
+        geos = [(m.geo_type, m.geo_id) for m in named]
+    else:
+        geo = _named_district(con, question)
+        if geo is None and address_in(question):
+            return None
+        if geo is None and not _about_selected(question):
+            text = (
+                "Name the district, such as House District 22, or choose it on the page, and I will give the "
+                "member the Legislature lists for it. A town can span more than one district."
+            )
+            return {"text": text, "refusal": "none", "facts": [], "programs": []}
+        geo = geo or district
+        listed = members_of(con, *geo)
+        where = geo_display(*geo, "")
+        if not listed:
+            text = f"No member is listed for {where} in the Legislature listing KLEAR holds."
+            return {"text": text, "refusal": "none", "facts": [], "programs": [], "district": geo}
+        names = " and ".join(f"{m.title} {m.name}" for m in listed)
+        text = _member_line(listed[0], f"{where} is represented by {names}")
+        notes, geos = [timing(listed[0])], [geo]
+    out = {
+        "text": "\n\n".join([text, *notes]),
+        "refusal": "none",
+        "facts": [],
+        "programs": [],
+        "members": member_cards(con, geos),
+    }
+    return out | ({"district": geos[0]} if len(set(geos)) == 1 else {})
 
 
 CHAMBER_WORDS = re.compile(r"\b(?:house|senate|districts?)\b", re.IGNORECASE)
@@ -516,6 +733,8 @@ def ask(con, question, district, geocoder=None, earlier=()):
             "facts": [],
             "programs": [],
         }
+    if (member := member_answer(con, question, district)) is not None:
+        return member
     if address := address_in(question):
         return address_answer(con, question, address, geocoder)
     if RANKING.search(question):
@@ -548,6 +767,8 @@ def _answer(con, question, district, earlier=()):
     ids = indicators(con, question)
     if not ids and earlier:
         ids = list(earlier[-1].indicators)
+    if tuple(ids) in GROUPS:
+        return group_answer(con, question, district, shown, tuple(ids))
     if not ids:
         return {
             "text": "I could not match that question to a published district measure. Try asking about population, kūpuna, income, poverty, housing, work, or health.",
@@ -557,11 +778,12 @@ def _answer(con, question, district, earlier=()):
         }
     statewide = bool(STATEWIDE.search(question)) or district == ("state", "15")
     geos = ["state:15"] if statewide else [f"{district[0]}:{district[1]}"]
-    if not statewide and "county" in q and (county := main_county(con, district)):
-        geos.append(":".join(county))
-    if not statewide and ("compare" in q or "state" in q or "hawaiʻi" in q or "hawaii" in q):
-        geos.append("state:15")
+    if not statewide:
+        geos += [":".join(p) for p in _places(con, question, district)]
     session = Session(con)
+    if asks_profile(q):
+        for group, n in PROFILE_LARGEST.values():
+            ids += [i for i in session.largest(group, ("state", "15") if statewide else district)[:n]]
     here, county_ids = (ids, []) if statewide else _split(con, ids, district[0])
     result = {"facts": []}
     if here:

@@ -4,7 +4,14 @@ import duckdb
 import pytest
 
 from klear.agent.answer import main_county
-from klear.agent.config import FIXED_INCOME, FIXED_INCOME_COMPARED, FIXED_INCOME_PROGRAMS
+from klear.agent.config import (
+    EDUCATION,
+    FIXED_INCOME,
+    FIXED_INCOME_COMPARED,
+    FIXED_INCOME_PROGRAMS,
+    INDUSTRIES,
+    OCCUPATIONS,
+)
 from klear.labels import plain_labels
 from klear.programs import by_rule
 from klear.web.answers import ask, asks_fixed_income, indicators
@@ -204,3 +211,52 @@ def test_basic_figures_that_match_dbedt_link_its_profile(small_con):
         "text": "Matches DBEDT's published district profile",
         "places": [{"text": "House District 22", "url": "https://example.org/dbedt/house.xlsx"}],
     }
+
+
+@pytest.mark.parametrize(("question", "ids"), [
+    ("What industries do residents of this district work in?", INDUSTRIES),
+    ("How many residents work in tourism or hotels?", INDUSTRIES),
+    ("Do many people here work in construction?", INDUSTRIES),
+    ("What kinds of jobs do residents have?", OCCUPATIONS),
+    ("What share of adults here have a college degree?", EDUCATION),
+    ("How many adults finished high school?", EDUCATION),
+    ("How many people are unemployed?", ("unemployment_rate", "pct_in_labor_force", "pct_work_from_home")),
+])  # fmt: skip
+def test_work_and_education_questions_get_their_measures(con, question, ids):
+    assert tuple(indicators(con, question)) == ids
+
+
+def test_basic_industries_are_listed_largest_first(real_con):
+    answer = _basic(real_con, "What industries do residents of this district work in?", ("house", "022"))
+    lines = answer["lead"][1].split("\n")
+    assert answer["refusal"] == "none" and lines[0].startswith("Industries where working residents of House")
+    shares = [float(x.split(": ")[1].split("%")[0]) for x in lines[1:]]
+    assert len(shares) == len(INDUSTRIES) and shares == sorted(shares, reverse=True)
+    assert (
+        answer["caveats"][0]
+        == "These shares count residents by the industry they work in, wherever the job is."
+    )
+    assert answer["tiles"][0]["label"] == "Work in education, health or social services"
+
+
+def test_basic_industries_compare_with_county_and_state_when_asked(real_con):
+    answer = _basic(
+        real_con, "Compare the largest industries in House District 22 with the county and the state."
+    )
+    lines = answer["lead"][1].split("\n")
+    assert lines[0].endswith("compared with Honolulu County and Hawaiʻi.")
+    assert all(" County (" in x and "Hawaiʻi (" in x for x in lines[1:]), lines
+
+
+def test_basic_college_degree_question_gives_education(real_con):
+    answer = _basic(real_con, "What share of adults here have a college degree?")
+    assert [t["label"] for t in answer["tiles"]] == [
+        "College graduates (adults 25 and over)",
+        "High school graduates (adults 25 and over)",
+    ]
+
+
+def test_basic_profile_adds_the_largest_industries(real_con):
+    answer = ask(real_con, "Give me a socioeconomic profile of House District 22.", ("house", "022"))
+    shown = {f.indicator_id for f in answer["fact_refs"]}
+    assert len(shown & set(INDUSTRIES)) == 3 and "pct_bachelors_plus" in shown

@@ -5,7 +5,7 @@ import time
 
 import pytest
 
-from klear.agent.config import COUNTY_SECTION, FIXED_INCOME, PROFILE_SECTIONS
+from klear.agent.config import COUNTY_SECTION, FIXED_INCOME, INDUSTRIES, PROFILE_SECTIONS
 from klear.agent.tools import TOOL_SPECS, Session, _dedupe, _Named
 from klear.eval.golden import load_golden
 from klear.programs import catalog
@@ -196,7 +196,7 @@ def test_bad_args_return_error_json(session):
 def test_specs_cover_every_tool(session):
     assert [t["name"] for t in TOOL_SPECS] == [
         "resolve_place", "search_indicators", "get_facts", "compare", "district_profile", "rank_districts",
-        "list_programs", "district_programs", "find_sites", "explain_source",
+        "list_programs", "district_programs", "find_sites", "find_member", "explain_source",
     ]  # fmt: skip
     assert all(t["input_schema"]["type"] == "object" and t["description"] for t in TOOL_SPECS)
 
@@ -678,3 +678,25 @@ def test_suggestions_on_the_built_store(session):
             assert out, (text, s)
             if s["kind"] in ("place", "island", "neighborhood", "division"):
                 assert [m["name"] for m in out] == [s["label"]], (text, s)
+
+
+@pytest.mark.parametrize(("words", "first"), [
+    (["tourism"], "pct_industry_arts_food"),
+    (["hotels"], "pct_industry_arts_food"),
+    (["government"], "pct_industry_public_admin"),
+    (["construction"], "pct_industry_construction"),
+    (["college", "degree"], "pct_bachelors_plus"),
+    (["education"], "pct_hs_grad_plus"),
+])  # fmt: skip
+def test_work_and_education_words_find_their_measures(real_con, words, first):
+    assert call(Session(real_con), "search_indicators", words=words)["indicators"][0]["indicator_id"] == first
+
+
+def test_industry_and_job_words_find_every_industry(real_con):
+    for words in (["industries"], ["jobs"]):
+        found = {
+            e["indicator_id"] for e in call(Session(real_con), "search_indicators", words=words)["indicators"]
+        }
+        assert found >= set(INDUSTRIES), words
+    jobs = call(Session(real_con), "search_indicators", words=["jobs"])["indicators"]
+    assert {"unemployment_rate", "pct_in_labor_force"} <= {e["indicator_id"] for e in jobs}

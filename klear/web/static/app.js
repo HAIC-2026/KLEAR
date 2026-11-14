@@ -584,9 +584,12 @@ async function loadProfile(geo, name) {
 // districts of the other chamber it overlaps.
 function districtHead(name, p) {
   $('district-name').textContent = name;
-  const about = $('district-about');
+  const about = $('district-about'), member = $('district-member');
   about.replaceChildren();
+  member.replaceChildren();
   if (!p) return;
+  // The legislator sits beside the district's name, or under it on a narrow screen.
+  if ((p.members || []).length) member.append(profileMembers(p.members));
   if (p.where) about.append(node('p', p.where, 'district-where'));
   const meta = [p.places.length ? `Includes ${placesList(p)}.` : '', p.overlaps.length ? `Overlaps ${overlapsList(p)}.` : ''];
   if (meta.some(Boolean)) about.append(node('p', meta.filter(Boolean).join(' '), 'district-meta'));
@@ -763,6 +766,7 @@ function dataSection(sec) {
   const rows = node('div', '', 'profile-rows'), content = [];
   rows.append(...sec.rows.map(profileRow));
   if (sec.scope) content.push(node('p', sec.scope, 'profile-scope'));
+  if (sec.intro) content.push(node('p', sec.intro, 'profile-caveat lead'));
   if (sec.caveat) content.push(node('p', sec.caveat, 'profile-caveat lead'));
   if (sec.method) content.push(methodLine(sec.method));
   content.push(rows, profileSources(sec.sources, sec.compared));
@@ -920,11 +924,41 @@ function profileOutreach(o) {
   return box;
 }
 
+// The district's legislator as the Legislature lists them, linked to their official page, with where and when
+// the name was listed and whether that listing may predate the election results. Under the district's name the
+// legislator takes one line, and the note opens beneath it, so the profile's first figures stay on the first screen.
+function memberNote(m) {
+  return `${m.listed.charAt(0).toUpperCase()}${m.listed.slice(1)}. ${m.timing}`;
+}
+function profileMembers(members) {
+  const box = node('div', '', 'profile-member');
+  for (const m of members) {
+    const who = node('p', '', 'profile-member-name');
+    who.append(node('span', m.title, 'profile-member-title'), ' ', link(m.name, m.url));
+    box.append(who);
+  }
+  const about = node('details', '', 'profile-member-about');
+  about.append(node('summary', 'Where and when this was listed'), node('p', memberNote(members[0]), 'profile-member-note'));
+  box.append(about);
+  return box;
+}
+
+// Under an answer that names a member: their official page and the listing the name was read from.
+function memberLinks(members) {
+  const box = node('div', '', 'member-links');
+  for (const m of members) {
+    const p = node('p', '');
+    p.append(`${m.title} ${m.name}, ${m.district}: `, link('official page', m.url), '. Listed in ', link(m.source, m.source_url), '.');
+    box.append(p);
+  }
+  return box;
+}
+
 function renderProfile(p) {
-  // Under the district's name: any notes on its figures, such as the Maui wildfires, then its headline figures with
-  // their margins, links to each section, the share buttons, then the sections.
+  // Under the district's name: its headline figures with their margins, any notes on its figures, such as the Maui
+  // wildfires, links to each section, the share buttons, then the sections. The figures come first so they stay on
+  // a phone's first screen below the legislator's line.
   const out = [];
-  if (p.caveats && p.caveats.length) out.push(placeNotes(p.caveats, 'profile-notes'));
   const stats = node('dl', '', 'profile-stats');
   // Each term comes before its value, as a description list needs; the CSS shows the value on top.
   for (const h of p.headline) {
@@ -936,6 +970,7 @@ function renderProfile(p) {
     stats.append(s);
   }
   out.push(stats);
+  if (p.caveats && p.caveats.length) out.push(placeNotes(p.caveats, 'profile-notes'));
   const sections = profileSections(p);
   out.push(profileJumps(sections), profileActions(p));
   // The outreach groups this district leads come just before the sections.
@@ -944,11 +979,13 @@ function renderProfile(p) {
   return out;
 }
 
-// The one-page summary that prints in place of the page: twelve key figures beside the county and the state, programs
-// to explore, and every source with its vintage. Paper cannot follow links, so every address is written out.
+// The one-page summary that prints in place of the page: key figures beside the county and the state, programs to
+// explore, and every source with its vintage. Paper cannot follow links, so every address is written out. A
+// group's name in p.largest stands for the district's largest figures of that group, at most the number given.
 const PRINT_GROUPS = [
   ['People', ['pop_total', 'pct_65_plus', 'pop_under_18']],
   ['Income and poverty', ['median_household_income', 'pct_people_poverty', 'pct_children_poverty', 'pct_65_plus_poverty']],
+  ['Work and education', ['unemployment_rate', ['largest_industries', 1], 'pct_bachelors_plus']],
   ['Housing', ['pct_renter_occupied', 'median_gross_rent', 'pct_rent_burden_35_plus']],
   ['Health and assistance', ['pct_uninsured', 'pct_hh_snap']],
 ];
@@ -1016,7 +1053,8 @@ function sheetParts(p, limit = SHEET_PROGRAMS) {
     return s;
   };
   const byId = new Map(p.sections.flatMap(s => s.rows.map(r => [r.id, r])));
-  const groups = PRINT_GROUPS.map(([title, ids]) => [title, ids.map(id => byId.get(id)).filter(Boolean)]).filter(([, rows]) => rows.length);
+  const expand = id => Array.isArray(id) ? ((p.largest || {})[id[0]] || []).slice(0, id[1]) : [id];
+  const groups = PRINT_GROUPS.map(([title, ids]) => [title, ids.flatMap(expand).map(id => byId.get(id)).filter(Boolean)]).filter(([, rows]) => rows.length);
   const against = (r, kind) => (r.against || []).find(a => String(a.geo || '').startsWith(`${kind}:`));
   const placeOf = kind => (groups.flatMap(([, rows]) => rows).map(r => against(r, kind)).find(a => a && a.place) || {}).place;
   // A column pair (estimate, then margin) for the district, then its county and the state when the profile has them.
@@ -1069,6 +1107,11 @@ function sheetParts(p, limit = SHEET_PROGRAMS) {
   const head = node('header', '', 'sheet-head'), who = node('div', ''), live = node('div', '', 'sheet-live');
   who.append(node('p', 'KLEAR district summary', 'sheet-kicker'), node('h1', p.district));
   if (p.where) who.append(node('p', p.where, 'sheet-where'));
+  for (const m of p.members || []) {
+    const line = node('p', '', 'sheet-member');
+    line.append(node('b', m.title), ` ${m.name} `, url(m.url));
+    who.append(line);
+  }
   live.append(node('p', 'Full profile, sources and questions online', ''), url(location.origin + districtPath(p.geo)));
   const dates = node('p', p.built ? `Data built ${p.built} · ` : '', 'sheet-dates');
   dates.append(node('span', `Printed ${longDate(new Date())}`, 'sheet-printed'));
@@ -1083,6 +1126,7 @@ function sheetParts(p, limit = SHEET_PROGRAMS) {
     const n = cite(p.shares_source);
     about.lastChild.append(`. Shares of 2020 Census residents${n ? ` (source ${n})` : ''}.`);
   }
+  if ((p.members || []).length) about.append(node('p', memberNote(p.members[0]), 'sheet-member-note'));
   if (p.plan) {
     const n = cite(p.plan.source), at = c => `(${n ? `source ${n}, ` : ''}${c})`;
     const small = l => { l.className = 'sheet-plan'; return l; };
@@ -1399,11 +1443,14 @@ function showMode(article, mode) {
 const TOPICS = [
   {key: 'programs', match: /program|benefit|assistance|support|help available/, ask: d => `What support programs could residents of ${d} explore?`, next: ['poverty', 'housing']},
   {key: 'profile', match: /\b(profile|socioeconomic|overview)/, ask: d => `Give me a socioeconomic profile of ${d}.`, next: ['kupuna', 'housing', 'programs']},
+  {key: 'industries', match: /\b(industr|tourism|tourist|hotel|construction|public administration|government job)/, compare: 'the largest industries', ask: d => `What industries do residents of ${d} work in?`, more: d => `What kinds of jobs do residents of ${d} have?`, next: ['education', 'income']},
+  {key: 'jobs', match: /\b(occupation|kinds? of jobs?|types? of jobs?|what jobs|which jobs)/, ask: d => `What kinds of jobs do residents of ${d} have?`, next: ['industries', 'education']},
+  {key: 'education', match: /\b(degree|college|educat|diploma|high school|graduat)/, compare: 'college graduates', ask: d => `What share of adults in ${d} have a college degree?`, next: ['industries', 'income']},
   {key: 'kupuna', match: /\b(kūpuna|kupuna|senior|older adult|65)/, compare: 'kūpuna', ask: d => `How many kūpuna live in ${d}?`, more: d => `How many kūpuna in ${d} live below the poverty level?`, next: ['health', 'programs']},
   {key: 'poverty', match: /\b(poverty|low income)/, compare: 'poverty', ask: d => `How many people in ${d} live below the poverty level?`, more: d => `How many keiki in ${d} live below the poverty level?`, next: ['income', 'programs']},
   {key: 'housing', match: /\b(housing|rent|cost burden)/, compare: 'housing costs', ask: d => `What does the data say about housing needs in ${d}?`, more: d => `How many renters in ${d} pay 35% or more of their income on rent?`, next: ['income', 'programs']},
   {key: 'income', match: /\b(income|wage|earn)/, compare: 'household income', ask: d => `What is the median household income in ${d}?`, more: d => `What is the per capita income in ${d}?`, next: ['poverty', 'housing']},
-  {key: 'work', match: /\b(unemploy|jobs|work)/, compare: 'unemployment', ask: d => `How many people in ${d} are unemployed?`, more: d => `How many people in ${d} work from home?`, next: ['income', 'poverty']},
+  {key: 'work', match: /\b(unemploy|jobs|work)/, compare: 'unemployment', ask: d => `How many people in ${d} are unemployed?`, more: d => `How many people in ${d} work from home?`, next: ['industries', 'income']},
   {key: 'health', match: /\b(health|uninsured|disabil)/, compare: 'health insurance coverage', ask: d => `How many people in ${d} have no health insurance?`, more: d => `How many people in ${d} have a disability?`, next: ['kupuna', 'programs']},
   {key: 'keiki', match: /\b(child|keiki|young)/, compare: 'keiki', ask: d => `How many keiki live in ${d}?`, more: d => `How many households in ${d} have children?`, next: ['poverty', 'programs']},
   {key: 'people', match: /\b(population|people|residents)/, ask: d => `How many people live in ${d}?`, next: ['kupuna', 'keiki', 'income']},
@@ -1550,7 +1597,16 @@ function explainedCard(f) {
 function basicAnswer(answer, name) {
   const article = document.createElement('article');
   article.append(heading(answer, name));
-  for (const p of answer.text.split('\n\n')) article.append(says('p', p));
+  for (const p of answer.text.split('\n\n')) {
+    const lines = p.split('\n'), items = lines.slice(1).map(l => l.match(/^\s*[*-]\s+(.*)/));
+    if (lines.length > 1 && items.every(Boolean)) {
+      article.append(says('p', lines[0]));
+      const list = node('ul', '', 'lead-list');
+      list.append(...items.map(m => says('li', m[1])));
+      article.append(list);
+    } else article.append(says('p', p));
+  }
+  if ((answer.members || []).length) article.append(memberLinks(answer.members));
   if (answer.elsewhere) article.append(elsewhereLine(answer.elsewhere));
   if (answer.verified) article.append(node('p', answer.verified.text, 'verified'));
   if (answer.facts.length) {
@@ -1727,6 +1783,7 @@ function renderAnswer(answer, name) {
   }
   for (const c of answer.charts) article.append(chartFigure(c));
   for (const c of answer.caveats) article.append(says('p', c, 'caveat'));
+  if ((answer.members || []).length) article.append(memberLinks(answer.members));
   if (answer.place_caveats && answer.place_caveats.length) article.append(placeNotes(answer.place_caveats, 'answer-notes'));
   if (answer.elsewhere) article.append(elsewhereLine(answer.elsewhere));
   if (answer.sources.length) {

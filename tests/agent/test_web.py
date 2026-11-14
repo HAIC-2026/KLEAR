@@ -240,6 +240,8 @@ def test_about_serves_store_facts_and_sources(endpoint):
     assert "example" not in body and [s["publisher"] for s in body["sources"]] == [
         "Census",
         "HUD",
+        "LRB",
+        "LRB",
         "Office of Elections",
     ]
 

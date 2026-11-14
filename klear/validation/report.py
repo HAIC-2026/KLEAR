@@ -26,6 +26,7 @@ TITLES = {
     "hud_vouchers": "Housing choice vouchers",
     "hud_hcv": "Housing choice vouchers: tract totals placed in districts",
     "sites": "Public housing, LIHTC and health center sites",
+    "members": "Legislators listed for each district",
     "places": "CDC PLACES modeled need by tract",
     "places_county": "CDC PLACES modeled need by county and for the state",
     "county_state": "County and state values built from smaller areas",
@@ -164,6 +165,13 @@ PROVES = {
         "Every HUD public housing development, LIHTC project and active fixed HRSA health center site in "
         "Hawaiʻi has coordinates and lies in, or within 1,000 m of, exactly one House and one Senate "
         "district, with no duplicate site ids. Each district gets a count for every site kind, including 0."
+    ),
+    "members": (
+        "The Legislative Reference Bureau Public Access Room's Representatives at a Glance and Senators at a "
+        "Glance list exactly one member for each of the 51 House and 25 Senate districts, with no unknown "
+        "district and no name listed twice. Names are stored as printed, with an official page and the date on "
+        "the listing. Party is never stored. A listing dated before a general election may not show members "
+        "elected in it."
     ),
     "places": (
         "CDC PLACES 2025 tract estimates (crude prevalence among adults) for food insecurity, housing "
@@ -366,6 +374,8 @@ def summary(r: CheckResult) -> str:
         return f"{r.n_compared:,} areas, {r.n_mismatch:,} problems"
     if r.name == "sites":
         return f"{r.n_compared:,} sites, {r.n_mismatch:,} problems"
+    if r.name == "members":
+        return f"{r.n_compared:,} districts checked for one listed member each, {r.n_mismatch:,} problems"
     if r.name == "rules":
         return f"{r.n_compared:,} rule values compared with their sources, {r.n_mismatch:,} mismatches"
     if r.name == "irs_county":

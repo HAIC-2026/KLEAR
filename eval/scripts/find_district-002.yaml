@@ -58,7 +58,7 @@
 
 
         * {label:f40}: {fact:f40} ({vintage:f40})'
-      - 'Housing
+      - 'Work and education
 
 
         * {label:f43}: {fact:f43} ({vintage:f43})
@@ -73,18 +73,17 @@
         * {label:f52}: {fact:f52} ({vintage:f52})
 
 
-        * {label:f55}: {fact:f55} ({vintage:f55})'
-      - 'Health and access
+        * {label:f55}: {fact:f55} ({vintage:f55})
 
 
-        * {label:f58}: {fact:f58} ({vintage:f58})
+        * {label:f58}: {fact:f58} ({vintage:f58})'
+      - 'Housing
 
 
         * {label:f61}: {fact:f61} ({vintage:f61})
 
 
-        * {label:f64}: {fact:f64} ({vintage:f64})'
-      - 'Programs in use
+        * {label:f64}: {fact:f64} ({vintage:f64})
 
 
         * {label:f67}: {fact:f67} ({vintage:f67})
@@ -93,7 +92,8 @@
         * {label:f70}: {fact:f70} ({vintage:f70})
 
 
-        * {label:f73}: {fact:f73} ({vintage:f73})
+        * {label:f73}: {fact:f73} ({vintage:f73})'
+      - 'Health and access
 
 
         * {label:f76}: {fact:f76} ({vintage:f76})
@@ -102,58 +102,77 @@
         * {label:f79}: {fact:f79} ({vintage:f79})
 
 
-        * {label:f82}: {fact:f82} ({vintage:f82})
+        * {label:f82}: {fact:f82} ({vintage:f82})'
+      - 'Programs in use
 
 
         * {label:f85}: {fact:f85} ({vintage:f85})
 
 
-        * {label:f88}: {fact:f88} ({vintage:f88})'
-      - 'Who may qualify
+        * {label:f88}: {fact:f88} ({vintage:f88})
 
 
         * {label:f91}: {fact:f91} ({vintage:f91})
 
 
-        * {label:f95}: {fact:f95} ({vintage:f95})
+        * {label:f94}: {fact:f94} ({vintage:f94})
 
 
-        * {label:f98}: {fact:f98} ({vintage:f98})
+        * {label:f97}: {fact:f97} ({vintage:f97})
 
 
-        * {label:f101}: {fact:f101} ({vintage:f101})
+        * {label:f100}: {fact:f100} ({vintage:f100})
 
 
-        * {label:f104}: {fact:f104} ({vintage:f104})
+        * {label:f103}: {fact:f103} ({vintage:f103})
 
 
-        * {label:f107}: {fact:f107} ({vintage:f107})
+        * {label:f106}: {fact:f106} ({vintage:f106})'
+      - 'Who may qualify
 
 
-        * {label:f111}: {fact:f111} ({vintage:f111})'
+        * {label:f109}: {fact:f109} ({vintage:f109})
+
+
+        * {label:f113}: {fact:f113} ({vintage:f113})
+
+
+        * {label:f116}: {fact:f116} ({vintage:f116})
+
+
+        * {label:f119}: {fact:f119} ({vintage:f119})
+
+
+        * {label:f122}: {fact:f122} ({vintage:f122})
+
+
+        * {label:f125}: {fact:f125} ({vintage:f125})
+
+
+        * {label:f129}: {fact:f129} ({vintage:f129})'
       - 'Modeled needs
 
 
-        * {label:f114}: {fact:f114} ({vintage:f114})
+        * {label:f132}: {fact:f132} ({vintage:f132})
 
 
-        * {label:f117}: {fact:f117} ({vintage:f117})
+        * {label:f135}: {fact:f135} ({vintage:f135})
 
 
-        * {label:f120}: {fact:f120} ({vintage:f120})
+        * {label:f138}: {fact:f138} ({vintage:f138})
 
 
-        * {label:f123}: {fact:f123} ({vintage:f123})'
+        * {label:f141}: {fact:f141} ({vintage:f141})'
       - 'Help sites
 
 
-        * {label:f126}: {fact:f126} ({vintage:f126})
+        * {label:f144}: {fact:f144} ({vintage:f144})
 
 
-        * {label:f129}: {fact:f129} ({vintage:f129})
+        * {label:f147}: {fact:f147} ({vintage:f147})
 
 
-        * {label:f132}: {fact:f132} ({vintage:f132})'
+        * {label:f150}: {fact:f150} ({vintage:f150})'
       facts:
       - f1
       - f4
@@ -186,19 +205,25 @@
       - f85
       - f88
       - f91
-      - f95
-      - f98
-      - f101
-      - f104
-      - f107
-      - f111
-      - f114
-      - f117
-      - f120
-      - f123
-      - f126
+      - f94
+      - f97
+      - f100
+      - f103
+      - f106
+      - f109
+      - f113
+      - f116
+      - f119
+      - f122
+      - f125
       - f129
       - f132
+      - f135
+      - f138
+      - f141
+      - f144
+      - f147
+      - f150
       programs: []
       caveats:
       - Figures marked unreliable have large margins of error, so read them with care. Apportioned figures are estimates moved
