@@ -1,0 +1,26 @@
+id: no_district-001
+category: no_district
+question: How many kūpuna live in Kāneʻohe?
+ideal: Asked with no district chosen. Says Kāneʻohe spans more than one House district, names the one that holds
+  most of it, and gives the kūpuna count for each without picking one for the reader.
+tags:
+- demo
+facts:
+- - pop_65_plus
+  - house
+  - '048'
+- - pop_65_plus
+  - house
+  - '049'
+- - pop_65_plus
+  - house
+  - '050'
+must_say:
+- Kāneʻohe
+- 2020-2024
+allowed_geos:
+- - senate
+  - '023'
+- - senate
+  - '024'
+refusal: none

@@ -89,7 +89,9 @@ def test_page_offers_every_pair_as_written_in_config():
     assert {"/outreach.html", "/outreach.js"} <= set(web.PUBLIC)
     for page in ("index.html", "checks.html", "glossary.html", "methods.html", "outreach.html"):
         nav = re.search(
-            r'<nav aria-label="Main navigation">(.*?)</nav>', (web.STATIC / page).read_text("utf-8")
+            r'<nav aria-label="Main navigation">(.*?)</nav>',
+            (web.STATIC / page).read_text("utf-8"),
+            re.DOTALL,
         )
         assert 'href="/outreach.html"' in nav.group(1), page
 
@@ -152,7 +154,7 @@ def test_layout_names_the_top_tier_and_flags_unreliable_estimates(outreach_con):
         "use": {"value": "900", "spread": "± 120"},
     }
     assert (
-        second["caution"] == "Unreliable estimate: the margin of error is large"
+        second["caution"] == "The margin of error is large compared with the estimate."
         and second["reliable"] is False
     )
     assert (

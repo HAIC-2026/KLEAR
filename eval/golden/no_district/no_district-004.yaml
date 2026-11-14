@@ -1,0 +1,22 @@
+id: no_district-004
+category: no_district
+question: What is the median household income in Wahiawā?
+ideal: Asked with no district chosen. Says Wahiawā lies entirely in one House district and gives that district's
+  median household income with its margin of error and ACS vintage. Spells Wahiawā with its kahakō and Hawaiʻi with
+  its ʻokina.
+district:
+- house
+- '046'
+facts:
+- - median_household_income
+  - house
+  - '046'
+must_say:
+- Wahiawā
+- 2020-2024
+allowed_geos:
+- - senate
+  - '017'
+- - senate
+  - '023'
+refusal: none

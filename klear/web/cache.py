@@ -120,7 +120,8 @@ class AnswerCache:
             if build_id(con) != build:
                 return None
             note = f"Prepared ahead of time from the data update of {build_date(build)}."
-            page = _payload(con, answer_from_json(row["answer"]), "assistant") | {"prepared": note}
+            selected = tuple(key[1].split(":"))
+            page = _payload(con, answer_from_json(row["answer"]), "assistant", selected) | {"prepared": note}
         except Exception:  # noqa: BLE001 - a prepared answer that no longer lays out is answered live
             return None
         with self._lock:

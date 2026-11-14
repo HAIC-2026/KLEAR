@@ -13,10 +13,26 @@ from pathlib import Path
 import duckdb
 import httpx
 import pandas as pd
+from pypdf.errors import PyPdfError
 
 from klear import config
 from klear.config import MissingSecretError
-from klear.etl import areas, chas, cms, hud, irs, manual, places, places_gazetteer, sites
+from klear.etl import (
+    areas,
+    bls,
+    chas,
+    cms,
+    dbedt,
+    dotax,
+    hud,
+    irs,
+    manual,
+    members,
+    places,
+    places_gazetteer,
+    plan_report,
+    sites,
+)
 from klear.etl import fetch as fetch_mod
 from klear.etl.blocks import build_block_table, load_block_points
 from klear.etl.boundaries import ArcGISError, download_districts, export_web_geojson
@@ -43,9 +59,12 @@ from klear.store.db import (
     add_blocks,
     add_coverage,
     add_coverage_exclusions,
+    add_district_plan,
+    add_fact_matches,
     add_facts,
     add_geographies,
     add_indicators,
+    add_members,
     add_places,
     add_sites,
     add_source,
@@ -55,15 +74,19 @@ from klear.validation import CheckResult
 from klear.validation.apportionment import check_apportionment
 from klear.validation.areas import check_areas
 from klear.validation.blocks import check_blocks
+from klear.validation.bls import check_bls
 from klear.validation.boundaries import check_boundaries
 from klear.validation.chas import check_chas
 from klear.validation.cms import check_cms, check_cms_districts
 from klear.validation.county_state import check_county_state
+from klear.validation.dotax import check_dotax
 from klear.validation.eligible import check_admin_counts, check_district_sums
 from klear.validation.gazetteer import check_gazetteer
 from klear.validation.hud import check_hcv
 from klear.validation.irs import check_irs
+from klear.validation.members import check_members
 from klear.validation.places import check_places, check_places_county
+from klear.validation.plan_report import check_plan_report
 from klear.validation.population import check_population
 from klear.validation.report import (
     CAVEATS,
@@ -76,7 +99,14 @@ from klear.validation.report import (
 from klear.validation.rules import HUD_FILE, HUD_URL, check_rules
 from klear.validation.sites import check_sites
 from klear.validation.source_fidelity import check_source_fidelity
-from klear.validation.store import EXPECTED_GEOS, SITE_WORDS, check_store, store_counts
+from klear.validation.store import (
+    COMPARED_SOURCE,
+    EXPECTED_GEOS,
+    SITE_WORDS,
+    check_store,
+    matched_facts,
+    store_counts,
+)
 
 DOCS_PATH = config.ROOT / "docs" / "VALIDATION.md"
 STORE_NAME = "klear.duckdb"
@@ -86,6 +116,7 @@ RULES_DIR = config.ROOT / "data" / "rules"
 REQUIRED_RULES = REQUIRED_RULE_IDS
 HUD_RULE = "hud_il_fy2026_hi"
 LICENSE = "Public domain, U.S. Government work"
+STATE_LICENSE = "Public data of the State of Hawaiʻi"
 HUD_PUBLISHER = "U.S. Department of Housing and Urban Development"
 CURRENT = config.CURRENT_LAYER
 # the tracked eval recordings rescored after each build, and the published held-out totals
@@ -128,7 +159,15 @@ SOURCES = {
         "Comprehensive Housing Affordability Strategy (CHAS) data, Table 8", HUD_PUBLISHER, chas.CHAS_URL,
         chas.VINTAGE, chas.PAGE_URL,
     ),
+    # county-level context; the BLS vintage is the latest month, set when the step runs
+    bls.SOURCE_ID: (bls.NAME, bls.PUBLISHER, bls.API_URL, "latest month", bls.PAGE_URL),
+    dotax.SOURCE_ID: (dotax.NAME, dotax.PUBLISHER, dotax.URL, dotax.VINTAGE, dotax.PAGE_URL),
+    dbedt.SOURCE_ID: dbedt.SOURCE,
+    plan_report.SOURCE_ID: (
+        plan_report.NAME, plan_report.PUBLISHER, plan_report.URL, plan_report.VINTAGE, plan_report.PAGE_URL,
+    ),
 }  # fmt: skip
+LICENSES = {dotax.SOURCE_ID: STATE_LICENSE, dbedt.SOURCE_ID: STATE_LICENSE}
 
 
 class StepSkipped(RuntimeError):
@@ -147,12 +186,17 @@ STORE_STEPS = (
     "cms",
     "hud_vouchers",
     "sites",
+    "members",
     "places",
     "chas",
+    "bls",
+    "dotax",
     "gazetteer",
     "areas",
+    "plan_report",
     "county_state",
 )
+COUNTY_LEVEL = {"county": True, "state": True}
 EXIT_MEANING = {
     0: "all gated checks ran and passed",
     1: "a gated check failed",
@@ -280,11 +324,15 @@ def _fidelity(api: CensusCache) -> tuple[pd.DataFrame, CheckResult]:
     return aligned, check_source_fidelity(aligned, pd.concat(rows, ignore_index=True))
 
 
-def _register(con, source_ids, indicators: pd.DataFrame, coverage, exclusions=None) -> None:
+def _add_source(con, sid: str, vintage: str | None = None) -> None:
+    name, publisher, url, listed, page = SOURCES[sid]
+    add_source(con, sid, name, publisher, url, vintage or listed, LICENSES.get(sid, LICENSE), page_url=page)
+
+
+def _register(con, source_ids, indicators: pd.DataFrame, coverage, exclusions=None, vintage=None) -> None:
     # coverage maps geo_type to complete, or is a function of indicator_id returning that map
     for sid in source_ids:
-        name, publisher, url, vintage, page_url = SOURCES[sid]
-        add_source(con, sid, name, publisher, url, vintage, LICENSE, page_url=page_url)
+        _add_source(con, sid, vintage)
     add_indicators(con, indicators)
     rows = [
         {"indicator_id": i, "geo_type": g, "complete": complete}
@@ -309,6 +357,25 @@ def _population(blocks: pd.DataFrame, api) -> CheckResult:
     except (httpx.HTTPError, OSError, RuntimeError, ValueError, KeyError) as e:
         commission, problem = None, f"download or read failed ({type(e).__name__})"
     return check_population(blocks, census, commission, commission_problem=problem)
+
+
+def _plan_report(con) -> CheckResult:
+    # the report's district descriptions and permanent residents, checked against its totals and the plan files
+    try:
+        report = plan_report.load_report()
+    except (httpx.HTTPError, PyPdfError, ValueError) as e:
+        raise StepSkipped(f"Reapportionment Commission report download or read failed: {e}") from None
+    try:
+        commission, problem = load_commission(), None
+    except (httpx.HTTPError, OSError, RuntimeError, ValueError, KeyError) as e:
+        commission, problem = None, f"download or read failed ({type(e).__name__})"
+    result, rows = check_plan_report(report, commission, commission_problem=problem)
+    name, publisher, url, vintage, page_url = SOURCES[plan_report.SOURCE_ID]
+    add_source(
+        con, plan_report.SOURCE_ID, name, publisher, url, vintage, plan_report.LICENSE, page_url=page_url
+    )
+    add_district_plan(con, rows.assign(source_id=plan_report.SOURCE_ID))
+    return result
 
 
 def _site_counts(df: pd.DataFrame) -> str:
@@ -373,6 +440,17 @@ def _store_steps(con, blocks, house, senate, step, checks: list[CheckResult]) ->
         result.notes.insert(0, _site_counts(df))
         checks.append(result)
 
+    def members_step():
+        df, listed = members.load_members()
+        for sid, src in listed.items():
+            add_source(
+                con, sid, src["name"], members.PUBLISHER, src["url"], src["vintage"], members.LICENSE,
+                page_url=members.PAGE_URL,
+            )  # fmt: skip
+        add_members(con, df)
+        districts = {"house": list(house.geo_id), "senate": list(senate.geo_id)}
+        checks.append(check_members(df, districts, {c: v[3] for c, v in members.CHAMBERS.items()}))
+
     def places_step():
         df = places.load_places()
         facts = places.places_facts(df, blocks, geos=geos)
@@ -392,6 +470,22 @@ def _store_steps(con, blocks, house, senate, step, checks: list[CheckResult]) ->
         _register(con, [chas.SOURCE_ID], chas.chas_indicator_rows(), CHAMBERS | {"tract": False})
         add_facts(con, facts)
         checks.append(check_chas(facts))
+
+    def bls_step():
+        try:
+            rows = bls.latest(bls.parse_laus(bls.fetch_laus()))
+        except (httpx.HTTPError, bls.Unavailable) as e:
+            raise StepSkipped(f"BLS unemployment download failed: {e}") from None
+        month = bls.vintage(rows)
+        _register(con, [bls.SOURCE_ID], bls.laus_indicator_rows(), COUNTY_LEVEL, bls.KALAWAO, vintage=month)
+        add_facts(con, bls.laus_facts(rows))
+        checks.append(check_bls(rows, month))
+
+    def dotax_step():
+        df = dotax.parse_credit_tables(dotax.fetch_credit_tables())
+        _register(con, [dotax.SOURCE_ID], dotax.credit_indicator_rows(), COUNTY_LEVEL, dotax.KALAWAO)
+        add_facts(con, dotax.credit_facts(df))
+        checks.append(check_dotax(df))
 
     def gazetteer_step():
         try:
@@ -428,14 +522,33 @@ def _store_steps(con, blocks, house, senate, step, checks: list[CheckResult]) ->
         ("cms", cms_step),
         ("hud_vouchers", hud_step),
         ("sites", sites_step),
+        ("members", members_step),
         ("places", places_step),
         ("chas", chas_step),
+        ("bls", bls_step),
+        ("dotax", dotax_step),
         ("gazetteer", gazetteer_step),
         ("areas", areas_step),
+        ("plan_report", lambda: checks.append(_plan_report(con))),
         ("county_state", lambda: checks.append(check_county_state(con))),
     ):
         step(name, fn)
     return expected
+
+
+def _mark_dbedt_matches(con, aligned: pd.DataFrame) -> None:
+    # mark stored Census profile facts that equal DBEDT's published cell, with that profile's workbook
+    facts = con.execute(
+        "SELECT f.geo_type, f.geo_id, f.indicator_id, i.acs_var, f.source_id, "
+        "f.value, f.moe, f.value_status, f.moe_status FROM fact f JOIN indicator i USING (indicator_id) "
+        "WHERE f.source_id = ?",
+        [COMPARED_SOURCE],
+    ).df()
+    _add_source(con, dbedt.SOURCE_ID)
+    matched = matched_facts(facts, aligned)
+    add_fact_matches(
+        con, matched.assign(match_source_id=dbedt.SOURCE_ID, match_url=matched.geo_type.map(dbedt.DBEDT_URLS))
+    )
 
 
 def _rules_step(checks: list[CheckResult], skipped: list[dict]) -> list[Rule]:
@@ -611,6 +724,8 @@ def build(
                 ]
             rules = step("rules", lambda: _rules_step(checks, skipped))
             if loaded is not None:
+                if aligned is not None:
+                    _mark_dbedt_matches(con, aligned)
                 checks.append(check_district_sums(con))
                 checks.append(check_admin_counts(con))
                 checks.append(check_store(con, aligned, expected))

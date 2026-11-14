@@ -203,7 +203,7 @@ This product uses the Census Bureau Data API but is not endorsed or certified by
 - klear/agent: the agent, its data tools and the code that builds and checks each answer (python -m klear.agent).
 - klear/web: the local web server, landing page, district profile and chat interface (python -m klear.web).
 - klear/eval: the answer format, eval runner, answer checks, reports and spending cap (python -m klear.eval run).
-- data: the checked-in indicator catalog and the official program counts the validation report compares with (data/catalog), Hawaiian place names and district search names (data/places), the program catalog the site and the assistant list programs from, with each program's agency, official page and phone (data/programs), and program rules (data/rules). The build also writes data/raw (download cache), data/manual (hand downloads) and data/build (the store), none of them tracked.
+- data: the checked-in indicator catalog and the official program counts the validation report compares with (data/catalog), Hawaiian place names, district search names and district caveats with their sources (data/places), the program catalog the site and the assistant list programs from, with each program's agency, official page and phone (data/programs), and program rules (data/rules). The build also writes data/raw (download cache), data/manual (hand downloads) and data/build (the store), none of them tracked.
 - eval: test questions (eval/golden), saved model replies (eval/scripts), recorded live answers (eval/recordings) and model prices. Run reports go to eval/reports, which is not tracked.
 - tests: the pytest suite, laid out like the klear packages, with small fixtures in tests/fixtures.
 - e2e: browser and accessibility tests with Playwright and axe (see [Browser and accessibility tests](#browser-and-accessibility-tests)).
@@ -324,12 +324,16 @@ The DuckDB store in data/build/klear.duckdb has these tables (schema in klear/st
 - indicator_coverage: the geography types each indicator is declared for, each marked complete or partial. Every geography of a complete type must have a fact. Partial coverage is for sources that publish only some tracts or ZIP codes.
 - coverage_exclusion: named geographies a source does not publish inside a complete coverage, with the reason (IRS and CMS publish no Kalawao County rows).
 - build_info: one row describing the build that wrote the store.
-- fact: one value per geography, indicator and source, with its margin of error, value_status, moe_status, tier (D direct, A apportioned, P points, M modeled, S summed from published parts, C context) and source table. Tier A and M facts with a value carry value_low and value_high with moe_status range, tier S facts carry them only when some of their parts were not published, and tier D and P facts leave both empty. The method the assistant states for each fact comes from its tier, source and geography type (klear/store/methods.py).
+- fact: one value per geography, indicator and source, with its margin of error, value_status, moe_status, tier (D direct, A apportioned, P points, M modeled, S summed from published parts, C county-level context) and source table. Tier A and M facts with a value carry value_low and value_high with moe_status range, tier S facts carry them only when some of their parts were not published, and tier D and P facts leave both empty. Tier C facts are stored only for counties and the state. The method the assistant states for each fact comes from its tier, source and geography type (klear/store/methods.py).
+- fact_match: stored facts that equal a second publication of the same figure, with a link to it. The build marks every Census data profile fact whose value, margin of error and statuses equal the cell in DBEDT's published district, county or state profile workbook, and the site's source lists say "Matches DBEDT's published district profile" (or county or state profile) with a link for each place. A fact the build did not compare is never marked.
 - site: public housing, LIHTC and health center points with their House and Senate district, the meters the point was snapped to reach it, and source.
 - place and place_overlap: Census 2020 places (CDPs) with Hawaiian names, and the share of each place's 2020 residents in each county, House and Senate district and ZIP code area.
 - area, area_overlap and area_alias: what district search finds beyond Census places. Islands, Honolulu neighborhood board areas (City and County of Honolulu) on Oʻahu and Census county divisions (TIGER 2020) on the other islands, each with its main island and its residents' shares in each county, district, ZIP code area and place. Each 2020 block counts in the area holding its internal point. area_alias holds other names people use, such as Kona, upcountry Maui or Lanikai, from data/places/areas.yaml.
+- district_plan: each House and Senate district's official area description (Appendix D) and permanent-resident population (Tables 1 to 8) from the 2021 Reapportionment Commission Final Report and Reapportionment Plan, with the report page and PDF page each was read from. The build downloads the report from the Office of Elections into data/raw/reapportionment/ and records its URL, time and hash. The plan_report check compares each count with the report's statewide tables, its island unit and state totals and the Commission's plan files, and leaves out any value that fails.
 
 Sources beyond the Census Bureau, each moved to House and Senate districts with a range: IRS SOI tax year 2023 returns and earned income tax credit by ZIP code, CMS 2026 marketplace enrollment by ZIP code, HUD housing choice vouchers by tract, CDC PLACES 2025 modeled need by tract and HUD CHAS 2018-2022 cost burden by tract. HUD public housing, LIHTC projects and HRSA health center sites are stored as points with their districts.
+
+County-level sources (tier C), stored only for counties and the state, never for a district: BLS Local Area Unemployment Statistics for the latest month (unemployment rate, unemployed people and labor force, not seasonally adjusted, from the BLS public API, which needs no key) and the Hawaiʻi Department of Taxation's Tax Credits Claimed by Hawaiʻi Taxpayers, tax year 2023, tables A-3 and A-4 by taxation district (state earned income tax credit, refundable food/excise tax credit and low-income household renters credit). Their labels say county-level, the agent's tools describe them as county-level figures, and the district profile shows them for the district's main county in a County-level figures section. Neither source publishes Kalawao County.
 
 County and state values. Every profile figure can be compared with its county and the state. PLACES county values are the CDC PLACES 2025 county estimates from the same release as the tracts. CDC publishes no state value for these measures, so the state value is derived: the average of the five county estimates weighted by adult population, labeled as derived wherever it is shown. Vouchers are summed from the published tracts to counties and the state, site counts and units are counted from the site points by county (the 2020 Census block that holds each point) and for the state, and the four CMS county rows are summed to a state row. The build checks that each sum equals its parts and that every county and state value has a source, tier and method. Program rules (poverty guidelines, SNAP, WIC, EITC, SSI and others) live in data/rules/ as YAML, and every build checks each confirmed value against a quote on its official page. Each rule has a source_url, the page its values are checked against (read from fetch_url when that is set), and an info_url, where residents learn about the program or apply.
 
@@ -369,6 +373,8 @@ With an Anthropic key configured, questions go to the same KLEAR assistant that
 `python -m klear.agent` runs. Without the key, the site uses free basic lookups.
 
 When an answer says the data is not available or is outside KLEAR's scope and shows no figures, the site adds one line linking to datatrove.ai (https://datatrove.ai/), a HAIC 2026 sponsor with its own chat over Hawaiʻi public datasets that are not published by district. The line is added where the page lays out the answer, not by the model, so the answer contract and the eval are unchanged. KLEAR only links to datatrove.ai and does not copy its data. The Data and sources and About sections of the page link to it too.
+
+Every answer with figures shows one plain line above its sources, such as "All 6 figures in this answer come from the cited sources below." The server counts the figures the page shows (tiles, chart bars, figures written into the answer and the figures behind each program's reason) from the stored facts it filled in, never from digits in the text, so the count is true by construction. Basic lookups and prepared starter answers get the same line, the chat's status line reads it out, and declines and answers with no figures have none.
 
 Website spending has its own cap of 5 dollars per HST day, kept in ~/.config/klear/web_spend.json and separate from the 60 dollar eval cap. Each question reserves its worst-case cost first and then records the actual cost, and the file also keeps the day's input, output, cache write and cache read tokens. The assistant marks its tool definitions and system prompt for the prompt cache, so a question asked within 5 minutes of another reads them at the cache price. When the day's cap is reached or the API fails, the site falls back to a basic keyword lookup from the store and says so. Each visitor can ask 6 questions a minute, and the server answers 3 at a time.
 
@@ -483,6 +489,19 @@ used only for that request: it is not stored, the server keeps no request log, a
 says so beside the search box. If the geocoder is unreachable, search falls back to names and
 says so. Start the site with --no-address-lookup to keep every request local.
 
+Chat also answers who represents a district ("Who represents House District 22?") and which district a
+legislator represents ("Which district does Senator Stanley Chang represent?"). The build reads the members from the
+Legislative Reference Bureau Public Access Room's Representatives at a Glance and Senators at a Glance PDFs
+(https://lrb.hawaii.gov/par/current-legislature/), with each member's official page from the Pictures and Profiles
+PDFs, and keeps the name as printed, the chamber, the district, that link, the date on the listing and the date it
+was fetched. Party is never stored. The capitol.hawaii.gov member pages refuse scripted downloads, so the build does
+not read them. A validation check requires exactly one member for each of the 51 House and 25 Senate districts.
+Names match exactly, ignoring case, ʻokina and kahakō, and a name that fits several members lists each one. Every
+mention says "as listed on" the listing and the date it was fetched, and says when the listing is dated before the
+general election, since it may not show members elected then. The assistant's find_member tool and the basic lookup
+give the same answer, and the district profile and its printed summary show the member with the same note. Questions
+about how to vote, a party or a legislator's record are still declined.
+
 Chat takes a street address too, as in "Which House and Senate district is 310 W Kaʻahumanu Ave,
 Kahului in?". A street address on its own is a place, not a person, so it is answered, not declined.
 The assistant passes the address to its resolve_place tool, and the basic lookup finds it in the
@@ -493,10 +512,30 @@ Questions about the people at an address, such as who lives there, are still dec
 address is in another district than the one chosen, the answer is labeled with that district, its
 next questions name it, and a button switches the chat and profile to it. The matched address is shown
 in title case with Hawaiian spelling. The note under the question box says that an AI model answers
-from KLEAR's data, that questions go to its provider, Anthropic, so people should leave out personal
-details, and that addresses go to the Census Bureau only to find a district. The note under the
-district search adds that KLEAR does not store or log an address. The agent and eval command lines take the same --no-address-lookup option.
-Chat offers five example questions, a waiting state, explicit refusal labels,
+from KLEAR's data, that questions, with the last two in that tab, go to its provider, Anthropic, so people
+should leave out personal details, and that addresses go to the Census Bureau only to find a district. The
+note under the district search adds that KLEAR does not store or log an address. The agent and eval command
+lines take the same --no-address-lookup option.
+
+A question can name its own place, so chat works before a district is chosen. With no district, the page
+sends district null. The basic lookup finds a district, ZIP code, town, neighborhood, island or county
+named in the question, the same way the search box does. One district is answered and chosen on the page,
+so its profile loads. A place that spans several districts gets the search's district buttons in the
+answer, and picking one chooses it and asks again. A county, or an island that is one county such as
+Oʻahu, is answered with the county's figures, and a statewide question with Hawaiʻi's. A question that
+names no place asks for one, and a question that ranks every district says it needs the assistant. With
+the assistant on, the question goes to the agent with no district, and it resolves the place itself.
+
+Follow-ups keep their subject. Each answer carries a subject: the place it is about and the indicator ids
+of its figures. The page sends the last one or two exchanges from the tab with the next question: the
+question, that place and those ids, never answer text, which the server could not check. The server checks
+them (at most two exchanges, questions of up to 500 characters, at most 40 known indicator ids, a stored
+district, county or the state) and keeps none of them. The assistant gets them as a short "Earlier in this
+conversation" block and uses it only to resolve words like that, there or the county, fetching every fact
+again. The basic lookup reuses the last answer's measures when a question names no topic, and its place
+when no district is chosen, so "and how does that compare with the county?" after a poverty answer shows
+the poverty rate for the district, its county and the state.
+Chat offers six example questions, one of them statewide, a waiting state, explicit refusal labels,
 and figure cards with uncertainty, vintage, geography and official source
 links. Source names open the publisher's page about the dataset, never an API answer or a
 file download. Each ACS figure also links to its table for that place on data.census.gov
@@ -516,8 +555,15 @@ Choosing a district opens its own page, such as /district/house-22, with its pro
 profile is read straight from the store with no model call, through `GET /api/profile?district=house:022`.
 A district chosen while an answer is still loading shows its profile at once, and the chat switches to it after that answer.
 It names the district's counties, islands, Census places and the overlapping districts
-in the other chamber, shows four headline figures, then up to 44 figures in eight sections:
-People, Income, Housing, Health and access, Programs in use, Who may qualify, Modeled needs and Help sites.
+in the other chamber, shows four headline figures, then 50 figures in nine sections:
+People, Income, Work and education, Housing, Health and access, Programs in use, Who may qualify,
+Modeled needs and Help sites. Work and education shows the district's three largest of 13 industry
+groups, each counting residents by the industry they work in, wherever the job is. A last section,
+Reapportionment plan, gives the district's official description and permanent residents from the
+2021 Reapportionment Commission Final Report, each with its report page. The profile says that the
+permanent-resident count, the one the district lines were drawn on, leaves out non-resident military
+members, their families and students, so it differs from the ACS total population. The printed
+summary carries both too.
 Each figure shows its margin of error or range, is compared with the county that holds most
 of the district's population and with the state, flags an unreliable estimate, and is cited
 under its section. Rates are compared in plain sentences ("about 40 percent higher than the

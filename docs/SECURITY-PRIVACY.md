@@ -4,7 +4,7 @@
 
 KLEAR holds only public, aggregated data: Census, federal and State tables for districts, counties and the state, and the locations of public help sites. It has no accounts and no personal records. It answers about communities, never individuals, and declines personal and partisan requests.
 
-What leaves the server: in assistant mode, the question and the public figures the assistant looks up go to the AI provider, Anthropic (Claude Haiku 5.5). The note under the question box says so and asks people not to type personal details. A street address goes to the U.S. Census Bureau geocoder only to find its Census block. The operator can turn address lookup off, and without an AI key KLEAR uses free lookups with no model call.
+What leaves the server: in assistant mode, the question, with the visitor's last two questions in that tab, and the public figures the assistant looks up go to the AI provider, Anthropic (Claude Haiku 5.5). The note under the question box says so and asks people not to type personal details. A street address goes to the U.S. Census Bureau geocoder only to find its Census block. The operator can turn address lookup off, and without an AI key KLEAR uses free lookups with no model call.
 
 What is stored: nothing a visitor types. The server keeps no request logs, writes no question or address to disk and opens the database read-only. Chat history stays in the visitor's browser tab. API keys stay on the server.
 

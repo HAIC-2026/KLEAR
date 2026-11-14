@@ -4,6 +4,8 @@ const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 const uncertaintyLabels = {ok: '90% margin of error shown above', controlled: 'Fixed to official totals; no sampling margin of error', range: 'Estimated range shown above', open_ended: 'Open-ended published value', not_computable: 'Margin of error unavailable; treat as uncertain', not_applicable: 'No margin of error applies', unavailable: 'Uncertainty information unavailable'};
 // Starter questions, with the short label each shows once it moves into the chat.
 const examples = [['Give me a socioeconomic profile of this district.', 'Profile'], ['How many kūpuna live in this district?', 'Kūpuna'], ['What does the data say about housing needs in this district?', 'Housing'], ['How does poverty here compare with the state?', 'Poverty vs. state'], ['What support programs could residents of this district explore?', 'Programs']];
+// A starter that asks about every district, so it needs no district chosen.
+const statewideExample = ['Which House districts have the highest share of kūpuna?', 'Kūpuna share by district'];
 const refusalLabels = {decline_partisan: 'Partisan request declined', decline_individual: 'Personal request declined', not_available: 'Data not available', out_of_scope: 'Outside KLEAR’s scope'};
 function node(tag, text, className) { const n = document.createElement(tag); n.textContent = text; if (className) n.className = className; return n; }
 // Hawaiian words for groups of people, marked so screen readers can pronounce them. Place names are left as they are.
@@ -21,6 +23,38 @@ function says(tag, text, className) {
   return n;
 }
 const hidden = text => node('span', text, 'visually-hidden');
+// A chip that flags an unreliable estimate. Its spoken name gives the reason.
+function cautionChip(why) {
+  const chip = node('span', 'Use with caution', 'chip caution');
+  if (why) chip.append(hidden(`. ${why}`));
+  return chip;
+}
+// A caution chip with its reason written out beside it.
+function cautionLine(why) {
+  const p = node('p', '', 'profile-caution');
+  p.append(cautionChip(''), ` ${why}`);
+  return p;
+}
+// How an apportioned or modeled figure was estimated, linked to its source's section on the methods page.
+function methodLine(m) {
+  const line = node('p', 'How estimated: ', 'method');
+  line.append(link(m.text, m.url));
+  return line;
+}
+// Notes for districts and counties with a known caveat, such as the Maui wildfires, each with its sources.
+function placeNotes(notes, className) {
+  const box = node('div', '', `place-notes ${className}`);
+  for (const c of notes) {
+    const note = node('div', '', 'place-note'), text = node('p', '', 'place-note-text');
+    text.append(says('b', `${c.title}.`), ' ', says('span', c.text));
+    const list = node('ul', '', 'place-note-sources');
+    for (const s of c.sources) { const li = document.createElement('li'); li.append(link(s.name, s.url)); list.append(li); }
+    list.setAttribute('aria-label', c.sources.length > 1 ? `Sources for ${c.title}` : `Source for ${c.title}`);
+    note.append(text, list);
+    box.append(note);
+  }
+  return box;
+}
 async function api(url, options) {
   let r, data = null;
   try { r = await fetch(url, options); } catch { throw new Error('KLEAR could not be reached. Check your connection and try again.'); }
@@ -172,6 +206,7 @@ function setLookup(open) {
   if (!open) resetLookup();
 }
 
+const NO_DISTRICT_WELCOME = 'Ask about a district, a town or ZIP code, or all of Hawaiʻi.';
 function needDistrict() {
   setLookup(true);
   $('lookup-status').textContent = 'Pick a district first. Your question will wait in the box below.';
@@ -244,7 +279,7 @@ function clearDistrict() {
   districtHead('', null);
   delete $('chat').dataset.chamber;
   $('district-title').textContent = 'No district chosen yet';
-  $('welcome-text').textContent = 'Ask about this district.';
+  $('welcome-text').textContent = NO_DISTRICT_WELCOME;
   $('chat-status').textContent = '';
   $('profile').hidden = true;
   $('profile').replaceChildren();
@@ -495,7 +530,7 @@ const resetLookup = lookupForm($('lookup'), $('place'), $('lookup-status'), $('m
 const resetFind = lookupForm($('find'), $('find-place'), $('find-status'), $('find-matches'), (geo, name) => { resetFind(); choose(geo, name, false, true, 'profile'); });
 // Each starter shows its full question. Once it moves into the chat it shows only its short label, and the rest of the
 // question stays in its spoken name after that label, so voice control can say what it sees.
-for (const [question, label] of examples) {
+for (const [question, label] of [...examples, statewideExample]) {
   const b = node('button', '');
   b.type = 'button';
   const short = says('span', label, 'example-label'), rest = hidden(': '), full = says('span', question, 'example-full');
@@ -503,7 +538,7 @@ for (const [question, label] of examples) {
   rest.hidden = true;
   rest.append(says('span', question));
   b.append(short, rest, full);
-  b.onclick = () => { if (busy) return; $('question').value = question; fitQuestion(); if (district) $('question-form').requestSubmit(); else needDistrict(); };
+  b.onclick = () => { if (busy) return; $('question').value = question; fitQuestion(); if (district || question === statewideExample[0]) $('question-form').requestSubmit(); else needDistrict(); };
   $('examples').append(b);
 }
 
@@ -549,9 +584,12 @@ async function loadProfile(geo, name) {
 // districts of the other chamber it overlaps.
 function districtHead(name, p) {
   $('district-name').textContent = name;
-  const about = $('district-about');
+  const about = $('district-about'), member = $('district-member');
   about.replaceChildren();
+  member.replaceChildren();
   if (!p) return;
+  // The legislator sits beside the district's name, or under it on a narrow screen.
+  if ((p.members || []).length) member.append(profileMembers(p.members));
   if (p.where) about.append(node('p', p.where, 'district-where'));
   const meta = [p.places.length ? `Includes ${placesList(p)}.` : '', p.overlaps.length ? `Overlaps ${overlapsList(p)}.` : ''];
   if (meta.some(Boolean)) about.append(node('p', meta.filter(Boolean).join(' '), 'district-meta'));
@@ -588,10 +626,16 @@ function profileRow(r) {
   const label = says('p', r.label, 'profile-label');
   if (r.note) { const sup = node('sup', ''); sup.append(hidden(' source '), String(r.note)); label.append(sup); }
   row.append(figure, label);
-  if (r.caution) row.append(node('p', r.caution, 'profile-caution'));
+  if (r.caution) row.append(cautionLine(r.caution));
+  if (r.method) row.append(methodLine(r.method));
   if (r.against.length) {
     const list = node('ul', '', 'profile-against');
-    for (const a of r.against) { const li = document.createElement('li'); li.append(node('b', a.lead), ` ${a.rest}`); list.append(li); }
+    for (const a of r.against) {
+      const li = document.createElement('li');
+      li.append(node('b', a.lead), ` ${a.rest}`);
+      if (a.caution) li.append(' ', cautionChip(a.caution));
+      list.append(li);
+    }
     row.append(list);
   }
   if (r.beside) row.append(besideLine(r.beside));
@@ -607,6 +651,7 @@ function besideLine(b) {
   if (!b.value) { p.append(b.text); return p; }
   p.append('For comparison, ', node('b', b.value));
   if (b.spread) p.append(' ', node('span', b.spread.startsWith('range') ? `(${b.spread})` : b.spread, 'moe'));
+  if (b.caution) p.append(' ', cautionChip(b.caution));
   p.append(` ${b.text}`);
   if (b.note) { const sup = node('sup', String(b.note)); sup.setAttribute('aria-label', `source ${b.note}`); p.append(sup); }
   return p;
@@ -623,6 +668,7 @@ function profileSources(sources, compared = []) {
       const li = document.createElement('li');
       li.append(link(s.name, s.url), node('span', s.year, 'profile-source-year'));
       if (s.links && s.links.length) li.append(sourceLinks(s.links));
+      if (s.match) li.append(matchLine(s.match));
       list.append(li);
     }
     return list;
@@ -646,7 +692,7 @@ function programRow(p, full) {
   if (full && p.description) row.append(node('p', p.description, 'program-about'));
   if (p.reasons && p.reasons.length) {
     const list = node('ul', '', 'program-reasons');
-    for (const r of p.reasons) list.append(node('li', r));
+    for (const r of p.reasons) { const li = says('li', r.text); if (r.caution) li.append(' ', cautionChip(r.caution)); list.append(li); }
     row.append(list);
   }
   const contact = node('p', '', 'program-contact'), tel = node('a', p.phone);
@@ -668,8 +714,11 @@ function programsOf(p) {
   const pr = p.programs;
   return pr && Array.isArray(pr.programs) && Array.isArray(pr.others) ? pr : null;
 }
-// Programs on the one-page summary, so it stays one page.
-const SHEET_PROGRAMS = 6;
+// Programs on the one-page summary: up to six, and at least three when the page runs long.
+const SHEET_PROGRAMS = 6, SHEET_MIN_PROGRAMS = 3;
+// The height a summary is fitted to: a US Letter page inside half-inch margins is 10 inches, 960 CSS pixels, less a
+// little room for how the printer breaks the page.
+const SHEET_HEIGHT = 930;
 
 // Matched programs, then the rest of the catalog, each as a grid that shows two or more side by side when there is room.
 function profilePrograms(pr) {
@@ -716,7 +765,10 @@ function profileSection(key, title, content) {
 function dataSection(sec) {
   const rows = node('div', '', 'profile-rows'), content = [];
   rows.append(...sec.rows.map(profileRow));
+  if (sec.scope) content.push(node('p', sec.scope, 'profile-scope'));
+  if (sec.intro) content.push(node('p', sec.intro, 'profile-caveat lead'));
   if (sec.caveat) content.push(node('p', sec.caveat, 'profile-caveat lead'));
+  if (sec.method) content.push(methodLine(sec.method));
   content.push(rows, profileSources(sec.sources, sec.compared));
   return profileSection(sec.title.toLowerCase().replace(/[^a-z0-9]+/g, '-'), sec.title, content);
 }
@@ -727,7 +779,8 @@ const LEAD_SECTIONS = 2, OPEN_FIRST = 3;
 function profileSections(p) {
   const data = p.sections.filter(s => s.rows.length).map(dataSection);
   const programs = programsOf(p) ? [profilePrograms(p.programs)] : [];
-  const out = [...data.slice(0, LEAD_SECTIONS), ...programs, ...data.slice(LEAD_SECTIONS)];
+  const plan = p.plan ? [profilePlan(p.plan)] : [];
+  const out = [...data.slice(0, LEAD_SECTIONS), ...programs, ...data.slice(LEAD_SECTIONS), ...plan];
   const saved = openedSections();
   out.forEach((d, i) => { d.open = typeof saved[d.dataset.key] === 'boolean' ? saved[d.dataset.key] : !ONE_COLUMN.matches && i < OPEN_FIRST; });
   return out;
@@ -755,6 +808,27 @@ function placesList(p) {
   return p.places.slice(0, 4).map(x => `${x.name} (${x.share})`).join(', ') + (more > 0 ? `, and ${more} more places` : '');
 }
 const overlapsList = p => p.overlaps.map(o => `${o.name} (${o.share})`).join(', ');
+
+// The district's official area description and the permanent residents the Reapportionment Commission drew it on,
+// each with the report page it comes from, then how that count differs from the ACS total, and the report. It is a
+// section of its own, after the figures, since the description can run long.
+function profilePlan(plan) {
+  const box = node('div', '', 'profile-plan');
+  const line = (label, text, cite) => {
+    const l = node('p', '');
+    l.append(node('span', label, 'profile-plan-label'), ` ${text} `, node('span', `(${cite})`, 'profile-plan-cite'));
+    return l;
+  };
+  if (plan.description) box.append(line('Official description:', plan.description.text, plan.description.cite));
+  if (plan.population) {
+    box.append(line('Permanent residents in the 2022 plan:', plan.population.value, plan.population.cite));
+    box.append(node('p', plan.population.note, 'profile-plan-note'));
+  }
+  const source = node('p', 'Source: ', 'profile-plan-note');
+  source.append(link(plan.source.name, plan.source.url), `, ${plan.source.year}`);
+  box.append(source);
+  return profileSection('plan', 'Reapportionment plan', [box]);
+}
 
 // Line icons for the share controls, on a 24-unit grid in the text color. Screen readers skip them.
 const ICONS = {
@@ -834,7 +908,7 @@ function profileOutreach(o) {
     for (const item of o.items) {
       const li = document.createElement('li');
       li.append(says('p', item.text));
-      if (item.caution) li.append(node('p', item.caution, 'profile-caution'));
+      if (item.caution) li.append(cautionLine(item.caution));
       const more = node('p', '');
       more.append(link(item.link, item.url));
       li.append(more);
@@ -850,9 +924,40 @@ function profileOutreach(o) {
   return box;
 }
 
+// The district's legislator as the Legislature lists them, linked to their official page, with where and when
+// the name was listed and whether that listing may predate the election results. Under the district's name the
+// legislator takes one line, and the note opens beneath it, so the profile's first figures stay on the first screen.
+function memberNote(m) {
+  return `${m.listed.charAt(0).toUpperCase()}${m.listed.slice(1)}. ${m.timing}`;
+}
+function profileMembers(members) {
+  const box = node('div', '', 'profile-member');
+  for (const m of members) {
+    const who = node('p', '', 'profile-member-name');
+    who.append(node('span', m.title, 'profile-member-title'), ' ', link(m.name, m.url));
+    box.append(who);
+  }
+  const about = node('details', '', 'profile-member-about');
+  about.append(node('summary', 'Where and when this was listed'), node('p', memberNote(members[0]), 'profile-member-note'));
+  box.append(about);
+  return box;
+}
+
+// Under an answer that names a member: their official page and the listing the name was read from.
+function memberLinks(members) {
+  const box = node('div', '', 'member-links');
+  for (const m of members) {
+    const p = node('p', '');
+    p.append(`${m.title} ${m.name}, ${m.district}: `, link('official page', m.url), '. Listed in ', link(m.source, m.source_url), '.');
+    box.append(p);
+  }
+  return box;
+}
+
 function renderProfile(p) {
-  // Under the district's name: its headline figures with their margins, links to each section, the share buttons,
-  // then the sections.
+  // Under the district's name: its headline figures with their margins, any notes on its figures, such as the Maui
+  // wildfires, links to each section, the share buttons, then the sections. The figures come first so they stay on
+  // a phone's first screen below the legislator's line.
   const out = [];
   const stats = node('dl', '', 'profile-stats');
   // Each term comes before its value, as a description list needs; the CSS shows the value on top.
@@ -860,10 +965,12 @@ function renderProfile(p) {
     const s = node('div', ''), value = node('dd', '');
     value.append(node('span', h.value, 'num'));
     if (h.spread) value.append(' ', node('span', h.spread, 'moe'));
+    if (h.caution) value.append(' ', cautionChip(h.caution));
     s.append(says('dt', h.label), value);
     stats.append(s);
   }
   out.push(stats);
+  if (p.caveats && p.caveats.length) out.push(placeNotes(p.caveats, 'profile-notes'));
   const sections = profileSections(p);
   out.push(profileJumps(sections), profileActions(p));
   // The outreach groups this district leads come just before the sections.
@@ -872,17 +979,22 @@ function renderProfile(p) {
   return out;
 }
 
-// The one-page summary that prints in place of the page: twelve key figures beside the county and the state, programs
-// to explore, and every source with its vintage. Paper cannot follow links, so every address is written out.
+// The one-page summary that prints in place of the page: key figures beside the county and the state, programs to
+// explore, and every source with its vintage. Paper cannot follow links, so every address is written out. A
+// group's name in p.largest stands for the district's largest figures of that group, at most the number given.
 const PRINT_GROUPS = [
   ['People', ['pop_total', 'pct_65_plus', 'pop_under_18']],
   ['Income and poverty', ['median_household_income', 'pct_people_poverty', 'pct_children_poverty', 'pct_65_plus_poverty']],
+  ['Work and education', ['unemployment_rate', ['largest_industries', 1], 'pct_bachelors_plus']],
   ['Housing', ['pct_renter_occupied', 'median_gross_rent', 'pct_rent_burden_35_plus']],
   ['Health and assistance', ['pct_uninsured', 'pct_hh_snap']],
 ];
+// Paper has less room than the profile for how the Commission's count differs from the ACS total.
+const PLAN_SHEET_NOTE = 'It leaves out military members, families and students from other states, so it differs from the total population.';
 const longDate = d => d.toLocaleDateString('en-US', {month: 'long', day: 'numeric', year: 'numeric'});
 
 // A summary that cannot be drawn leaves the page to print as it is, and never stops the profile from showing.
+let sheetProfile = null;
 function setSheet(p) {
   const sheet = $('print-sheet');
   let parts = [];
@@ -891,17 +1003,42 @@ function setSheet(p) {
   } catch (err) {
     console.warn('KLEAR could not lay out the printed summary.', err);
   }
+  sheetProfile = parts.length ? p : null;
   sheet.replaceChildren(...parts);
   sheet.dataset.chamber = parts.length ? p.geo.split(':')[0] : '';
   document.body.classList.toggle('has-sheet', parts.length > 0);
+  fitSheet();
 }
+// Lay the summary out unseen at its printed width and keep it to one page: list fewer programs, down to three, then
+// scale the whole page down.
+function fitSheet() {
+  const sheet = $('print-sheet'), p = sheetProfile;
+  if (!p) return;
+  sheet.classList.add('measure');
+  sheet.style.zoom = '';
+  try {
+    for (let n = SHEET_PROGRAMS; ; n--) {
+      sheet.replaceChildren(...sheetParts(p, n));
+      if (sheet.getBoundingClientRect().height <= SHEET_HEIGHT || n <= SHEET_MIN_PROGRAMS) break;
+    }
+    const height = sheet.getBoundingClientRect().height;
+    if (height > SHEET_HEIGHT) sheet.style.zoom = String(Math.floor((SHEET_HEIGHT / height) * 1000) / 1000);
+  } catch (err) {
+    console.warn('KLEAR could not fit the printed summary to one page.', err);
+  } finally {
+    sheet.classList.remove('measure');
+  }
+}
+// Fonts change the summary's height, so fit it again once they load.
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitSheet);
 // The print date is the day it is printed, even when the page has been open since an earlier day.
 window.addEventListener('beforeprint', () => {
+  fitSheet();
   const printed = $('print-sheet').querySelector('.sheet-printed');
   if (printed) printed.textContent = `Printed ${longDate(new Date())}`;
 });
 
-function sheetParts(p) {
+function sheetParts(p, limit = SHEET_PROGRAMS) {
   // Sources are numbered in the order the figures cite them; each row's Source cell lists every source it uses.
   const sources = [];
   const cite = s => {
@@ -916,7 +1053,8 @@ function sheetParts(p) {
     return s;
   };
   const byId = new Map(p.sections.flatMap(s => s.rows.map(r => [r.id, r])));
-  const groups = PRINT_GROUPS.map(([title, ids]) => [title, ids.map(id => byId.get(id)).filter(Boolean)]).filter(([, rows]) => rows.length);
+  const expand = id => Array.isArray(id) ? ((p.largest || {})[id[0]] || []).slice(0, id[1]) : [id];
+  const groups = PRINT_GROUPS.map(([title, ids]) => [title, ids.flatMap(expand).map(id => byId.get(id)).filter(Boolean)]).filter(([, rows]) => rows.length);
   const against = (r, kind) => (r.against || []).find(a => String(a.geo || '').startsWith(`${kind}:`));
   const placeOf = kind => (groups.flatMap(([, rows]) => rows).map(r => against(r, kind)).find(a => a && a.place) || {}).place;
   // A column pair (estimate, then margin) for the district, then its county and the state when the profile has them.
@@ -953,7 +1091,7 @@ function sheetParts(p) {
           continue;
         }
         const value = node('td', f.value, `num ${kind}`);
-        if (kind === 'home' && r.caution) { value.append('†'); unreliable = true; }
+        if (f.caution) { value.append('†'); unreliable = true; }
         ranged ||= String(f.spread || '').startsWith('range');
         cited.push(cite(f.source));
         tr.append(value, node('td', f.spread || '', `moe ${kind}`));
@@ -969,6 +1107,11 @@ function sheetParts(p) {
   const head = node('header', '', 'sheet-head'), who = node('div', ''), live = node('div', '', 'sheet-live');
   who.append(node('p', 'KLEAR district summary', 'sheet-kicker'), node('h1', p.district));
   if (p.where) who.append(node('p', p.where, 'sheet-where'));
+  for (const m of p.members || []) {
+    const line = node('p', '', 'sheet-member');
+    line.append(node('b', m.title), ` ${m.name} `, url(m.url));
+    who.append(line);
+  }
   live.append(node('p', 'Full profile, sources and questions online', ''), url(location.origin + districtPath(p.geo)));
   const dates = node('p', p.built ? `Data built ${p.built} · ` : '', 'sheet-dates');
   dates.append(node('span', `Printed ${longDate(new Date())}`, 'sheet-printed'));
@@ -982,13 +1125,25 @@ function sheetParts(p) {
   if (about.lastChild) {
     const n = cite(p.shares_source);
     about.lastChild.append(`. Shares of 2020 Census residents${n ? ` (source ${n})` : ''}.`);
-    parts.push(about);
   }
+  if ((p.members || []).length) about.append(node('p', memberNote(p.members[0]), 'sheet-member-note'));
+  if (p.plan) {
+    const n = cite(p.plan.source), at = c => `(${n ? `source ${n}, ` : ''}${c})`;
+    const small = l => { l.className = 'sheet-plan'; return l; };
+    if (p.plan.description) about.append(small(line('Official description', `${p.plan.description.text} ${at(p.plan.description.cite)}`)));
+    if (p.plan.population) about.append(small(line('Permanent residents in the 2022 plan', `${p.plan.population.value} ${at(p.plan.population.cite)}. ${PLAN_SHEET_NOTE}`)));
+  }
+  if (about.lastChild) parts.push(about);
   parts.push(section('Key figures', 'sheet-key', table, node('p', margins.join(' '), 'sheet-note')));
+  if (p.caveats && p.caveats.length) {
+    const list = node('ul', '', 'sheet-list');
+    for (const c of p.caveats) { const li = document.createElement('li'); li.append(node('b', `${c.title}.`), ' ', says('span', c.text)); list.append(li); }
+    parts.push(section('About this district’s figures', 'sheet-notes', list));
+  }
 
   // The programs whose need figures here sit above the state's, or the statewide list when none does.
   const matched = programsOf(p), shown = matched ? (matched.programs.length ? matched.programs : matched.others) : [];
-  const programs = shown.filter(g => g && g.name).slice(0, SHEET_PROGRAMS);
+  const programs = shown.filter(g => g && g.name).slice(0, limit);
   if (programs.length) {
     const list = node('ul', '', 'sheet-list');
     for (const g of programs) {
@@ -1041,26 +1196,27 @@ function restoreChat() {
   if (!Array.isArray(saved)) return;
   let last = null, sent = null;
   for (const x of saved) {
-    if (!x || typeof x.geo !== 'string' || typeof x.name !== 'string' || typeof x.question !== 'string') continue;
+    // geo is null for a question asked with no district chosen.
+    if (!x || (typeof x.geo !== 'string' && x.geo !== null) || typeof x.name !== 'string' || typeof x.question !== 'string') continue;
     // A question whose answer was still loading, or failed, waits in the box to ask again.
     if (!x.answer) {
       if (!$('question').value.trim()) { $('question').value = x.question; fitQuestion(); }
       continue;
     }
-    const chamber = x.geo.split(':')[0];
     let reply;
     try { reply = renderAnswer(x.answer, x.name); } catch { continue; }
-    reply.dataset.chamber = answerAbout(x.answer, x.geo).geo.split(':')[0];
+    const about = answerAbout(x.answer, x.geo, x.name);
+    if (about.geo) reply.dataset.chamber = about.geo.split(':')[0];
     showMode(reply, x.answer.mode);
     askedQuestions.add(sameQuestion(x.question, x.name));
-    if (last && x.geo !== last) $('log').append(switchLine(x.name));
-    sent = sentLine(x.question, chamber);
+    if (last && x.geo && x.geo !== last) $('log').append(switchLine(x.name));
+    sent = sentLine(x.question, x.geo ? x.geo.split(':')[0] : '');
     $('log').append(sent, reply);
     exchanges.push(x);
-    last = x.geo;
+    last = x.geo || last;
   }
   saveChat();
-  if (!last) return;
+  if (!sent) return;
   asked = last;
   $('chat-card').classList.add('started');
   if (logScrolls()) $('messages').scrollTop = sent.offsetTop - 16;
@@ -1091,47 +1247,52 @@ $('question-form').onsubmit = async e => {
   if (busy) return;
   const question = $('question').value.trim();
   if (!question) return;
-  if (!district) { needDistrict(); return; }
   // The card stays compact until the first question, then grows to hold the conversation.
   const card = $('chat-card');
   if (!card.classList.contains('started')) { card.classList.add('started'); showChat(); }
   setBusy(true);
   asked = district;
-  const name = $('district-title').textContent, geo = district;
+  // With no district chosen, the question names its own place or asks about the whole state.
+  const geo = district, name = geo ? $('district-title').textContent : '';
   askedQuestions.add(sameQuestion(question, name));
   // The conversation is not a live region, since answers are long. A short status line says what is happening,
   // and the new answer's heading takes focus.
   // Each exchange keeps the color of the chamber it was about, even after the chat switches district.
-  const chamber = district.split(':')[0];
+  const chamber = geo ? geo.split(':')[0] : '';
   const sent = sentLine(question, chamber), wait = waiting(name), pending = wait.box;
   pending.dataset.chamber = chamber;
   $('log').append(sent, pending);
-  const saved = {geo: district, name, question};
+  const earlier = earlierExchanges(), saved = {geo, name, question};
   exchanges.push(saved);
   saveChat();
   reveal(sent);
   $('question').value = '';
   fitQuestion();
   $('chat-status').textContent = '';
-  $('chat-live').textContent = `Checking district data and sources for ${name}…`;
-  let follow = true, hold = null, reply = null, done, reader = null;
+  $('chat-live').textContent = name ? `Checking district data and sources for ${name}…` : 'Checking district data and sources…';
+  let follow = true, hold = null, reply = null, done, reader = null, adopt = null, next = null;
   try {
-    const answer = await askKlear(question, saved.geo, wait);
+    const answer = await askKlear(question, geo, earlier, wait);
     reader = readerPlace();
     hold = holdPage(pending);
     follow = onScreen(pending);
     reply = renderAnswer(answer, name);
     const about = answerAbout(answer, geo, name);
-    reply.dataset.chamber = about.geo.split(':')[0];
+    if (about.geo) reply.dataset.chamber = about.geo.split(':')[0];
     showMode(reply, answer.mode);
     // Only the newest answer offers next questions, and an earlier failure's Retry goes once this one is answered.
-    for (const n of $('log').querySelectorAll('.followups, .retry, .switch-offer')) n.remove();
-    if (about.geo !== geo) reply.append(switchOffer(about));
-    const next = followUpGroup(followUps(question, answer, about.name, counties.get(about.geo)), about);
-    if (next) reply.append(next);
+    for (const n of $('log').querySelectorAll('.followups, .retry, .switch-offer, .answer-choices')) n.remove();
+    const choices = Array.isArray(answer.choices) ? choicesBox(answer.choices, question) : null;
+    if (choices) reply.append(choices);
+    // An answer about one district, asked with none chosen, chooses it so its profile loads.
+    if (!geo && about.geo) adopt = about;
+    else if (about.geo !== geo) reply.append(switchOffer(about));
+    next = about.geo ? followUpGroup(followUps(question, answer, about.name, counties.get(about.geo)), about) : null;
+    if (next && !adopt) reply.append(next);
     pending.replaceWith(reply);
     saved.answer = answer;
-    done = `Answer ready for ${name}.`;
+    const shown = name || about.name || (answer.subject && answer.subject.name);
+    done = [shown ? `Answer ready for ${shown}.` : 'Answer ready.', answer.verified && answer.verified.text].filter(Boolean).join(' ');
   } catch (err) {
     reader = reader || readerPlace();
     hold = holdPage(pending);
@@ -1151,6 +1312,8 @@ $('question-form').onsubmit = async e => {
     // A reader who moved to the Profile tab while waiting sees that the answer has come.
     if (reply && ONE_COLUMN.matches && shownTab !== 'ask') $('tab-new').hidden = false;
     if (queued) { const next = queued; queued = null; choose(next.geo, next.name, true, next.push); }
+    // Choosing the district drops next questions that name another, so they are added once it is chosen.
+    else if (adopt && !district) { choose(adopt.geo, adopt.name, true); if (next) reply.append(next); }
     if (hold) hold();
     if (follow && (logScrolls() || (!elsewhere && !(hold && hold.field)))) reveal(sent);
     // A reader still in the chat moves to the new answer; after an error, back to the question to retry.
@@ -1221,13 +1384,28 @@ function statusProblem(status) {
 }
 
 // Send a question. Replies that are not JSON, such as a proxy's error page, get a plain message instead of a parse error.
-async function askKlear(question, geo, wait) {
+// The last answered questions in this tab go with the next one, so a follow-up such as "how does that compare with
+// the county?" keeps its subject: each question, the place its answer was about and the measures it showed. Never
+// answer text, which the server could not check.
+const EARLIER = 2, EARLIER_QUESTION = 500, EARLIER_IDS = 40;
+function earlierExchanges() {
+  return exchanges.filter(x => x.answer && x.answer.subject).slice(-EARLIER).map(x => {
+    const s = x.answer.subject;
+    return {
+      question: Array.from(x.question).slice(0, EARLIER_QUESTION).join(''),
+      district: typeof s.geo === 'string' ? s.geo : null,
+      indicators: (Array.isArray(s.indicators) ? s.indicators : []).filter(i => typeof i === 'string').slice(0, EARLIER_IDS),
+    };
+  });
+}
+
+async function askKlear(question, geo, earlier, wait) {
   const stopped = () => problem(wait.why === 'timeout'
     ? `KLEAR did not answer within ${ASK_LIMIT} seconds, so the question was stopped. Press Retry to ask again.`
     : 'You cancelled this question. Press Retry to ask it again.');
   let r, data = null;
   try {
-    r = await fetch('/api/chat', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({question, district: geo}), signal: wait.signal});
+    r = await fetch('/api/chat', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({question, district: geo, ...(earlier.length ? {earlier} : {})}), signal: wait.signal});
   } catch {
     throw wait.why ? stopped() : problem('KLEAR could not be reached. Check your internet connection, then press Retry.');
   }
@@ -1265,11 +1443,14 @@ function showMode(article, mode) {
 const TOPICS = [
   {key: 'programs', match: /program|benefit|assistance|support|help available/, ask: d => `What support programs could residents of ${d} explore?`, next: ['poverty', 'housing']},
   {key: 'profile', match: /\b(profile|socioeconomic|overview)/, ask: d => `Give me a socioeconomic profile of ${d}.`, next: ['kupuna', 'housing', 'programs']},
+  {key: 'industries', match: /\b(industr|tourism|tourist|hotel|construction|public administration|government job)/, compare: 'the largest industries', ask: d => `What industries do residents of ${d} work in?`, more: d => `What kinds of jobs do residents of ${d} have?`, next: ['education', 'income']},
+  {key: 'jobs', match: /\b(occupation|kinds? of jobs?|types? of jobs?|what jobs|which jobs)/, ask: d => `What kinds of jobs do residents of ${d} have?`, next: ['industries', 'education']},
+  {key: 'education', match: /\b(degree|college|educat|diploma|high school|graduat)/, compare: 'college graduates', ask: d => `What share of adults in ${d} have a college degree?`, next: ['industries', 'income']},
   {key: 'kupuna', match: /\b(kūpuna|kupuna|senior|older adult|65)/, compare: 'kūpuna', ask: d => `How many kūpuna live in ${d}?`, more: d => `How many kūpuna in ${d} live below the poverty level?`, next: ['health', 'programs']},
   {key: 'poverty', match: /\b(poverty|low income)/, compare: 'poverty', ask: d => `How many people in ${d} live below the poverty level?`, more: d => `How many keiki in ${d} live below the poverty level?`, next: ['income', 'programs']},
   {key: 'housing', match: /\b(housing|rent|cost burden)/, compare: 'housing costs', ask: d => `What does the data say about housing needs in ${d}?`, more: d => `How many renters in ${d} pay 35% or more of their income on rent?`, next: ['income', 'programs']},
   {key: 'income', match: /\b(income|wage|earn)/, compare: 'household income', ask: d => `What is the median household income in ${d}?`, more: d => `What is the per capita income in ${d}?`, next: ['poverty', 'housing']},
-  {key: 'work', match: /\b(unemploy|jobs|work)/, compare: 'unemployment', ask: d => `How many people in ${d} are unemployed?`, more: d => `How many people in ${d} work from home?`, next: ['income', 'poverty']},
+  {key: 'work', match: /\b(unemploy|jobs|work)/, compare: 'unemployment', ask: d => `How many people in ${d} are unemployed?`, more: d => `How many people in ${d} work from home?`, next: ['industries', 'income']},
   {key: 'health', match: /\b(health|uninsured|disabil)/, compare: 'health insurance coverage', ask: d => `How many people in ${d} have no health insurance?`, more: d => `How many people in ${d} have a disability?`, next: ['kupuna', 'programs']},
   {key: 'keiki', match: /\b(child|keiki|young)/, compare: 'keiki', ask: d => `How many keiki live in ${d}?`, more: d => `How many households in ${d} have children?`, next: ['poverty', 'programs']},
   {key: 'people', match: /\b(population|people|residents)/, ask: d => `How many people live in ${d}?`, next: ['kupuna', 'keiki', 'income']},
@@ -1308,6 +1489,16 @@ function switchOffer(about) {
   b.type = 'button';
   b.onclick = () => { if (!busy) choose(about.geo, about.name); };
   box.append(b);
+  return box;
+}
+
+// District buttons for a question whose place spans several districts, as the search shows them. Picking one chooses
+// it and asks the question again.
+function choicesBox(matches, question) {
+  const groups = matchGroups(matches);
+  if (!groups.length) return null;
+  const box = node('div', '', 'answer-choices');
+  showMatches(groups, box, (geo, name) => { if (busy) return; choose(geo, name, true); askAgain(question); });
   return box;
 }
 
@@ -1389,7 +1580,9 @@ function heading(answer, name) {
 function factCard(f) {
   const card = node('div', '', 'fact');
   const uncertainty = uncertaintyLabels[f.uncertainty] || uncertaintyLabels.unavailable;
-  card.append(says('b', f.label), node('p', f.value), node('small', `${f.year}, ${f.geography}. Uncertainty: ${uncertainty}`), link(f.source, f.url));
+  const value = node('p', f.value);
+  if (f.caution) value.append(' ', cautionChip(f.caution));
+  card.append(says('b', f.label), value, node('small', `${f.year}, ${f.geography}. Uncertainty: ${uncertainty}`), link(f.source, f.url));
   if (f.links && f.links.length) card.append(sourceLinks(f.links));
   return card;
 }
@@ -1404,14 +1597,25 @@ function explainedCard(f) {
 function basicAnswer(answer, name) {
   const article = document.createElement('article');
   article.append(heading(answer, name));
-  for (const p of answer.text.split('\n\n')) article.append(says('p', p));
+  for (const p of answer.text.split('\n\n')) {
+    const lines = p.split('\n'), items = lines.slice(1).map(l => l.match(/^\s*[*-]\s+(.*)/));
+    if (lines.length > 1 && items.every(Boolean)) {
+      article.append(says('p', lines[0]));
+      const list = node('ul', '', 'lead-list');
+      list.append(...items.map(m => says('li', m[1])));
+      article.append(list);
+    } else article.append(says('p', p));
+  }
+  if ((answer.members || []).length) article.append(memberLinks(answer.members));
   if (answer.elsewhere) article.append(elsewhereLine(answer.elsewhere));
+  if (answer.verified) article.append(node('p', answer.verified.text, 'verified'));
   if (answer.facts.length) {
     const details = document.createElement('details');
     details.open = true;
     details.append(node('summary', 'Figures & sources'), ...answer.facts.map(explainedCard));
     article.append(details);
   }
+  if (answer.place_caveats && answer.place_caveats.length) article.append(placeNotes(answer.place_caveats, 'answer-notes'));
   if (answer.programs && answer.programs.length) article.append(answerPrograms(answer.programs, answer.program_sources));
   return article;
 }
@@ -1452,7 +1656,15 @@ function citation(s) {
   const li = document.createElement('li');
   li.append(link(s.name, s.url), `, ${s.year}`);
   if (s.links && s.links.length) li.append(sourceLinks(s.links));
+  if (s.match) li.append(matchLine(s.match));
   return li;
+}
+
+// Where another publisher prints the same figures, such as DBEDT's district profiles, linked for each place.
+function matchLine(m) {
+  const box = node('span', `${m.text}: `, 'source-links');
+  m.places.forEach((p, i) => box.append(i ? ', ' : '', link(p.text, p.url)));
+  return box;
 }
 
 // Bars for sighted readers, with a sentence that says what they show and the same figures as a table.
@@ -1487,10 +1699,14 @@ function chartFigure(c) {
     }
     const [num, ...spread] = b.text.split(' '), value = node('span', num, 'bar-value');
     if (spread.length) value.append(' ', node('span', spread.join(' '), 'bar-spread'));
+    if (b.caution) value.append(cautionChip(b.caution));
     row.append(track, value);
     bars.append(row);
   });
-  fig.append(bars, chartTable(c));
+  fig.append(bars);
+  if (c.note) fig.append(node('p', c.note, 'chart-note'));
+  if (c.method) fig.append(methodLine(c.method));
+  fig.append(chartTable(c));
   return fig;
 }
 
@@ -1507,7 +1723,9 @@ function chartTable(c) {
   for (const b of c.bars) {
     const row = document.createElement('tr'), place = node('th', b.geography);
     place.scope = 'row';
-    row.append(place, node('td', b.number ?? b.text));
+    const estimate = node('td', b.number ?? b.text);
+    if (b.caution) estimate.append(' ', cautionChip(b.caution));
+    row.append(place, estimate);
     if (spreadHead) row.append(node('td', b.spread || 'None published'));
     body.append(row);
   }
@@ -1536,7 +1754,7 @@ function tileValue(text) {
 }
 
 function renderAnswer(answer, name) {
-  name = answerAbout(answer, '', name).name;
+  name = answerAbout(answer, '', name).name || (answer.subject && answer.subject.name) || '';
   if (!answer.lead) return basicAnswer(answer, name);
   const article = document.createElement('article');
   article.className = 'answer';
@@ -1553,8 +1771,10 @@ function renderAnswer(answer, name) {
     for (const t of answer.tiles) {
       const tile = node('div', '', 'tile');
       tile.append(tileValue(t.value), says('div', t.label, 'tile-label'));
-      const meta = [t.geography, t.spread].filter(Boolean).join(', ');
+      const meta = [t.geography, t.spread, t.share].filter(Boolean).join(', ');
       if (meta) tile.append(node('div', meta, 'tile-meta'));
+      if (t.caution) { const flag = node('div', '', 'tile-caution'); flag.append(cautionChip(t.caution)); tile.append(flag); }
+      if (t.method) tile.append(methodLine(t.method));
       const about = meaning(t.label, t.meaning);
       if (about) tile.append(about);
       grid.append(tile);
@@ -1563,6 +1783,8 @@ function renderAnswer(answer, name) {
   }
   for (const c of answer.charts) article.append(chartFigure(c));
   for (const c of answer.caveats) article.append(says('p', c, 'caveat'));
+  if ((answer.members || []).length) article.append(memberLinks(answer.members));
+  if (answer.place_caveats && answer.place_caveats.length) article.append(placeNotes(answer.place_caveats, 'answer-notes'));
   if (answer.elsewhere) article.append(elsewhereLine(answer.elsewhere));
   if (answer.sources.length) {
     const years = [...new Set(answer.sources.map(s => s.year))].join(', ');
@@ -1570,7 +1792,9 @@ function renderAnswer(answer, name) {
     const notes = [`${years}.`];
     if (shown.includes('±')) notes.push('± is the 90% margin of error.');
     if (shown.includes('range ')) notes.push('A range shows the low and high bounds of the estimate.');
+    if (answer.tiles.some(t => t.caution) || answer.charts.some(c => c.bars.some(b => b.caution))) notes.push('Use with caution marks an estimate with a large margin of error.');
     article.append(node('p', notes.join(' '), 'source-line'));
+    if (answer.verified) article.append(node('p', answer.verified.text, 'verified'));
     const details = document.createElement('details');
     details.append(node('summary', 'Sources'));
     const list = document.createElement('ul');
@@ -1600,7 +1824,7 @@ async function loadAbout() {
     for (const s of data.sources) {
       const row = document.createElement('tr'), name = document.createElement('td');
       name.append(link(s.name, s.url));
-      row.append(name, node('td', s.publisher), node('td', s.years));
+      row.append(name, node('td', s.publisher), node('td', s.years), node('td', s.geography || ''));
       body.append(row);
     }
     $('source-wrap').hidden = false;

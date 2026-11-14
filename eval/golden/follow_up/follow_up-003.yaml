@@ -1,0 +1,31 @@
+id: follow_up-003
+category: follow_up
+question: What about House District 8?
+ideal: Gives the same kūpuna figures the earlier answer showed, now for the House district the question names on
+  Hawaiʻi Island. Shows the count and share of kūpuna with the ACS vintage.
+context:
+- house
+- '007'
+earlier:
+- question: How many kūpuna live in House District 7?
+  district:
+  - house
+  - '007'
+  indicators:
+  - pop_65_plus
+  - pct_65_plus
+  - pct_65_plus_poverty
+district:
+- house
+- '008'
+facts:
+- - pop_65_plus
+  - house
+  - '008'
+- - pct_65_plus
+  - house
+  - '008'
+must_say:
+- 2020-2024
+- kūpuna
+refusal: none

@@ -8,13 +8,17 @@ from pathlib import Path
 
 import pandas as pd
 
+from klear.etl import bls, dbedt
 from klear.store.db import (
     add_areas,
     add_blocks,
     add_coverage,
+    add_district_plan,
+    add_fact_matches,
     add_facts,
     add_geographies,
     add_indicators,
+    add_members,
     add_places,
     add_source,
     open_store,
@@ -132,7 +136,53 @@ def build_small_store(path: Path):
     con.execute(
         "INSERT INTO site VALUES ('s1', 'lihtc', 'Aloha Apts', '1 Main St', 21.4, -157.8, '022', '012', 1.0, 10, 'hud')"
     )
+    add_small_members(con)
+    add_source(
+        con, "plan", "2021 Reapportionment Commission Final Report and Reapportionment Plan", "Office of Elections",
+        "https://example.org/report.pdf", "Final report, February 25, 2022", "public record",
+        page_url="https://example.org/reapportionment",
+    )  # fmt: skip
+    # House 22 has both; House 23's count failed the report's totals and was left out.
+    words = "Representative District comprises the portion of the island of Oʻahu including"
+    plan = pd.DataFrame(
+        [
+            ("house", "022", f"The 22nd {words} Manoa.", "D-017", 891, 26451, "15", 23, "plan"),
+            ("house", "023", f"The 23rd {words} Moiliili-McCully.", "D-017", 891, None, None, None, "plan"),
+        ],
+        columns=[
+            "geo_type", "geo_id", "description", "description_page", "description_pdf_page", "permanent",
+            "permanent_page", "permanent_pdf_page", "source_id",
+        ],
+    )  # fmt: skip
+    add_district_plan(con, plan.astype({"permanent": "Int64", "permanent_pdf_page": "Int64"}))
     return con
+
+
+def add_small_members(con) -> None:
+    """Sample legislators, one per district, from two listings dated before the 2026 general election."""
+    page = "https://lrb.hawaii.gov/par/current-legislature/"
+    for sid, title in (("lrb_par_house", "Representatives"), ("lrb_par_senate", "Senators")):
+        add_source(
+            con, sid, f"{title} at a Glance, Thirty-Third Legislature, 2025-2026", "LRB",
+            f"https://example.org/{sid}.pdf", "Listing dated October 5, 2026", "public", page_url=page,
+        )  # fmt: skip
+    rows = [
+        ("house", "022", "KAʻAI, Leilani M.", "lrb_par_house"),
+        ("house", "023", "PALAKIKO, Kawika", "lrb_par_house"),
+        ("senate", "012", "KAʻAI, Noelani", "lrb_par_senate"),
+    ]
+    add_members(
+        con,
+        pd.DataFrame(
+            [
+                {
+                    "geo_type": t, "geo_id": g, "name": n, "listed_on": "2026-10-05", "retrieved_on": "2026-11-12",
+                    "profile_url": f"https://example.org/member/{t}{g}", "source_id": sid,
+                }
+                for t, g, n, sid in rows
+            ]
+        ),
+    )  # fmt: skip
 
 
 def add_outreach(con) -> None:
@@ -169,3 +219,73 @@ def add_outreach(con) -> None:
         _fact("state", "15", "hh_snap", 60000.0, 2000.0),
     ]
     add_facts(con, pd.DataFrame(rows))
+
+
+def add_county_context(con):
+    """DBEDT match marks on the kūpuna counts of House 22 and Honolulu County, and a county-level BLS
+    unemployment rate for Honolulu County and the state, as the build writes them."""
+    add_source(
+        con, dbedt.SOURCE_ID, "ACS 5-year profiles", "Hawaiʻi DBEDT", "https://example.org/dbedt", "2020-2024",
+        "state", page_url="https://example.org/dbedt",
+    )  # fmt: skip
+    add_source(
+        con, bls.SOURCE_ID, "Local Area Unemployment Statistics (county-level)", "U.S. Bureau of Labor Statistics",
+        "https://example.org/bls", "September 2026 (preliminary)", "pd", page_url="https://example.org/bls",
+    )  # fmt: skip
+    add_indicators(
+        con,
+        pd.DataFrame(
+            [
+                (
+                    "bls_unemployment_rate",
+                    "Unemployment rate (county-level, monthly)",
+                    "percent",
+                    "labor force",
+                    None,
+                    False,
+                )
+            ],
+            columns=["indicator_id", "label", "unit", "universe", "acs_var", "additive"],
+        ),
+    )
+    add_coverage(
+        con, pd.DataFrame([("bls_unemployment_rate", "county"), ("bls_unemployment_rate", "state")],
+                          columns=["indicator_id", "geo_type"])
+    )  # fmt: skip
+    context = {"moe_status": "not_applicable", "tier": "C", "source_id": bls.SOURCE_ID}
+    add_facts(
+        con,
+        pd.DataFrame(
+            [
+                _fact(
+                    "county",
+                    "15003",
+                    "bls_unemployment_rate",
+                    3.0,
+                    None,
+                    table_id="LAUCN150030000000003",
+                    **context,
+                ),
+                _fact(
+                    "state",
+                    "15",
+                    "bls_unemployment_rate",
+                    3.2,
+                    None,
+                    table_id="LAUST150000000000003",
+                    **context,
+                ),
+            ]
+        ),
+    )
+    marks = [
+        ("house", "022", "pop_65_plus", "acs", dbedt.SOURCE_ID, "https://example.org/dbedt/house.xlsx"),
+        ("county", "15003", "pop_65_plus", "acs", dbedt.SOURCE_ID, "https://example.org/dbedt/counties.xlsx"),
+    ]
+    add_fact_matches(
+        con,
+        pd.DataFrame(
+            marks, columns=["geo_type", "geo_id", "indicator_id", "source_id", "match_source_id", "match_url"]
+        ),
+    )
+    return con

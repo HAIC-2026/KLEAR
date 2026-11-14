@@ -138,3 +138,23 @@ test('map colored by a measure, with a picked district and its table open', asyn
   await expect(page.locator('#map .marks .unreliable')).toHaveCount(1);
   await expectAccessible(page, testInfo, 'shaded Senate map');
 });
+
+test('checks page', async ({page}, testInfo) => {
+  await page.goto('/checks.html');
+  await expect(page.getByRole('heading', {level: 1})).toHaveText('How we check KLEAR');
+  await expect(page.locator('#build')).not.toContainText('Loading the latest build');
+  await expectAccessible(page, testInfo, 'checks page');
+});
+
+test('accessibility statement page', async ({page}, testInfo) => {
+  await page.goto('/accessibility.html');
+  await expect(page.getByRole('heading', {level: 1})).toHaveText('KLEAR accessibility statement');
+  await expectAccessible(page, testInfo, 'accessibility statement');
+});
+
+test('header menu open', async ({page}, testInfo) => {
+  await page.goto('/methods.html');
+  await page.getByRole('navigation', {name: 'Main navigation'}).locator('summary').click();
+  await expect(page.getByRole('navigation', {name: 'Main navigation'}).getByRole('link', {name: 'Glossary'})).toBeVisible();
+  await expectAccessible(page, testInfo, 'header menu');
+});

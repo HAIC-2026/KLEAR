@@ -1,0 +1,36 @@
+id: follow_up-005
+category: follow_up
+question: And how many of them live below the poverty level?
+ideal: Reads them as the keiki of the Senate district from the earlier questions and gives the share of keiki below
+  the poverty level there. Cites the ACS vintage and margin of error for this Oʻahu district.
+context:
+- senate
+- '020'
+earlier:
+- question: Give me a socioeconomic profile of Senate District 20.
+  district:
+  - senate
+  - '020'
+  indicators:
+  - pop_total
+  - median_household_income
+  - pct_people_poverty
+- question: How many keiki live there?
+  district:
+  - senate
+  - '020'
+  indicators:
+  - pop_under_18
+  - pct_children_poverty
+  - pct_hh_with_children
+district:
+- senate
+- '020'
+facts:
+- - pct_children_poverty
+  - senate
+  - '020'
+must_say:
+- 2020-2024
+- keiki
+refusal: none

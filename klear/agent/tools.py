@@ -6,11 +6,13 @@ from typing import NamedTuple
 
 import duckdb
 
+from klear import caveats
 from klear.agent import config
 from klear.etl.places_gazetteer import plain_name, search_plain
 from klear.eval.contract import FactRef, fill_value, geo_display, geo_key, short_name
-from klear.eval.scorers import CV_LIMIT, counties, cv, program_names
+from klear.eval.scorers import counties, program_names, reliability
 from klear.labels import plain_labels
+from klear.members import Member, as_listed, by_name, members_of, timing
 from klear.programs import ELIGIBILITY_NOTE, NEEDS, Program, catalog
 from klear.rules.registry import load_rules
 from klear.store.db import MOE_STATUSES, SITE_KINDS, VALUE_STATUSES
@@ -106,6 +108,15 @@ KIND_LABELS = {
 KIND_ORDER = {"island": 0, "place": 1, "neighborhood": 2, "division": 3}
 
 
+# A district or Hawaiʻi ZIP code inside a question: House District 22, senate 12, HD 5, 96744.
+DISTRICT_IN = re.compile(
+    r"\b(house|senate|hd|sd)\s*(?:district\s*|dist\.?\s*)?(?:no\.?\s*|#\s*)?(\d{1,2})\b", re.IGNORECASE
+)
+ZIP_IN = re.compile(r"(?<!\d)(96[78]\d{2})(?!\d)")
+# Longest place name, in words, looked for inside a question.
+NAME_WORDS = 5
+
+
 class _Named(NamedTuple):
     kind: str
     id: str
@@ -191,6 +202,8 @@ class Session:
         self.places: set[str] = set()
         self.geos: set[tuple[str, str]] = set()
         self.resolved: set[tuple[str, str]] = set()
+        # districts whose listed member a tool returned, which {member:TYPE:ID} may name
+        self.members: set[tuple[str, str]] = set()
         self.context: tuple[str, str] | None = None
         self.question = ""
         self.tiers: dict[str, str] = {}
@@ -272,6 +285,23 @@ class Session:
         bare = search_plain(_strip_state(text, head=False))
         found = self._near(key) or (bare != key and (self._exact(bare) or self._near(bare))) or []
         return {"matches": self._name_matches(found)} if found else {"matches": [], "hint": NO_MATCH_HINT}
+
+    def place_named(self, question: str, skip: frozenset[str] = frozenset()) -> dict | None:
+        """The first district, ZIP code, or town, area, island or county name a question holds, resolved as a
+        search would, or None. Names made only of skip words or the state's name are not places here."""
+        if m := DISTRICT_IN.search(question):
+            return self._resolve_place({"text": f"{m.group(1)} {m.group(2)}"})
+        if m := ZIP_IN.search(question):
+            return self._resolve_place({"text": m.group(1)})
+        words = search_plain(question).split()
+        for i in range(len(words)):
+            for n in range(min(NAME_WORDS, len(words) - i), 0, -1):
+                key = " ".join(words[i : i + n])
+                if set(words[i : i + n]) <= skip | STATE_WORDS:
+                    continue
+                if self._exact(key) or key in config.COUNTY_NAMES:
+                    return self.resolve_name(key)
+        return None
 
     def _resolve_id(self, kind: str, id_: str) -> dict:
         """Exactly one Census place, area or county, by its id."""
@@ -591,10 +621,18 @@ class Session:
         rows = self.con.execute(
             "SELECT indicator_id, label, unit FROM indicator ORDER BY indicator_id"
         ).fetchall()
+        districts = {
+            r[0]
+            for r in self.con.execute(
+                "SELECT indicator_id FROM indicator_coverage WHERE geo_type IN ('house', 'senate')"
+            ).fetchall()
+        }
         scored = [
             (len(query & _tokens(f"{i} {label}".replace("_", " "))), i, label, u) for i, label, u in rows
         ]
-        scored = sorted((s for s in scored if s[0] > 0), key=lambda s: (-s[0], s[1]))[: config.SEARCH_LIMIT]
+        # at equal score, indicators published for districts come before county-level ones
+        scored = sorted((s for s in scored if s[0] > 0), key=lambda s: (-s[0], s[1] not in districts, s[1]))
+        scored = scored[: config.SEARCH_LIMIT]
         plain = plain_labels()
         out = []
         for _, i, label, unit in scored:
@@ -672,8 +710,7 @@ class Session:
             lambda r: FactRef(r, indicator_id, *geo, source_id, value, low, high, moe, vintage),
         )
         f = self.facts[ref]
-        c = cv(f)
-        reliable = None if moe is None else not (c > CV_LIMIT if c is not None else value == 0 and moe > 0)
+        reliable = reliability(f)
         self.tiers[ref] = tier
         if reliable is False:
             self.unreliable.add(ref)
@@ -738,7 +775,13 @@ class Session:
     def _get_facts(self, args: dict) -> dict:
         ids = _strs(args, "indicator_ids")
         geos = [_geo_arg(g) for g in _strs(args, "geos")]
-        return self._facts_for(ids, geos)
+        return self._noted(self._facts_for(ids, geos), geos)
+
+    def _noted(self, out: dict, geos) -> dict:
+        """The result with the caveats for its districts and counties, when any apply."""
+        if notes := [{k: c[k] for k in ("geo", "title", "text")} for c in caveats.for_places(self.con, geos)]:
+            out["place_caveats"] = notes
+        return out
 
     # compare
 
@@ -757,7 +800,7 @@ class Session:
         rows = self._rows(ind, geo)
         mine = self._interval(rows[0]) if rows else None
         if mine is None:
-            return out
+            return self._noted(out, [geo])
         extra = [_geo_arg(g) for g in _strs(args, "against", optional=True) or []]
         others = (
             sorted(counties(geo, self.con)) + ([("state", "15")] if geo != ("state", "15") else []) + extra
@@ -780,7 +823,7 @@ class Session:
             )
             if base["facts"] and direction != "not_comparable":
                 self.directions.append((base["facts"][0]["ref"], theirs["facts"][0]["ref"], direction))
-        return out
+        return self._noted(out, [geo, *others])
 
     # district_profile
 
@@ -837,31 +880,55 @@ class Session:
         }
         against = ([("county", by_county[0][0])] if by_county else []) + [("state", "15")]
         beside = sorted({b for b, _ in config.PROFILE_BESIDE.values() if b})
-        self._prefetch([i for _, ids in config.PROFILE_SECTIONS for i in ids] + beside, [geo, *against])
+        sections = [(title, ids, geo, against, {}) for title, ids in config.PROFILE_SECTIONS]
+        if by_county:
+            # county-level figures for the main county, compared with the state, never as the district's own
+            title, ids = config.COUNTY_SECTION
+            sections.append((title, ids, against[0], against[1:], {"geo": f"county:{by_county[0][0]}"}))
+        listed = [i for s in sections for i in s[1] if i not in config.PROFILE_LARGEST]
+        groups = [i for group, _ in config.PROFILE_LARGEST.values() for i in group]
+        self._prefetch(listed + groups + beside, [geo, *against])
         out = {
             "district": self._geo(*geo),
             "counties": [self._geo("county", c, share=round(p / total, 4)) for c, p in by_county if p],
             "places": [{"name": n, "share": round(p / total, 4)} for n, p in places],
             "overlaps": [self._geo(other, g, share=round(p / total, 4)) for g, p in overlaps],
+            "members": self._member_entries(members_of(self.con, *geo)),
             "sections": [],
             "missing": [],
         }
-        for title, ids in config.PROFILE_SECTIONS:
+        for title, ids, home, others, scope in sections:
             rows = []
-            for ind in ids:
-                mine = self._facts_for([ind], [geo])
+            for ind in [i for key in ids for i in self._profile_ids(key, home)]:
+                mine = self._facts_for([ind], [home])
                 out["missing"] += mine["missing"]
                 if mine["facts"]:
                     fact = mine["facts"][0]
                     row = {
                         "fact": fact,
-                        "against": [self._against(ind, fact, g, ind in additive) for g in against],
+                        "against": [self._against(ind, fact, g, ind in additive) for g in others],
                     }
-                    if extra := self._beside(ind, geo):
+                    if home == geo and (extra := self._beside(ind, geo)):
                         row["beside"] = extra
                     rows.append(row)
-            out["sections"].append({"title": title, "rows": rows})
-        return out
+            out["sections"].append({"title": title, **scope, "rows": rows})
+        return self._noted(out, [geo])
+
+    def _profile_ids(self, key: str, geo: tuple[str, str]) -> list[str]:
+        """A profile row's indicator, or for a PROFILE_LARGEST key the district's largest figures of its group."""
+        if key not in config.PROFILE_LARGEST:
+            return [key]
+        group, n = config.PROFILE_LARGEST[key]
+        return self.largest(group, geo)[:n]
+
+    def largest(self, indicator_ids, geo: tuple[str, str]) -> list[str]:
+        """Indicators with a stored value for geo, largest value first, ties in the order given."""
+        values = {}
+        for ind in indicator_ids:
+            found = [r[2] for r in self._rows(ind, geo) if r[2] is not None]
+            if found:
+                values[ind] = found[0]
+        return sorted(values, key=lambda i: -values[i])
 
     def _beside(self, ind: str, geo: tuple[str, str]) -> dict | None:
         """The figure a profile row is shown next to, with how the two differ."""
@@ -941,6 +1008,8 @@ class Session:
             self.resolved.add(g)
             self.geos.add(g)
         note = self._note(ind)
+        ranked = [geo_key(d["geo"]) for t in tiers for d in t["districts"]]
+        notes = caveats.grouped(self.con, ranked)
         return {
             "indicator_id": ind,
             "label": row[0],
@@ -954,6 +1023,7 @@ class Session:
             "missing": got["missing"],
             "unreliable": sum(d["reliable"] is False for t in tiers for d in t["districts"]),
             **({"note": note} if note else {}),
+            **({"place_caveats": notes} if notes else {}),
         }
 
     # outreach: the website's outreach page and the outreach note on district profiles, not a model tool
@@ -1099,7 +1169,7 @@ class Session:
             entry["reasons"] = higher or reasons[:1]
             out.append(entry)
         out.sort(key=lambda e: (e["need"] != "higher", -max((r["ratio"] for r in e["reasons"]), default=0)))
-        return {"district": self._geo(*geo), "programs": out, "note": ELIGIBILITY_NOTE}
+        return self._noted({"district": self._geo(*geo), "programs": out, "note": ELIGIBILITY_NOTE}, [geo])
 
     # find_sites, explain_source
 
@@ -1129,7 +1199,7 @@ class Session:
         ).fetchall()
         out["site_total"] = len(rows)
         out["sites"] = [{"kind": k, "name": n} for k, n in rows[: config.SITE_LIMIT]]
-        return out
+        return self._noted(out, [geo])
 
     def _zero_sites(self, units: str, geo: tuple[str, str]) -> bool:
         """Whether the place has no site of the kind a units indicator counts."""
@@ -1139,6 +1209,50 @@ class Session:
             [SITE_INDICATORS[kind], *geo],
         ).fetchone()
         return row is not None and row[0] == 0
+
+    # find_member
+
+    def _member_entries(self, found: list[Member]) -> list[dict]:
+        out = []
+        for m in found:
+            key = (m.geo_type, m.geo_id)
+            self.members.add(key)
+            self.resolved.add(key)
+            out.append(
+                {
+                    "marker": f"{{member:{m.geo}}}",
+                    **self._geo(*key),
+                    "title": m.title,
+                    "listed_name": m.name,
+                    "official_page": m.profile_url,
+                    "listed": as_listed(m),
+                    "timing": timing(m),
+                }
+            )
+        return out
+
+    def _find_member(self, args: dict) -> dict:
+        district, name = args.get("district"), args.get("name")
+        if bool(district) == bool(name):
+            raise ToolError("give exactly one of district (TYPE:ID) or name")
+        if district:
+            geo = _geo_arg(district)
+            if geo[0] not in ("house", "senate") or self._name(*geo) is None:
+                raise ToolError("district must be a stored House or Senate district, for example house:022")
+            found = members_of(self.con, *geo)
+            if not found:
+                return {"members": [], "note": f"No member is listed for {self._name(*geo)}."}
+            return {"members": self._member_entries(found)}
+        found = by_name(self.con, _str(args, "name"))
+        if not found:
+            return {
+                "members": [],
+                "note": "No listed member has that exact name. Names must match as listed, without near spellings.",
+            }
+        out = {"members": self._member_entries(found)}
+        if len(found) > 1:
+            out["note"] = "Several members match. List each one, or ask which one the user means."
+        return out
 
     def _explain_source(self, args: dict) -> dict:
         sid = _str(args, "source_id")
@@ -1197,7 +1311,8 @@ TOOL_SPECS = [
         "source, source_id, method and a reliability flag (false when the margin of error is large, null when "
         "the fact has no margin of error to judge). Facts that do not exist, are suppressed or do not apply are "
         "listed under missing with the reason. A fact tied to a benefit program lists it under programs: put its "
-        "rule_id in programs and write its name in the answer.",
+        "rule_id in programs and write its name in the answer. Districts and counties with a known caveat, such "
+        "as the Maui wildfires, are listed under place_caveats.",
         {"indicator_ids": _STRS, "geos": {**_STRS, "description": "Geographies as TYPE:ID."}},
         ["indicator_ids", "geos"],
     ),
@@ -1219,10 +1334,13 @@ TOOL_SPECS = [
         "district_profile",
         "The standard profile of a House or Senate district, the same one the website shows: its counties, "
         "Census places and overlapping districts in the other chamber with population shares, then sections "
-        "(People, Income, Housing, Health and access, Programs in use, Who may qualify, Modeled needs, Help sites). "
-        "Each row is a "
+        "(People, Income, Work and education, Housing, Health and access, Programs in use, Who may qualify, Modeled "
+        "needs, Help sites). Work and education lists the district's three largest industries. Each row is a "
         "fact with its ref, compared with the main county and the state: a direction for rates, and the "
-        "district's share for totals. Use it when asked for a profile or overview of a district.",
+        "district's share for totals. A last section, County-level figures, holds figures published only for "
+        "counties (unemployment, state tax credit claims) for the main county, compared with the state: cite "
+        "them as the county's figures, never the district's. Use it when asked for a profile or overview of a "
+        "district.",
         {"district": {**_GEO, "description": "House or Senate district as TYPE:ID, for example house:022."}},
         ["district"],
     ),
@@ -1269,6 +1387,23 @@ TOOL_SPECS = [
         "fact, not the count of developments.",
         {"geo": _GEO, "kind": {"type": "string", "enum": sorted(SITE_KINDS)}},
         ["geo"],
+    ),
+    _spec(
+        "find_member",
+        "The legislator a Legislature listing names for a House or Senate district, or the district of a "
+        "legislator by name. Give district or name. Names match exactly, ignoring case, ʻokina and kahakō, and "
+        "every match is returned. Each member has a marker: write the member only with it, as in "
+        '"{geo:house:022} is represented by {member:house:022}." The marker prints the title and name with where '
+        "and when it was listed, and a caveat on the election timing is added for you. Never give a party, votes, record "
+        "or opinion of a member.",
+        {
+            "district": {
+                **_GEO,
+                "description": "House or Senate district as TYPE:ID, for example house:022.",
+            },
+            "name": {**_STR, "description": "The legislator's name as the user wrote it, without the title."},
+        },
+        [],
     ),
     _spec(
         "explain_source",

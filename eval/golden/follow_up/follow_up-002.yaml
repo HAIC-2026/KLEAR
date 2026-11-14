@@ -1,0 +1,28 @@
+id: follow_up-002
+category: follow_up
+question: How does that compare with the state?
+ideal: Takes the Senate district and median household income from the earlier answer and compares them with Hawaiʻi.
+  Says the district is lower than the state, using the same ACS vintage.
+earlier:
+- question: What is the median household income in Senate District 3?
+  district:
+  - senate
+  - '003'
+  indicators:
+  - median_household_income
+  - per_capita_income
+  - pct_people_poverty
+district:
+- senate
+- '003'
+facts:
+- - median_household_income
+  - senate
+  - '003'
+- - median_household_income
+  - state
+  - '15'
+must_say:
+- 2020-2024
+direction: lower
+refusal: none

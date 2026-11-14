@@ -1,0 +1,26 @@
+# Scripted model turns for follow_up-001: the earlier poverty answer gives the measure, compare adds the county.
+- - type: tool_use
+    name: resolve_place
+    input:
+      text: house:022
+- - type: tool_use
+    name: compare
+    input:
+      indicator_id: pct_people_poverty
+      geo: house:022
+- - type: tool_use
+    name: submit_answer
+    input:
+      resolved: house:022
+      refusal: none
+      blocks:
+      - '{label:f1} in {geo:house:022}: {fact:f1} ({vintage:f1}).'
+      - '* Within the margin of error of {geo:county:15003}, at {fact:f2}
+
+        * Within the margin of error of {geo:state:15}, at {fact:f3}'
+      facts:
+      - f1
+      - f2
+      - f3
+      programs: []
+      caveats: []

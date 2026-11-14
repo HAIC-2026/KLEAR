@@ -5,8 +5,8 @@ from dataclasses import replace
 
 from klear.agent import config
 from klear.agent.tools import _spec, display_name
-from klear.etl.places_gazetteer import plain_name
-from klear.eval.contract import MARKER, REFUSALS, VERSION, Answer, render
+from klear.etl.places_gazetteer import plain_name, search_plain
+from klear.eval.contract import MARKER, MEMBER_MARKERS, REFUSALS, VERSION, Answer, geo_key, render
 from klear.eval.scorers import (
     EMPHASIS,
     FLIP,
@@ -16,6 +16,7 @@ from klear.eval.scorers import (
     program_named,
     program_names,
 )
+from klear.members import members_of
 from klear.programs import by_rule
 from klear.store.methods import place_note
 from klear.text import hawaiian, strip_ignorable
@@ -25,7 +26,8 @@ SUBMIT_SPEC = _spec(
     "submit_answer",
     "Submit the final answer. Write blocks as plain prose with markers in place of every number, unit, place "
     "name, label and vintage: {fact:fN} for a value, {vintage:fN} for its vintage and source, {label:fN} for "
-    "its indicator label and {geo:TYPE:ID} for a place. Never type digits. Cite only refs that tools returned.",
+    "its indicator label, {geo:TYPE:ID} for a place and {member:TYPE:ID} for a member find_member returned. Never "
+    "type digits. Cite only refs that tools returned.",
     {
         "resolved": {
             "type": ["string", "null"],
@@ -144,6 +146,22 @@ def _typed_places(session, texts: list[str], allowed: set[tuple[str, str]]) -> l
     return found
 
 
+def _member_problems(session, texts: list[str]) -> list[str]:
+    """Member markers no tool returned, and member names typed outside a marker."""
+    problems = [
+        f"{{{k}:{r}}} names a member no tool returned; call find_member first"
+        for k, r in dict.fromkeys(MARKER.findall(" ".join(texts)))
+        if k in MEMBER_MARKERS and geo_key(r) not in session.members
+    ]
+    words = search_plain(MARKER.sub(" ", " ".join(texts))).split()
+    for geo in sorted(session.members):
+        for m in members_of(session.con, *geo):
+            n = len(m.surname)
+            if any(words[i : i + n] == m.surname for i in range(len(words) - n + 1)):
+                problems.append(f"write {m.title} {m.name} with {{member:{m.geo}}}, never typed out")
+    return problems
+
+
 def _words(text: str) -> list[str]:
     """Cased words of text with ignorable characters, emphasis, accents and okina removed."""
     text = EMPHASIS.sub("", strip_ignorable(unicodedata.normalize("NFKC", strip_ignorable(text))))
@@ -210,6 +228,7 @@ def build_answer(session, args: dict, context=None) -> tuple[Answer | None, list
     problems = answer_problems(answer, session.con, allowed) + _typed_places(
         session, [*blocks, *caveats], allowed
     )
+    problems += _member_problems(session, [*blocks, *caveats])
     if any(p.startswith("unsourced number") for p in problems):
         problems.append(NUMBER_HINT)
     if not problems:
@@ -284,6 +303,7 @@ def finish(session, answer: Answer) -> Answer:
         resolved = ("state", "15")
     if refusal not in ("none", "not_available"):
         return replace(answer, blocks=blocks, caveats=caveats, resolved=resolved)
+    caveats += listing_caveats([*blocks, *caveats])
     names = program_names()
     ids = list(dict.fromkeys(f.indicator_id for f in answer.facts))
     labels = [
@@ -313,6 +333,18 @@ def finish(session, answer: Answer) -> Answer:
     return replace(
         answer, resolved=resolved, refusal=refusal, blocks=blocks, caveats=caveats, programs=programs
     )
+
+
+def listing_caveats(texts: list[str]) -> list[str]:
+    """A {listing:TYPE:ID} caveat for each chamber whose member the texts name and whose listing note is not
+    already there."""
+    found = MARKER.findall(" ".join(texts))
+    have = {r.split(":")[0] for k, r in found if k == "listing"}
+    out = {}
+    for k, r in found:
+        if k == "member" and (chamber := r.split(":")[0]) not in have:
+            out.setdefault(chamber, f"{{listing:{r}}}")
+    return list(out.values())
 
 
 def _triggered(session, table) -> list[str]:

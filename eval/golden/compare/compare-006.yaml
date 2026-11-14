@@ -1,0 +1,13 @@
+id: compare-006
+category: compare
+question: What is the largest industry for working residents of House District 14, and how does its share compare with the state?
+ideal: Names hotels, restaurants and recreation as the largest industry group of employed residents of this Hawaiʻi
+  House district, gives its share with the margin of error and the ACS vintage. Says it is higher than the state's.
+tags: [work]
+district: [house, "014"]
+facts:
+  - [pct_industry_arts_food, house, "014"]
+  - [pct_industry_arts_food, state, "15"]
+must_say: ["2020-2024"]
+direction: higher
+refusal: none
