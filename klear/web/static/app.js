@@ -171,6 +171,7 @@ function applyTabs() {
 function showTab(name) {
   shownTab = name;
   applyTabs();
+  if (name === 'profile') fitTables();
   try { sessionStorage.setItem(SAVED_TAB, name); } catch { /* blocked */ }
 }
 for (const [name, [tabId]] of Object.entries(PANELS)) $(tabId).onclick = () => showTab(name);
@@ -565,6 +566,7 @@ async function loadProfile(geo, name) {
     if (seq !== profileSeq) return;
     districtHead(data.district, data);
     panel.replaceChildren(...renderProfile(data));
+    fitTables();
     setSheet(data);
     districtExamples(data);
     live.textContent = `Profile for ${data.district} loaded.`;
@@ -597,52 +599,206 @@ function districtHead(name, p) {
 
 // What a short label stands for, one tap away: a plain definition, then the official label and who the figure
 // counts, and a link to the glossary. Nothing when there is no more to say than the label itself.
-function meaning(label, m) {
+function meaningParts(label, m) {
   const official = m && m.official && m.official !== label ? m.official : '';
   if (!m || !(m.plain || m.universe || official)) return null;
-  const box = node('details', '', 'meaning'), summary = node('summary', 'What this means');
-  summary.append(hidden(`: ${label}`));
-  box.append(summary);
-  if (m.plain) box.append(says('p', m.plain));
+  const parts = [];
+  if (m.plain) parts.push(says('p', m.plain));
   const terms = node('dl', '');
   const term = (name, text) => { const t = node('div', ''); t.append(node('dt', name), says('dd', text)); terms.append(t); };
   if (official) term('Official label', official);
   if (m.universe) term('Who is counted', m.universe);
-  if (terms.children.length) box.append(terms);
+  if (terms.children.length) parts.push(terms);
   // A new tab, so a chat in progress stays where it is.
   const more = node('p', '', 'meaning-more'), a = node('a', 'Glossary of terms');
   a.href = '/glossary.html'; a.target = '_blank';
   a.append(hidden(' (opens in a new tab)'));
   more.append(a);
-  box.append(more);
+  parts.push(more);
+  return parts;
+}
+function meaning(label, m) {
+  const parts = meaningParts(label, m);
+  if (!parts) return null;
+  const box = node('details', '', 'meaning'), summary = node('summary', 'What this means');
+  summary.append(hidden(`: ${label}`));
+  box.append(summary, ...parts);
   return box;
 }
 
-function profileRow(r) {
-  const row = node('div', '', 'profile-row');
-  const figure = node('p', '', 'profile-figure');
-  figure.append(node('span', r.value, 'num'));
-  if (r.spread) figure.append(' ', node('span', r.spread, 'moe'));
-  const label = says('p', r.label, 'profile-label');
-  if (r.note) { const sup = node('sup', ''); sup.append(hidden(' source '), String(r.note)); label.append(sup); }
-  row.append(figure, label);
-  if (r.caution) row.append(cautionLine(r.caution));
-  if (r.method) row.append(methodLine(r.method));
-  if (r.against.length) {
-    const list = node('ul', '', 'profile-against');
-    for (const a of r.against) {
-      const li = document.createElement('li');
-      li.append(node('b', a.lead), ` ${a.rest}`);
-      if (a.caution) li.append(' ', cautionChip(a.caution));
-      list.append(li);
-    }
-    row.append(list);
+// A place's figure in its own cell of a profile table: the estimate, then its margin of error or range under it.
+// Each cell names its place for phones, where the cells stack and the column headings are out of sight.
+function figureCell(f, place, home) {
+  const td = node('td', '', `profile-figure${home ? ' home' : ''}`);
+  td.setAttribute('role', 'cell');
+  const where = node('span', place, 'profile-place');
+  where.setAttribute('aria-hidden', 'true');
+  td.append(where);
+  if (!f) { td.append(node('span', 'No figure', 'none')); return td; }
+  if (f.missing) { td.classList.add('missing'); td.append(node('span', 'No figure', 'none'), node('span', f.missing, 'moe')); return td; }
+  // The "about" of an estimated value goes on its own line, and a range takes two, low then high, so the column stays
+  // as narrow as one that holds a count and its margin of error.
+  const [, about, number] = /^(about )?(.*)$/.exec(f.plain || f.value);
+  if (about) td.append(node('span', 'about', 'moe'));
+  td.append(node('span', number, 'num'));
+  const range = /^(range .+?) (to .+)$/.exec(f.spread || '');
+  if (range) td.append(node('span', range[1], 'moe'), node('span', range[2], 'moe'));
+  else if (f.spread) td.append(node('span', f.spread, 'moe'));
+  if (f.aside) td.append(node('span', f.aside, 'profile-aside'));
+  if (!home && f.caution) td.append(cautionChip(f.caution));
+  return td;
+}
+
+// The top of a strip's scale: a round number just past the largest value it holds. A rate never runs past 100%.
+const SCALE_STEPS = [1, 1.2, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10];
+function scaleTop(most, unit) {
+  if (!(most > 0)) return 1;
+  const power = 10 ** Math.floor(Math.log10(most * 1.05));
+  const top = power * SCALE_STEPS.find(s => s * power >= most * 1.05);
+  return unit === 'percent' ? Math.min(top, 100) : top;
+}
+const isNumber = v => typeof v === 'number' && Number.isFinite(v);
+
+// A rate or an amount drawn against the places beside it: the home place's estimate as a dot on a line for its margin
+// of error or range, and each other place as a pointer on its own line, above the track for the first and below it
+// for the second. Every strip starts at 0 and has its own scale. Screen readers skip it: the cells beside it hold
+// the same figures, and the reading under it says what they show. Null for a total, which is not compared.
+const STRIP_LANES = ['above', 'below'];
+function rangeStrip(r, home, cols) {
+  const others = cols.map((c, i) => [r.against.find(a => a.geo === c.geo), STRIP_LANES[i]]).filter(([a, lane]) => a && a.direction && isNumber(a.num) && lane);
+  if (!isNumber(r.num) || !others.length) return null;
+  const top = scaleTop(Math.max(r.high, ...others.map(([a]) => a.high)), r.unit);
+  const at = v => `${Math.max(0, Math.min(100, (v / top) * 100)).toFixed(2)}%`;
+  const span = (className, low, high) => {
+    const s = node('span', '', className);
+    s.style.left = at(low);
+    if (high !== undefined) s.style.width = `${Math.max(0, Math.min(100, (high / top) * 100) - Math.max(0, (low / top) * 100)).toFixed(2)}%`;
+    return s;
+  };
+  const strip = node('span', '', 'strip');
+  strip.setAttribute('aria-hidden', 'true');
+  strip.append(node('span', '', 'strip-track'));
+  const told = [`${home}: ${[r.value, r.spread].filter(Boolean).join(' ')}`];
+  for (const [a, lane] of others) {
+    strip.append(span(`strip-range other ${lane}`, a.low, a.high), span(`strip-mark ${lane}`, a.num));
+    told.push(`${a.place}: ${[a.value, a.spread].filter(Boolean).join(' ')}`);
   }
-  if (r.beside) row.append(besideLine(r.beside));
-  if (r.caveat) row.append(node('p', r.caveat, 'profile-caveat'));
-  const about = meaning(r.label, r.meaning);
-  if (about) row.append(about);
-  return row;
+  strip.append(span('strip-range home', r.low, r.high), span('strip-dot', r.num));
+  strip.title = `${told.join('. ')}.`;
+  return strip;
+}
+
+// What the marks on a section's strips stand for, under its table.
+function stripKey(home, cols) {
+  const key = node('p', '', 'profile-key');
+  key.setAttribute('aria-hidden', 'true');
+  const item = (mark, text) => { const s = node('span', '', 'profile-key-item'); s.append(node('span', '', mark), text); return s; };
+  key.append(item('strip-dot', `${home}, with a line for its margin of error or range`));
+  cols.slice(0, STRIP_LANES.length).forEach((c, i) => key.append(item(`strip-mark ${STRIP_LANES[i]}`, c.place)));
+  key.append(node('span', 'Each strip starts at 0 and has its own scale.', 'profile-key-note'));
+  return key;
+}
+
+// One measure as a table row: its label, then the home place's figure and each other place's in its own column, then
+// how the figure compares. A second row under it, as wide as the table, holds the notes on the figure (a caution, how
+// it was estimated, a figure to read beside it) and what the label means, which stays shut until the button beside
+// the label opens it. A measure with neither has no second row.
+let meaningCount = 0;
+function profileRow(r, home, cols, compares) {
+  const row = node('tr', '', 'profile-row'), head = node('th', '', 'profile-measure');
+  row.setAttribute('role', 'row');
+  head.scope = 'row';
+  head.setAttribute('role', 'rowheader');
+  const label = says('span', r.label, 'profile-label');
+  if (r.note) { const sup = node('sup', ''); sup.append(hidden(' source '), String(r.note)); label.append(sup); }
+  head.append(label);
+  row.append(head, figureCell(r, home, true), ...cols.map(c => figureCell(r.against.find(a => a.geo === c.geo), c.place, false)));
+  if (compares) {
+    const how = node('td', '', 'profile-how'), strip = rangeStrip(r, home, cols);
+    how.setAttribute('role', 'cell');
+    if (strip) how.append(strip);
+    if (r.reading) how.append(node('span', r.reading, 'profile-reading'));
+    row.append(how);
+  }
+  const notes = [];
+  if (r.caution) notes.push(cautionLine(r.caution));
+  if (r.method) notes.push(methodLine(r.method));
+  if (r.beside) notes.push(besideLine(r.beside));
+  if (r.caveat) notes.push(node('p', r.caveat, 'profile-caveat'));
+  const parts = meaningParts(r.label, r.meaning);
+  if (!notes.length && !parts) return [row];
+  const more = node('tr', '', 'profile-more'), cell = node('td', '');
+  more.setAttribute('role', 'row');
+  more.hidden = !notes.length;
+  cell.colSpan = row.children.length;
+  cell.setAttribute('role', 'cell');
+  cell.append(...notes);
+  more.append(cell);
+  if (parts) {
+    const about = node('div', '', 'meaning'), button = node('button', '', 'info');
+    about.id = `meaning-${++meaningCount}`;
+    about.hidden = true;
+    about.append(...parts);
+    cell.append(about);
+    button.type = 'button';
+    button.setAttribute('aria-expanded', 'false');
+    button.setAttribute('aria-controls', about.id);
+    button.append(icon('info'), hidden(`What this means: ${r.label}`));
+    button.onclick = () => {
+      about.hidden = !about.hidden;
+      more.hidden = about.hidden && !notes.length;
+      button.setAttribute('aria-expanded', String(!about.hidden));
+    };
+    head.append('\u00a0', button);  // no break here, so the button never starts a line of its own
+  }
+  return [row, more];
+}
+
+// A table too wide for its box, as on a phone or where a section holds long dollar amounts, stacks: each measure
+// becomes a block with its places side by side under the label. The table is measured as columns each time, so it
+// goes back to columns when it has room again.
+function fitTable(box) {
+  if (!box.clientWidth) return;  // out of sight, behind the Ask tab: nothing to measure yet
+  const table = box.firstElementChild;
+  box.classList.remove('stacked');
+  box.classList.toggle('stacked', table.offsetWidth > box.clientWidth + 1);
+}
+// Every table at once, as soon as the profile is on the page or its tab opens, so no frame shows a table too wide.
+function fitTables() { for (const box of $('profile').querySelectorAll('.profile-rows')) fitTable(box); }
+// Checked again when the box or the table changes size: the window, the tab or the text spacing changed. The check
+// waits for the next frame, so nothing changes size while the browser is still reporting sizes.
+const refit = new Set();
+const tableFit = new ResizeObserver(entries => {
+  if (!refit.size) requestAnimationFrame(() => { for (const box of refit) fitTable(box); refit.clear(); });
+  for (const e of entries) refit.add(e.target.closest('.profile-rows'));
+});
+
+// A section's figures as one table: a row per measure, a column for the home place and one for each place it is set
+// against, and a last column for how each rate or amount compares. A section of totals alone has no last column.
+function profileTable(sec) {
+  const home = sec.place || '', cols = [];
+  for (const a of sec.rows.flatMap(r => r.against)) if (a.geo && !cols.some(c => c.geo === a.geo)) cols.push({geo: a.geo, place: a.place});
+  const compares = sec.rows.some(r => r.reading);
+  const table = node('table', '', 'profile-table'), caption = table.createCaption(), headRow = table.createTHead().insertRow();
+  table.setAttribute('role', 'table');
+  caption.className = 'visually-hidden';
+  caption.textContent = `${sec.title}: ${[home, ...cols.map(c => c.place)].join(', ')}`;
+  table.tHead.setAttribute('role', 'rowgroup');
+  headRow.setAttribute('role', 'row');
+  const heading = (text, className) => { const th = node('th', text, className); th.scope = 'col'; th.setAttribute('role', 'columnheader'); headRow.append(th); };
+  heading('Measure', 'profile-measure');
+  heading(home, 'profile-figure home');
+  for (const c of cols) heading(c.place, 'profile-figure');
+  if (compares) heading('How it compares', 'profile-how');
+  const body = table.createTBody();
+  body.setAttribute('role', 'rowgroup');
+  body.append(...sec.rows.flatMap(r => profileRow(r, home, cols, compares)));
+  const box = node('div', '', 'profile-rows');
+  box.append(table);
+  if (compares && sec.rows.some(r => isNumber(r.num) && r.against.some(a => a.direction && isNumber(a.num)))) box.append(stripKey(home, cols));
+  tableFit.observe(box);
+  tableFit.observe(table);
+  return box;
 }
 
 // A second figure shown next to a row for comparison, or a sentence on how to read the row.
@@ -763,14 +919,16 @@ function profileSection(key, title, content) {
 }
 
 function dataSection(sec) {
-  const rows = node('div', '', 'profile-rows'), content = [];
-  rows.append(...sec.rows.map(profileRow));
+  const rows = profileTable(sec), content = [];
   if (sec.scope) content.push(node('p', sec.scope, 'profile-scope'));
   if (sec.intro) content.push(node('p', sec.intro, 'profile-caveat lead'));
   if (sec.caveat) content.push(node('p', sec.caveat, 'profile-caveat lead'));
   if (sec.method) content.push(methodLine(sec.method));
   content.push(rows, profileSources(sec.sources, sec.compared));
-  return profileSection(sec.title.toLowerCase().replace(/[^a-z0-9]+/g, '-'), sec.title, content);
+  const d = profileSection(sec.title.toLowerCase().replace(/[^a-z0-9]+/g, '-'), sec.title, content);
+  // A shut section reports no sizes, so its table is fitted as it opens.
+  d.addEventListener('toggle', () => { if (d.open) fitTable(rows); });
+  return d;
 }
 
 // The sections in reading order: who lives here and what they earn, then the programs to explore, then the rest.
@@ -836,6 +994,7 @@ const ICONS = {
   link: 'M9 7H7a5 5 0 0 0 0 10h2M15 7h2a5 5 0 0 1 0 10h-2M8 12h8',
   download: 'M12 4v11M7 10l5 5 5-5M5 20h14',
   check: 'M5 12.5l4.5 4.5L19 7.5',
+  info: 'M12 11v6M12 7.5v.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z',
 };
 function icon(name) {
   const ns = 'http://www.w3.org/2000/svg', svg = document.createElementNS(ns, 'svg'), path = document.createElementNS(ns, 'path');
@@ -959,6 +1118,7 @@ function renderProfile(p) {
   // wildfires, links to each section, the share buttons, then the sections. The figures come first so they stay on
   // a phone's first screen below the legislator's line.
   const out = [];
+  tableFit.disconnect();  // the tables of the profile shown before
   const stats = node('dl', '', 'profile-stats');
   // Each term comes before its value, as a description list needs; the CSS shows the value on top.
   for (const h of p.headline) {
@@ -967,6 +1127,8 @@ function renderProfile(p) {
     if (h.spread) value.append(' ', node('span', h.spread, 'moe'));
     if (h.caution) value.append(' ', cautionChip(h.caution));
     s.append(says('dt', h.label), value);
+    // How the figure stands against the county and the state. The CSS shows it under the label. A total has none.
+    if (h.reading) s.append(node('dd', h.reading, 'profile-reading'));
     stats.append(s);
   }
   out.push(stats);
@@ -1055,7 +1217,7 @@ function sheetParts(p, limit = SHEET_PROGRAMS) {
   const byId = new Map(p.sections.flatMap(s => s.rows.map(r => [r.id, r])));
   const expand = id => Array.isArray(id) ? ((p.largest || {})[id[0]] || []).slice(0, id[1]) : [id];
   const groups = PRINT_GROUPS.map(([title, ids]) => [title, ids.flatMap(expand).map(id => byId.get(id)).filter(Boolean)]).filter(([, rows]) => rows.length);
-  const against = (r, kind) => (r.against || []).find(a => String(a.geo || '').startsWith(`${kind}:`));
+  const against = (r, kind) => (r.against || []).find(a => !a.missing && String(a.geo || '').startsWith(`${kind}:`));
   const placeOf = kind => (groups.flatMap(([, rows]) => rows).map(r => against(r, kind)).find(a => a && a.place) || {}).place;
   // A column pair (estimate, then margin) for the district, then its county and the state when the profile has them.
   const places = [['home', p.district], ['county', placeOf('county')], ['state', placeOf('state')]].filter(([, name]) => name);
@@ -1529,10 +1691,11 @@ function followUpGroup(questions, about) {
 const STANDOUTS = [['pct_65_plus', 'Kūpuna share', 'kūpuna'], ['pct_people_poverty', 'Poverty', 'poverty'], ['pct_children_poverty', 'Keiki poverty', 'keiki poverty'], ['pct_65_plus_poverty', 'Kūpuna poverty', 'poverty among kūpuna'], ['pct_rent_burden_35_plus', 'Rent burden', 'rent burden'], ['pct_uninsured', 'Uninsured rate', 'health insurance coverage'], ['pct_disability', 'Disability rate', 'disability']];
 // Places burned in the August 2023 Maui wildfires, whose survey figures mostly predate the fires.
 const WILDFIRE_PLACES = ['Lahaina', 'Kula'];
-// How many times the other place's rate the district's is, read from the profile's comparison words.
-function timesAbove(a) {
-  const m = a && /^about (?:([\d.]+) times|(\d+) percent higher)/.exec(a.lead);
-  return !m ? 0 : m[1] ? Number(m[1]) : 1 + Number(m[2]) / 100;
+// How many times the other place's rate the district's is, to one decimal place, or 0 when the district's is not
+// higher beyond the margins of error.
+function timesAbove(r, a) {
+  if (!a || a.direction !== 'higher' || !isNumber(r.num) || !(a.num > 0)) return 0;
+  return Math.round((r.num / a.num) * 10) / 10;
 }
 
 // Examples that fit the chosen district, from its profile: a wildfire note where the survey years matter, and the
@@ -1545,7 +1708,7 @@ function districtExamples(p) {
   for (const [id, label, what] of STANDOUTS) {
     const r = rows.get(id);
     if (!r || !r.against.length) continue;
-    const state = timesAbove(r.against.at(-1)), county = r.against.length > 1 ? timesAbove(r.against[0]) : 0;
+    const state = timesAbove(r, r.against.at(-1)), county = r.against.length > 1 ? timesAbove(r, r.against[0]) : 0;
     const score = state >= 1.2 ? 10 + state : county >= 1.2 ? county : 0;
     if (score && (!best || score > best.score)) best = {score, label: `${label} higher than ${state >= 1.2 ? 'statewide' : 'countywide'}`, what};
   }

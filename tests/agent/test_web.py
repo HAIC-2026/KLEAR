@@ -175,10 +175,13 @@ def test_profile_endpoint_lays_out_the_district_profile(endpoint):
         {"name": "American Community Survey 5-year", "url": "https://example.org", "year": "2020-2024"}
     ]
     assert row["note"] == 0 and "·" not in profile["where"]
-    assert [a["lead"] + " " + a["rest"] for a in row["against"]] == [
-        "20.0% of the total in Honolulu County: 5,000",
-        "11.1% of the total in Hawaiʻi: 9,000",
+    # A total sits beside the county's and the state's totals, with no direction and so no reading.
+    assert people["place"] == "House District 22"
+    assert [(a["place"], a["plain"], a["direction"]) for a in row["against"]] == [
+        ("Honolulu County", "5,000", None),
+        ("Hawaiʻi", "9,000", None),
     ]
+    assert row["reading"] == "" and (row["num"], row["low"], row["high"]) == (1000.0, 900.0, 1100.0)
     programs = profile["programs"]
     assert programs["title"] == "Programs to explore here" and "eligibility" in programs["note"]
     shown = programs["programs"] + programs["others"]

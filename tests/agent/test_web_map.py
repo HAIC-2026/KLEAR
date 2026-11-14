@@ -204,8 +204,11 @@ def test_map_figures_match_each_district_profile(every_site):
         assert (row["value"], row["spread"]) == (d["value"], d["spread"])
         # The profile flags with a chip and its reason, the map with a note that stands alone.
         assert bool(row["caution"]) == bool(d["caution"]), d["geo"]
+        # The map says the state's figure in a sentence, and the profile sets it in the state's column. Both rest
+        # on the same tested direction, so the map reads "about the same" just where the profile sees no difference.
         state = row["against"][-1]
-        assert f" {state['lead'][0].upper()}{state['lead'][1:]} {state['rest']}." in d["text"]
+        assert f" the rate in {state['place']}: {state['value']}." in d["text"]
+        assert ("About the same as" in d["text"]) == (state["direction"] == "within_margin"), d["geo"]
 
 
 def test_map_requests_name_a_listed_measure_and_chamber(every_site):
