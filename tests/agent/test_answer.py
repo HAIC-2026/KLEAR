@@ -791,3 +791,10 @@ def test_a_typed_phone_is_allowed_only_as_a_listed_programs_catalog_phone(s1, ph
     text = GOOD + f" Call SNAP at {phone}." if listed else GOOD + f" Call {phone}."
     a, problems = build_answer(s1, args(blocks=[text], programs=listed))
     assert (a is not None) == ok, problems
+
+
+def test_a_source_shown_without_its_year_gets_a_note_with_it(s1):
+    a, problems = build_answer(s1, args(blocks=["{geo:house:022} has {fact:f1} {label:f1}."]))
+    assert problems == [] and a.caveats[-1] == "{label:f1}: {vintage:f1}."
+    a, problems = build_answer(s1, args())
+    assert problems == [] and not any("{vintage:f1}" in c for c in a.caveats)
