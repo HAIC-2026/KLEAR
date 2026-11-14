@@ -98,8 +98,9 @@ def _ask(con, agent: KlearAgent, question: str, district) -> int:
         text = render(answer, con)
     except (ContractError, KeyError) as e:
         text = f"[render failed: {e}]\n\n" + "\n\n".join([*answer.blocks, *answer.caveats])
-    if answer.facts and answer.resolved:
-        notes = caveats.for_places(con, [answer.resolved, *((f.geo_type, f.geo_id) for f in answer.facts)])
+    if answer.facts:
+        home = [answer.resolved] if answer.resolved else []
+        notes = caveats.for_places(con, [*home, *((f.geo_type, f.geo_id) for f in answer.facts)])
         text += "".join(f"\n\n{c['title']} ({c['geo']}): {c['text']}" for c in notes)
     print(f"\n{text}\n\nRefusal: {answer.refusal}")
     print(
