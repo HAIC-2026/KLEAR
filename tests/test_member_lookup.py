@@ -4,7 +4,16 @@ from datetime import date
 
 import pytest
 
-from klear.members import as_listed, by_name, members_of, mention, named_in, timing
+from klear.members import (
+    as_listed,
+    by_name,
+    members_of,
+    mention,
+    named_in,
+    reading_name,
+    starting_with,
+    timing,
+)
 from tests.fixtures.small_store import build_small_store
 
 
@@ -38,6 +47,30 @@ def test_a_shared_surname_lists_every_candidate_unless_a_title_narrows_it(con):
 @pytest.mark.parametrize("typed", ["Kai", "Leilani", "Leilani Kaaii", "Mele Kaai", "Senator", ""])
 def test_only_exact_names_match(con, typed):
     assert by_name(con, typed) == []
+
+
+@pytest.mark.parametrize(
+    ("listed", "reads"),
+    [
+        ("GARRETT, Andrew Takuya", "Andrew Takuya Garrett"),
+        ("KAʻAI, Leilani M.", "Leilani M. Kaʻai"),
+        ("McKELVEY, Angus L.K.", "Angus L.K. McKelvey"),
+        ("KEOHOKAPU-LEE LOY, Sue L.", "Sue L. Keohokapu-Lee Loy"),
+        ("IHARA JR., Les", "Les Ihara Jr."),
+        ("DOE III, Jane", "Jane Doe III"),
+        ("Jane Doe", "Jane Doe"),
+    ],
+)
+def test_listed_names_read_given_name_first(listed, reads):
+    assert reading_name(listed) == reads
+
+
+def test_the_search_box_finds_members_by_the_start_of_any_name_word(con):
+    assert _names(starting_with(con, "pala", 3)) == [("house:023", "PALAKIKO, Kawika")]
+    assert _names(starting_with(con, "Rep. Kaʻai", 3)) == [("house:022", "KAʻAI, Leilani M.")]
+    assert _names(starting_with(con, "noe ka", 3)) == [("senate:012", "KAʻAI, Noelani")]
+    assert len(starting_with(con, "kaai", 3)) == 2 and starting_with(con, "kaai", 1)[0].geo == "house:022"
+    assert starting_with(con, "Senator", 3) == starting_with(con, "mele", 3) == []
 
 
 def test_names_in_a_question_narrow_by_given_name_and_title(con):

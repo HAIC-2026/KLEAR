@@ -141,7 +141,10 @@ function tiers(d) {
       top.setAttribute('aria-labelledby', 'tier-top');
       const h = node('h3', `${t.title}: ${count}`);
       h.id = 'tier-top';
-      top.append(h, node('p', t.note, 'tier-note'), tierTable(t, d));
+      top.append(h);
+      // The lead above already says when the top group's ranges overlap, so the group does not say it again.
+      if (!/ranges overlap/.test(d.lead || '')) top.append(node('p', t.note, 'tier-note'));
+      top.append(tierTable(t, d));
       out.push(top);
       if (d.tiers.length > 1) out.push(node('h3', 'Other groups', 'tier-others'));
       return;

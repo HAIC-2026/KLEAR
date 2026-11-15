@@ -127,7 +127,7 @@ def ask(server, question, district="house:022"):
 def test_questions_are_the_starter_buttons():
     app = (ROOT / "klear/web/static/app.js").read_text(encoding="utf-8")
     listed = re.search(r"^const examples = (\[.*\]);$", app, re.MULTILINE).group(1)
-    assert [tuple(x) for x in json.loads(listed.replace("'", '"'))] == list(QUESTIONS.items())
+    assert json.loads(listed.replace("'", '"')) == list(QUESTIONS)
 
 
 def test_prewarm_answers_every_starter_question_once(prepared, ready):

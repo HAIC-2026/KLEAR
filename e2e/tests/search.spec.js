@@ -5,7 +5,7 @@ import {chooseDistrict, expectAccessible, offline, showTab} from './helpers.js';
 test.beforeEach(async ({context}) => offline(context));
 
 async function search(page, text) {
-  await page.getByLabel('Town, ZIP code, street address or district').first().fill(text);
+  await page.getByLabel('Town, ZIP code, street address, district or legislator').first().fill(text);
   await page.getByRole('button', {name: 'Find district'}).first().click();
   return page.locator('#find-matches');
 }
@@ -91,14 +91,14 @@ test('a place with many districts leads with a summary, folds its list, and show
 
   // The search's results already light up on the map below it; the link moves to the map.
   await expect(page.locator('#zip-status')).toHaveText('Oʻahu spans 10 House districts, outlined on the map.');
-  await expect(page.locator('#map .district.zip-hit')).toHaveCount(10);
+  await expect(page.locator('#map .district:not(.copy).zip-hit')).toHaveCount(10);
   await matches.getByRole('link', {name: 'see its districts on the map'}).click();
   await expect(page.locator('#district-map')).toBeInViewport();
 });
 
 test('typing suggests places, and the arrow keys and Enter pick one, which searches at once', async ({page}, testInfo) => {
   await page.goto('/');
-  const box = page.getByRole('combobox', {name: 'Town, ZIP code, street address or district'}).first();
+  const box = page.getByRole('combobox', {name: 'Town, ZIP code, street address, district or legislator'}).first();
   await box.fill('wai');
   const list = page.locator('#find-place-list');
   const options = list.getByRole('option');
@@ -125,7 +125,7 @@ test('typing suggests places, and the arrow keys and Enter pick one, which searc
 
 test('Escape closes the suggestions, and a clicked one picks exactly that place', async ({page}) => {
   await page.goto('/');
-  const box = page.getByRole('combobox', {name: 'Town, ZIP code, street address or district'}).first();
+  const box = page.getByRole('combobox', {name: 'Town, ZIP code, street address, district or legislator'}).first();
   await box.fill('kai');
   const list = page.locator('#find-place-list'), options = list.getByRole('option');
   await expect(options).toHaveText([/^Kailua\s+Oʻahu · Town$/, /^Kailua\s+Hawaiʻi Island · Town$/]);
@@ -139,20 +139,17 @@ test('Escape closes the suggestions, and a clicked one picks exactly that place'
   await expect(page.locator('#district-title')).toHaveText('House District 22');
 });
 
-test('the chat’s district search suggests too, and typing one letter suggests nothing', async ({page}) => {
-  // The chat's own search shows only on a district's page, where the search at the top of the home page is gone.
-  await page.goto('/district/house-22');
-  await showTab(page, 'Ask');
-  await page.getByRole('button', {name: 'Change district'}).click();
-  const box = page.locator('#place');
+test('the compare page’s district search suggests too, and typing one letter suggests nothing', async ({page}) => {
+  await page.goto('/compare');
+  const box = page.locator('#cmp-place');
   await expect(box).toHaveAttribute('role', 'combobox');
   await box.fill('o');
   await page.waitForTimeout(400);
-  await expect(page.locator('#place-list')).toBeHidden();
+  await expect(page.locator('#cmp-place-list')).toBeHidden();
   await box.fill('oah');
-  await expect(page.locator('#place-list').getByRole('option')).toHaveText([/^Oʻahu\s+Island$/]);
+  await expect(page.locator('#cmp-place-list').getByRole('option')).toHaveText([/^Oʻahu\s+Island$/]);
   await box.press('Tab');
-  await expect(page.locator('#place-list')).toBeHidden();
+  await expect(page.locator('#cmp-place-list')).toBeHidden();
 });
 
 // People type the ʻokina many ways, or leave it out, and the kahakō too. Each finds the same place.
@@ -160,7 +157,7 @@ const TYPED = ['Kāneʻohe', "Kane'ohe", 'Kane`ohe', 'Kane‘ohe', 'Kane’ohe',
 
 test('the ʻokina typed as ʻ, \', `, ‘, ’, ʼ or ´, or left out, finds the place', async ({page}) => {
   await page.goto('/');
-  const box = page.getByRole('combobox', {name: 'Town, ZIP code, street address or district'}).first();
+  const box = page.getByRole('combobox', {name: 'Town, ZIP code, street address, district or legislator'}).first();
   const options = page.locator('#find-place-list').getByRole('option');
   for (const text of TYPED) {
     await box.fill(text);
@@ -172,7 +169,7 @@ test('the ʻokina typed as ʻ, \', `, ‘, ’, ʼ or ´, or left out, finds the
 
 test('after more typing, the keys never pick an option left from the earlier text', async ({page}) => {
   await page.goto('/');
-  const box = page.getByRole('combobox', {name: 'Town, ZIP code, street address or district'}).first();
+  const box = page.getByRole('combobox', {name: 'Town, ZIP code, street address, district or legislator'}).first();
   await box.fill('wai');
   await expect(page.locator('#find-place-list').getByRole('option')).toHaveCount(2);
   // Waikīkī is still listed when these keys arrive, before the list for kai loads.

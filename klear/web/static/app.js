@@ -1,13 +1,19 @@
 let district = null, asked = null, busy = false, queued = null;
 const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 const uncertaintyLabels = {ok: '90% margin of error shown above', controlled: 'Fixed to official totals; no sampling margin of error', range: 'Estimated range shown above', open_ended: 'Open-ended published value', not_computable: 'Margin of error unavailable; treat as uncertain', not_applicable: 'No margin of error applies', unavailable: 'Uncertainty information unavailable'};
-// Suggested questions on a district's page, with the short label each shows in the chat.
-const examples = [['Give me a socioeconomic profile of this district.', 'Profile'], ['How many kūpuna live in this district?', 'Kūpuna'], ['What does the data say about housing needs in this district?', 'Housing'], ['How does poverty here compare with the state?', 'Poverty vs. state'], ['What support programs could residents of this district explore?', 'Programs']];
+// Suggested questions beside a district's profile, written out in full.
+const examples = ['Give me a socioeconomic profile of this district.', 'How many kūpuna live in this district?', 'What does the data say about housing needs in this district?', 'How does poverty here compare with the state?', 'What support programs could residents of this district explore?'];
 // A suggestion that asks about every district.
-const statewideExample = ['Which House districts have the highest share of kūpuna?', 'Kūpuna share by district'];
-// Starter questions on the home page. Each names its place or asks about the whole state, so none needs a district
-// chosen first. All but Kāneʻohe lie in one House district; Kāneʻohe spans three, so its answer lists them to choose.
-const homeStarters = ['How many kūpuna live in Kāneʻohe?', 'How does poverty in Pāhoa compare with the state?', 'What does the data say about housing costs in Kīhei?', 'What support programs could families in Waiʻanae explore?', statewideExample[0]];
+const statewideExample = 'Which House districts have the highest share of kūpuna?';
+// Starter questions on the Find and Ask pages, by topic. Each names its place or asks about the whole state, so none
+// needs a district chosen first. All but Kāneʻohe lie in one House district; Kāneʻohe spans three, so its answer lists
+// them to choose.
+const homeStarters = [
+  ['People', ['How many kūpuna live in Kāneʻohe?', statewideExample]],
+  ['Income', ['How does poverty in Pāhoa compare with the state?']],
+  ['Housing', ['What does the data say about housing costs in Kīhei?']],
+  ['Programs', ['What support programs could families in Waiʻanae explore?']],
+];
 const refusalLabels = {decline_partisan: 'Partisan request declined', decline_individual: 'Personal request declined', not_available: 'Data not available', out_of_scope: 'Outside KLEAR’s scope'};
 // Bring the chat card into view, or its question box when the card is taller than the screen. A card already on
 // screen, such as the one that stays beside a district's profile on wide screens, stays where it is.
@@ -79,10 +85,18 @@ function routeGeo() {
   return m && +m[2] >= 1 && +m[2] <= SEATS[m[1]] ? `${m[1]}:${m[2].padStart(3, '0')}` : null;
 }
 
-// A district's address shows the district's own page: its name as the page heading, then its profile with the chat
-// beside it. The home page's photo band and search give way to it.
+// This file is three pages: Find (/), Ask (/ask) and a district's own page. A district's page shows its name as the page
+// heading, then its profile with the agent beside it; Find's search and map and Ask's heading give way to it. The
+// header marks the page it names.
+const ASK_PATH = '/ask', ASK_TITLE = 'Ask – KLEAR';
 function districtView(on) {
-  document.body.classList.toggle('district-page', on);
+  const page = on ? 'district' : location.pathname === ASK_PATH ? 'ask' : 'home';
+  document.documentElement.dataset.page = page;
+  for (const name of ['home', 'ask', 'district']) document.body.classList.toggle(`${name}-page`, name === page);
+  for (const a of document.querySelectorAll('.site-header a[data-page]')) {
+    if (a.dataset.page === page) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
+  }
+  if (!on) document.title = page === 'ask' ? ASK_TITLE : BASE_TITLE;
   $('district-head').hidden = !on;
   $('chat').setAttribute('aria-labelledby', on ? 'district-name' : 'chat-title');
   applyTabs();
@@ -130,34 +144,8 @@ ONE_COLUMN.addEventListener('change', () => {
   if (ONE_COLUMN.matches && $('chat-card').contains(document.activeElement)) shownTab = 'ask';
   applyTabs();
 });
-// The header's Ask link leads to the question box: on a district's page it opens the Ask tab first.
-for (const a of document.querySelectorAll('.site-header a[href="#chat"]')) a.addEventListener('click', e => {
-  e.preventDefault();
-  if (document.body.classList.contains('district-page')) showTab('ask');
-  showChat();
-  $('question').focus({preventScroll: true});
-});
 // On wide screens the profile comes first, so a link at the top skips past it to the question box.
 $('skip-ask').onclick = e => { e.preventDefault(); showTab('ask'); $('question').focus(); };
-
-// At 1200 px and up, Wider gives the chat most of the row and narrows the profile to its headline figures and section
-// links (the CSS does the layout). The choice holds for the tab. The answer at the top of the chat stays in place.
-const SAVED_WIDE = 'klear-wide';
-let wideChat = false;
-try { wideChat = sessionStorage.getItem(SAVED_WIDE) === '1'; } catch { /* blocked */ }
-function setWide(on) {
-  const pane = $('messages'), top = pane.getBoundingClientRect().top;
-  const anchor = [...$('log').children].find(el => el.getBoundingClientRect().bottom > top), was = anchor && anchor.getBoundingClientRect().top;
-  wideChat = on;
-  $('chat').classList.toggle('wide', on);
-  $('wide').setAttribute('aria-pressed', String(on));
-  try { sessionStorage.setItem(SAVED_WIDE, on ? '1' : '0'); } catch { /* blocked */ }
-  if (anchor && pane.scrollHeight > pane.clientHeight) pane.scrollTop += anchor.getBoundingClientRect().top - was;
-  if (!on) fitTables();
-}
-$('wide').onclick = () => setWide(!wideChat);
-$('chat').classList.toggle('wide', wideChat);
-$('wide').setAttribute('aria-pressed', String(wideChat));
 
 // The note under the question box says where questions go; Privacy opens the rest.
 $('privacy-toggle').onclick = () => {
@@ -171,7 +159,8 @@ $('privacy-toggle').onclick = () => {
 let suggestOpen = false, suggestWidth = 0;
 function foldSuggestions() {
   const box = $('suggest'), more = $('more-questions'), buttons = [...$('examples').children];
-  const fold = Boolean($('log').querySelector('article')) && !suggestOpen;
+  // In one column they fold from the start too, so the question box stays near the top of the Ask tab.
+  const fold = (Boolean($('log').querySelector('article')) || ONE_COLUMN.matches) && !suggestOpen;
   box.classList.toggle('folded', fold);
   for (const b of buttons) b.hidden = false;
   more.hidden = !fold && !suggestOpen;
@@ -205,14 +194,8 @@ function arrive(land) {
   (land === 'ask' ? $('question') : $('district-name')).focus({preventScroll: true});
 }
 
-function setLookup(open) {
-  $('lookup').hidden = !open;
-  $('change').setAttribute('aria-expanded', String(open));
-  $('change').textContent = open ? 'Cancel' : district ? 'Change district' : 'Choose a district';
-  if (!open) resetLookup();
-}
-
 const NO_DISTRICT_WELCOME = 'Ask about a district, a town or ZIP code, or all of Hawaiʻi.';
+const DISTRICT_WELCOME = 'Pick a question or write your own. Answers use only KLEAR’s data, and each figure names its source.';
 
 // While an answer loads, the ask and suggestion buttons say they are unavailable but keep focus: disabling a focused
 // button would drop focus to the page, and keyboard and screen reader users would lose their place.
@@ -233,8 +216,6 @@ function switchLine(name) {
 // address to the browser history, unless it came from there (push false): Back, Forward or an opened link. Unless
 // quiet, the page then moves to the district (see arrive), landing on its profile or, by default, in the chat.
 function choose(geo, name, quiet, push = true, land = 'ask') {
-  setLookup(false);
-  $('place').value = '';
   districtView(true);
   if (busy) {
     queued = geo === district ? null : {geo, name, push};
@@ -253,17 +234,17 @@ function choose(geo, name, quiet, push = true, land = 'ask') {
       if (!quiet) $('messages').scrollTop = $('messages').scrollHeight;
     }
     district = geo;
-    $('chat').dataset.chamber = geo.split(':')[0];
+    $('chat').dataset.chamber = document.body.dataset.chamber = geo.split(':')[0];
     $('district-title').textContent = name;
-    $('welcome-text').textContent = `Ask about ${name}.`;
-    $('change').textContent = 'Change district';
+    $('welcome-text').textContent = DISTRICT_WELCOME;
     document.title = `${name} – KLEAR`;
     if (push) setAddress(districtPath(geo));
     document.dispatchEvent(new CustomEvent('klear:district', {detail: {geo, name}}));
     loadProfile(geo, name);
   }
   const ready = $('question').value.trim() ? 'Your question is ready. Press Ask KLEAR.' : '';
-  $('chat-status').textContent = quiet && switched ? `Now asking about ${name}. ${ready}`.trim() : ready;
+  // A conversation that moves to another district says so; a district page opened fresh needs no line, its title names it.
+  $('chat-status').textContent = quiet && switched && asked ? `Now asking about ${name}. ${ready}`.trim() : ready;
   if (!quiet) arrive(land);
 }
 
@@ -274,11 +255,11 @@ function clearDistrict() {
   district = null;
   profileSeq++;
   profileGeo = null;
-  setLookup(false);
   districtView(false);
   districtHead('', null);
   delete $('chat').dataset.chamber;
-  $('district-title').textContent = 'No district chosen yet';
+  delete document.body.dataset.chamber;
+  $('district-title').textContent = 'a district';
   $('welcome-text').textContent = NO_DISTRICT_WELCOME;
   $('chat-status').textContent = '';
   $('profile').hidden = true;
@@ -287,7 +268,6 @@ function clearDistrict() {
   setSheet(null);
   dropDistrictActions();
   $('suggest').hidden = true;
-  document.title = BASE_TITLE;
 }
 
 window.addEventListener('popstate', () => {
@@ -298,34 +278,77 @@ window.addEventListener('popstate', () => {
   else clearDistrict();
 });
 
-$('change').onclick = () => {
-  const open = $('lookup').hidden;
-  // Reopening the search drops a switch queued while an answer loads.
-  if (open && queued) { queued = null; $('chat-status').textContent = ''; }
-  setLookup(open);
-  if (open) $('place').focus();
-};
-const resetLookup = lookupForm($('lookup'), $('place'), $('lookup-status'), $('matches'), choose);
-// The search at the top of the home page opens the district's page at its profile.
-// Its matches also light up on the map below it: the largest place found, with each district's share of its residents.
+// The search at the top of the Find page opens the district's page at its profile.
+// Its matches also light up on the map beside it: the largest place found, with each district's share of its residents.
 const resetFind = lookupForm($('find'), $('find-place'), $('find-status'), $('find-matches'), (geo, name) => { resetFind(); choose(geo, name, false, true, 'profile'); }, groups => {
   const g = groups[0], pairs = c => g.rows.filter(r => r.geo.startsWith(`${c}:`)).map(r => [r.geo, r.share ?? 1]);
   document.dispatchEvent(new CustomEvent('klear:area', {detail: {label: g.place, house: pairs('house'), senate: pairs('senate')}}));
 });
-// The home page's starters show their full question and ask it at once.
-for (const question of homeStarters) {
+
+// Every district by number, on the Find page. Each number is a link to its page, so it works before the script runs
+// and opens in a new tab like any link; a plain click opens it in place. Tab reaches each chamber's list once, and the
+// arrow keys move between its numbers, as on the map.
+for (const group of document.querySelectorAll('.seat-chamber')) {
+  const links = [...group.querySelectorAll('a')];
+  links.forEach((a, i) => {
+    a.tabIndex = i ? -1 : 0;
+    a.setAttribute('aria-describedby', 'seats-keys');
+    a.addEventListener('click', e => {
+      const m = a.pathname.match(/^\/district\/(house|senate)-(\d+)$/);
+      if (!m || e.button || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      e.preventDefault();
+      const geo = `${m[1]}:${m[2].padStart(3, '0')}`;
+      choose(geo, districtName(geo), false, true, 'profile');
+    });
+    a.addEventListener('keydown', e => {
+      const to = {ArrowRight: i + 1, ArrowDown: i + 1, ArrowLeft: i - 1, ArrowUp: i - 1, Home: 0, End: links.length - 1}[e.key];
+      if (to === undefined || e.altKey || e.ctrlKey || e.metaKey) return;
+      e.preventDefault();
+      const next = links[Math.max(0, Math.min(links.length - 1, to))];
+      for (const l of links) l.tabIndex = l === next ? 0 : -1;
+      next.focus();
+    });
+  });
+}
+
+// Questions to try, by topic, written out in full. On the Ask page each is asked at once; on the Find page it opens the
+// Ask page, which asks it.
+function starterTopics(box, ask) {
+  for (const [title, questions] of homeStarters) {
+    const group = node('div', '', 'topic'), head = node('h3', title, 'topic-title'), list = node('ul', '');
+    head.id = `${box.id}-${title.toLowerCase()}`;
+    group.setAttribute('role', 'group');
+    group.setAttribute('aria-labelledby', head.id);
+    for (const question of questions) {
+      const li = document.createElement('li'), b = says('button', question, 'starter');
+      b.type = 'button';
+      b.onclick = () => ask(question);
+      li.append(b);
+      list.append(li);
+    }
+    group.append(head, list);
+    box.append(group);
+  }
+}
+starterTopics($('starters'), question => askAgain(question));
+starterTopics($('home-starters'), question => openAsk(question));
+// The Find page's question box opens the Ask page with the question, which goes after the # in the address so it never
+// reaches the server's logs, and the Ask page takes it out again before asking.
+function openAsk(question) {
+  location.assign(question ? `${ASK_PATH}#q=${encodeURIComponent(question)}` : ASK_PATH);
+}
+$('home-ask').onsubmit = e => {
+  e.preventDefault();
+  const question = $('home-question').value.trim();
+  if (question) openAsk(question); else $('home-question').focus();
+};
+$('home-question').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && !e.isComposing) { e.preventDefault(); $('home-ask').requestSubmit(); }
+});
+// A district's suggested questions, written out in full, so what they say is what they ask.
+for (const question of [...examples, statewideExample]) {
   const b = says('button', question);
   b.type = 'button';
-  b.onclick = () => askAgain(question);
-  $('starters').append(b);
-}
-// A district's suggestions show only a short label in the chat. The rest of the question stays in the button's spoken
-// name after that label, so voice control can say what it sees.
-for (const [question, label] of [...examples, statewideExample]) {
-  const b = node('button', ''), rest = hidden(': ');
-  b.type = 'button';
-  rest.append(says('span', question));
-  b.append(says('span', label, 'example-label'), rest);
   b.onclick = () => askAgain(question);
   $('examples').append(b);
 }
@@ -364,10 +387,14 @@ async function loadProfile(geo, name) {
   }
 }
 
-// The district's name, which heads its page, and where it is: its county and island, its largest places, and the
-// districts of the other chamber it overlaps.
+// The district's name, which heads its page: the chamber over the district's number, which is set large in the
+// chamber's color. Beside it, where the district is (its county and island, its largest places, and the districts of
+// the other chamber it overlaps) and its legislator.
 function districtHead(name, p) {
-  $('district-name').textContent = name;
+  const h = $('district-name'), m = /^(House|Senate) District (\d+)$/.exec(name);
+  h.replaceChildren();
+  if (m) h.append(node('span', `${m[1]} District`, 'mast-chamber'), ' ', node('span', m[2], 'mast-number'));
+  else h.textContent = name;
   if (!p) { $('locator').hidden = true; $('locator').replaceChildren(); }
   const about = $('district-about'), member = $('district-member');
   about.replaceChildren();
@@ -381,9 +408,11 @@ function districtHead(name, p) {
   if (meta.some(Boolean)) about.append(node('p', meta.filter(Boolean).join(' '), 'district-meta'));
 }
 
-// A small map of the district on its island, beside its name: the chamber's districts in a light fill and this one
-// in the chamber's color. The district's name and island are in the text beside it, so screen readers skip it.
+// A small map of the district beside its name: the chamber's districts in a light fill and this one in the chamber's
+// color, with its number. A district in urban Honolulu, too small to see on the whole of Oʻahu, shows on a close-up of
+// the city. The district's name and island are in the text beside it, so screen readers skip it.
 let shapes = null;
+const insideBox = ([x, y], [bx, by, bw, bh]) => x >= bx && x <= bx + bw && y >= by && y <= by + bh;
 function locatorMap(geo) {
   const box = $('locator');
   shapes ||= fetch('/districts.json').then(r => (r.ok ? r.json() : null)).catch(() => null);
@@ -391,17 +420,28 @@ function locatorMap(geo) {
     if (!data || profileGeo !== geo) return;
     const rows = data.chambers[geo.split(':')[0]] || [], row = rows.find(r => r.geo === geo), group = row && data.groups[row.group];
     if (!group) return;
-    const ns = 'http://www.w3.org/2000/svg', svg = document.createElementNS(ns, 'svg'), [x, y, w, h] = group.box, pad = Math.max(w, h) * 0.06;
+    const city = data.groups.honolulu && row.group === 'oahu' && insideBox(row.label, data.groups.honolulu.box);
+    const ns = 'http://www.w3.org/2000/svg', svg = document.createElementNS(ns, 'svg');
+    const [x, y, w, h] = city ? data.groups.honolulu.box : group.box, pad = Math.max(w, h) * 0.06;
     svg.setAttribute('viewBox', `${x - pad} ${y - pad} ${w + 2 * pad} ${h + 2 * pad}`);
     svg.setAttribute('aria-hidden', 'true');
     svg.setAttribute('focusable', 'false');
-    for (const r of [...rows.filter(r => r.geo !== geo), row]) {
+    for (const r of [...rows.filter(r => r.geo !== geo && r.group === row.group), row]) {
       const path = document.createElementNS(ns, 'path');
       path.setAttribute('d', r.d);
       path.setAttribute('class', r.geo === geo ? 'here' : '');
       svg.append(path);
     }
-    box.replaceChildren(svg);
+    const label = document.createElementNS(ns, 'text');
+    label.setAttribute('x', row.label[0]);
+    label.setAttribute('y', row.label[1]);
+    label.setAttribute('class', 'here-label');
+    label.setAttribute('font-size', (w + 2 * pad) * (city ? 0.085 : 0.07));
+    label.textContent = row.name.replace(/\D+/g, '');
+    svg.append(label);
+    const caption = node('p', city ? 'Urban Honolulu' : group.label, 'locator-caption');
+    caption.setAttribute('aria-hidden', 'true');
+    box.replaceChildren(svg, caption);
     box.hidden = false;
   });
 }
@@ -503,7 +543,7 @@ function profileRow(r, home, cols, compares) {
     const how = node('td', '', 'profile-how'), strip = rangeStrip(r, home, cols);
     how.setAttribute('role', 'cell');
     if (strip) how.append(strip);
-    if (r.reading) how.append(node('span', r.reading, 'profile-reading visually-hidden'));
+    if (r.reading) how.append(readingLine(r.reading, 'span'));
     row.append(how);
   }
   const notes = [];
@@ -558,6 +598,17 @@ const tableFit = new ResizeObserver(entries => {
   if (!refit.size) requestAnimationFrame(() => { for (const box of refit) fitTable(box); refit.clear(); });
   for (const e of entries) refit.add(e.target.closest('.profile-rows'));
 });
+
+// How a figure stands against the county and the state, in words, after a mark for sighted readers: up for higher,
+// down for lower, and about-equal for no clear difference. A figure higher than one place and lower than the other
+// gets no mark.
+function readingLine(text, tag, extra) {
+  const line = node(tag, '', 'profile-reading'), mark = /^Higher/.test(text) && !/lower/i.test(text) ? '▲' : /^Lower/.test(text) && !/higher/i.test(text) ? '▼' : /^No clear/.test(text) ? '≈' : '';
+  if (mark) { const m = node('span', mark, 'reading-mark'); m.setAttribute('aria-hidden', 'true'); line.append(m, ' '); }
+  line.append(text);
+  if (extra) line.append(node('span', ` ${extra}`, 'reading-state'));
+  return line;
+}
 
 // A section's figures as one table: a row per measure, a column for the home place and one for each place it is set
 // against, and a last column for how each rate or amount compares. A section of totals alone has no last column.
@@ -749,12 +800,21 @@ function rememberOpen(key, open) {
   try { sessionStorage.setItem(OPENED, JSON.stringify(saved)); } catch { /* blocked or full */ }
 }
 
+// A section's number, as a printed brief numbers its sections so a reader can say "section 3". Screen readers skip it:
+// the headings and links say the section's name.
+function sectionNumber(n) {
+  const s = node('span', String(n), 'sec-num');
+  s.setAttribute('aria-hidden', 'true');
+  return s;
+}
 // One group of the profile: a disclosure that the jump links at the top can open, holding one or more parts, each
 // with its own heading when the group has more than one.
-function profileSection(key, title, parts) {
-  const d = node('details', '', 'profile-section'), summary = node('summary', title);
+function profileSection(key, title, parts, number) {
+  const d = node('details', '', 'profile-section'), summary = node('summary', '');
+  summary.append(sectionNumber(number), node('span', title, 'sec-title'));
   d.id = `profile-${key}`;
   d.dataset.key = key;
+  d.dataset.title = title;
   // The click comes before the disclosure changes, so the new state is the opposite of the current one.
   summary.addEventListener('click', () => rememberOpen(key, !d.open));
   d.append(summary);
@@ -798,8 +858,9 @@ function profileSections(p) {
   // A section the groups do not name still shows, in a group of its own at the end.
   const named = new Set(PROFILE_GROUPS.flatMap(([, , names]) => names));
   for (const [title, part] of parts) if (!named.has(title)) groups.push([title.toLowerCase().replace(/[^a-z0-9]+/g, '-'), title, [part]]);
-  const out = groups.filter(([, , list]) => list.length).map(([key, title, list]) => {
-    const d = profileSection(key, title, list);
+  // At a glance is section 1, so the groups count from 2.
+  const out = groups.filter(([, , list]) => list.length).map(([key, title, list], i) => {
+    const d = profileSection(key, title, list, i + 2);
     // A shut group reports no sizes, so its tables are fitted as it opens.
     d.addEventListener('toggle', () => { if (d.open) for (const part of list) if (part.rows) fitTable(part.rows); });
     if (key === 'programs') d.classList.add('profile-programs');
@@ -809,19 +870,17 @@ function profileSections(p) {
   out.forEach((d, i) => { d.open = typeof saved[d.dataset.key] === 'boolean' ? saved[d.dataset.key] : !ONE_COLUMN.matches && i < OPEN_FIRST; });
   return out;
 }
-// Links to every section, so each is one click from the top. A link opens its section before the page moves to it, and
-// with the chat wide, first gives the profile its room back, since the narrow profile shows no sections.
+// Links to every section, numbered as the sections are, so each is one click from the top. A link opens its section
+// before the page moves to it.
 function profileJumps(sections) {
-  const nav = node('nav', '', 'profile-jumps'), title = node('p', 'In this profile', 'profile-jumps-title'), list = node('ul', '');
+  const nav = node('nav', '', 'profile-jumps'), title = node('p', 'In this profile', 'profile-jumps-title'), list = node('ol', '');
   title.id = 'jumps-title';
   nav.setAttribute('aria-labelledby', title.id);
   for (const d of sections) {
-    const li = document.createElement('li'), a = node('a', d.querySelector('summary').textContent);
+    const li = document.createElement('li'), a = node('a', '');
+    a.append(sectionNumber(d.querySelector('.sec-num').textContent), node('span', d.dataset.title, 'sec-title'));
     a.href = `#${d.id}`;
-    a.onclick = () => {
-      if (wideChat && !ONE_COLUMN.matches) setWide(false);
-      if (!d.open) { d.open = true; rememberOpen(d.dataset.key, true); }
-    };
+    a.onclick = () => { if (!d.open) { d.open = true; rememberOpen(d.dataset.key, true); } };
     li.append(a);
     list.append(li);
   }
@@ -880,20 +939,20 @@ async function copyLink(url, status) {
   requestAnimationFrame(() => { $('profile-live').textContent = text; });
 }
 
-// Print, link and download buttons in one row under the profile's top. Printing shows the one-page summary in place of
-// the page.
+// Print, link, download and compare as one line of plain actions beside At a glance. Printing shows the one-page
+// summary in place of the page.
 function profileActions(p) {
   const box = node('div', '', 'profile-share');
   box.setAttribute('role', 'group');
   box.setAttribute('aria-label', 'Share this profile');
-  const control = (tag, text, name) => {
+  const control = (tag, text) => {
     const c = node(tag, '', 'action');
-    c.append(icon(name), node('span', text));
+    c.append(node('span', text));
     if (tag === 'button') c.type = 'button';
     return c;
   };
-  const print = control('button', 'Print or save as PDF', 'print'), copy = control('button', 'Copy link', 'link');
-  const csv = control('a', 'Download data (CSV)', 'download'), compare = control('a', 'Compare', 'compare');
+  const print = control('button', 'Print or save as PDF'), copy = control('button', 'Copy link');
+  const csv = control('a', 'Download data (CSV)'), compare = control('a', 'Compare');
   compare.append(hidden(' with other districts'));
   compare.href = `/compare?d=${encodeURIComponent(p.geo)}`;
   print.onclick = () => window.print();
@@ -943,7 +1002,7 @@ function profileMembers(members) {
   const box = node('div', '', 'profile-member');
   for (const m of members) {
     const who = node('p', '', 'profile-member-name');
-    who.append(node('span', m.title, 'profile-member-title'), ' ', link(m.name, m.url));
+    who.append(node('span', m.title, 'profile-member-title'), ' ', link(m.reads || m.name, m.url));
     box.append(who);
   }
   const about = node('details', '', 'profile-member-about');
@@ -957,29 +1016,50 @@ function memberLinks(members) {
   const box = node('div', '', 'member-links');
   for (const m of members) {
     const p = node('p', '');
-    p.append(`${m.title} ${m.name}, ${m.district}: `, link('official page', m.url), '. Listed in ', link(m.source, m.source_url), '.');
+    p.append(`${m.title} ${m.reads || m.name}, ${m.district}: `, link('official page', m.url), '. Listed in ', link(m.source, m.source_url), '.');
     box.append(p);
   }
   return box;
 }
 
 function renderProfile(p) {
-  // Under the district's name: its headline figures with their margins, any notes on its figures, such as the Maui
-  // wildfires, links to each section, the share buttons, then the sections. The figures come first so they stay on
-  // a phone's first screen below the legislator's line.
+  // Under the district's name: section 1, At a glance, with its headline figures, each saying how it compares, any
+  // notes on its figures such as the Maui wildfires, and the share actions. Then links to every section, the outreach
+  // groups this district leads, if any, and the sections. The figures come first so they stay on a phone's first
+  // screen below the legislator's line.
   const out = [];
   tableFit.disconnect();  // the tables of the profile shown before
-  out.push(headlineStats(p.headline));
-  if (p.caveats && p.caveats.length) out.push(placeNotes(p.caveats, 'profile-notes'));
+  const glance = node('section', '', 'profile-glance'), head = node('div', '', 'glance-head'), title = node('h2', '', 'glance-title');
+  glance.id = 'profile-glance';
+  title.id = 'glance-title';
+  glance.setAttribute('aria-labelledby', title.id);
+  title.append(sectionNumber(1), node('span', 'At a glance', 'sec-title'));
+  head.append(title, profileActions(p));
+  glance.append(head, headlineStats(p.headline));
+  if (p.caveats && p.caveats.length) glance.append(placeNotes(p.caveats, 'profile-notes'));
+  out.push(glance);
   const sections = profileSections(p);
-  out.push(profileJumps(sections), profileActions(p));
-  // The outreach groups this district leads come just before the sections.
-  if (p.outreach && Array.isArray(p.outreach.items)) out.push(profileOutreach(p.outreach));
+  out.push(profileJumps(sections));
+  // The outreach groups this district leads come just before the sections. A district that leads none says so at the
+  // end of its programs, with the way to the outreach page.
+  if (p.outreach && Array.isArray(p.outreach.items)) {
+    const programs = sections.find(d => d.dataset.key === 'programs');
+    if (p.outreach.items.length) out.push(profileOutreach(p.outreach));
+    else if (programs && p.outreach.none) programs.querySelector('.profile-back').before(outreachNone(p.outreach));
+  }
   out.push(...sections, profileEnd());
   return out;
 }
 
-// A district's headline figures with their margins, as the top of its profile and the home page's example show them.
+// A district in no outreach group's top tier: one line, with the way to the outreach page.
+function outreachNone(o) {
+  const line = node('p', `${o.none} `, 'profile-outreach-none');
+  if (o.link && o.link.url) line.append(link(o.link.text, o.link.url));
+  return line;
+}
+
+// A district's headline figures with their margins, as the top of its profile shows them. Under each, how it compares
+// with the county and the state, with the state's figure, or for a count, its share of the state's.
 function headlineStats(headline) {
   const stats = node('dl', '', 'profile-stats');
   // Each term comes before its value, as a description list needs; the CSS shows the value on top.
@@ -989,20 +1069,23 @@ function headlineStats(headline) {
     if (h.spread) value.append(' ', node('span', h.spread, 'moe'));
     if (h.caution) value.append(' ', cautionChip(h.caution));
     s.append(says('dt', h.label), value);
-    // How the figure stands against the county and the state, for screen readers. A total has none.
-    if (h.reading) s.append(node('dd', h.reading, 'profile-reading visually-hidden'));
+    const state = (h.against || []).find(a => /^state:/.test(a.geo || ''));
+    if (h.reading) s.append(readingLine(h.reading, 'dd', state && state.value ? `Hawaiʻi: ${state.value}` : ''));
+    else if (h.unit === 'count' && state && isNumber(h.num) && state.num > 0) s.append(node('dd', `${shareOf(h.num / state.num)} of Hawaiʻi’s total`, 'profile-reading'));
     stats.append(s);
   }
   return stats;
 }
+// A share to one decimal place below 10%, else whole numbers: 1.9%, 23%.
+const shareOf = x => `${x < 0.1 ? (Math.round(x * 1000) / 10).toFixed(1) : Math.round(x * 100)}%`;
 
-// The row that closes the profile. A district's page leaves out the home page's sources, checks and search, so these
-// lead to them.
+// The row that closes the profile. A district's page leaves out the Find page's search and the data and methods, so
+// these lead to them.
 function profileEnd() {
   const nav = node('nav', '', 'profile-end'), title = node('p', 'More from KLEAR', 'profile-end-title'), list = node('ul', '');
   title.id = 'profile-end-title';
   nav.setAttribute('aria-labelledby', title.id);
-  for (const [text, href] of [['Compare districts', '/compare'], ['Sources and methods', '/data'], ['Find another district', '/#find']]) {
+  for (const [text, href] of [['Compare districts', '/compare'], ['Sources and methods', '/data'], ['Find another district', '/']]) {
     const li = document.createElement('li'), a = node('a', text);
     a.href = href;
     li.append(a);
@@ -1142,7 +1225,7 @@ function sheetParts(p, limit = SHEET_PROGRAMS) {
   if (p.where) who.append(node('p', p.where, 'sheet-where'));
   for (const m of p.members || []) {
     const line = node('p', '', 'sheet-member');
-    line.append(node('b', m.title), ` ${m.name} `, url(m.url));
+    line.append(node('b', m.title), ` ${m.reads || m.name} `, url(m.url));
     who.append(line);
   }
   live.append(node('p', 'Full profile, sources and questions online', ''), url(location.origin + districtPath(p.geo)));
@@ -1295,7 +1378,18 @@ document.addEventListener('DOMContentLoaded', () => {
     choose(geo, districtName(geo), true, false);
   } else if (location.pathname.startsWith('/district/')) {
     setAddress('/', true);
+    districtView(false);
     $('find-status').textContent = 'That link names a district that does not exist. Hawaiʻi has 51 House and 25 Senate districts.';
+  } else if (location.pathname === ASK_PATH) {
+    // The Ask page opens ready to type in. A question handed over from the Find page comes after #q= in the address;
+    // it is taken out of the address before it is asked.
+    const handed = /^#q=(.+)$/.exec(location.hash);
+    let question = '';
+    if (handed) {
+      try { question = decodeURIComponent(handed[1]).trim().slice(0, 2000); } catch { /* not a question */ }
+      setAddress(ASK_PATH, true);
+    }
+    if (question) askAgain(question); else $('question').focus({preventScroll: true});
   }
 });
 
@@ -1400,7 +1494,7 @@ $('question-form').onsubmit = async e => {
 // or on nothing while the question box shows).
 function readerPlace() {
   const focus = document.activeElement;
-  const elsewhere = !$('lookup').hidden || Boolean(focus && focus !== $('question') && focus.matches('input, select, textarea'));
+  const elsewhere = Boolean(focus && focus !== $('question') && focus.matches('input, select, textarea'));
   const idle = !focus || focus === document.body;
   // Safari does not focus a button it taps, so a question sent that way leaves focus on the page: it still counts as
   // sent from the chat, even when the reply has pushed the question box off the screen.
@@ -1633,15 +1727,13 @@ function districtExamples(p) {
     const score = state >= 1.2 ? 10 + state : county >= 1.2 ? county : 0;
     if (score && (!best || score > best.score)) best = {score, label: `${label} higher than ${state >= 1.2 ? 'statewide' : 'countywide'}`, what};
   }
-  const chips = [];
-  if (p.places.some(x => WILDFIRE_PLACES.includes(x.name))) chips.push(['Survey years and the 2023 wildfires', `Which survey years do the housing figures for ${p.district} cover, given the 2023 Maui wildfires?`]);
-  if (best) chips.push([best.label, compareQuestion(best.what, p.district, p.county)]);
-  $('examples').prepend(...chips.map(([label, question]) => {
-    const b = node('button', '', 'local'), rest = hidden(': ');
+  const questions = [];
+  if (p.places.some(x => WILDFIRE_PLACES.includes(x.name))) questions.push(`Which survey years do the housing figures for ${p.district} cover, given the 2023 Maui wildfires?`);
+  if (best) questions.push(compareQuestion(best.what, p.district, p.county));
+  $('examples').prepend(...questions.map(question => {
+    const b = says('button', question, 'local');
     b.type = 'button';
     if (busy) b.setAttribute('aria-disabled', 'true');
-    rest.append(says('span', question));
-    b.append(says('span', label, 'example-label'), rest);
     b.onclick = () => askAgain(question);
     return b;
   }));

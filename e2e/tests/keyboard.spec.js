@@ -17,7 +17,7 @@ test('skip link, search, ask, and read the answer with the keyboard', async ({pa
   await expect(skip).toBeInViewport();
   await page.keyboard.press('Enter');
   await page.keyboard.press('Tab');
-  await expect(page.getByLabel('Town, ZIP code, street address or district').first()).toBeFocused();
+  await expect(page.getByLabel('Town, ZIP code, street address, district or legislator').first()).toBeFocused();
 
   // A search with one match opens the district's page with focus on its name. The next stop, a link shown only while
   // it has focus, skips past the profile to the question box beside it.
@@ -63,37 +63,19 @@ test('skip link, search, ask, and read the answer with the keyboard', async ({pa
   await expect(table).toHaveAttribute('open', '');
   await expect(table.getByRole('table')).toBeVisible();
 
-  // A suggested question can be asked from the keyboard too. After an answer they fold to one row, and More questions
+  // A suggested question can be asked from the keyboard too. After an answer they fold to the first, and More questions
   // opens the rest.
   const more = page.getByRole('button', {name: 'More questions'});
   await more.focus();
   await page.keyboard.press('Enter');
   await expect(more).toHaveAttribute('aria-expanded', 'true');
-  await page.getByRole('button', {name: /^Kūpuna\s*: How many kūpuna/}).focus();
+  await page.getByRole('button', {name: 'How many kūpuna live in this district?', exact: true}).focus();
   await page.keyboard.press('Enter');
   await expect(page.locator('#log article')).toHaveCount(2);
   await expect(page.locator('#log article').last().getByRole('heading', {level: 3})).toBeFocused();
 });
 
 // One column: the profile and the chat are two tabs. The arrow keys move between them, and Tab moves into the one shown.
-// Beside the profile, Wider is a toggle button in the chat's bar: Enter and Space press it, and it says whether it is on.
-test('Wider widens the chat from the keyboard and reports its state', async ({page}) => {
-  await page.goto('/district/house-22');
-  await expect(page.locator('#profile-live')).toHaveText(`Profile for ${DISTRICT} loaded.`);
-  const wider = page.getByRole('button', {name: 'Wider'}), chat = page.locator('#chat');
-  await page.getByRole('button', {name: 'Change district'}).focus();
-  await page.keyboard.press('Shift+Tab');
-  await expect(wider).toBeFocused();
-  await expect(wider).toHaveAttribute('aria-pressed', 'false');
-  await page.keyboard.press('Enter');
-  await expect(wider).toHaveAttribute('aria-pressed', 'true');
-  await expect(chat).toHaveClass(/\bwide\b/);
-  await expect(wider).toBeFocused();
-  await page.keyboard.press('Space');
-  await expect(wider).toHaveAttribute('aria-pressed', 'false');
-  await expect(chat).not.toHaveClass(/\bwide\b/);
-});
-
 test.describe('one column', () => {
   test.use({viewport: {width: 900, height: 800}});
   test('Profile and Ask are tabs that the arrow keys switch', async ({page}) => {
@@ -111,9 +93,9 @@ test.describe('one column', () => {
     await expect(askTab).toHaveAttribute('aria-selected', 'true');
     await expect(page.getByRole('tabpanel', {name: 'Ask'})).toBeVisible();
     await expect(page.locator('#profile')).toBeHidden();
-    // Only the chosen tab is a Tab stop; the next stop is in its panel.
+    // Only the chosen tab is a Tab stop; the next stop is in its panel, the first question to try.
     await page.keyboard.press('Tab');
-    await expect(page.getByRole('button', {name: 'Change district'})).toBeFocused();
+    await expect(page.locator('#chat-card #examples button').first()).toBeFocused();
     await askTab.focus();
     await page.keyboard.press('Home');
     await expect(profileTab).toBeFocused();
@@ -135,9 +117,10 @@ test.describe('one column', () => {
   });
 });
 
-test('the map: Tab in, arrows to move, Enter to pick, Enter again to ask', async ({page}) => {
-  await expect(page.locator('#map .district').first()).toBeAttached();
-  await page.locator('#island-tabs button').last().focus();
+test('the map: Tab in, arrows to move, Enter to pick, Enter again to open', async ({page}) => {
+  await expect(page.locator('#map .district:not(.copy)').first()).toBeAttached();
+  // The zoom buttons close the row of map controls, just before the map.
+  await page.locator('#zoom-out').focus();
   await page.keyboard.press('Tab');
   const focused = page.locator('#map .district:focus');
   await expect(focused).toHaveCount(1);
@@ -152,9 +135,11 @@ test('the map: Tab in, arrows to move, Enter to pick, Enter again to ask', async
   await expect(focused).toHaveAttribute('aria-pressed', 'true');
   await expect(page.locator('#pick-name')).toHaveText('House District 2');
 
+  // Enter again opens the district's page at its name.
   await page.keyboard.press('Enter');
   await expect(page.locator('#district-title')).toHaveText('House District 2');
-  await expect(page.getByLabel('Your question')).toBeFocused();
+  await expect(page).toHaveURL(/\/district\/house-2$/);
+  await expect(page.getByRole('heading', {level: 1, name: 'House District 2'})).toBeFocused();
   await expect(page.locator('#map .ring-line')).toHaveAttribute('d', '');
 });
 
@@ -180,7 +165,7 @@ test('the visible focus outline is never hidden', async ({page}) => {
 test('a district under the mouse is outlined above its neighbors, and the outline goes when the mouse leaves', async ({page}) => {
   const map = page.locator('#district-map');
   await map.getByRole('button', {name: 'Oʻahu', exact: true}).click();
-  const district = page.locator('#map .district[data-geo="house:022"]');
+  const district = page.locator('#map .district:not(.copy)[data-geo="house:022"]');
   const fill = () => district.evaluate(el => getComputedStyle(el).fill);
   const before = await fill();
   await district.hover();
@@ -194,7 +179,7 @@ test('a district under the mouse is outlined above its neighbors, and the outlin
 });
 
 test('the Ask button keeps focus while the answer loads, then focus moves to the answer', async ({page}) => {
-  await page.getByLabel('Town, ZIP code, street address or district').first().fill('House 22');
+  await page.getByLabel('Town, ZIP code, street address, district or legislator').first().fill('House 22');
   await page.keyboard.press('Enter');
   await expect(page.locator('#district-title')).toHaveText(DISTRICT);
   let release;
@@ -218,7 +203,7 @@ test('the Ask button keeps focus while the answer loads, then focus moves to the
 
 test('the shaded map on the compare page: choose a measure, move between districts, hear each figure and reach the table', async ({page}) => {
   await page.goto('/compare?view=rankings');
-  await expect(page.locator('#map .district').first()).toBeAttached();
+  await expect(page.locator('#map .district:not(.copy)').first()).toBeAttached();
   await expect(page.locator('#map')).toHaveClass(/\bshaded\b/);
   const select = page.locator('#map-shade');
   await select.focus();
@@ -231,7 +216,7 @@ test('the shaded map on the compare page: choose a measure, move between distric
   await expect(page.locator('#map')).toHaveClass(/\bshaded\b/);
 
   // Each district's name carries its figure, and Enter shows it with the state comparison under the map.
-  await page.locator('#island-tabs button').last().focus();
+  await page.locator('#zoom-out').focus();
   await page.keyboard.press('Tab');
   const focused = page.locator('#map .district:focus');
   await page.keyboard.press('Home');

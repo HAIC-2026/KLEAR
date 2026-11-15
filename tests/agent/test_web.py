@@ -67,9 +67,23 @@ def test_lookup_and_private_files(endpoint):
     status, data = request(endpoint, "GET", "/api/resolve?q=House%2022")
     assert status == 200
     assert json.loads(data)["matches"][0]["geo"] == "house:022"
+    # A legislator's name finds the district they hold, saying who holds it.
+    status, data = request(endpoint, "GET", "/api/resolve?q=Rep.%20Palakiko")
+    assert status == 200 and json.loads(data)["matches"] == [
+        {
+            "kind": "district",
+            "geo": "house:023",
+            "name": "House District 23",
+            "member": "Representative Kawika Palakiko",
+        }
+    ]
+    assert json.loads(request(endpoint, "GET", "/api/resolve?q=Kaai")[1])["matches"][1]["geo"] == "senate:012"
     for path in ["/../pyproject.toml", "/.env", "/data/build/klear.duckdb"]:
         assert request(endpoint, "GET", path)[0] == 404
     assert request(endpoint, "GET", "/data")[0] == request(endpoint, "GET", "/compare")[0] == 200
+    # Asking has its own address, served by the home page's file.
+    status, body = request(endpoint, "GET", "/ask")
+    assert status == 200 and body == request(endpoint, "GET", "/")[1]
 
 
 def test_public_files_and_cache_policy(endpoint):
@@ -129,8 +143,11 @@ def test_page_assets_are_public():
     css = (web.STATIC / "style.css").read_text(encoding="utf-8")
     html = (web.STATIC / "index.html").read_text(encoding="utf-8")
     refs = re.findall(r"url\(['\"]?(/[^)'\"]+)", css) + re.findall(r'(?:src|href)="(/[^"#?]*)', html)
-    assert "/fonts/public-sans-ext.woff2" in refs
-    assert set(refs) <= set(web.PUBLIC)
+    assert {"/fonts/public-sans-ext.woff2", "/fonts/archivo.woff2", "/page.js"} <= set(refs)
+    # The Find page links every district by number; each is a district page the server serves.
+    districts = {r for r in refs if web.DISTRICT_PAGE.fullmatch(r)}
+    assert len(districts) == 76
+    assert set(refs) - districts <= set(web.PUBLIC)
 
 
 class _PageText(HTMLParser):

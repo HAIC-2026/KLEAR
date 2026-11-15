@@ -10,118 +10,135 @@
   <link rel="icon" href="/favicon.svg?v=2" type="image/svg+xml">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=2">
   <link rel="preload" href="/fonts/public-sans.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/fonts/archivo.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/style.css">
+  <script src="/page.js"></script>
   <script src="/nav.js" defer></script>
   <script src="/kit.js" defer></script>
   <script src="/app.js" defer></script>
-  <script src="/compare.js" defer></script>
   <script src="/map.js" defer></script>
 </head>
+<!-- One file serves three pages: Find (/), Ask (/ask) and each district's page (/district/house-22). app.js sets the
+     body's class from the address, and the CSS shows each page's parts. -->
 <body class="home-page">
   <a class="skip" href="#main">Skip to content</a>
   <header class="site-header">
     <a class="brand" href="/"><img class="brand-logo" src="/logo.svg" width="36" height="36" alt=""><span class="brand-text"><strong>KLEAR</strong><span class="brand-sub">Hawaiʻi district data</span></span></a>
     <nav aria-label="Main navigation">
       <ul class="nav-links">
-        <li><a href="/#find">Find<span class="nav-long"> a district</span></a></li>
-        <li><a href="#chat">Ask</a></li>
+        <li><a href="/" data-page="home">Find<span class="nav-long"> a district</span></a></li>
+        <li><a href="/ask" data-page="ask">Ask</a></li>
         <li><a href="/compare">Compare</a></li>
         <li><a href="/data">Data<span class="nav-long"> &amp; methods</span></a></li>
       </ul>
     </nav>
   </header>
   <main id="main">
-    <section class="band" aria-labelledby="page-title">
-      <div class="wrap band-inner">
-        <h1 id="page-title">Who lives in my district, and what help is available?</h1>
-        <p class="lede">See who lives in your Hawaiʻi House and Senate districts, what households earn and pay for housing, and which programs can help.</p>
-        <form id="find" class="find">
-          <label for="find-place">Town, ZIP code, street address or district</label>
-          <div class="inputrow"><div class="combo"><input id="find-place" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="find-place-list" required maxlength="160" placeholder="e.g. Kāneʻohe, 96744, or House 22" autocomplete="off"><ul id="find-place-list" class="suggestions" role="listbox" aria-label="Suggestions" hidden></ul></div><button type="submit">Find district</button></div><p id="find-place-count" class="visually-hidden" role="status"></p>
-          <p class="help privacy">Addresses go to the U.S. Census Bureau only to find the district, and are never stored.</p>
-          <p id="find-status" class="status" role="status"></p>
-          <div id="find-matches"></div>
-        </form>
-      </div>
-    </section>
-
-    <section class="map-section" id="district-map" aria-labelledby="map-title">
-      <div class="wrap">
-        <h2 id="map-title" class="section-title">Or pick it on the map</h2>
-        <div class="card map-card">
-          <div class="map-controls">
-            <div class="segmented" role="group" aria-label="Chamber"><button type="button" data-chamber="house" aria-pressed="true">House</button><button type="button" data-chamber="senate" aria-pressed="false">Senate</button></div>
-            <div class="island-tabs" id="island-tabs" role="group" aria-label="Zoom to island"></div>
+    <section class="find-section" id="find-section" aria-labelledby="page-title">
+      <div class="wrap find-grid">
+        <div class="find-col">
+          <h1 id="page-title">Find your district</h1>
+          <p class="lede">Who lives in each Hawaiʻi House and Senate district, what households earn and pay for housing, and which programs can help. Every figure shows its source and margin of error.</p>
+          <form id="find" class="find">
+            <label for="find-place">Town, ZIP code, street address, district or legislator</label>
+            <div class="inputrow"><div class="combo"><input id="find-place" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="find-place-list" required maxlength="160" placeholder="Kāneʻohe, 96744, House 22 or a name" autocomplete="off"><ul id="find-place-list" class="suggestions" role="listbox" aria-label="Suggestions" hidden></ul></div><button type="submit">Find district</button></div><p id="find-place-count" class="visually-hidden" role="status"></p>
+            <p class="help privacy">Addresses go to the U.S. Census Bureau only to find the district, and are never stored.</p>
+            <p id="find-status" class="status" role="status"></p>
+            <div id="find-matches"></div>
+          </form>
+          <nav class="seat-index" id="seat-index" aria-labelledby="seats-title">
+            <h2 id="seats-title" class="seat-title">Every district by number</h2>
+            <p id="seats-keys" class="visually-hidden">Arrow keys move between the numbers.</p>
+          <div class="seat-chamber house" role="group" aria-labelledby="seats-house">
+            <h3 id="seats-house" class="seat-chamber-title">House</h3>
+            <div class="seat-row"><span class="seat-island">Hawaiʻi Island</span><div class="seat-nums"><a href="/district/house-1"><span class="visually-hidden">House District </span>1</a><a href="/district/house-2"><span class="visually-hidden">House District </span>2</a><a href="/district/house-3"><span class="visually-hidden">House District </span>3</a><a href="/district/house-4"><span class="visually-hidden">House District </span>4</a><a href="/district/house-5"><span class="visually-hidden">House District </span>5</a><a href="/district/house-6"><span class="visually-hidden">House District </span>6</a><a href="/district/house-7"><span class="visually-hidden">House District </span>7</a><a href="/district/house-8"><span class="visually-hidden">House District </span>8</a></div></div>
+            <div class="seat-row"><span class="seat-island">Maui County</span><div class="seat-nums"><a href="/district/house-9"><span class="visually-hidden">House District </span>9</a><a href="/district/house-10"><span class="visually-hidden">House District </span>10</a><a href="/district/house-11"><span class="visually-hidden">House District </span>11</a><a href="/district/house-12"><span class="visually-hidden">House District </span>12</a><a href="/district/house-13"><span class="visually-hidden">House District </span>13</a><a href="/district/house-14"><span class="visually-hidden">House District </span>14</a></div></div>
+            <div class="seat-row"><span class="seat-island">Kauaʻi</span><div class="seat-nums"><a href="/district/house-15"><span class="visually-hidden">House District </span>15</a><a href="/district/house-16"><span class="visually-hidden">House District </span>16</a><a href="/district/house-17"><span class="visually-hidden">House District </span>17</a></div></div>
+            <div class="seat-row"><span class="seat-island">Oʻahu</span><div class="seat-nums"><a href="/district/house-18"><span class="visually-hidden">House District </span>18</a><a href="/district/house-19"><span class="visually-hidden">House District </span>19</a><a href="/district/house-20"><span class="visually-hidden">House District </span>20</a><a href="/district/house-21"><span class="visually-hidden">House District </span>21</a><a href="/district/house-22"><span class="visually-hidden">House District </span>22</a><a href="/district/house-23"><span class="visually-hidden">House District </span>23</a><a href="/district/house-24"><span class="visually-hidden">House District </span>24</a><a href="/district/house-25"><span class="visually-hidden">House District </span>25</a><a href="/district/house-26"><span class="visually-hidden">House District </span>26</a><a href="/district/house-27"><span class="visually-hidden">House District </span>27</a><a href="/district/house-28"><span class="visually-hidden">House District </span>28</a><a href="/district/house-29"><span class="visually-hidden">House District </span>29</a><a href="/district/house-30"><span class="visually-hidden">House District </span>30</a><a href="/district/house-31"><span class="visually-hidden">House District </span>31</a><a href="/district/house-32"><span class="visually-hidden">House District </span>32</a><a href="/district/house-33"><span class="visually-hidden">House District </span>33</a><a href="/district/house-34"><span class="visually-hidden">House District </span>34</a><a href="/district/house-35"><span class="visually-hidden">House District </span>35</a><a href="/district/house-36"><span class="visually-hidden">House District </span>36</a><a href="/district/house-37"><span class="visually-hidden">House District </span>37</a><a href="/district/house-38"><span class="visually-hidden">House District </span>38</a><a href="/district/house-39"><span class="visually-hidden">House District </span>39</a><a href="/district/house-40"><span class="visually-hidden">House District </span>40</a><a href="/district/house-41"><span class="visually-hidden">House District </span>41</a><a href="/district/house-42"><span class="visually-hidden">House District </span>42</a><a href="/district/house-43"><span class="visually-hidden">House District </span>43</a><a href="/district/house-44"><span class="visually-hidden">House District </span>44</a><a href="/district/house-45"><span class="visually-hidden">House District </span>45</a><a href="/district/house-46"><span class="visually-hidden">House District </span>46</a><a href="/district/house-47"><span class="visually-hidden">House District </span>47</a><a href="/district/house-48"><span class="visually-hidden">House District </span>48</a><a href="/district/house-49"><span class="visually-hidden">House District </span>49</a><a href="/district/house-50"><span class="visually-hidden">House District </span>50</a><a href="/district/house-51"><span class="visually-hidden">House District </span>51</a></div></div>
           </div>
-          <div class="map-frame"><svg id="map" role="group" tabindex="-1" aria-labelledby="map-title" aria-describedby="map-keys" preserveAspectRatio="xMidYMid meet"></svg><p id="map-keys" hidden>Arrow keys move between districts. Enter picks one, and Enter again asks about it.</p><p id="map-loading" class="map-loading">Loading map…</p><div class="zoom-buttons"><button type="button" id="zoom-in" aria-label="Zoom in">+</button><button type="button" id="zoom-out" aria-label="Zoom out">−</button></div><p id="map-hint" class="map-hint" hidden>Pinch, or hold Ctrl while scrolling, to zoom</p></div>
-          <p id="zip-status" class="status map-status" role="status"></p>
-          <div class="map-footer">
-            <div class="map-pick" aria-live="polite"><span class="small-label" id="pick-island">No district picked yet</span><strong id="pick-name">Tap an area on the map</strong></div>
-            <div class="map-pick-actions">
-              <label for="map-list" class="visually-hidden">Or choose from a list</label>
-              <select id="map-list"><option value="">Or choose from a list…</option></select>
-              <button type="button" id="pick-go" class="button" disabled>Ask about a district</button>
+          <div class="seat-chamber senate" role="group" aria-labelledby="seats-senate">
+            <h3 id="seats-senate" class="seat-chamber-title">Senate</h3>
+            <div class="seat-row"><span class="seat-island">Hawaiʻi Island</span><div class="seat-nums"><a href="/district/senate-1"><span class="visually-hidden">Senate District </span>1</a><a href="/district/senate-2"><span class="visually-hidden">Senate District </span>2</a><a href="/district/senate-3"><span class="visually-hidden">Senate District </span>3</a><a href="/district/senate-4"><span class="visually-hidden">Senate District </span>4</a></div></div>
+            <div class="seat-row"><span class="seat-island">Maui County</span><div class="seat-nums"><a href="/district/senate-5"><span class="visually-hidden">Senate District </span>5</a><a href="/district/senate-6"><span class="visually-hidden">Senate District </span>6</a><a href="/district/senate-7"><span class="visually-hidden">Senate District </span>7</a></div></div>
+            <div class="seat-row"><span class="seat-island">Kauaʻi</span><div class="seat-nums"><a href="/district/senate-8"><span class="visually-hidden">Senate District </span>8</a></div></div>
+            <div class="seat-row"><span class="seat-island">Oʻahu</span><div class="seat-nums"><a href="/district/senate-9"><span class="visually-hidden">Senate District </span>9</a><a href="/district/senate-10"><span class="visually-hidden">Senate District </span>10</a><a href="/district/senate-11"><span class="visually-hidden">Senate District </span>11</a><a href="/district/senate-12"><span class="visually-hidden">Senate District </span>12</a><a href="/district/senate-13"><span class="visually-hidden">Senate District </span>13</a><a href="/district/senate-14"><span class="visually-hidden">Senate District </span>14</a><a href="/district/senate-15"><span class="visually-hidden">Senate District </span>15</a><a href="/district/senate-16"><span class="visually-hidden">Senate District </span>16</a><a href="/district/senate-17"><span class="visually-hidden">Senate District </span>17</a><a href="/district/senate-18"><span class="visually-hidden">Senate District </span>18</a><a href="/district/senate-19"><span class="visually-hidden">Senate District </span>19</a><a href="/district/senate-20"><span class="visually-hidden">Senate District </span>20</a><a href="/district/senate-21"><span class="visually-hidden">Senate District </span>21</a><a href="/district/senate-22"><span class="visually-hidden">Senate District </span>22</a><a href="/district/senate-23"><span class="visually-hidden">Senate District </span>23</a><a href="/district/senate-24"><span class="visually-hidden">Senate District </span>24</a><a href="/district/senate-25"><span class="visually-hidden">Senate District </span>25</a></div></div>
+          </div>
+          </nav>
+        </div>
+        <div class="map-col" id="district-map">
+          <h2 id="map-title" class="visually-hidden">Districts on the map</h2>
+          <div class="map-card">
+            <div class="map-controls">
+              <div class="segmented" role="group" aria-label="Chamber"><button type="button" data-chamber="house" aria-pressed="true">House</button><button type="button" data-chamber="senate" aria-pressed="false">Senate</button></div>
+              <div class="island-tabs" id="island-tabs" role="group" aria-label="Zoom to island"></div><div class="zoom-buttons"><button type="button" id="zoom-in" aria-label="Zoom in">+</button><button type="button" id="zoom-out" aria-label="Zoom out">−</button></div>
+            </div>
+            <div class="map-frame"><svg id="map" role="group" tabindex="-1" aria-labelledby="map-title" aria-describedby="map-keys" preserveAspectRatio="xMidYMid meet"></svg><p id="map-keys" hidden>Arrow keys move between districts. Enter picks one, and Enter again opens it.</p><p id="map-loading" class="map-loading">Loading map…</p><p id="map-hint" class="map-hint" hidden>Pinch, or hold Ctrl while scrolling, to zoom</p></div>
+            <p id="zip-status" class="status map-status" role="status"></p>
+            <div class="map-footer">
+              <div class="map-pick" aria-live="polite"><span class="small-label" id="pick-island">No district picked yet</span><strong id="pick-name">Tap a district on the map</strong></div>
+              <div class="map-pick-actions">
+                <label for="map-list" class="visually-hidden">Or choose from a list</label>
+                <select id="map-list"><option value="">Or choose from a list…</option></select>
+                <button type="button" id="pick-go" class="button" disabled>Open a district</button>
+              </div>
             </div>
           </div>
         </div>
       </div>
     </section>
 
+    <section class="ask-teaser" id="ask-teaser" aria-labelledby="ask-teaser-title">
+      <div class="wrap">
+        <h2 id="ask-teaser-title">Ask KLEAR</h2>
+        <form id="home-ask" class="home-ask" action="/ask">
+          <label for="home-question">Ask about a district, a town or ZIP code, or all of Hawaiʻi</label>
+          <div class="question-row"><textarea id="home-question" rows="1" maxlength="2000" placeholder="How many kūpuna in my district live on fixed incomes?"></textarea><button type="submit">Ask KLEAR</button></div>
+        </form>
+        <div class="topic-starters" id="home-starters" role="group" aria-label="Questions to try"></div>
+        <p class="note">An AI model answers from KLEAR’s data. Questions go to its provider, Anthropic, so leave out personal details.</p>
+      </div>
+    </section>
+
     <section class="chat-section" id="chat" aria-labelledby="chat-title">
       <div class="wrap">
-        <h2 id="chat-title" class="section-title">Ask about a place</h2>
+        <div class="ask-head" id="ask-head">
+          <h1 id="chat-title" tabindex="-1">Ask KLEAR</h1>
+          <p class="lede">Ask about a district, a town or ZIP code, or all of Hawaiʻi. Answers use only KLEAR’s data, and each figure names its source.</p>
+        </div>
         <div class="chat-layout">
-          <!-- On a district's address the page starts here, with the district's name as its heading. Below 1200 px the
-               profile and the chat take turns behind two tabs; wider, the chat sits beside the profile. -->
+          <!-- On a district's address the page starts here: the district's number and who and where it is, then its
+               profile, with the agent beside it from 1200 px. Narrower, the profile and the agent take turns behind two
+               tabs. -->
           <div class="district-head" id="district-head" hidden>
             <div class="district-id">
-              <p class="small-label">District profile</p>
-              <div class="district-title"><h1 id="district-name" tabindex="-1"></h1><div id="district-member"></div></div>
-              <div id="district-about"></div>
+              <h1 id="district-name" tabindex="-1"></h1>
+              <div class="district-facts">
+                <div id="district-about"></div>
+                <div id="district-member"></div>
+              </div>
             </div>
             <div class="locator" id="locator" hidden></div>
             <a class="skip-ask" id="skip-ask" href="#question">Skip to the question box</a>
             <div class="view-tabs" id="view-tabs" role="tablist" aria-label="District page"><button type="button" role="tab" id="tab-profile" aria-controls="profile" aria-selected="true">Profile</button><button type="button" role="tab" id="tab-ask" aria-controls="chat-card" aria-selected="false" tabindex="-1">Ask <span class="tab-new" id="tab-new" hidden>New answer</span></button></div>
           </div>
           <section id="profile" class="profile" aria-label="District profile" hidden></section>
-          <div class="card chat-card" id="chat-card">
-            <div class="district-bar" id="district-bar">
-              <div class="district-now" id="district-now"><div><span class="small-label">Asking about</span><strong id="district-title">No district chosen yet</strong></div><button type="button" id="wide" class="wide-toggle" aria-pressed="false">Wider</button><button type="button" id="change" class="textbutton" aria-expanded="false" aria-controls="lookup">Choose a district</button></div>
-              <form id="lookup" hidden><label for="place">Town, ZIP code, street address or district</label><div class="inputrow"><div class="combo"><input id="place" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="place-list" required maxlength="160" placeholder="e.g. Kāneʻohe, 96744, or House 22" autocomplete="off"><ul id="place-list" class="suggestions" role="listbox" aria-label="Suggestions" hidden></ul></div><button type="submit">Find district</button></div><p id="place-count" class="visually-hidden" role="status"></p><p id="lookup-status" class="status" role="status"></p><div id="matches"></div></form>
-            </div>
+          <div class="chat-card" id="chat-card">
+            <h2 class="chat-panel-title" id="chat-panel-title">Ask about <span id="district-title">a district</span></h2>
             <div id="messages">
-              <div class="bot-msg welcome"><p class="sender">KLEAR</p><p id="welcome-text">Ask about a district, a town or ZIP code, or all of Hawaiʻi.</p></div>
+              <p class="welcome" id="welcome-text">Ask about a district, a town or ZIP code, or all of Hawaiʻi.</p>
               <div id="log"></div>
-              <div id="suggest" class="suggest" role="group" aria-label="Suggested questions" hidden><div id="examples" class="examples"></div><button type="button" id="more-questions" class="more-questions" aria-expanded="false" aria-controls="examples" hidden>More questions</button></div>
+              <div id="suggest" class="suggest" role="group" aria-labelledby="suggest-title" hidden><p class="suggest-title" id="suggest-title">Questions to try</p><div id="examples" class="examples"></div><button type="button" id="more-questions" class="more-questions" aria-expanded="false" aria-controls="examples" hidden>More questions</button></div>
             </div>
             <form id="question-form"><label for="question" class="visually-hidden">Your question</label><div class="question-row"><textarea id="question" rows="1" required maxlength="2000" placeholder="Ask about residents, income, housing or programs" aria-describedby="send-hint"></textarea><button id="send" type="submit">Ask KLEAR</button></div><div class="chat-notes"><span id="send-hint" class="visually-hidden">Ctrl+Enter sends.</span><p id="chat-privacy">An AI model answers from KLEAR’s data. Questions go to its provider, Anthropic, so leave out personal details. <button type="button" id="privacy-toggle" class="privacy-toggle" aria-expanded="false" aria-controls="privacy-more">Privacy</button></p><div id="privacy-more" class="privacy-more" hidden><p>Your last two questions in this tab go along with each new one, so the model can follow the conversation. KLEAR’s server does not store or log questions, and the conversation stays in this browser tab until you close it.</p><p><a href="/data#privacy">More about privacy</a></p></div></div></form>
             <p id="chat-status" class="status" role="status"></p>
           </div>
           <aside class="chat-aside" aria-labelledby="examples-title">
-            <div id="starter"><h3 id="examples-title" class="small-label">Questions to try</h3><div id="starters" class="examples"></div></div>
+            <div id="starter"><h2 id="examples-title" class="small-label">Questions to try</h2><div id="starters" class="topic-starters"></div></div>
           </aside>
         </div>
         <!-- Status lines outside both tabs, so they are read whichever tab shows. -->
         <p id="chat-live" class="visually-hidden" role="status"></p>
         <p id="profile-live" class="visually-hidden" role="status"></p>
-      </div>
-    </section>
-
-    <section class="compare-section" id="compare" aria-labelledby="compare-title">
-      <div class="wrap">
-        <div class="section-title-row">
-          <h2 id="compare-title" class="section-title">Compare districts</h2>
-          <a class="section-more" href="/compare?view=rankings">Rankings and outreach</a>
-        </div>
-        <form id="cmp-find" class="cmp-find">
-          <label for="cmp-place">Add a district: town, ZIP code, street address or district</label>
-          <div class="inputrow"><div class="combo"><input id="cmp-place" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="cmp-place-list" required maxlength="160" placeholder="e.g. Hilo, 96744, or Senate 12" autocomplete="off"><ul id="cmp-place-list" class="suggestions" role="listbox" aria-label="Suggestions" hidden></ul></div><button type="submit">Add</button></div><p id="cmp-place-count" class="visually-hidden" role="status"></p>
-          <p id="cmp-status" class="status" role="status"></p>
-          <div id="cmp-matches"></div>
-        </form>
-        <ul class="cmp-chosen" id="cmp-chosen" aria-label="Districts compared"></ul>
-        <p id="cmp-live" class="visually-hidden" role="status"></p>
-        <div id="cmp-result"></div>
       </div>
     </section>
 
@@ -131,7 +148,7 @@
         <ul class="facts-list" id="facts" hidden></ul>
         <a class="counts-link" href="/data">Sources, methods and checks</a>
       </div>
-    </div>
+    </section>
   </main>
   <footer>
     <div class="wrap">

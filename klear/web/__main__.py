@@ -23,7 +23,8 @@ from klear.agent.config import CHAMBER_TYPES, DEFAULT_MODEL, OUTREACH_DEFAULT, O
 from klear.agent.earlier import parse_earlier
 from klear.agent.tools import Session, ToolError
 from klear.config import ROOT, MissingSecretError, load_secret
-from klear.eval.contract import geo_key
+from klear.eval.contract import geo_display, geo_key
+from klear.members import Member, by_name, reading_name
 from klear.store.db import missing_columns
 from klear.web import display
 from klear.web.about import about
@@ -39,6 +40,7 @@ STATIC = Path(__file__).with_name("static")
 PUBLIC = (
     "/",
     "/index.html",
+    "/ask",
     "/compare",
     "/compare.html",
     "/data",
@@ -46,6 +48,7 @@ PUBLIC = (
     "/accessibility.html",
     "/kit.js",
     "/nav.js",
+    "/page.js",
     "/app.js",
     "/compare.js",
     "/outreach.js",
@@ -60,10 +63,12 @@ PUBLIC = (
     "/districts.json",
     "/fonts/public-sans.woff2",
     "/fonts/public-sans-ext.woff2",
+    "/fonts/archivo.woff2",
 )
-# The site's pages in the order a visitor uses them: find a district (and ask about it), compare districts, then the
-# data and methods behind every figure. Clean addresses serve their page's file.
-PAGES = {"/compare": "/compare.html", "/data": "/data.html"}
+# The site's pages in the order a visitor uses them: find a district, ask about it, compare districts, then the data
+# and methods behind every figure. Clean addresses serve their page's file. Asking shares the home page's file, which
+# shows its question box at full width at /ask.
+PAGES = {"/ask": "/index.html", "/compare": "/compare.html", "/data": "/data.html"}
 # Pages that moved into those two, kept working for old links and bookmarks. A link's #part, such as
 # /methods.html#irs_soi_zip_2023, carries over by itself, since the new address has none; a page with no #part
 # opens at its section, which data.js scrolls to from the section named here.
@@ -86,6 +91,16 @@ PER_MINUTE = 6
 CHAT_BYTES = 16384
 _RECENT = defaultdict(deque)
 _RECENT_LOCK = threading.Lock()
+
+
+def member_match(m: Member) -> dict:
+    """A legislator found by name, as a search result: the district they hold, with who holds it."""
+    return {
+        "kind": "district",
+        "geo": m.geo,
+        "name": geo_display(m.geo_type, m.geo_id, ""),
+        "member": f"{m.title} {reading_name(m.name)}",
+    }
 
 
 def log_failure(where: str) -> None:
@@ -224,9 +239,17 @@ class Handler(SimpleHTTPRequestHandler):
         self.wfile.write(body)
 
     def resolve(self, session, text):
-        """District search: a street address through the geocoder, else districts, ZIP codes and place names."""
+        """District search: a street address through the geocoder, else districts, ZIP codes and place names, and
+        last a legislator's name, which finds the district they hold."""
         if not looks_like_address(text):
-            return json.loads(session.run("resolve_place", {"text": text}))
+            result = json.loads(session.run("resolve_place", {"text": text}))
+            if result.get("matches"):
+                return result
+            try:
+                named = by_name(session.con, text)
+            except duckdb.Error:  # a store built before the member listings has none to search
+                named = []
+            return {"matches": [member_match(m) for m in named]} if named else result
         found = session.find_address(text)
         if found["matches"]:
             return {"matches": found["matches"]}

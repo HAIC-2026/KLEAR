@@ -1,4 +1,5 @@
-// The district's legislator as the Legislature lists them: on the profile, the printout and in an answer.
+// The district's legislator: named in reading order on the profile and the printout, with where and when the
+// Legislature listed them, and as listed in an answer.
 import {test, expect} from '@playwright/test';
 import {ask, chooseDistrict, expectAccessible, offline} from './helpers.js';
 
@@ -13,8 +14,8 @@ test('the profile and the printout name the member with where and when they were
   await page.goto('/');
   await chooseDistrict(page);
   const member = page.locator('#district-head .profile-member');
-  await expect(member.locator('.profile-member-name')).toHaveText('Representative KAʻAI, Leilani M. (opens in a new tab)');
-  await expect(member.getByRole('link', {name: /KAʻAI, Leilani M\./})).toHaveAttribute('href', 'https://example.org/member/house022');
+  await expect(member.locator('.profile-member-name')).toHaveText('Representative Leilani M. Kaʻai (opens in a new tab)');
+  await expect(member.getByRole('link', {name: /Leilani M\. Kaʻai/})).toHaveAttribute('href', 'https://example.org/member/house022');
   // The note on where and when the name was listed opens under the name.
   await member.getByText('Where and when this was listed').click();
   await expect(member.locator('.profile-member-note')).toBeVisible();
@@ -25,7 +26,7 @@ test('the profile and the printout name the member with where and when they were
 
   await page.emulateMedia({media: 'print'});
   const sheet = page.locator('#print-sheet');
-  await expect(sheet.locator('.sheet-member')).toContainText('Representative KAʻAI, Leilani M. https://example.org/member/house022');
+  await expect(sheet.locator('.sheet-member')).toContainText('Representative Leilani M. Kaʻai https://example.org/member/house022');
   await expect(sheet.locator('.sheet-member-note')).toContainText(LISTED);
   await expect(sheet.locator('.sheet-member-note')).toContainText(BEFORE);
   await page.emulateMedia({media: null});

@@ -1,8 +1,7 @@
 // Districts side by side: up to three districts' profiles set in one table, by the profile's groups, with Hawaiʻi as a
-// whole beside them. It runs on the home page's Compare section and on the compare page, which adds two more tabs:
-// Rankings and map colors every district by one measure (map.js), and Outreach groups districts by who meets a
-// program's income test (outreach.js). On the compare page the tab and the districts live in the address, so a link,
-// Back and refresh keep them; the home page's address stays its own.
+// whole beside them. It is the compare page's first tab; the page adds two more: Rankings and map colors every district
+// by one measure (map.js), and Outreach groups districts by who meets a program's income test (outreach.js). The tab
+// and the districts live in the address, so a link, Back and refresh keep them.
 (() => {
   const VIEWS = ['districts', 'rankings', 'outreach'], MOST = 3, STATE = 'state:15';
   const onPage = Boolean($('tab-districts'));
@@ -150,7 +149,13 @@
     setParams({d: chosen.map(c => c.geo).join(',')});
     const mine = ++seq, out = $('cmp-result');
     if (!chosen.length) {
-      out.replaceChildren(node('p', 'Add up to three districts to see their figures side by side, each with its margin of error.', 'cmp-empty'));
+      // An empty table says what it does and offers neighbors to start from.
+      const empty = node('p', 'Add up to three districts to see their figures side by side, each with its margin of error. For example, ', 'cmp-empty');
+      const example = node('button', 'House Districts 22 and 23', 'textbutton cmp-example');
+      example.type = 'button';
+      example.onclick = () => { for (const geo of ['house:022', 'house:023']) add(geo, districtName(geo)); };
+      empty.append(example, ', which are neighbors in urban Honolulu.');
+      out.replaceChildren(empty);
       return;
     }
     out.setAttribute('aria-busy', 'true');

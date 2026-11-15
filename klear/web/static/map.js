@@ -20,12 +20,93 @@
   // Coloring the map by a measure: the figures for the chosen measure and chamber, by district, or null for the plain map.
   const shadeSelect = document.getElementById('map-shade'), legend = document.getElementById('map-legend'), table = document.getElementById('map-table');
   const shadeStatus = document.getElementById('shade-status') || {}, shadeLive = document.getElementById('shade-live') || {}, pickValue = document.getElementById('pick-value');
-  // What the button under the map does with the picked district: ask about it on the home page, open it elsewhere.
-  const OPEN = typeof choose === 'function' ? 'Ask about' : 'Open';
+  // The button under the map opens the picked district's page.
+  const OPEN = 'Open';
   const SHADE_CLASSES = ['q1', 'q2', 'q3', 'q4', 'q5', 'none'], MISSING = 'not available', shadeCache = new Map();
   let shading = null, figures = new Map(), shadeAsk = 0, marks = null;
 
   function el(tag, attrs) { const n = document.createElementNS(svgNS, tag); for (const [k, v] of Object.entries(attrs || {})) n.setAttribute(k, v); return n; }
+
+  // Island frames, as legislative maps of Hawaiʻi are drawn: each island group in a frame of its own at its own scale,
+  // and urban Honolulu, where a dozen House districts share a few miles, enlarged in a frame beside Oʻahu. Every
+  // coordinate in districts.json moves into this layout, so the rest of this file works on the frames as it would on
+  // one map. A district in urban Honolulu is drawn twice, small in the Oʻahu frame and large in the enlargement, clipped
+  // to its frame; both copies pick it, and keyboard focus moves over the first. The frames are not to one scale, and
+  // their captions say what each holds.
+  // Frames in map units, with a band above each for its caption: Oʻahu and the city on top, the other islands below.
+  const ATLAS = {box: [0, 0, 1000, 760], frames: [
+    ['oahu', [8, 36, 462, 354]], ['honolulu', [490, 36, 502, 354]],
+    ['kauai', [8, 446, 282, 306]], ['maui', [310, 446, 380, 306]], ['hawaii', [710, 446, 282, 306]],
+  ]};
+  const CAPTIONS = {oahu: 'Oʻahu', honolulu: 'Urban Honolulu, enlarged', kauai: 'Kauaʻi', maui: 'Maui County', hawaii: 'Hawaiʻi Island'};
+  // On a narrow map the captions drop the count and shorten, so each fits over its frame.
+  const SHORT = {oahu: 'Oʻahu', honolulu: 'Honolulu, enlarged', kauai: 'Kauaʻi', maui: 'Maui County', hawaii: 'Hawaiʻi'}, NARROW_PX = 600;
+  // The scale and shift that fit a box of districts.json centered in a frame.
+  function fitInto([bx, by, bw, bh], [fx, fy, fw, fh]) {
+    const s = Math.min(fw / bw, fh / bh);
+    return {s, tx: fx + (fw - bw * s) / 2 - bx * s, ty: fy + (fh - bh * s) / 2 - by * s};
+  }
+  const move = (t, [x, y]) => [x * t.s + t.tx, y * t.s + t.ty];
+  // A path's rings as absolute points. districts.json writes each ring as M x y, then l dx dy steps, then z.
+  function rings(d) {
+    const out = [];
+    for (const part of d.split(/[Zz]/)) {
+      const nums = part.match(/-?\d*\.?\d+/g);
+      if (!nums || nums.length < 6) continue;
+      let x = +nums[0], y = +nums[1];
+      const ring = [[x, y]];
+      for (let i = 2; i + 1 < nums.length; i += 2) { x += +nums[i]; y += +nums[i + 1]; ring.push([x, y]); }
+      out.push(ring);
+    }
+    return out;
+  }
+  // A ring cut to a rectangle (Sutherland-Hodgman), so a district larger than the enlargement ends at its frame.
+  function clipRing(ring, [x0, y0, w, h]) {
+    const x1 = x0 + w, y1 = y0 + h;
+    const edges = [[p => p[0] >= x0, (a, b) => [x0, a[1] + (b[1] - a[1]) * (x0 - a[0]) / (b[0] - a[0])]],
+      [p => p[0] <= x1, (a, b) => [x1, a[1] + (b[1] - a[1]) * (x1 - a[0]) / (b[0] - a[0])]],
+      [p => p[1] >= y0, (a, b) => [a[0] + (b[0] - a[0]) * (y0 - a[1]) / (b[1] - a[1]), y0]],
+      [p => p[1] <= y1, (a, b) => [a[0] + (b[0] - a[0]) * (y1 - a[1]) / (b[1] - a[1]), y1]]];
+    let pts = ring;
+    for (const [inside, cross] of edges) {
+      const next = [];
+      pts.forEach((p, i) => {
+        const prev = pts[(i + pts.length - 1) % pts.length];
+        if (inside(p)) { if (!inside(prev)) next.push(cross(prev, p)); next.push(p); } else if (inside(prev)) next.push(cross(prev, p));
+      });
+      pts = next;
+      if (!pts.length) break;
+    }
+    return pts;
+  }
+  const pathOf = list => list.filter(r => r.length > 2).map(r => `M${r.map(([x, y]) => `${x.toFixed(1)} ${y.toFixed(1)}`).join('L')}Z`).join('');
+  const inBox = ([x, y], [bx, by, bw, bh]) => x >= bx && x <= bx + bw && y >= by && y <= by + bh;
+  function atlas(json) {
+    if (!json.groups.honolulu) return json;
+    const frames = new Map(ATLAS.frames), fits = new Map(ATLAS.frames.map(([g, f]) => [g, fitInto(json.groups[g].box, f)]));
+    const city = json.groups.honolulu.box, cityFrame = frames.get('honolulu'), cityFit = fits.get('honolulu');
+    const groups = {all: {label: json.groups.all.label, box: ATLAS.box}};
+    for (const g of ['kauai', 'oahu', 'honolulu', 'maui', 'hawaii']) groups[g] = {label: json.groups[g].label, box: frames.get(g)};
+    const chambers = {};
+    for (const [chamber, rows] of Object.entries(json.chambers)) {
+      chambers[chamber] = rows.map(row => {
+        const t = fits.get(row.group), shape = rings(row.d), out = {...row, d: pathOf(shape.map(r => r.map(p => move(t, p)))), label: move(t, row.label)};
+        if (row.group !== 'oahu') return out;
+        const near = shape.some(r => r.some(p => inBox(p, [city[0] - 2, city[1] - 2, city[2] + 4, city[3] + 4])));
+        if (!near) return out;
+        const copy = pathOf(shape.map(r => clipRing(r.map(p => move(cityFit, p)), cityFrame)));
+        if (copy) out.inset = copy;
+        // A district whose label falls in the city is numbered in the enlargement, and the list and the arrow keys
+        // zoom to it there.
+        if (inBox(row.label, city)) { out.insetLabel = move(cityFit, row.label); out.group = 'honolulu'; }
+        return out;
+      });
+    }
+    const t = fits.get('oahu'), [cx, cy] = move(t, city);
+    return {...json, groups, chambers, atlas: {frames: ATLAS.frames, callout: [cx, cy, city[2] * t.s, city[3] * t.s]}};
+  }
+  // A district's whole outline: its shape, and its enlarged copy when it has one.
+  const outlineOf = row => row ? row.d + (row.inset || '') : '';
 
   // Stripes mark an unreliable estimate, ink on a light shade and white on a dark one, and dots a district with no
   // figure. They are drawn over the district's fill and keep the same size on screen at any zoom (see sizeLabels).
@@ -42,10 +123,10 @@
   const DARK_SHADE = 4;
 
   // Grow a box to the frame's aspect ratio so the viewBox is exactly what is visible.
-  // With clear set on a narrow frame, fit the box left of the zoom buttons.
+  // With clear set on a narrow frame, fit the box left of the zoom buttons when they sit over the map.
   function fit(box, clear) {
     const r = frameEl.getBoundingClientRect(), z = zoomEl.getBoundingClientRect();
-    const inset = clear && r.width && r.width < 480 ? Math.max(0, r.right - z.left + 6) : 0;
+    const inset = clear && r.width && r.width < 480 && frameEl.contains(zoomEl) ? Math.max(0, r.right - z.left + 6) : 0;
     const aspect = r.width && r.height ? (r.width - inset) / r.height : 1.5;
     let [x, y, w, h] = box;
     if (w / h < aspect) { const nw = h * aspect; x -= (nw - w) / 2; w = nw; } else { const nh = w / aspect; y -= (nh - h) / 2; h = nh; }
@@ -71,10 +152,12 @@
     view = v;
     svg.setAttribute('viewBox', view.join(' '));
     const px = svg.getBoundingClientRect().width;
-    // Number districts past one map unit per pixel, and in any island view that has finished zooming in.
+    // Number districts past one map unit per pixel, and in any island view that has finished zooming in. Island frames
+    // are drawn large enough to number from the start; numbers that would overlap give way (see declutter).
     const island = group && group !== 'all' && view[2] <= target(group)[2] * 1.05;
-    svg.classList.toggle('zoomed', px > 0 && (view[2] / px < 1 || island));
+    svg.classList.toggle('zoomed', px > 0 && (Boolean(data.atlas) || view[2] / px < 1 || island));
     svg.classList.toggle('free', view[2] < fit(data.groups.all.box)[2] * 0.98);
+    svg.classList.toggle('narrow', px > 0 && px < NARROW_PX);
     sizeLabels();
     declutter();
     updateStop();
@@ -263,8 +346,8 @@
     picked = row;
     for (const p of svg.querySelectorAll('[data-geo]')) p.classList.toggle('picked', Boolean(row) && p.dataset.geo === row.geo);
     for (const d of districts) d.path.setAttribute('aria-pressed', String(d.row === row));
-    for (const p of pickMarks) p.setAttribute('d', row ? row.d : '');
-    document.getElementById('pick-name').textContent = row ? row.name : 'Tap an area on the map';
+    for (const p of pickMarks) p.setAttribute('d', outlineOf(row));
+    document.getElementById('pick-name').textContent = row ? row.name : 'Tap a district on the map';
     go.textContent = row ? `${OPEN} ${row.name}` : `${OPEN} a district`;
     document.getElementById('pick-island').textContent = row ? row.islands : 'No district picked yet';
     showPickValue();
@@ -304,7 +387,8 @@
     const to = {ArrowRight: i + 1, ArrowDown: i + 1, ArrowLeft: i - 1, ArrowUp: i - 1, Home: 0, End: last}[e.key];
     if (to === undefined || e.altKey || e.ctrlKey || e.metaKey) return;
     e.preventDefault();
-    const next = districts[Math.max(0, Math.min(last, to))], r = next.path.getBoundingClientRect();
+    // A district in urban Honolulu is seen in the enlargement, so that copy decides whether to zoom.
+    const next = districts[Math.max(0, Math.min(last, to))], r = (next.copy || next.path).getBoundingClientRect();
     setStop(next);
     next.path.focus({preventScroll: true});
     if (shown(next) < 0.99 || Math.min(r.width, r.height) < 16) zoom(next.row.group);
@@ -321,8 +405,8 @@
   const ring = el('g', {class: 'focus-ring', 'aria-hidden': 'true'});
   ring.append(zipLines, ...pickMarks, hoverHalo, hoverLine, ...focusRing);
   function showRing(path) {
-    const on = Boolean(path) && path.matches(':focus-visible');
-    for (const p of focusRing) p.setAttribute('d', on ? path.getAttribute('d') : '');
+    const on = Boolean(path) && path.matches(':focus-visible'), d = on && districts.find(x => x.path === path);
+    for (const p of focusRing) p.setAttribute('d', on ? (d ? outlineOf(d.row) : path.getAttribute('d')) : '');
   }
   // Only a mouse or pen hovers; a finger would leave the outline behind after a tap.
   function showHover(path, e) {
@@ -330,9 +414,33 @@
     for (const p of [hoverHalo, hoverLine]) p.setAttribute('d', path ? path.getAttribute('d') : '');
   }
 
+  // The island frames under the districts: each frame's sea and edge, its caption above it, and on Oʻahu a dashed box
+  // around the part of the city that is enlarged. Screen readers skip them; each district's name says its island.
+  function drawFrames() {
+    const back = el('g', {class: 'frames', 'aria-hidden': 'true'}), front = el('g', {class: 'frame-captions', 'aria-hidden': 'true'});
+    if (!data.atlas) return [back, front];
+    const counts = {};
+    for (const row of data.chambers[chamber]) {
+      const g = row.group === 'honolulu' ? 'oahu' : row.group;
+      counts[g] = (counts[g] || 0) + 1;
+    }
+    const word = chamber === 'house' ? 'House' : 'Senate';
+    for (const [g, [x, y, w, h]] of data.atlas.frames) {
+      back.append(el('rect', {class: 'frame', x, y, width: w, height: h}));
+      const caption = el('text', {class: 'frame-caption long', x: x + 1, y: y - 10}), short = el('text', {class: 'frame-caption short', x: x + 1, y: y - 10});
+      caption.textContent = g === 'honolulu' ? CAPTIONS[g] : `${CAPTIONS[g]} · ${counts[g] || 0} ${word}`;
+      short.textContent = SHORT[g];
+      front.append(caption, short);
+    }
+    const [x, y, w, h] = data.atlas.callout;
+    front.append(el('rect', {class: 'callout', x, y, width: w, height: h}));
+    return [back, front];
+  }
+
   function draw() {
     const rows = data.chambers[chamber];
-    const shapes = el('g'), labels = el('g', {class: 'labels', 'aria-hidden': 'true'}), pairs = [];
+    const shapes = el('g'), copies = el('g'), labels = el('g', {class: 'labels', 'aria-hidden': 'true'}), pairs = [];
+    const [frames, captions] = drawFrames();
     for (const row of rows) {
       // WebKit does not name a button from an SVG title, so the name is set directly; the title is the hover tooltip.
       const name = `${row.name}, ${row.islands}`;
@@ -345,20 +453,33 @@
       path.addEventListener('pointerenter', e => showHover(path, e));
       path.addEventListener('pointerleave', e => showHover(null, e));
       shapes.append(path);
-      const text = el('text', {x: row.label[0], y: row.label[1], class: 'label'});
+      // The enlarged copy of a district in urban Honolulu picks it too, but is not a second stop for the keyboard.
+      let copy = null;
+      if (row.inset) {
+        copy = el('path', {d: row.inset, class: 'district copy', 'aria-hidden': 'true'});
+        copy.dataset.geo = row.geo;
+        const tip = el('title'); tip.textContent = name; copy.append(tip);
+        copy.addEventListener('click', () => pick(row));
+        copy.addEventListener('pointerenter', e => showHover(copy, e));
+        copy.addEventListener('pointerleave', e => showHover(null, e));
+        copies.append(copy);
+      }
+      const at = row.insetLabel || row.label, text = el('text', {x: at[0], y: at[1], class: 'label'});
       text.dataset.geo = row.geo;
       text.textContent = row.name.replace(/\D+/g, '');
       labels.append(text);
-      pairs.push([path, text, row]);
+      pairs.push([path, text, row, copy, at]);
     }
     showRing(null);
     showHover(null);
     marks = el('g', {class: 'marks', 'aria-hidden': 'true'});
-    svg.replaceChildren(defs, shapes, marks, ring, labels);
+    svg.replaceChildren(defs, frames, shapes, copies, marks, ring, labels, captions);
+    svg.classList.toggle('atlas', Boolean(data.atlas));
+    frameEl.classList.toggle('atlas', Boolean(data.atlas));
     stop = null;
-    districts = pairs.map(([path, , row]) => { const b = path.getBBox(); return {path, row, box: [b.x, b.y, b.width, b.height]}; });
+    districts = pairs.map(([path, , row, copy]) => { const b = (copy || path).getBBox(); return {path, copy, row, box: [b.x, b.y, b.width, b.height]}; });
     for (const d of districts) d.path.addEventListener('keydown', e => onKey(e, d));
-    labelInfo = pairs.map(([, text, row], i) => ({text, x: row.label[0], y: row.label[1], size: districts[i].box[2] * districts[i].box[3]}));
+    labelInfo = pairs.map(([, text, , , at], i) => ({text, x: at[0], y: at[1], size: districts[i].box[2] * districts[i].box[3]}));
     list.replaceChildren(new Option('Choose a district…', ''));
     const byGroup = {};
     for (const row of rows) (byGroup[row.group] ||= []).push(row);
@@ -391,8 +512,9 @@
     const main = hits.some(h => h.share >= 0.05) ? hits.filter(h => h.share >= 0.05) : hits;
     for (const {row, share} of hits) {
       for (const n of svg.querySelectorAll(`[data-geo="${row.geo}"]`)) n.classList.add('zip-hit');
-      zipLines.append(el('path', {class: 'zip-halo', d: row.d}), el('path', {class: 'zip-line', d: row.d}));
-      const path = svg.querySelector(`.district[data-geo="${row.geo}"]`);
+      zipLines.append(el('path', {class: 'zip-halo', d: outlineOf(row)}), el('path', {class: 'zip-line', d: outlineOf(row)}));
+      // A district in urban Honolulu is framed by its enlarged copy.
+      const path = svg.querySelector(`.district.copy[data-geo="${row.geo}"]`) || svg.querySelector(`.district[data-geo="${row.geo}"]`);
       const b = path.getBBox();
       if (main.some(h => h.row === row)) { x0 = Math.min(x0, b.x); y0 = Math.min(y0, b.y); x1 = Math.max(x1, b.x + b.width); y1 = Math.max(y1, b.y + b.height); }
       if (hits.length > 1 && zipMatches) {
@@ -487,10 +609,10 @@
     for (const d of districts) {
       const fig = figureOf(d.row);
       let name = `${d.row.name}, ${d.row.islands}`;
-      d.path.classList.remove(...SHADE_CLASSES);
+      for (const p of [d.path, d.copy]) if (p) p.classList.remove(...SHADE_CLASSES);
       if (fig) {
-        d.path.classList.add(fig.shade ? `q${fig.shade}` : 'none');
-        if (fig.status !== 'ok') marks.append(el('path', {d: d.row.d, class: fig.status !== 'unreliable' ? 'none' : fig.shade >= DARK_SHADE ? 'unreliable on-dark' : 'unreliable'}));
+        for (const p of [d.path, d.copy]) if (p) p.classList.add(fig.shade ? `q${fig.shade}` : 'none');
+        if (fig.status !== 'ok') marks.append(el('path', {d: outlineOf(d.row), class: fig.status !== 'unreliable' ? 'none' : fig.shade >= DARK_SHADE ? 'unreliable on-dark' : 'unreliable'}));
         name += fig.status === MISSING ? ': no figure' : `: ${fig.value} ${fig.spread}`.trimEnd() + (fig.status === 'unreliable' ? ', unreliable estimate' : '');
       }
       d.path.setAttribute('aria-label', name);
@@ -609,7 +731,7 @@
   list.addEventListener('change', () => { const row = data && data.chambers[chamber].find(r => r.geo === list.value); pick(row || null); if (row) zoom(row.group); });
   go.addEventListener('click', () => {
     if (!picked) return;
-    if (typeof choose === 'function') choose(picked.geo, picked.name);
+    if (typeof choose === 'function') choose(picked.geo, picked.name, false, true, 'profile');
     else { const [kind, id] = picked.geo.split(':'); location.href = `/district/${kind}-${Number(id)}`; }
   });
   // Refit when the frame itself changes size, not when only the window height does (phone toolbars).
@@ -633,7 +755,7 @@
   svg.addEventListener('focusout', e => { if (!svg.contains(e.relatedTarget)) updateStop(true); });
 
   fetch('/districts.json').then(r => { if (!r.ok) throw new Error(); return r.json(); }).then(json => {
-    data = json;
+    data = atlas(json);
     for (const [key, info] of Object.entries(data.groups)) {
       const b = document.createElement('button'); b.type = 'button'; b.textContent = info.label; b.dataset.group = key;
       b.addEventListener('click', () => zoom(key));
