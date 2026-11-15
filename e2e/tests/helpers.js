@@ -31,11 +31,12 @@ export async function showTab(page, name) {
 }
 
 // Ask a question by typing it, and wait for the answer to arrive.
-export async function ask(page, question = 'How does poverty here compare with the county and state?') {
+// The answer announces the place it is about, which is the chosen district unless the question names another.
+export async function ask(page, question = 'How does poverty here compare with the county and state?', place = DISTRICT) {
   await showTab(page, 'Ask');
   await page.getByLabel('Your question').fill(question);
   await page.getByRole('button', {name: 'Ask KLEAR'}).click();
-  await expect(page.locator('#chat-live')).toContainText(`Answer ready for ${DISTRICT}.`);
+  await expect(page.locator('#chat-live')).toContainText(`Answer ready for ${place}.`);
   return page.locator('#log article').last();
 }
 
