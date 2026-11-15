@@ -51,7 +51,7 @@ The build takes several minutes the first time. Two HUD files must be downloaded
 2. Code checks every answer before it is shown (build_answer in klear/agent/answer.py, answer_problems in klear/eval/scorers.py): one of five answer types (an answer, a declined personal request, a declined partisan request, data not available, or out of scope), no number outside a marker, every cited fact used, only the places the question is about, every figure the question type requires, and comparison words that match the numbers. A failing answer goes back to the model with the problems. If it still fails after 6 calls, code writes a plain answer from the facts already looked up.
 3. Each figure on the page shows its survey years, its margin of error or range and a link to its source, and an estimate whose margin of error is large is marked unreliable (klear/web/display.py).
 4. Basic mode needs no model. With --basic-only, without an Anthropic key, or once the daily cap is reached, a keyword lookup answers from the same store with the same layout (klear/web/answers.py).
-5. Answers to the five starter questions can be prepared ahead with python -m klear.web.prewarm. They pass the same checks, and the site uses one only for the same question, district, store build and model, and says it was prepared ahead.
+5. Answers to the five suggested questions on a district's page can be prepared ahead with python -m klear.web.prewarm. They pass the same checks, and the site uses one only for the same question, district, store build and model, and says it was prepared ahead.
 6. Every data build checks the store before the site uses it (docs/VALIDATION.md): DBEDT's ACS workbooks against the Census Data API cell by cell, stored figures against DBEDT, program rule values against quotes on official pages, and sums and ranges against their parts. If a gated check fails, the previous store is kept.
 
 ```mermaid
@@ -395,9 +395,9 @@ Health checks. GET /healthz always answers 200 with {"status": "ok"} while the s
 
 /outreach.html ("Outreach" in the site menu) compares districts for five pairs of a group and the programs it may qualify for, set in `OUTREACH_PAIRS` in klear/agent/config.py: households in poverty without SNAP (SNAP), uninsured people under 138% of poverty (Med-QUEST), uninsured people from 138% to 399% of poverty (Marketplace premium tax credits), kūpuna under 200% of poverty (SSI, Kūpuna Care and Medicare Savings Programs) and working families and people below poverty (Federal EITC). The reader picks a pair and House or Senate. `GET /api/outreach?pair=ID&chamber=house|senate` ranks the group's direct ACS count with the same tiers as the assistant's rank_districts tool, so districts whose ranges overlap share a group and are listed by number, never in an order the data cannot support. Each district also shows its program-use figure from `PROFILE_BESIDE` (SNAP households, SSI households, EITC returns or Marketplace enrollees with premium tax credits) for comparison only. Figures moved from ZIP codes are too wide to rank. The page opens with a sentence naming the top tier, flags unreliable estimates, and lists each program's page and phone with the income-test caveat. Each district profile has an "Outreach opportunities" note naming up to two pairs whose top tier holds the district, the smallest tier first.
 
-### Prepared answers to the starter questions
+### Prepared answers to the district starter questions
 
-The five starter questions ask the same thing for every district, so their answers can be prepared once after each
+The five suggested questions on a district's page ask the same thing for every district, so their answers can be prepared once after each
 data build and shown at once instead of after several seconds. With ANTHROPIC_API_KEY set, run:
 
     uv run python -m klear.web.prewarm
@@ -415,9 +415,12 @@ answers are no longer used and the next prewarm run drops them. Prepared answers
 with --basic-only too. The startup lines say how many prepared answers match the store. To host the site elsewhere,
 copy answer_cache.json along with klear.duckdb.
 
-The landing page uses the project-provided `background1.png` photo, copied
-as a smaller metadata-free `klear/web/static/background1.jpg`. It loads no
-third-party images, fonts, scripts, or analytics.
+The landing page uses no photo (issue #64): its first screen is the page's question and the district
+search on a plain dark band. Below them come the question box with five starter questions that each
+name a place or the state, the map, a worked example drawn live from House District 49's profile
+(its four headline figures and first three programs, with a link to its page), and three lines of
+counts with a link to the full source table on `sources.html`. It loads no third-party images, fonts,
+scripts, or analytics.
 
 The KLEAR logo, the island of Oʻahu under a magnifying glass, was drawn for this project as plain
 SVG. The coastline is traced from the 2022 Senate district boundaries and simplified.
@@ -607,7 +610,7 @@ The assistant and the free lookup follow the same rules for a few kinds of quest
 
 A district's page starts at the top with its name as the page heading, where it is, the four
 headline figures with their margins, a link to every section, and a row of three share buttons
-(print a one-page summary, copy the link, download the figures as CSV). The home page's photo band
+(print a one-page summary, copy the link, download the figures as CSV). The home page's band
 and search give way to it, and Back returns to them. The sections follow in reading order: People,
 Income, Programs to explore here, then the rest. Each is a disclosure that ends with a link back to
 the top. On screens at least 1200 px wide the first three start open, the profile is the main

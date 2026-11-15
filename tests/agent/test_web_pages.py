@@ -15,6 +15,7 @@ from klear.web.statement import SLOT, STATEMENT, markdown, statement_page
 PAGES = {
     "index.html": "/",
     "outreach.html": "/outreach.html",
+    "sources.html": "/sources.html",
     "methods.html": "/methods.html",
     "glossary.html": "/glossary.html",
     "checks.html": "/checks.html",
@@ -26,14 +27,14 @@ HEADER_LINKS = [
     ("#chat", "Ask"),
     ("#district-map", "Map"),
     ("/outreach.html", "Outreach"),
-    ("/#sources", "Sources"),
+    ("/sources.html", "Sources"),
     ("/methods.html", "Methods"),
     ("/glossary.html", "Glossary"),
     ("/checks.html", "How we check KLEAR"),
     ("/#about", "About"),
 ]
 # The home page sections a district's page leaves out, so its header opens them on the home page from everywhere.
-HOME_ONLY = ["find", "sources", "about"]
+HOME_ONLY = ["find", "about"]
 MENU = ["Sources", "Methods", "Glossary", "How we check KLEAR"]
 
 
@@ -87,8 +88,8 @@ def test_the_header_reaches_every_part_of_klear_in_task_order():
 
 def test_other_pages_link_the_home_page_sections_from_anywhere():
     # On the home page, the sections a district's page also shows (Ask and Map) are linked in place, so a district's
-    # own address keeps its district. Elsewhere they open the home page. Find a district, Sources and About are left
-    # out of a district's page, so they open the home page from everywhere.
+    # own address keeps its district. Elsewhere they open the home page. Find a district and About are left out of a
+    # district's page, so they open the home page from everywhere. Sources is a page of its own.
     home_only = "|".join(HOME_ONLY)
     for section in HOME_ONLY:
         assert f'href="/#{section}"' in block("index.html", "header"), section
@@ -116,9 +117,10 @@ def test_the_home_page_marks_no_link_as_current():
     assert "aria-current" not in block("index.html", "header") + block("index.html", "footer")
 
 
-def test_the_footer_lists_methods_and_the_statement_on_the_site():
+def test_the_footer_lists_the_reports_and_the_statement_on_the_site():
     footer = block("index.html", "footer")
-    assert [text for _, text in links(footer)][:5] == [
+    assert [text for _, text in links(footer)][:6] == [
+        "Sources",
         "Methods",
         "Glossary",
         "How we check KLEAR",

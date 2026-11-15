@@ -69,7 +69,7 @@ def test_lookup_and_private_files(endpoint):
     assert json.loads(data)["matches"][0]["geo"] == "house:022"
     for path in ["/../pyproject.toml", "/.env", "/data/build/klear.duckdb"]:
         assert request(endpoint, "GET", path)[0] == 404
-    assert request(endpoint, "GET", "/background1.jpg")[0] == 200
+    assert request(endpoint, "GET", "/sources.html")[0] == 200
 
 
 def test_public_files_and_cache_policy(endpoint):
@@ -269,7 +269,8 @@ def test_about_serves_store_facts_and_sources(endpoint):
     body = json.loads(data)
     assert status == 200 and headers["Cache-Control"] == "no-store"
     assert body["facts"][0] == "2 House and 1 Senate districts"
-    assert "example" not in body and [s["publisher"] for s in body["sources"]] == [
+    # The worked example on the landing page: House 49, or here the House district with the most figures.
+    assert body["example"] == "house:022" and [s["publisher"] for s in body["sources"]] == [
         "Census",
         "HUD",
         "LRB",
@@ -486,7 +487,7 @@ def test_web_command_serves_real_store_and_assets(small_con, tmp_path):
             )
         assert line.startswith("KLEAR: http://127.0.0.1:"), line
         port = urlsplit(line.split()[1]).port
-        for path in ["/", "/app.js", "/map.js", "/style.css", "/background1.jpg", "/fonts/public-sans.woff2"]:
+        for path in ["/", "/app.js", "/map.js", "/style.css", "/sources.js", "/fonts/public-sans.woff2"]:
             assert request(port, "GET", path)[0] == 200
         assert request(port, "GET", "/.env")[0] == 404
         status, resolved = request(port, "GET", "/api/resolve?q=House%2022")

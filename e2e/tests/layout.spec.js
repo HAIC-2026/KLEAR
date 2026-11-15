@@ -103,7 +103,7 @@ test('links that leave the site say so, and in-page links have no arrow', async 
 
 test('Hawaiian words are marked for pronunciation, place names are not', async ({page}) => {
   await page.goto('/');
-  await expect(page.locator('#examples [lang=haw]').first()).toHaveText(/^kūpuna$/i);
+  await expect(page.locator('#starters [lang=haw]').first()).toHaveText(/^kūpuna$/i);
   await chooseDistrict(page);
   await openAll(page);
   await expect(page.locator('#profile .profile-label [lang=haw]').first()).toHaveText('Kūpuna');
@@ -115,10 +115,14 @@ test('motion stops when the device asks for reduced motion', async ({page}) => {
   await page.emulateMedia({reducedMotion: 'reduce'});
   await page.goto('/');
   expect(await page.evaluate(() => getComputedStyle(document.documentElement).scrollBehavior)).toBe('auto');
-  // A starter about this district asks for one first, with a nudge on the district bar.
-  await page.locator('#examples').getByRole('button', {name: /kūpuna live in this district/}).click();
-  await expect(page.locator('#district-bar')).toHaveClass(/nudge/);
-  expect(await page.locator('#district-bar').evaluate(el => getComputedStyle(el).animationName)).toBe('none');
+  // The spinner on the line that waits for an answer holds still.
+  const spinner = await page.locator('#log').evaluate(log => {
+    const wait = document.createElement('div');
+    wait.className = 'pending';
+    log.append(wait);
+    return getComputedStyle(wait, '::before').animationName;
+  });
+  expect(spinner).toBe('none');
 });
 
 // How many of these show whole on the screen, without scrolling or opening anything.

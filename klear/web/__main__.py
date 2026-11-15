@@ -49,7 +49,6 @@ PUBLIC = (
     "/checks.css",
     "/app.js",
     "/style.css",
-    "/background1.jpg",
     "/logo.svg",
     "/favicon.svg",
     "/favicon.ico",
@@ -57,11 +56,10 @@ PUBLIC = (
     "/map.js",
     "/districts.json",
     "/methods.html",
+    "/sources.html",
+    "/sources.js",
     "/fonts/public-sans.woff2",
     "/fonts/public-sans-ext.woff2",
-    "/shots/step-1.png",
-    "/shots/step-2.png",
-    "/shots/step-3.png",
 )
 # Health and readiness checks. Cloud Run reserves some paths that end in z at its front end, so each check also
 # answers at an /api/ path that visitors and uptime monitors can reach from outside.

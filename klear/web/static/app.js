@@ -2,10 +2,13 @@ const $ = id => document.getElementById(id);
 let district = null, asked = null, busy = false, queued = null;
 const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 const uncertaintyLabels = {ok: '90% margin of error shown above', controlled: 'Fixed to official totals; no sampling margin of error', range: 'Estimated range shown above', open_ended: 'Open-ended published value', not_computable: 'Margin of error unavailable; treat as uncertain', not_applicable: 'No margin of error applies', unavailable: 'Uncertainty information unavailable'};
-// Starter questions, with the short label each shows once it moves into the chat.
+// Suggested questions on a district's page, with the short label each shows in the chat.
 const examples = [['Give me a socioeconomic profile of this district.', 'Profile'], ['How many kūpuna live in this district?', 'Kūpuna'], ['What does the data say about housing needs in this district?', 'Housing'], ['How does poverty here compare with the state?', 'Poverty vs. state'], ['What support programs could residents of this district explore?', 'Programs']];
-// A starter that asks about every district, so it needs no district chosen.
+// A suggestion that asks about every district.
 const statewideExample = ['Which House districts have the highest share of kūpuna?', 'Kūpuna share by district'];
+// Starter questions on the home page. Each names its place or asks about the whole state, so none needs a district
+// chosen first. All but Kāneʻohe lie in one House district; Kāneʻohe spans three, so its answer lists them to choose.
+const homeStarters = ['How many kūpuna live in Kāneʻohe?', 'How does poverty in Pāhoa compare with the state?', 'What does the data say about housing costs in Kīhei?', 'What support programs could families in Waiʻanae explore?', statewideExample[0]];
 const refusalLabels = {decline_partisan: 'Partisan request declined', decline_individual: 'Personal request declined', not_available: 'Data not available', out_of_scope: 'Outside KLEAR’s scope'};
 function node(tag, text, className) { const n = document.createElement(tag); n.textContent = text; if (className) n.className = className; return n; }
 // Hawaiian words for groups of people, marked so screen readers can pronounce them. Place names are left as they are.
@@ -208,19 +211,12 @@ function setLookup(open) {
 }
 
 const NO_DISTRICT_WELCOME = 'Ask about a district, a town or ZIP code, or all of Hawaiʻi.';
-function needDistrict() {
-  setLookup(true);
-  $('lookup-status').textContent = 'Pick a district first. Your question will wait in the box below.';
-  const bar = $('district-bar');
-  bar.classList.remove('nudge'); void bar.offsetWidth; bar.classList.add('nudge');
-  $('place').focus();
-}
 
 // While an answer loads, the ask and suggestion buttons say they are unavailable but keep focus: disabling a focused
 // button would drop focus to the page, and keyboard and screen reader users would lose their place.
 function setBusy(on) {
   busy = on;
-  for (const b of [$('send'), ...document.querySelectorAll('#examples button, #log .followup, #log .retry')]) {
+  for (const b of [$('send'), ...document.querySelectorAll('#examples button, #starters button, #log .followup, #log .retry')]) {
     if (on) b.setAttribute('aria-disabled', 'true'); else b.removeAttribute('aria-disabled');
   }
 }
@@ -269,7 +265,8 @@ function choose(geo, name, quiet, push = true, land = 'ask') {
   if (!quiet) arrive(land);
 }
 
-// Back to the page with no district: the starter questions return in place of the profile. The conversation stays.
+// Back to the page with no district: the home page's starter questions return in place of the profile, and the
+// district's suggestions leave the chat. The conversation stays.
 function clearDistrict() {
   queued = null;
   district = null;
@@ -287,12 +284,7 @@ function clearDistrict() {
   $('profile-live').textContent = '';
   setSheet(null);
   dropDistrictActions();
-  if ($('starter').hidden) {
-    for (const b of $('examples').children) for (const part of b.children) part.hidden = !part.hidden;
-    $('starter').append($('examples'));
-    $('starter').hidden = false;
-    $('suggest').hidden = true;
-  }
+  $('suggest').hidden = true;
   document.title = BASE_TITLE;
 }
 
@@ -529,21 +521,25 @@ $('change').onclick = () => {
 const resetLookup = lookupForm($('lookup'), $('place'), $('lookup-status'), $('matches'), choose);
 // The search at the top of the home page opens the district's page at its profile.
 const resetFind = lookupForm($('find'), $('find-place'), $('find-status'), $('find-matches'), (geo, name) => { resetFind(); choose(geo, name, false, true, 'profile'); });
-// Each starter shows its full question. Once it moves into the chat it shows only its short label, and the rest of the
-// question stays in its spoken name after that label, so voice control can say what it sees.
-for (const [question, label] of [...examples, statewideExample]) {
-  const b = node('button', '');
+// The home page's starters show their full question and ask it at once.
+for (const question of homeStarters) {
+  const b = says('button', question);
   b.type = 'button';
-  const short = says('span', label, 'example-label'), rest = hidden(': '), full = says('span', question, 'example-full');
-  short.hidden = true;
-  rest.hidden = true;
+  b.onclick = () => askAgain(question);
+  $('starters').append(b);
+}
+// A district's suggestions show only a short label in the chat. The rest of the question stays in the button's spoken
+// name after that label, so voice control can say what it sees.
+for (const [question, label] of [...examples, statewideExample]) {
+  const b = node('button', ''), rest = hidden(': ');
+  b.type = 'button';
   rest.append(says('span', question));
-  b.append(short, rest, full);
-  b.onclick = () => { if (busy) return; $('question').value = question; fitQuestion(); if (district || question === statewideExample[0]) $('question-form').requestSubmit(); else needDistrict(); };
+  b.append(says('span', label, 'example-label'), rest);
+  b.onclick = () => askAgain(question);
   $('examples').append(b);
 }
 
-// Once a district is chosen, its profile takes the starter questions' place and they move into the chat as short buttons.
+// Once a district is chosen, its profile takes the home page's place and its suggested questions show in the chat.
 // The profile is long, so it is not a live region: a short status line says when it has loaded.
 let profileSeq = 0, profileGeo = null;
 async function loadProfile(geo, name) {
@@ -551,12 +547,7 @@ async function loadProfile(geo, name) {
   profileGeo = geo;
   const seq = ++profileSeq, panel = $('profile'), live = $('profile-live');
   live.textContent = '';
-  if (!$('starter').hidden) {
-    for (const b of $('examples').children) for (const part of b.children) part.hidden = !part.hidden;
-    $('suggest').append($('examples'));
-    $('suggest').hidden = false;
-    $('starter').hidden = true;
-  }
+  $('suggest').hidden = false;
   panel.hidden = false;
   districtHead(name, null);
   panel.replaceChildren(node('p', 'Loading the district profile…', 'profile-status'));
@@ -1180,19 +1171,7 @@ function renderProfile(p) {
   // a phone's first screen below the legislator's line.
   const out = [];
   tableFit.disconnect();  // the tables of the profile shown before
-  const stats = node('dl', '', 'profile-stats');
-  // Each term comes before its value, as a description list needs; the CSS shows the value on top.
-  for (const h of p.headline) {
-    const s = node('div', ''), value = node('dd', '');
-    value.append(node('span', h.value, 'num'));
-    if (h.spread) value.append(' ', node('span', h.spread, 'moe'));
-    if (h.caution) value.append(' ', cautionChip(h.caution));
-    s.append(says('dt', h.label), value);
-    // How the figure stands against the county and the state. The CSS shows it under the label. A total has none.
-    if (h.reading) s.append(node('dd', h.reading, 'profile-reading'));
-    stats.append(s);
-  }
-  out.push(stats);
+  out.push(headlineStats(p.headline));
   if (p.caveats && p.caveats.length) out.push(placeNotes(p.caveats, 'profile-notes'));
   const sections = profileSections(p);
   out.push(profileJumps(sections), profileActions(p));
@@ -1202,13 +1181,30 @@ function renderProfile(p) {
   return out;
 }
 
+// A district's headline figures with their margins, as the top of its profile and the home page's example show them.
+function headlineStats(headline) {
+  const stats = node('dl', '', 'profile-stats');
+  // Each term comes before its value, as a description list needs; the CSS shows the value on top.
+  for (const h of headline) {
+    const s = node('div', ''), value = node('dd', '');
+    value.append(node('span', h.value, 'num'));
+    if (h.spread) value.append(' ', node('span', h.spread, 'moe'));
+    if (h.caution) value.append(' ', cautionChip(h.caution));
+    s.append(says('dt', h.label), value);
+    // How the figure stands against the county and the state. The CSS shows it under the label. A total has none.
+    if (h.reading) s.append(node('dd', h.reading, 'profile-reading'));
+    stats.append(s);
+  }
+  return stats;
+}
+
 // The row that closes the profile. A district's page leaves out the home page's sources, checks and search, so these
 // lead to them.
 function profileEnd() {
   const nav = node('nav', '', 'profile-end'), title = node('p', 'More from KLEAR', 'profile-end-title'), list = node('ul', '');
   title.id = 'profile-end-title';
   nav.setAttribute('aria-labelledby', title.id);
-  for (const [text, href] of [['Sources and methods', '/#sources'], ['How we check KLEAR', '/checks.html'], ['Find another district', '/#find']]) {
+  for (const [text, href] of [['Sources and methods', '/sources.html'], ['How we check KLEAR', '/checks.html'], ['Find another district', '/#find']]) {
     const li = document.createElement('li'), a = node('a', text);
     a.href = href;
     li.append(a);
@@ -1573,18 +1569,23 @@ $('question-form').onsubmit = async e => {
     $('chat-live').textContent = done;
     // A reader who moved to the Profile tab while waiting sees that the answer has come.
     if (reply && ONE_COLUMN.matches && shownTab !== 'ask') $('tab-new').hidden = false;
+    let adopted = false;
     if (queued) { const next = queued; queued = null; choose(next.geo, next.name, true, next.push); }
     // Choosing the district drops next questions that name another, so they are added once it is chosen.
     // The chosen district counts as asked about, here and in the saved conversation, like one picked first.
     else if (adopt && !district) {
       choose(adopt.geo, adopt.name, true);
+      adopted = true;
       asked = adopt.geo;
       sent.dataset.chamber = adopt.geo.split(':')[0];
       Object.assign(saved, {geo: adopt.geo, name: adopt.name});
       saveChat();
       if (next) reply.append(next);
     }
-    if (hold) hold();
+    // The district's page replaces the home page, so a reader still in the chat moves to the top of it, or to its
+    // chat on one column, rather than staying at the home page's scroll position.
+    if (adopted && inChat) arrive('ask');
+    else if (hold) hold();
     if (follow && (logScrolls() || (!elsewhere && !(hold && hold.field)))) reveal(sent);
     // A reader still in the chat moves to the new answer; after an error, back to the question to retry.
     if (inChat && reply) reply.querySelector('h3').focus({preventScroll: true});
@@ -1598,7 +1599,7 @@ function readerPlace() {
   const focus = document.activeElement;
   const elsewhere = !$('lookup').hidden || Boolean(focus && focus !== $('question') && focus.matches('input, select, textarea'));
   const idle = !focus || focus === document.body;
-  const inChat = !elsewhere && ($('chat-card').contains(focus) || $('examples').contains(focus) || (idle && onScreen($('question-form'))));
+  const inChat = !elsewhere && ($('chat-card').contains(focus) || $('starters').contains(focus) || (idle && onScreen($('question-form'))));
   return {elsewhere, inChat};
 }
 
@@ -2141,32 +2142,43 @@ function renderAnswer(answer, name) {
   return article;
 }
 
-// Facts line and source list, read from the data store. Without a store the page keeps its fallbacks.
+// The home page's sources summary, three lines of counts from the data store, and its worked example: one district's
+// headline figures and first three programs, read live, with a link to its page. Without a store both stay hidden.
 async function loadAbout() {
   let data;
-  try { data = await api('/api/about'); } catch (err) {
-    // Say why there is no source list, for example that no data store has been built.
-    $('sources-missing').textContent = err.message;
-    return;
-  }
-  if (data.facts && data.facts.length) {
-    $('facts').textContent = data.facts.join('; ') + '.';
+  try { data = await api('/api/about'); } catch { return; }
+  const facts = data.facts || [];
+  if (facts.length) {
+    const lines = facts.length > 3 ? [facts[0], facts[1], facts.slice(2).join('; ')] : facts;
+    $('facts').replaceChildren(...lines.map(line => node('li', `${line}.`)));
     $('facts').hidden = false;
   }
-  if (data.sources && data.sources.length) {
-    const body = $('source-table').tBodies[0];
-    for (const s of data.sources) {
-      const row = document.createElement('tr'), name = document.createElement('td');
-      name.append(link(s.name, s.url));
-      row.append(name, node('td', s.publisher), node('td', s.years), node('td', s.geography || ''));
-      body.append(row);
-    }
-    $('source-wrap').hidden = false;
-    $('sources-missing').hidden = true;
-  }
-  if (data.crosscheck) { $('crosscheck').textContent = data.crosscheck; $('crosscheck').hidden = false; }
+  if (data.example) loadExample(data.example);
 }
 loadAbout();
+
+const EXAMPLE_PROGRAMS = 3;
+async function loadExample(geo) {
+  let p;
+  try { p = await api('/api/profile?district=' + encodeURIComponent(geo)); } catch { return; }
+  const card = $('example-card'), name = node('h3', p.district, 'example-name'), parts = [node('p', 'District profile', 'small-label'), name];
+  if (p.where) parts.push(node('p', p.where, 'district-where'));
+  if ((p.places || []).length) parts.push(node('p', `Includes ${placesList(p)}.`, 'district-meta'));
+  parts.push(headlineStats(p.headline || []));
+  const matched = programsOf(p), shown = matched ? (matched.programs.length ? matched.programs : matched.others) : [];
+  if (shown.length) {
+    const why = matched.programs.length ? `Listed first because ${p.district}’s need figures sit above the state’s.` : '';
+    parts.push(node('h4', 'Programs to explore', 'example-sub'));
+    if (why) parts.push(node('p', why, 'example-why'));
+    parts.push(programGrid(shown.slice(0, EXAMPLE_PROGRAMS)));
+  }
+  const open = node('a', `Open ${p.district}’s full page`, 'example-open');
+  open.href = districtPath(p.geo);
+  parts.push(node('p', '', 'example-actions'));
+  parts.at(-1).append(open);
+  card.replaceChildren(...parts);
+  $('example').hidden = false;
+}
 // Programs named in an answer; a district lookup marks which ones its figures point to.
 function answerPrograms(programs, sources, groups) {
   const details = node('details', '', 'answer-programs');

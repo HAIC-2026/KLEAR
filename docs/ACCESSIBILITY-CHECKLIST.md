@@ -50,7 +50,7 @@ Use Chrome or Firefox on Windows or macOS, with no mouse or trackpad.
 
 Install [NVDA](https://www.nvaccess.org/download/). Use browse mode (arrows) to read and focus mode (Tab) for forms.
 
-1. Press H to move by heading: page title, then each section, then "Questions to try". On a district's page, the district's name comes first.
+1. Press H to move by heading: page title, "Ask about a place" and its "Questions to try", then each later section. On a district's page, the district's name comes first.
 2. Search for a town. NVDA reads "Choose a district…" once, and each button reads like "House 22 75% of Kāneʻohe residents".
 3. Choose a district. Focus moves to its name, the page heading. NVDA says "Profile for House District 22 loaded." and does not read the whole profile.
 4. Ask a question. NVDA says "Checking district data and sources…", then "Answer ready for House District 22." and reads the answer heading. It does not read the whole answer by itself.

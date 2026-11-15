@@ -128,8 +128,10 @@ test('Escape closes the suggestions, and a clicked one picks exactly that place'
 });
 
 test('the chat’s district search suggests too, and typing one letter suggests nothing', async ({page}) => {
-  await page.goto('/');
-  await page.getByRole('button', {name: 'Choose a district'}).click();
+  // The chat's own search shows only on a district's page, where the search at the top of the home page is gone.
+  await page.goto('/district/house-22');
+  await showTab(page, 'Ask');
+  await page.getByRole('button', {name: 'Change district'}).click();
   const box = page.locator('#place');
   await expect(box).toHaveAttribute('role', 'combobox');
   await box.fill('o');

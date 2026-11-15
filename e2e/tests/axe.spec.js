@@ -10,8 +10,15 @@ test.beforeEach(async ({context, page}) => {
 });
 
 test('landing page', async ({page}, testInfo) => {
-  await expect(page.locator('#source-wrap')).toBeVisible();
+  await expect(page.locator('#example .profile-stats')).toBeVisible();
+  await expect(page.locator('#facts')).toBeVisible();
   await expectAccessible(page, testInfo, 'landing page');
+});
+
+test('sources page', async ({page}, testInfo) => {
+  await page.goto('/sources.html');
+  await expect(page.locator('#source-wrap')).toBeVisible();
+  await expectAccessible(page, testInfo, 'sources page');
 });
 
 test('methods page', async ({page}, testInfo) => {

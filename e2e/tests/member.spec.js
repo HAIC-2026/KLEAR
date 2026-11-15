@@ -46,7 +46,7 @@ test('an answer about who represents the district names the member and links the
 test('the basic lookup answers for the district or town the question names, not the chosen one', async ({page}) => {
   await page.goto('/');
   await chooseDistrict(page);
-  const other = await ask(page, 'Basic lookup: who represents House District 23?');
+  const other = await ask(page, 'Basic lookup: who represents House District 23?', 'House District 23');
   await expect(other).toContainText('House District 23 is represented by Representative PALAKIKO, Kawika');
   await expect(other).not.toContainText('KAʻAI');
 

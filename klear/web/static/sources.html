@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#ffffff">
+  <meta name="description" content="The public sources behind every KLEAR figure: who publishes each one, its survey years, and whether it is published for districts, estimated for them, or covers counties only.">
+  <title>KLEAR data sources</title>
+  <link rel="icon" href="/favicon.ico?v=2" sizes="32x32">
+  <link rel="icon" href="/favicon.svg?v=2" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=2">
+  <link rel="preload" href="/fonts/public-sans.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/style.css">
+  <script src="/nav.js" defer></script>
+  <script src="/sources.js" defer></script>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+  <header class="site-header">
+    <a class="brand" href="/"><img class="brand-logo" src="/logo.svg" width="36" height="36" alt=""><span class="brand-text"><strong>KLEAR</strong><span class="brand-sub">Hawaiʻi district data</span></span></a>
+    <nav aria-label="Main navigation">
+      <ul class="nav-links">
+        <li><a href="/#find">Find<span class="nav-long"> a district</span></a></li>
+        <li><a href="/#chat">Ask</a></li>
+        <li><a href="/#district-map">Map</a></li>
+        <li><a href="/outreach.html">Outreach</a></li>
+        <li><details class="nav-menu"><summary>Data<span class="nav-long"> and methods</span></summary><ul>
+          <li><a href="/sources.html" aria-current="page">Sources</a></li>
+          <li><a href="/methods.html">Methods</a></li>
+          <li><a href="/glossary.html">Glossary</a></li>
+          <li><a href="/checks.html">How we check KLEAR</a></li>
+        </ul></details></li>
+        <li><a href="/#about">About</a></li>
+      </ul>
+    </nav>
+  </header>
+  <main id="main" class="methods sources-page">
+    <div class="wrap">
+      <p class="crumb"><a href="/">KLEAR</a> <span aria-hidden="true">/</span> <span aria-current="page">Sources</span></p>
+      <div class="section-head">
+        <h1>Data and sources</h1>
+        <p>Every figure KLEAR shows comes from one of these public sources. Survey years vary by measure. The Geography column says whether a source publishes figures for each district, KLEAR estimates them for districts, or the source covers only counties.</p>
+      </div>
+      <p class="facts" id="facts" hidden></p>
+      <div class="table-scroll" id="source-wrap" hidden><table id="source-table"><caption class="visually-hidden">Public sources in the KLEAR data store</caption><thead><tr><th scope="col">Source</th><th scope="col">Publisher</th><th scope="col">Years</th><th scope="col">Geography</th></tr></thead><tbody></tbody></table></div>
+      <p id="sources-missing" class="muted">The source list appears here once the data store is built.</p>
+      <ul class="notes">
+        <li id="crosscheck" hidden></li>
+        <li>Where a Census figure equals the one in DBEDT’s published district, county, or state profile, its source says so and links to that profile.</li>
+        <li>Unemployment from the U.S. Bureau of Labor Statistics and state tax credit claims from the Hawaiʻi Department of Taxation are published only for counties. KLEAR labels them county-level and never shows them as a district’s figure.</li>
+        <li>Where a figure comes from ZIP code or census tract data estimated for a district, KLEAR shows a range, not a single number.</li>
+        <li>Modeled health and needs estimates from CDC PLACES are shown as ranges too. <a href="/methods.html">How KLEAR estimates these ranges</a>.</li>
+        <li>Missing data stays missing. KLEAR does not fill gaps with guesses.</li>
+        <li>Program links go to each program’s official page. KLEAR does not decide anyone’s eligibility.</li>
+        <li>For Hawaiʻi public data that is not published by district, such as crime, schools, energy or state budgets, try <a class="ext" href="https://datatrove.ai/">datatrove.ai<span class="visually-hidden"> (external site)</span></a>, a HAIC 2026 sponsor.</li>
+      </ul>
+      <p class="validation-link">Every check, the build date, and the checks still waiting on files are listed in the <a class="ext" href="https://github.com/HAIC-2026/KLEAR/blob/main/docs/VALIDATION.md">validation report<span class="visually-hidden"> (external site)</span></a>.</p>
+      <h2 class="terms-title">Terms of use</h2>
+      <p class="terms">Most of this data comes from U.S. government agencies and is free for anyone to use. Each source’s terms are linked in the <a class="ext" href="https://github.com/HAIC-2026/KLEAR#services-and-data-klear-depends-on">KLEAR project notes<span class="visually-hidden"> (external site)</span></a>. This product uses the Census Bureau Data API but is not endorsed or certified by the Census Bureau.</p>
+      <p><a href="/">Back to KLEAR</a></p>
+    </div>
+  </main>
+  <footer>
+    <div class="wrap">
+      <div class="footer-inner">
+        <div class="footer-brand"><img src="/favicon.svg" width="40" height="40" alt=""><p class="footer-name"><strong>KLEAR</strong><span>Hawaiʻi district data</span></p></div>
+        <div class="footer-col">
+          <h2 class="footer-title">Reports</h2>
+          <ul>
+            <li><a href="/sources.html" aria-current="page">Sources</a></li>
+            <li><a href="/methods.html">Methods</a></li>
+            <li><a href="/glossary.html">Glossary</a></li>
+            <li><a href="/checks.html">How we check KLEAR</a></li>
+            <li><a class="ext" href="https://github.com/HAIC-2026/KLEAR/blob/main/docs/VALIDATION.md">Validation report<span class="visually-hidden"> (external site)</span></a></li>
+            <li><a href="/accessibility.html">Accessibility statement</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h2 class="footer-title">Questions or corrections</h2>
+          <p><a class="ext" href="https://github.com/HAIC-2026/KLEAR/issues">Open a GitHub issue<span class="visually-hidden"> (external site)</span></a></p>
+        </div>
+      </div>
+      <p class="footer-note">Public, aggregated data. Not an official State of Hawaiʻi product.</p>
+    </div>
+  </footer>
+</body>
+</html>

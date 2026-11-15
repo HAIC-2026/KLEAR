@@ -10,6 +10,9 @@ from klear.web.display import build_month, year_text
 MANUAL = {"chas": "HUD", "hud_income_limits": "HUD"}
 DISTRICTS = {"house", "senate"}
 COMPARED = {"county", "state"}
+# The district the landing page shows as a worked example: House 49, Kāneʻohe, or the House district with the most
+# figures when a store, such as the test fixture, does not hold it.
+EXAMPLE = "049"
 
 
 def _n(count: int, word: str, plural: str = "") -> str:
@@ -154,4 +157,14 @@ def about(con, validation: Path) -> dict:
             facts.append(f"{_n(fidelity['n_compared'], 'DBEDT value')} cross-checked, {mismatches}")
         facts.append(_status(_loads(build[1], {}), _loads(build[2], [])))
         crosscheck = _crosscheck(report)
-    return {"facts": facts, "sources": sources, "crosscheck": crosscheck}
+    return {"facts": facts, "sources": sources, "crosscheck": crosscheck, "example": _example(con)}
+
+
+def _example(con) -> str | None:
+    """The House district the landing page shows as its worked example, as a geo key such as house:049."""
+    rows = con.execute(
+        "SELECT geo_id FROM fact WHERE geo_type = 'house' GROUP BY geo_id ORDER BY geo_id = ? DESC, count(*) DESC, "
+        "geo_id LIMIT 1",
+        [EXAMPLE],
+    ).fetchall()
+    return f"house:{rows[0][0]}" if rows else None

@@ -93,6 +93,24 @@ test('with no district chosen, an answer about one district chooses it, and a fo
   expect(sent).toEqual([{question, district: null}, {question: 'And how does that compare with the county?', district: 'house:022', earlier: [subject]}]);
 });
 
+test('the home chat is only its question box until the first question, and its starters name their place', async ({page}) => {
+  await page.goto('/');
+  await expect(page.locator('#question')).toBeVisible();
+  // No transcript, and no second district search: the search at the top of the page is the only one.
+  await expect(page.locator('#messages')).toBeHidden();
+  await expect(page.locator('#district-bar')).toBeHidden();
+  const starters = page.locator('#starters button');
+  await expect(starters).toHaveText(['How many kūpuna live in Kāneʻohe?', 'How does poverty in Pāhoa compare with the state?', 'What does the data say about housing costs in Kīhei?', 'What support programs could families in Waiʻanae explore?', 'Which House districts have the highest share of kūpuna?']);
+  // No control the home page shows asks about "this district".
+  const visible = await page.locator('button:visible, a:visible').allInnerTexts();
+  expect(visible.filter(t => /this district/i.test(t))).toEqual([]);
+  await expect(page.getByText('Screenshot', {exact: false})).toHaveCount(0);
+  await page.getByLabel('Your question').fill('How many kūpuna live in Hawaiʻi?');
+  await page.getByRole('button', {name: 'Ask KLEAR'}).click();
+  await expect(page.locator('#messages')).toBeVisible();
+  await expect(page.locator('#log .user')).toHaveText('You asked: How many kūpuna live in Hawaiʻi?');
+});
+
 test('a district an answer chooses counts as asked, so picking another adds a divider and the saved chat keeps it', async ({page}) => {
   await page.goto('/');
   await page.getByLabel('Your question').fill(`How does poverty in ${DISTRICT} compare with the state?`);
@@ -126,7 +144,7 @@ test('the statewide starter question is asked with no district chosen', async ({
   await page.goto('/');
   const sent = [];
   page.on('request', r => { if (r.url().endsWith('/api/chat')) sent.push(r.postDataJSON()); });
-  await page.locator('#examples').getByRole('button', {name: /highest share of kūpuna/}).click();
+  await page.locator('#starters').getByRole('button', {name: /highest share of kūpuna/}).click();
   const question = 'Which House districts have the highest share of kūpuna?';
   await expect(page.locator('#log .user')).toHaveText(`You asked: ${question}`);
   await expect(page.locator('#chat-live')).toHaveText(/^Answer ready/);
@@ -272,9 +290,9 @@ test('an answer with no data points to datatrove.ai, and an answer with figures 
   await expect(found.getByRole('link', {name: /datatrove/})).toHaveCount(0);
 });
 
-test('Data and sources and About name datatrove.ai as a site that leaves KLEAR', async ({page}) => {
-  await page.goto('/');
-  for (const section of ['#sources', '#about']) {
+test('the sources page and About name datatrove.ai as a site that leaves KLEAR', async ({page}) => {
+  for (const [address, section] of [['/sources.html', 'main'], ['/', '#about']]) {
+    await page.goto(address);
     const link = page.locator(`${section} a[href="https://datatrove.ai/"]`);
     await expect(link).toHaveText('datatrove.ai (external site)');
     await expect(link).toHaveClass('ext');
