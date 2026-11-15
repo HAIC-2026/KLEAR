@@ -178,7 +178,9 @@ def test_basic_unpublished_year_is_not_available(real_con):
 )
 def test_basic_statewide_question_shows_the_state(real_con, question):
     answer = _basic(real_con, question)
-    assert {t["geography"] for t in answer["tiles"]} == {"Hawaiʻi"}
+    assert {f["geography"] for f in answer["facts"]} == {"Hawaiʻi"}
+    assert answer["subject"]["geo"] == "state:15" and answer["subject"]["name"] == "Hawaiʻi"
+    assert "district" not in answer
 
 
 def test_tax_credit_and_unemployment_questions_include_county_level_figures(con):
@@ -332,3 +334,14 @@ def test_side_by_side_line_for_county_figures_alone(small_con):
     text = ask(small_con, "Compare unemployment with the state", ("house", "022"))["text"]
     assert "District and state figures" not in text
     assert "County and state figures are shown side by side." in text
+
+
+def test_basic_industries_keep_the_place_when_compared_with_the_whole_state(real_con):
+    compared = basic(real_con, "How do industries in Maui County compare with Hawaiʻi as a whole?", None)
+    assert compared["lead"][0].split("\n")[0] == (
+        "Industries where working residents of Maui County have jobs, largest share first, compared with Hawaiʻi."
+    )
+    statewide = _basic(real_con, "What industries do people work in statewide?")
+    assert statewide["lead"][1].split("\n")[0] == (
+        "Industries where working residents of Hawaiʻi have jobs, largest share first."
+    )
