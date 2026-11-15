@@ -970,3 +970,13 @@ def test_pidgin_within_da_margin_counts_as_within_margin():
     assert direction_claims(
         "{geo:house:015} is higher than {geo:county:15007}, within da margin of error."
     ) == [(("house", "015"), "within_margin", ("county", "15007"))]
+
+
+def test_direction_words_inside_a_label_or_about_one_place_do_not_count(eval_store):
+    pair = [("pop_65_plus", "house", "022"), ("pop_65_plus", "county", "15003")]
+    labeled = "{label:f1} is more common in {geo:house:022}. * {geo:county:15003} is lower, at {fact:f1}."
+    got = _ok(_ans([labeled], [_ref()]), eval_store, direction="higher", facts=pair)["direction"]
+    assert got.passed is True, got.detail
+    wrong = "{geo:county:15003} is above {geo:house:022} on this, by the survey."
+    got = _ok(_ans([wrong], [_ref()]), eval_store, direction="higher", facts=pair)["direction"]
+    assert got.passed is False
