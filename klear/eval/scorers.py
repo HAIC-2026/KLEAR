@@ -81,6 +81,9 @@ CLAIM_TOKEN = re.compile(
     re.IGNORECASE,
 )
 PHRASE_DIRECTION = {p: d for d, ps in COMPARE_PHRASES.items() for p in ps}
+# Most words between a comparison and the place it compares with, as in "higher than the rate in {geo}".
+OBJECT_WORDS = 6
+MARGIN_WORD = re.compile(r"\bmargins?\b", re.IGNORECASE)
 # A sentence that also says the gap is within the margin of error makes no higher or lower claim.
 HEDGE = re.compile(
     r"(?<!not )(?<!outside )within the margin|not (?:statistically )?significant", re.IGNORECASE
@@ -518,8 +521,11 @@ def direction_claims(text: str) -> list[tuple[tuple[str, str], str, tuple[str, s
             if m.group(3):
                 subject = subject or topic
                 pending = PHRASE_DIRECTION[m.group(3).casefold()] if subject else None
+                after = m.end()
             elif pending:
-                claims.append((subject, pending, (m.group(1), m.group(2))))
+                gap = sentence[after : m.start()]
+                if len(gap.split()) <= OBJECT_WORDS and not MARGIN_WORD.search(gap):
+                    claims.append((subject, pending, (m.group(1), m.group(2))))
                 pending = None
             else:
                 subject = (m.group(1), m.group(2))
