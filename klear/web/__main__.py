@@ -42,7 +42,8 @@ PUBLIC = (
     "/index.html",
     "/ask",
     "/compare",
-    "/compare.html",
+    "/rankings",
+    "/rankings.html",
     "/data",
     "/data.html",
     "/accessibility.html",
@@ -51,11 +52,13 @@ PUBLIC = (
     "/page.js",
     "/app.js",
     "/compare.js",
+    "/rankings.js",
     "/outreach.js",
     "/data.js",
     "/checks.js",
     "/style.css",
     "/logo.svg",
+    "/islands.svg",
     "/favicon.svg",
     "/favicon.ico",
     "/apple-touch-icon.png",
@@ -65,15 +68,21 @@ PUBLIC = (
     "/fonts/public-sans-ext.woff2",
     "/fonts/archivo.woff2",
 )
-# The site's pages in the order a visitor uses them: find a district, ask about it, compare districts, then the data
-# and methods behind every figure. Clean addresses serve their page's file. Asking shares the home page's file, which
-# shows its question box at full width at /ask.
-PAGES = {"/ask": "/index.html", "/compare": "/compare.html", "/data": "/data.html"}
+# The site's pages. Clean addresses serve their page's file. The home page's file also holds Compare, which sets two
+# districts side by side beside the agent, and /ask, the home page with the agent's panel open. Rankings colors every
+# district by one measure and holds the outreach groups; Data has the methods behind every figure.
+PAGES = {
+    "/ask": "/index.html",
+    "/compare": "/index.html",
+    "/rankings": "/rankings.html",
+    "/data": "/data.html",
+}
 # Pages that moved into those two, kept working for old links and bookmarks. A link's #part, such as
 # /methods.html#irs_soi_zip_2023, carries over by itself, since the new address has none; a page with no #part
 # opens at its section, which data.js scrolls to from the section named here.
 MOVED = {
-    "/outreach.html": "/compare?view=outreach",
+    "/outreach.html": "/rankings?view=outreach",
+    "/compare.html": "/compare",
     "/sources.html": "/data?section=sources",
     "/methods.html": "/data?section=methods",
     "/glossary.html": "/data?section=glossary",
@@ -374,6 +383,13 @@ class Handler(SimpleHTTPRequestHandler):
             target = MOVED[path.path] + (f"&{path.query}" if path.query and "?" in MOVED[path.path] else "")
             self.send_response(301)
             self.send_header("Location", target)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return None
+        if path.path == "/compare" and parse_qs(path.query).get("view", [""])[0] in ("rankings", "outreach"):
+            # Rankings and Outreach were tabs of the compare page; old links open them on their own page.
+            self.send_response(301)
+            self.send_header("Location", f"/rankings?{path.query}")
             self.send_header("Content-Length", "0")
             self.end_headers()
             return None

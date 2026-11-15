@@ -58,7 +58,7 @@ test('with no district chosen, a question naming a town offers its districts, an
   page.on('request', r => { if (r.url().endsWith('/api/chat')) sent.push(r.postDataJSON()); });
   await expect(page.locator('#welcome-text')).toHaveText('Ask about a district, a town or ZIP code, or all of Hawaiʻi.');
   await page.getByLabel('Your question').fill('How many kūpuna live in Kāneʻohe?');
-  await page.getByRole('button', {name: 'Ask KLEAR'}).click();
+  await page.locator('#send').click();
   await expect(page.locator('#chat-live')).toHaveText('Answer ready.');
   expect(sent[0]).toEqual({question: 'How many kūpuna live in Kāneʻohe?', district: null});
   const answer = page.locator('#log article').last();
@@ -80,7 +80,7 @@ test('with no district chosen, an answer about one district chooses it, and a fo
   page.on('request', r => { if (r.url().endsWith('/api/chat')) sent.push(r.postDataJSON()); });
   const question = `How does poverty in ${DISTRICT} compare with the state?`;
   await page.getByLabel('Your question').fill(question);
-  await page.getByRole('button', {name: 'Ask KLEAR'}).click();
+  await page.locator('#send').click();
   await expect(page.locator('#chat-live')).toContainText(`Answer ready for ${DISTRICT}.`);
   await expect(page.locator('#district-title')).toHaveText(DISTRICT);
   await expect(page).toHaveURL(/\/district\/house-22$/);
@@ -93,33 +93,36 @@ test('with no district chosen, an answer about one district chooses it, and a fo
   expect(sent).toEqual([{question, district: null}, {question: 'And how does that compare with the county?', district: 'house:022', earlier: [subject]}]);
 });
 
-test('the Ask page is only its question box until the first question, and its starters name their place', async ({page}) => {
+test('the agent’s panel on the Find page offers starters that name their place until the first question', async ({page}) => {
   await page.goto('/ask');
+  const panel = page.locator('#chat');
+  await expect(panel).toBeVisible();
   await expect(page.locator('#question')).toBeVisible();
-  // No transcript, and no district search: the Find page's search is the only one.
-  await expect(page.locator('#messages')).toBeHidden();
-  await expect(page.getByRole('combobox')).toHaveCount(0);
+  await expect(page.locator('#chat-panel-title')).toHaveText('Ask KLEAR');
   // The starters, by topic.
-  const topics = page.getByRole('group', {name: /^(People|Income|Housing|Programs)$/});
+  const topics = page.locator('#starter').getByRole('group', {name: /^(People|Income|Housing|Programs)$/});
   await expect(topics).toHaveCount(4);
   const starters = page.locator('#starters button');
   await expect(starters).toHaveText(['How many kūpuna live in Kāneʻohe?', 'Which House districts have the highest share of kūpuna?', 'How does poverty in Pāhoa compare with the state?', 'What does the data say about housing costs in Kīhei?', 'What support programs could families in Waiʻanae explore?']);
-  // No control the Ask page shows asks about "this district".
-  const visible = await page.locator('button:visible, a:visible').allInnerTexts();
+  // No control the panel shows asks about "this district".
+  const visible = await panel.locator('button:visible, a:visible').allInnerTexts();
   expect(visible.filter(t => /this district/i.test(t))).toEqual([]);
   await expect(page.getByText('Screenshot', {exact: false})).toHaveCount(0);
   await page.getByLabel('Your question').fill('How many kūpuna live in Hawaiʻi?');
-  await page.getByRole('button', {name: 'Ask KLEAR'}).click();
-  await expect(page.locator('#messages')).toBeVisible();
+  await page.locator('#send').click();
   await expect(page.locator('#log .user')).toHaveText('You asked: How many kūpuna live in Hawaiʻi?');
   // Once the conversation starts, the starters give way to it.
   await expect(page.locator('#starters')).toBeHidden();
+  // Escape minimizes the panel to its button, and the conversation waits there.
+  await page.getByLabel('Your question').press('Escape');
+  await expect(panel).toBeHidden();
+  await expect(page.locator('#chat-fab')).toBeFocused();
 });
 
 test('a district an answer chooses counts as asked, so opening another adds a divider and the saved chat keeps it', async ({page}) => {
   await page.goto('/ask');
   await page.getByLabel('Your question').fill(`How does poverty in ${DISTRICT} compare with the state?`);
-  await page.getByRole('button', {name: 'Ask KLEAR'}).click();
+  await page.locator('#send').click();
   await expect(page.locator('#chat-live')).toContainText(`Answer ready for ${DISTRICT}.`);
   await expect(page.locator('#district-title')).toHaveText(DISTRICT);
   await expect(page.locator('#log .switch')).toHaveCount(0);
@@ -138,7 +141,7 @@ test('with no district chosen, a slow question says it is still checking without
   await page.goto('/ask');
   const release = await holdQuestions(page);
   await page.getByLabel('Your question').fill('How many kūpuna live statewide?');
-  await page.getByRole('button', {name: 'Ask KLEAR'}).click();
+  await page.locator('#send').click();
   await expect(page.locator('#log .pending')).toBeVisible();
   await page.clock.fastForward('00:16');
   await expect(page.locator('#chat-live')).toHaveText(/^Still checking district data and sources: \d+ seconds so far\. Press Cancel to stop\.$/);
@@ -233,7 +236,7 @@ test('a slow question shows the seconds, can be cancelled, and Retry asks it aga
   await showTab(page, 'Ask');
   const release = await holdQuestions(page);
   await page.getByLabel('Your question').fill('How many kūpuna live here?');
-  await page.getByRole('button', {name: 'Ask KLEAR'}).click();
+  await page.locator('#send').click();
   const waiting = page.locator('#log .pending');
   await expect(waiting).toContainText('Checking district data and sources…');
   await expect(waiting.locator('.elapsed')).toHaveText(/^[1-9]\d* seconds?$/);
@@ -259,7 +262,7 @@ test('a question with no answer after 45 seconds is stopped and says what to do'
   await showTab(page, 'Ask');
   const release = await holdQuestions(page);
   await page.getByLabel('Your question').fill('How many kūpuna live here?');
-  await page.getByRole('button', {name: 'Ask KLEAR'}).click();
+  await page.locator('#send').click();
   await expect(page.locator('#log .pending')).toBeVisible();
   await page.clock.fastForward('00:46');
   const message = 'KLEAR did not answer within 45 seconds, so the question was stopped. Press Retry to ask again.';
@@ -280,7 +283,7 @@ test('error pages that are not JSON get plain messages that say what to do next'
   for (const [status, body, message, retry] of replies) {
     await page.route('**/api/chat', route => route.fulfill({status, contentType: 'text/html', body}));
     await page.getByLabel('Your question').fill('How does poverty here compare?');
-    await page.getByRole('button', {name: 'Ask KLEAR'}).click();
+    await page.locator('#send').click();
     await expect(page.locator('#chat-live')).toHaveText(message);
     const error = page.locator('#log .error').last();
     await expect(error.locator('p')).toHaveText(message);
@@ -325,6 +328,24 @@ test('an answer with no data points to datatrove.ai, and an answer with figures 
   await expect(found.locator('.tile').first()).toBeVisible();
   await expect(found.locator('.elsewhere')).toHaveCount(0);
   await expect(found.getByRole('link', {name: /datatrove/})).toHaveCount(0);
+});
+
+test('Copy answer copies the question, the answer, its figures and its sources as text', async ({page, context, browserName}) => {
+  test.skip(browserName !== 'chromium', 'Reading the clipboard back needs Chromium permissions');
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  await page.goto('/');
+  await chooseDistrict(page);
+  const answer = await ask(page);
+  await answer.getByRole('button', {name: `Copy answer for ${DISTRICT}`}).click();
+  await expect(answer.locator('.copy-status')).toHaveText('Copied.');
+  await expect(page.locator('#chat-live')).toHaveText('Answer copied.');
+  const text = await page.evaluate(() => navigator.clipboard.readText());
+  expect(text).toContain('Question: How does poverty here compare with the county and state?');
+  expect(text).toContain(`KLEAR's answer for ${DISTRICT}:`);
+  // The clipboard may write line ends as CRLF, as Windows does.
+  expect(text).toMatch(/Figures:\r?\n- .+: .+/);
+  expect(text).toMatch(/Sources:\r?\n- American Community Survey 5-year, 2020-2024 https:\/\/example\.org/);
+  expect(text).toContain('not an official State of Hawaiʻi product');
 });
 
 test('every page’s footer names datatrove.ai as a site that leaves KLEAR', async ({page}) => {

@@ -11,6 +11,7 @@ import pandas as pd
 import pytest
 
 from klear.config import ROOT
+from klear.etl.mapshapes import band_art
 from klear.labels import short_label
 from klear.store.db import add_facts, add_geographies, add_indicators
 from klear.web import __main__ as web
@@ -39,6 +40,18 @@ def test_map_files_are_public(endpoint):  # noqa: F811
         assert request(endpoint, "GET", path)[0] == 200
     status, page = request(endpoint, "GET", "/")
     assert status == 200 and b'src="/map.js"' in page and b'id="map"' in page
+
+
+def test_the_band_draws_the_islands_from_the_map(endpoint):  # noqa: F811
+    # The faint islands in the band at the top of each page are the map's own House districts, written by the build.
+    art = (web.STATIC / "islands.svg").read_text(encoding="utf-8")
+    assert art == band_art(json.loads(MAP.read_text(encoding="utf-8")))
+    assert art.count("<path ") == COUNTS["house"]
+    assert request(endpoint, "GET", "/islands.svg")[0] == 200
+    for page in ("index.html", "rankings.html", "data.html", "accessibility.html"):
+        assert '<img class="hero-art" src="/islands.svg"' in (web.STATIC / page).read_text(
+            encoding="utf-8"
+        ), page
 
 
 def test_zip_table_covers_hawaii_zips():
@@ -252,8 +265,8 @@ def test_map_without_a_store_says_so(tmp_path):
 
 
 def test_the_map_lists_each_measure_by_its_short_label():
-    # The colored map is on the compare page's Rankings tab, opening on the first measure; the home map has none.
-    page = (web.STATIC / "compare.html").read_text(encoding="utf-8")
+    # The colored map is on the rankings page's first tab, opening on the first measure; the home map has none.
+    page = (web.STATIC / "rankings.html").read_text(encoding="utf-8")
     select = re.search(r'<select id="map-shade">(.*?)</select>', page).group(1)
     options = re.findall(r'<option value="([^"]*)"(?: selected)?>([^<]*)</option>', select)
     assert [v for v, _ in options] == list(shade.MEASURES)
@@ -261,13 +274,26 @@ def test_the_map_lists_each_measure_by_its_short_label():
     for value, text in options:
         assert text == short_label(value, ""), value
     assert '<label for="map-shade">Measure</label>' in page
-    assert "<summary>Every district, highest first</summary>" in page
+    # Beside the map, the district ranking: a card with its own title that is always open, a rank on each row.
+    assert (
+        '<h2 id="map-table-title">District ranking</h2>' in page
+        and "<details" not in page.split('id="map-table"')[1][:80]
+    )
+    assert '<th scope="col" class="rank-num">Rank</th>' in page
+    # The table can also run lowest first, by district number or by island.
+    order = re.search(r'<select id="map-order">(.*?)</select>', page).group(1)
+    assert re.findall(r'<option value="(\w+)"', order) == ["high", "low", "number", "island"]
     assert 'id="map-shade"' not in (web.STATIC / "index.html").read_text(encoding="utf-8")
 
 
 def test_shading_uses_classes_never_style_attributes():
     script = (web.STATIC / "map.js").read_text(encoding="utf-8")
-    assert not re.search(r"\.style\.(?!setProperty\('--label')|setAttribute\('style'|cssText", script)
+    # Only custom properties, which the style sheet reads: the label size, where the hover label sits, and the length
+    # of each bar in the ranking and of its whisker.
+    assert not re.search(
+        r"\.style\.(?!setProperty\('--(label|tip-x|tip-y|bar-w|whisker-x|whisker-w)')|setAttribute\('style'|cssText",
+        script,
+    )
     css = (web.STATIC / "style.css").read_text(encoding="utf-8")
     for q in range(1, 6):
         assert f"#map.shaded .district.q{q}{{fill:var(--q{q})}}" in css

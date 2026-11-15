@@ -286,6 +286,10 @@ def test_about_serves_store_facts_and_sources(endpoint):
     body = json.loads(data)
     assert status == 200 and headers["Cache-Control"] == "no-store"
     assert body["facts"][0] == "2 House and 1 Senate districts"
+    assert body["stats"][:2] == [
+        {"value": "2", "label": "House districts"},
+        {"value": "1", "label": "Senate district"},
+    ]
     assert "example" not in body and [s["publisher"] for s in body["sources"]] == [
         "Census",
         "HUD",

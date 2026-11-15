@@ -1,4 +1,4 @@
-// axe checks of the main views: landing page, district profile, answers, and the map.
+// axe checks of the main views: the Find page, a district's page, Compare, answers, the print dialog and the maps.
 import {test, expect} from '@playwright/test';
 import {DISTRICT, ask, chooseDistrict, expectAccessible, offline, openAll, showTab} from './helpers.js';
 
@@ -14,30 +14,31 @@ test('landing page', async ({page}, testInfo) => {
   await expectAccessible(page, testInfo, 'landing page');
 });
 
-test('compare page with two districts side by side', async ({page}, testInfo) => {
+test('compare with two districts searched for side by side', async ({page}, testInfo) => {
   await page.goto('/compare');
-  for (const query of ['House 22', 'House 23']) {
-    await page.locator('#cmp-place').fill(query);
-    await page.locator('#panel-districts').getByRole('button', {name: 'Add'}).click();
+  await expectAccessible(page, testInfo, 'compare with two searches');
+  for (const [slot, query] of [['a', 'House 22'], ['b', 'House 23']]) {
+    await page.locator(`#cmp-${slot}-place`).fill(query);
+    await page.locator(`#cmp-${slot}-find`).getByRole('button', {name: 'Find district'}).click();
   }
-  await expect(page.locator('#panel-districts .cmp-table')).toBeVisible();
-  await expectAccessible(page, testInfo, 'compare page side by side');
+  await expect(page.locator('.cmp-table').first()).toBeVisible();
+  await expectAccessible(page, testInfo, 'compare side by side');
 });
 
-test('ask page, before and after an answer', async ({page}, testInfo) => {
+test('the agent’s panel on the Find page, before and after an answer', async ({page}, testInfo) => {
   await page.goto('/ask');
-  await expect(page.getByRole('heading', {level: 1})).toHaveText('Ask KLEAR');
-  await expectAccessible(page, testInfo, 'ask page');
+  await expect(page.locator('#chat')).toBeVisible();
+  await expectAccessible(page, testInfo, 'agent panel');
   await page.locator('#starters').getByRole('button', {name: 'How many kūpuna live in Kāneʻohe?'}).click();
   await expect(page.locator('#log article')).toHaveCount(1);
-  await expectAccessible(page, testInfo, 'ask page with an answer');
+  await expectAccessible(page, testInfo, 'agent panel with an answer');
 });
 
 test('data and methods page, with its sources, methods, glossary and checks', async ({page}, testInfo) => {
   await page.goto('/data');
   await expect(page.getByRole('heading', {level: 1})).toHaveText('Data and methods');
   await expect(page.locator('#source-wrap')).toBeVisible();
-  await expect(page.locator('#build')).not.toContainText('Loading the latest build');
+  await expect(page.locator('#checks-loading')).toBeHidden();
   await openAll(page);
   await expectAccessible(page, testInfo, 'data and methods page');
 });
@@ -55,22 +56,28 @@ test('district profile', async ({page}, testInfo) => {
   await expectAccessible(page, testInfo, 'district profile');
 });
 
-test.describe('district page at one column', () => {
+test.describe('district page with the agent as a panel', () => {
   test.use({viewport: {width: 900, height: 800}});
-  test('both tabs, with a new answer marked', async ({page}, testInfo) => {
+  test('the panel shut, open, and shut with a new answer marked', async ({page}, testInfo) => {
     test.slow();
     await page.goto('/district/house-22');
     await expect(page.locator('#profile-live')).toHaveText(`Profile for ${DISTRICT} loaded.`);
     await openAll(page);
-    await expectAccessible(page, testInfo, 'district page, Profile tab');
+    await expectAccessible(page, testInfo, 'district page, panel shut');
     await ask(page);
-    await page.getByRole('tab', {name: 'Profile'}).click();
-    await page.locator('#tab-new').evaluate(n => { n.hidden = false; });
-    await expectAccessible(page, testInfo, 'district page, new answer');
-    await page.getByRole('tab', {name: 'Ask'}).click();
     await openAll(page);
-    await expectAccessible(page, testInfo, 'district page, Ask tab');
+    await expectAccessible(page, testInfo, 'district page, panel open');
+    await page.locator('#chat-min').click();
+    await page.locator('#fab-new').evaluate(n => { n.hidden = false; });
+    await expectAccessible(page, testInfo, 'district page, new answer');
   });
+});
+
+test('the print dialog', async ({page}, testInfo) => {
+  await chooseDistrict(page);
+  await page.getByRole('button', {name: 'Print or save as PDF'}).click();
+  await expect(page.getByRole('dialog', {name: `Print ${DISTRICT}`})).toBeVisible();
+  await expectAccessible(page, testInfo, 'print dialog');
 });
 
 test('chat answer with charts and sources', async ({page}, testInfo) => {
@@ -84,11 +91,11 @@ test('declined question and a failed question', async ({page}, testInfo) => {
   await chooseDistrict(page);
   await showTab(page, 'Ask');
   await page.getByLabel('Your question').fill('Which candidate should I vote for?');
-  await page.getByRole('button', {name: 'Ask KLEAR'}).click();
+  await page.locator('#send').click();
   await expect(page.locator('#log article h3')).toContainText('Partisan request declined');
   await page.route('**/api/chat', route => route.fulfill({status: 503, contentType: 'application/json', body: '{"error": "KLEAR could not answer. Please try again."}'}));
   await page.getByLabel('Your question').fill('How many kūpuna live here?');
-  await page.getByRole('button', {name: 'Ask KLEAR'}).click();
+  await page.locator('#send').click();
   await expect(page.locator('#log .error')).toBeVisible();
   await expectAccessible(page, testInfo, 'declined and failed answers');
 });
@@ -98,7 +105,7 @@ test('waiting line with its Cancel button', async ({page}, testInfo) => {
   await showTab(page, 'Ask');
   await page.route('**/api/chat', () => {});
   await page.getByLabel('Your question').fill('How many kūpuna live here?');
-  await page.getByRole('button', {name: 'Ask KLEAR'}).click();
+  await page.locator('#send').click();
   await expect(page.locator('#log .pending .elapsed')).not.toBeEmpty();
   await expectAccessible(page, testInfo, 'waiting line');
 });
@@ -107,51 +114,49 @@ test('answers with next questions, then a non-JSON error with Retry', async ({pa
   await chooseDistrict(page);
   await showTab(page, 'Ask');
   await page.getByLabel('Your question').fill('Which candidate should I vote for?');
-  await page.getByRole('button', {name: 'Ask KLEAR'}).click();
+  await page.locator('#send').click();
   await expect(page.locator('#log article')).toHaveCount(1);
   await page.locator('#log .followup').first().click();
   await expect(page.locator('#log article')).toHaveCount(2);
   await page.route('**/api/chat', route => route.fulfill({status: 502, contentType: 'text/html', body: '<h1>Bad Gateway</h1>'}));
   await page.getByLabel('Your question').fill('How many kūpuna live here?');
-  await page.getByRole('button', {name: 'Ask KLEAR'}).click();
+  await page.locator('#send').click();
   await expect(page.locator('#log .retry')).toBeVisible();
   await expect(page.locator('#log .followups')).toBeVisible();
   await openAll(page);
   await expectAccessible(page, testInfo, 'answers with next questions and a retry');
 });
 
-test('map with a searched ZIP code and a picked district', async ({page}, testInfo) => {
-  const map = page.locator('#district-map');
+test('map with a searched ZIP code', async ({page}, testInfo) => {
   await expect(page.locator('#map .district:not(.copy)').first()).toBeAttached();
   await page.getByLabel('Town, ZIP code, street address, district or legislator').first().fill('96744');
   await page.getByRole('button', {name: 'Find district'}).first().click();
   await expect(page.locator('#zip-status')).not.toBeEmpty();
-  await map.scrollIntoViewIfNeeded();
-  await map.getByLabel('Or choose from a list').selectOption({label: 'House District 22'});
-  await expect(page.locator('#pick-name')).toHaveText('House District 22');
   await expectAccessible(page, testInfo, 'map');
 });
 
-test('compare page: districts side by side', async ({page}, testInfo) => {
+test('compare: districts side by side, every group open', async ({page}, testInfo) => {
   await page.goto('/compare?d=house:022,house:023');
-  await expect(page.getByRole('heading', {level: 1})).toHaveText('Compare districts');
-  await expect(page.locator('.cmp-table')).toBeVisible();
+  await expect(page.getByRole('heading', {level: 1})).toHaveText('Compare');
+  await expect(page.locator('.cmp-table').first()).toBeVisible();
+  await openAll(page);
   await expectAccessible(page, testInfo, 'compare districts');
 });
 
-test('compare page: outreach with every group open', async ({page}, testInfo) => {
-  await page.goto('/compare?view=outreach');
+test('rankings page: outreach with every group open', async ({page}, testInfo) => {
+  await page.goto('/rankings?view=outreach');
   await expect(page.locator('#out-result')).toBeVisible();
   await openAll(page);
   await expectAccessible(page, testInfo, 'outreach');
 });
 
-test('compare page: map colored by a measure, with a picked district and its table', async ({page}, testInfo) => {
-  await page.goto('/compare?view=rankings');
+test('rankings page: map colored by a measure, with a picked district and its table', async ({page}, testInfo) => {
+  await page.goto('/rankings');
   const map = page.locator('#district-map');
   await expect(page.locator('#map .district:not(.copy)').first()).toBeAttached();
   await expect(page.locator('#map-legend')).toBeVisible();
-  await map.getByLabel('Or choose from a list').selectOption({label: 'House District 22'});
+  await map.getByRole('button', {name: 'Honolulu', exact: true}).click();
+  await page.locator('#map .district[data-geo="house:022"]').click();
   await expect(page.locator('#pick-value')).toContainText('12.3%');
   await openAll(page);
   await expectAccessible(page, testInfo, 'shaded map');

@@ -14,20 +14,29 @@ export async function offline(context) {
     route.fulfill({status: 200, contentType: 'text/html', body: '<!doctype html><title>Source</title><h1>Source page</h1>'}));
 }
 
-// Search from the top of the Find page and pick a district from the matches. The district's page opens at its profile.
+// Search from the Find page and pick a district from the matches. The map zooms to it and the district's page opens
+// at its profile.
 export async function chooseDistrict(page, query = 'Kāneʻohe', button = /^House 22\b/) {
-  await page.getByLabel('Town, ZIP code, street address, district or legislator').fill(query);
-  await page.getByRole('button', {name: 'Find district'}).first().click();
+  await page.getByLabel('Town, ZIP code, street address, district or legislator').first().fill(query);
+  await page.locator('#find').getByRole('button', {name: 'Find district'}).click();
   await page.locator('#find-matches').getByRole('button', {name: button}).click();
   await expect(page.locator('#district-title')).toHaveText(DISTRICT);
   await expect(page.locator('#profile-live')).toHaveText(`Profile for ${DISTRICT} loaded.`);
+  // The move from the Find page to the district's page has finished.
+  await expect(page.locator('html')).not.toHaveClass(/\bmoving\b/);
 }
 
-// Below 1200 px a district's page shows its profile or the chat behind two tabs, Profile and Ask. Open one; wider, both
-// show and there is nothing to do.
+// Whether the agent is a panel the round button opens (below 1200 px, and on the Find page), and whether it is open.
+export const chatFloats = page => page.evaluate(() => document.documentElement.classList.contains('chat-floats'));
+const chatIsOpen = page => page.evaluate(() => document.documentElement.classList.contains('chat-open'));
+
+// Below 1200 px, and on the Find page, the agent is a panel the round button opens. showTab(page, 'Ask') opens it and
+// any other name shuts it; where the agent sits beside the page there is nothing to do.
 export async function showTab(page, name) {
-  const tab = page.getByRole('tab', {name: new RegExp(`^${name}\\b`)});
-  if (await tab.isVisible()) await tab.click();
+  if (!(await chatFloats(page))) return;
+  const open = await chatIsOpen(page);
+  if (name === 'Ask' && !open) await page.locator('#chat-fab').click();
+  if (name !== 'Ask' && open) await page.locator('#chat-min').click();
 }
 
 // Ask a question by typing it, and wait for the answer to arrive.
@@ -35,15 +44,14 @@ export async function showTab(page, name) {
 export async function ask(page, question = 'How does poverty here compare with the county and state?', place = DISTRICT) {
   await showTab(page, 'Ask');
   await page.getByLabel('Your question').fill(question);
-  await page.getByRole('button', {name: 'Ask KLEAR'}).click();
+  await page.locator('#send').click();
   await expect(page.locator('#chat-live')).toContainText(`Answer ready for ${place}.`);
   return page.locator('#log article').last();
 }
 
-// Open every disclosure, so axe checks what is inside them too. The header's menu stays shut: open, it would cover the
-// page under it (axe.spec.js checks it open on its own).
+// Open every disclosure, so axe checks what is inside them too.
 export async function openAll(page) {
-  await page.locator('details:not(.nav-menu)').evaluateAll(all => all.forEach(d => { d.open = true; }));
+  await page.locator('details').evaluateAll(all => all.forEach(d => { d.open = true; }));
 }
 
 // Run axe for WCAG A and AA. Serious and critical problems fail the test; the rest are attached as notes. It runs from

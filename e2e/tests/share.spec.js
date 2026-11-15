@@ -1,4 +1,5 @@
-// Sharing a district: its own address with Back, Forward and refresh, Copy link, a one-page printout and a CSV download.
+// Sharing a district: its own address with Back, Forward and refresh, Copy link, printing what the reader chooses, and a
+// CSV download.
 import {test, expect} from '@playwright/test';
 import {DISTRICT, ask, chooseDistrict, offline, showTab} from './helpers.js';
 
@@ -6,7 +7,7 @@ test.beforeEach(async ({context}) => offline(context));
 
 const address = page => new URL('/district/house-22', page.url()).href;
 
-test('each district has its own address, which Back, Forward and a pasted link follow', async ({page, context}) => {
+test('each district has its own address, which Back, Forward and a pasted link follow', async ({page, context, isMobile}) => {
   await page.goto('/');
   await chooseDistrict(page);
   await expect(page).toHaveURL(/\/district\/house-22$/);
@@ -17,7 +18,7 @@ test('each district has its own address, which Back, Forward and a pasted link f
   await page.goBack();
   await expect(page).toHaveURL(/:\d+\/$/);
   await expect(page.locator('#district-title')).toHaveText('a district');
-  await expect(page.locator('#find-section')).toBeVisible();
+  await expect(page.locator('#find-col')).toBeVisible();
   await expect(page.getByRole('heading', {level: 1})).toHaveText('Find your district');
   await expect(page.locator('#profile')).toBeHidden();
   await expect(page.locator('#home-starters').getByRole('button', {name: 'How many kūpuna live in Kāneʻohe?'})).toBeVisible();
@@ -34,11 +35,11 @@ test('each district has its own address, which Back, Forward and a pasted link f
   await expect(page.locator('#district-title')).toHaveText('House District 23');
   await page.goBack();
   await expect(page).toHaveURL(/:\d+\/$/);
-  await expect(page.locator('#find-section')).toBeVisible();
+  await expect(page.locator('#find-col')).toBeVisible();
   await page.goForward();
   await expect(page.locator('#district-title')).toHaveText('House District 23');
   await expect(page.locator('#profile-live')).toHaveText('Profile for House District 23 loaded.');
-  await expect(page.locator('#find-section')).toBeHidden();
+  await expect(page.locator('#find-col')).toBeHidden();
 
   // A pasted link opens the same district in a new tab, at the top of its page, with its name as the page heading.
   const pasted = await context.newPage();
@@ -46,8 +47,8 @@ test('each district has its own address, which Back, Forward and a pasted link f
   await expect(pasted.locator('#district-title')).toHaveText(DISTRICT);
   await expect(pasted.locator('#profile-live')).toHaveText(`Profile for ${DISTRICT} loaded.`);
   await expect(pasted.getByRole('heading', {level: 1})).toHaveText(DISTRICT);
-  await expect(pasted.locator('#find-section')).toBeHidden();
-  await expect(pasted.locator('#profile .profile-stats')).toBeInViewport();
+  await expect(pasted.locator('#find-col')).toBeHidden();
+  if (!isMobile) await expect(pasted.locator('#profile .profile-stats')).toBeInViewport();
   expect(await pasted.evaluate(() => scrollY)).toBe(0);
 
   // A link to a district that does not exist lands on the page with no district and says why.
@@ -79,7 +80,7 @@ test('a question still loading, or failed, when the page reloads waits in the bo
   await page.route('**/api/chat', () => {});
   await showTab(page, 'Ask');
   await page.getByLabel('Your question').fill('How many kūpuna live here?');
-  await page.getByRole('button', {name: 'Ask KLEAR'}).click();
+  await page.locator('#send').click();
   await expect(page.locator('#log .pending')).toBeVisible();
   await page.reload();
   await expect(page.getByLabel('Your question')).toHaveValue('How many kūpuna live here?');
@@ -87,7 +88,7 @@ test('a question still loading, or failed, when the page reloads waits in the bo
 
   // A failed answer shows its error until the reload, which keeps only the question.
   await page.route('**/api/chat', route => route.fulfill({status: 503, contentType: 'application/json', body: '{"error": "KLEAR could not answer. Please try again."}'}));
-  await page.getByRole('button', {name: 'Ask KLEAR'}).click();
+  await page.locator('#send').click();
   await expect(page.locator('#log .error p')).toHaveText('KLEAR could not answer. Please try again.');
   await page.reload();
   await expect(page.getByLabel('Your question')).toHaveValue('How many kūpuna live here?');
@@ -99,13 +100,13 @@ test('Copy link copies the district’s address and says so', async ({page, cont
   await context.grantPermissions(['clipboard-read', 'clipboard-write']);
   await page.goto('/');
   await chooseDistrict(page);
-  await page.getByRole('group', {name: 'Share this profile'}).getByRole('button', {name: 'Copy link'}).click();
-  await expect(page.locator('#profile .profile-share-status')).toHaveText('Link copied.');
+  await page.getByRole('group', {name: 'Share'}).getByRole('button', {name: 'Copy link'}).click();
+  await expect(page.locator('#share-status')).toHaveText('Link copied.');
   await expect(page.locator('#profile-live')).toHaveText('Link copied.');
   expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(address(page));
 });
 
-test('printing gives a one-page summary with every source, year and address written out', async ({page}, testInfo) => {
+test('printing gives the short brief by default, with every source, year and address written out', async ({page}) => {
   await page.goto('/');
   // Before a district is chosen, the page prints as it is.
   await page.emulateMedia({media: 'print'});
@@ -114,59 +115,114 @@ test('printing gives a one-page summary with every source, year and address writ
   await page.emulateMedia({media: null});
 
   await chooseDistrict(page);
-  await expect(page.getByRole('group', {name: 'Share this profile'}).getByRole('button', {name: 'Print or save as PDF'})).toBeVisible();
+  await expect(page.getByRole('group', {name: 'Share'}).getByRole('button', {name: 'Print or save as PDF'})).toBeVisible();
+  // The browser's own Print prints the short brief: the district's name and legislator, At a glance, and Programs and help.
   await page.emulateMedia({media: 'print'});
   const sheet = page.locator('#print-sheet');
   await expect(sheet).toBeVisible();
   await expect(page.locator('main')).toBeHidden();
   await expect(sheet.getByRole('heading', {level: 1})).toHaveText(DISTRICT);
+  await expect(sheet.getByRole('heading', {level: 2})).toHaveText(['1 At a glance', 'About this district’s figures', '4 Programs and help', 'Sources']);
+  await expect(sheet.locator('.sheet-member')).toContainText('Representative Leilani M. Kaʻai https://example.org/member/house022');
 
-  // Each figure beside the county and the state, with its margin of error, grouped, and with the sources it uses.
+  // Each figure beside the county and the state, with its margin of error, how it compares, and the sources it uses.
   await expect(sheet).toHaveAttribute('data-chamber', 'house');
-  const table = sheet.getByRole('table');
-  await expect(table.locator('thead th')).toHaveText(['Measure', DISTRICT, 'Honolulu County', 'Hawaiʻi', 'Source']);
-  await expect(table.getByRole('columnheader', {name: 'Income and poverty'})).toBeVisible();
-  await expect(table.getByRole('row', {name: /People below the poverty level/})).toHaveText(
-    /^People below the poverty level\s*12\.3%\s*± 2\.1 points\s*8\.9%\s*± 0\.5 points\s*9\.8%\s*± 0\.4 points\s*1$/);
+  const glance = sheet.locator('.sheet-glance').getByRole('table');
+  await expect(glance.locator('thead th')).toHaveText(['Measure', DISTRICT, 'Honolulu County', 'Hawaiʻi', 'How it compares', 'Source']);
+  await expect(glance.getByRole('row', {name: /People below the poverty level/})).toHaveText(
+    /^People below the poverty level\s*12\.3%\s*± 2\.1 points\s*8\.9%\s*± 0\.5 points\s*9\.8%\s*± 0\.4 points\s*▲ 38% above county; ≈ 26% above state, no clear difference\s*1$/);
   await expect(sheet.locator('.sheet-note').first()).toContainText('± is the 90% margin of error.');
-  await expect(sheet.locator('.sheet-about')).toContainText('Shares of 2020 Census residents (source 2).');
+  await expect(sheet.locator('.sheet-about')).toContainText(/Shares of 2020 Census residents \(source \d\)\./);
 
-  // Sources with their vintages, then the programs and the live profile, all as written-out addresses.
-  const sources = sheet.locator('.sheet-sources li');
-  await expect(sources.first()).toHaveText('American Community Survey 5-year, 2020-2024 https://example.org');
-  await expect(sources.nth(1)).toContainText('2020 Census Redistricting Data (P.L. 94-171), population by block, 2020 Census');
-  await expect(sources.nth(1)).toContainText('https://www.census.gov/programs-surveys/decennial-census/about/rdo/summary-files.html');
-  // The Commission's official description and permanent residents, cited to the report and its pages.
-  await expect(sources).toHaveCount(3);
-  await expect(sources.last()).toContainText('2021 Reapportionment Commission Final Report and Reapportionment Plan, Final report, February 25, 2022 https://example.org/reapportionment');
-  const plan = sheet.locator('.sheet-plan');
-  await expect(plan.first()).toHaveText('Official description The 22nd Representative District comprises the portion of the island of Oʻahu including Manoa. (source 3, report page D-017, PDF page 891)');
-  await expect(plan.last()).toContainText('Permanent residents in the 2022 plan 26,451 (source 3, report page 15, PDF page 23).');
-  await expect(plan.last()).toContainText('so it differs from the total population.');
-  // No need figure in the fixture district sits above the state's, so the programs of every need group print, six at
-  // most, each under its group's figure and written as on the profile. Rows that say who a program is for and its limit
-  // run longer, so the page holds fewer than six.
-  const programs = sheet.locator('.sheet-programs');
-  const printed = await programs.locator('li').count();
-  expect(printed).toBeGreaterThanOrEqual(3);
-  expect(printed).toBeLessThanOrEqual(6);
+  // Every program, by need group, written as on the profile, with its address and phone: more than the one-page
+  // summary's five.
+  const programs = sheet.locator('.sheet-program-list');
+  expect(await programs.locator('li').count()).toBeGreaterThan(5);
   await expect(programs.locator('.sheet-program-group').first()).toHaveText(/^Housing\. .+ statewide\.$/);
   await expect(programs).toContainText('Public housing and housing choice vouchers (State): Rental homes in state and federal public housing');
   await expect(programs).toContainText('For Households with low income');
   await expect(programs).toContainText('Limit Income at or below 50% of the county median, in effect from January 1, 2026.');
   await expect(programs).toContainText('https://hpha.hawaii.gov/how-to-apply · Call (808) 204-9042');
-  await expect(programs.locator('.sheet-note')).toContainText('None of this district’s need figures sit clearly above the state’s');
-  await expect(programs.locator('.sheet-note')).toContainText('The live profile lists every program.');
   await expect(programs.locator('.sheet-note')).toContainText(/Program details checked \w+ \d+/);
+
+  // Sources with their vintages, the live profile's address, and the date it was printed, all written out.
+  const sources = sheet.locator('.sheet-sources li');
+  await expect(sources.first()).toHaveText('American Community Survey 5-year, 2020-2024 https://example.org');
+  await expect(sheet.locator('.sheet-sources')).toContainText('2020 Census Redistricting Data (P.L. 94-171), population by block, 2020 Census');
   await expect(sheet.locator('.sheet-live')).toContainText(address(page));
   await expect(sheet.locator('.sheet-live')).toContainText(/Printed \w+ \d+, \d{4}/);
   await expect(sheet.locator('.sheet-foot')).toContainText('Not an official State of Hawaiʻi product.');
   await expect(sheet.locator('a')).toHaveCount(0);
+  await page.emulateMedia({media: null});
+});
 
-  // One US Letter page. Only desktop Chromium makes PDFs.
+// Print from the Print button, as a reader does: the dialog asks what to print, and the browser's print dialog is stood
+// in for by its beforeprint event.
+async function openPrint(page) {
+  await page.emulateMedia({media: 'screen'});
+  await page.evaluate(() => { window.print = () => { window.printed = (window.printed || 0) + 1; window.dispatchEvent(new Event('beforeprint')); }; });
+  await page.getByRole('group', {name: 'Share'}).getByRole('button', {name: 'Print or save as PDF'}).click();
+  const dialog = page.getByRole('dialog', {name: /^Print /});
+  await expect(dialog).toBeVisible();
+  return dialog;
+}
+async function printNow(page, dialog) {
+  await dialog.getByRole('button', {name: 'Print', exact: true}).click();
+  await expect(dialog).toBeHidden();
+  await expect.poll(() => page.evaluate(() => window.printed || 0)).toBeGreaterThan(0);
+  await page.emulateMedia({media: 'print'});
+  const sheet = page.locator('#print-sheet');
+  await expect(sheet).toBeVisible();
+  return sheet;
+}
+
+test('the print dialog asks what to print, and a long printout runs over several pages', async ({page}, testInfo) => {
+  await page.goto('/district/house-22');
+  await expect(page.locator('#profile-live')).toHaveText(`Profile for ${DISTRICT} loaded.`);
+  let dialog = await openPrint(page);
+  await expect(dialog.getByRole('heading', {level: 2})).toHaveText(`Print ${DISTRICT}`);
+  const parts = dialog.getByRole('group', {name: 'Sections'}).getByRole('checkbox');
+  await expect(parts).toHaveCount(5);
+  await expect(dialog.getByRole('checkbox', {name: '1 At a glance'})).toBeChecked();
+  await expect(dialog.getByRole('checkbox', {name: '2 People'})).not.toBeChecked();
+  await expect(dialog.getByRole('checkbox', {name: '4 Programs and help'})).toBeChecked();
+  await expect(dialog.getByRole('checkbox', {name: 'County and state columns'})).toBeChecked();
+  await expect(dialog.getByRole('checkbox', {name: /One-page summary/})).not.toBeChecked();
+
+  // Nothing chosen: the dialog says so and stays open.
+  await dialog.getByRole('button', {name: 'Clear'}).click();
+  await dialog.getByRole('button', {name: 'Print', exact: true}).click();
+  await expect(dialog.getByRole('alert')).toHaveText('Choose at least one section to print.');
+  await expect(dialog).toBeVisible();
+
+  // Everything, with the district's figures alone: every section, in the profile's numbers, one column of figures.
+  await dialog.getByRole('button', {name: 'Select all'}).click();
+  await dialog.getByRole('checkbox', {name: 'County and state columns'}).uncheck();
+  let sheet = await printNow(page, dialog);
+  await expect(sheet.locator('.sheet-section > h2')).toHaveText(['1 At a glance', 'About this district’s figures', '2 People', '3 Income and work', '4 Programs and help', '5 Reference', 'Sources']);
+  await expect(sheet.locator('.sheet-glance thead th')).toHaveText(['Measure', DISTRICT, 'Source']);
+  await expect(sheet.locator('.sheet-plan-box')).toContainText('Official description The 22nd Representative District comprises the portion of the island of Oʻahu including Manoa.');
+  // The choice holds for the next printout, and for the browser's own Print.
+  await page.emulateMedia({media: 'screen'});
+  dialog = await openPrint(page);
+  await expect(dialog.getByRole('checkbox', {name: '5 Reference'})).toBeChecked();
+  await expect(dialog.getByRole('checkbox', {name: 'County and state columns'})).not.toBeChecked();
+  await dialog.getByRole('button', {name: 'Cancel'}).click();
+  await expect(dialog).toBeHidden();
+
+  // Long program text runs the printout onto more pages; nothing is cut to fit.
+  await editProfile(page, p => {
+    for (const g of [...p.programs.programs, ...p.programs.others]) g.description = `${g.description} `.repeat(12).trim();
+  });
+  await page.goto('/district/house-22');
+  await expect(page.locator('#profile-live')).toHaveText(`Profile for ${DISTRICT} loaded.`);
+  dialog = await openPrint(page);
+  sheet = await printNow(page, dialog);
+  expect(await sheet.locator('.sheet-program-list li').count()).toBeGreaterThan(5);
+  expect(await sheet.evaluate(s => s.style.zoom)).toBe('');
   if (testInfo.project.name === 'desktop') {
     const pdf = await page.pdf({preferCSSPageSize: true});
-    expect(pdf.toString('latin1').match(/\/Type\s*\/Page[^s]/g)).toHaveLength(1);
+    expect(pdf.toString('latin1').match(/\/Type\s*\/Page[^s]/g).length).toBeGreaterThan(1);
   }
   await page.emulateMedia({media: null});
 });
@@ -174,7 +230,7 @@ test('printing gives a one-page summary with every source, year and address writ
 test('the profile’s figures download as a CSV file', async ({page}) => {
   await page.goto('/');
   await chooseDistrict(page);
-  const link = page.getByRole('group', {name: 'Share this profile'}).getByRole('link', {name: 'Download data (CSV)'});
+  const link = page.getByRole('group', {name: 'Share'}).getByRole('link', {name: 'Download data (CSV)'});
   const [download] = await Promise.all([page.waitForEvent('download'), link.click()]);
   expect(download.suggestedFilename()).toBe('klear-house-district-22.csv');
   const csv = await (await page.request.get(await link.getAttribute('href'))).text();
@@ -210,15 +266,25 @@ async function editProfile(page, edit) {
   });
 }
 
-test('the printout drops programs from the end until it fits on one page', async ({page}, testInfo) => {
+// The one-page summary: key figures beside the county and the state, the top programs, and every source, on one US
+// Letter page.
+async function printSummary(page) {
+  const dialog = await openPrint(page);
+  await dialog.getByRole('checkbox', {name: /One-page summary/}).check();
+  await expect(dialog.getByRole('checkbox', {name: '1 At a glance'})).toBeDisabled();
+  return printNow(page, dialog);
+}
+
+test('the one-page summary drops programs from the end until it fits on one page', async ({page}, testInfo) => {
   // Long program text that would run the summary onto a second page at six programs.
   await editProfile(page, p => {
     for (const g of [...p.programs.programs, ...p.programs.others]) g.description = `${g.description} `.repeat(6).trim();
   });
   await page.goto('/district/house-22');
   await expect(page.locator('#profile-live')).toHaveText(`Profile for ${DISTRICT} loaded.`);
-  await page.emulateMedia({media: 'print'});
-  const programs = page.locator('#print-sheet .sheet-programs');
+  const sheet = await printSummary(page);
+  await expect(sheet).toHaveClass(/\bone-page\b/);
+  const programs = sheet.locator('.sheet-programs');
   const count = await programs.locator('li').count();
   expect(count).toBeGreaterThan(0);
   expect(count).toBeLessThan(6);
@@ -231,23 +297,13 @@ test('the printout drops programs from the end until it fits on one page', async
   await page.emulateMedia({media: null});
 });
 
-// Print from the share buttons on screen, as a reader does, with the print dialog stood in for by its beforeprint event.
-async function printFromScreen(page) {
-  await page.emulateMedia({media: 'screen'});
-  await page.evaluate(() => { window.print = () => window.dispatchEvent(new Event('beforeprint')); });
-  await page.getByRole('group', {name: 'Share this profile'}).getByRole('button', {name: 'Print or save as PDF'}).click();
-  await page.emulateMedia({media: 'print'});
-  const sheet = page.locator('#print-sheet');
-  await expect(sheet).toBeVisible();
-  return sheet;
-}
-
-test('a summary printed from the screen keeps its full size when it fits, and a long one still fits one page', async ({page}, testInfo) => {
+test('a one-page summary keeps its full size when it fits, and a long one still fits one page', async ({page}, testInfo) => {
   await page.goto('/district/house-22');
   await expect(page.locator('#profile-live')).toHaveText(`Profile for ${DISTRICT} loaded.`);
-  let sheet = await printFromScreen(page);
+  let sheet = await printSummary(page);
   // The short fixture district prints all five of its programs at the full type size, unscaled.
   await expect(sheet.locator('.sheet-programs li')).toHaveCount(5);
+  await expect(sheet.locator('.sheet-key thead th')).toHaveText(['Measure', DISTRICT, 'Honolulu County', 'Hawaiʻi', 'Source']);
   expect(await sheet.evaluate(s => s.style.zoom)).toBe('');
   expect(parseFloat(await sheet.evaluate(s => getComputedStyle(s).fontSize))).toBeCloseTo((9.5 * 4) / 3, 2);
   // One US Letter page. Only desktop Chromium makes PDFs, and only a PDF lays the sheet out at the page's width.
@@ -264,7 +320,7 @@ test('a summary printed from the screen keeps its full size when it fits, and a 
   await page.emulateMedia({media: 'screen'});
   await page.goto('/district/house-22');
   await expect(page.locator('#profile-live')).toHaveText(`Profile for ${DISTRICT} loaded.`);
-  sheet = await printFromScreen(page);
+  sheet = await printSummary(page);
   const count = await sheet.locator('.sheet-programs li').count();
   const zoom = await sheet.evaluate(s => s.style.zoom);
   expect(count < 5 || zoom !== '').toBe(true);
@@ -273,6 +329,23 @@ test('a summary printed from the screen keeps its full size when it fits, and a 
     const pdf = await page.pdf({preferCSSPageSize: true});
     expect(pdf.toString('latin1').match(/\/Type\s*\/Page[^s]/g)).toHaveLength(1);
   }
+  await page.emulateMedia({media: null});
+});
+
+test('a comparison prints the two districts side by side', async ({page}) => {
+  await page.goto('/compare?d=house:022,house:023');
+  await expect(page.locator('.cmp-table').first()).toBeVisible();
+  const dialog = await openPrint(page);
+  await expect(dialog.getByRole('heading', {level: 2})).toHaveText(`Print ${DISTRICT} and House District 23`);
+  await expect(dialog.getByRole('checkbox', {name: /One-page summary/})).toBeHidden();
+  await expect(dialog.getByRole('checkbox', {name: 'Hawaiʻi’s figures beside the districts'})).toBeChecked();
+  await dialog.getByRole('checkbox', {name: '2 People'}).check();
+  const sheet = await printNow(page, dialog);
+  await expect(sheet.getByRole('heading', {level: 1})).toHaveText(`${DISTRICT} and House District 23`);
+  await expect(sheet.locator('.sheet-glance thead th')).toHaveText(['Measure', DISTRICT, 'House District 23', 'Hawaiʻi', 'Difference', 'Source']);
+  await expect(sheet.locator('.sheet-glance').getByRole('row', {name: /People below the poverty level/})).toContainText(`56% higher in ${DISTRICT}`);
+  await expect(sheet.locator('.sheet-section > h2')).toHaveText(['1 At a glance', '2 People', '4 Programs and help', 'Sources']);
+  await expect(sheet.locator('.sheet-live')).toContainText('/compare?d=house:022,house:023');
   await page.emulateMedia({media: null});
 });
 
@@ -290,9 +363,9 @@ test('the profile and its printout cope with missing or unexpected fields', asyn
   await expect(page.locator('#profile-live')).toHaveText(`Profile for ${DISTRICT} loaded.`);
   await page.emulateMedia({media: 'print'});
   const sheet = page.locator('#print-sheet');
-  await expect(sheet.getByRole('row', {name: /People below the poverty level/})).toContainText('12.3%');
-  await expect(sheet.locator('.sheet-programs')).toHaveCount(0);
-  await expect(sheet.locator('.sheet-sources li')).toHaveCount(1);
+  await expect(sheet.getByRole('row', {name: /People below the poverty level/}).first()).toContainText('12.3%');
+  await expect(sheet.locator('.sheet-program-list')).toHaveCount(0);
+  await expect(sheet.locator('.sheet-sources li')).toHaveCount(2);
   await expect(sheet.locator('.sheet-about')).toContainText('Shares of 2020 Census residents.');
   await page.emulateMedia({media: null});
 
@@ -300,7 +373,7 @@ test('the profile and its printout cope with missing or unexpected fields', asyn
   await editProfile(page, p => { p.geo = 42; });
   await page.reload();
   await expect(page.locator('#profile-live')).toHaveText(`Profile for ${DISTRICT} loaded.`);
-  await expect(page.getByRole('group', {name: 'Share this profile'})).toBeVisible();
+  await expect(page.getByRole('group', {name: 'Share'})).toBeVisible();
   await page.emulateMedia({media: 'print'});
   await expect(page.locator('#print-sheet')).toBeHidden();
   await expect(page.locator('main')).toBeVisible();

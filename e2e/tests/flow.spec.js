@@ -14,14 +14,14 @@ test('search, choose, read the profile, ask, open a source, and come back', asyn
   const matches = page.locator('#find-matches');
   await expect(matches.getByRole('group', {name: 'House districts for Kāneʻohe'}).getByRole('button')).toHaveCount(2);
 
-  // Choose: the district's own page opens at the top, its name the page heading, which takes focus. The chat asks
-  // about it.
+  // Choose: the map zooms to the district, then its own page opens at the top, its name the page heading, which takes
+  // focus. The chat asks about it.
   await matches.getByRole('button', {name: 'House 22 75% of Kāneʻohe residents'}).click();
   await expect(page.locator('#district-title')).toHaveText(DISTRICT);
   const title = page.getByRole('heading', {level: 1});
   await expect(title).toHaveText(DISTRICT);
   await expect(title).toBeFocused();
-  await expect(page.locator('#find-section')).toBeHidden();
+  await expect(page.locator('#find-col')).toBeHidden();
   expect(await page.evaluate(() => scrollY)).toBe(0);
 
   // Profile: announced in one short line. It starts with the headline figures and their margins.
@@ -31,8 +31,8 @@ test('search, choose, read the profile, ask, open a source, and come back', asyn
   const headline = profile.locator('.profile-stats div').first();
   await expect(headline.locator('dd').first()).toHaveText('12.3% ± 2.1 points');
   await expect(headline.locator('dt')).toHaveText('People below the poverty level');
-  // How the figure stands against the county and the state, in words for everyone, with the state's figure.
-  await expect(headline.locator('dd.profile-reading')).toHaveText(/^▲ Higher than the county only\s+Hawaiʻi: 9\.8%$/);
+  // How far above or below the county and the state the figure is, with the state's figure.
+  await expect(headline.locator('dd.profile-reading')).toHaveText(/^▲ 38% above county\s*≈ 26% above state, no clear difference\s*Hawaiʻi: 9\.8%$/);
   await expect(headline.locator('dd.profile-reading')).not.toHaveClass(/visually-hidden/);
   await expect(headline.locator('dd.profile-reading')).toBeVisible();
   // A numbered link at the top leads to each group of sections, and opens it. At a glance is section 1.
@@ -108,7 +108,7 @@ test('figures link to their table on data.census.gov or to the methods section',
   await page.goto('/');
   await chooseDistrict(page);
   await openAll(page);
-  const profile = page.getByRole('region', {name: DISTRICT});
+  const profile = page.getByRole('region', {name: 'District profile'});
   const table = profile.getByRole('link', {name: 'Table DP05 for House District 22 (opens in a new tab)'});
   await expect(table).toHaveAttribute('href', 'https://data.census.gov/table/ACSDP5Y2024.DP05?g=620L900US15022');
   await expect(profile.getByRole('link', {name: 'ACS 5-year Data Profiles (opens in a new tab)'})).toHaveAttribute('href', 'https://example.org/profiles');
@@ -129,7 +129,7 @@ test('a failed question is announced and waits in the box to retry', async ({pag
   await page.route('**/api/chat', route => route.fulfill({status: 503, contentType: 'application/json', body: '{"error": "KLEAR could not answer. Please try again."}'}));
   await showTab(page, 'Ask');
   await page.getByLabel('Your question').fill('How many kūpuna live here?');
-  await page.getByRole('button', {name: 'Ask KLEAR'}).click();
+  await page.locator('#send').click();
   await expect(page.locator('#chat-live')).toHaveText('KLEAR could not answer. Please try again.');
   await expect(page.locator('#chat-status')).toHaveText('Your question is ready to retry.');
   await expect(page.getByLabel('Your question')).toHaveValue('How many kūpuna live here?');
@@ -146,7 +146,7 @@ test('focus stays put when the reader has moved on before the answer arrives', a
   await page.route('**/api/chat', async route => { await held; await route.continue(); });
   await showTab(page, 'Ask');
   await page.getByLabel('Your question').fill('How does poverty here compare?');
-  await page.getByRole('button', {name: 'Ask KLEAR'}).click();
+  await page.locator('#send').click();
   // The reader moves on to the profile while the answer loads.
   await showTab(page, 'Profile');
   const people = page.locator('#profile').getByRole('navigation', {name: 'In this profile'}).getByRole('link', {name: 'People'});
@@ -164,7 +164,7 @@ test('a district chosen while an answer loads shows its profile at once', async 
   await page.route('**/api/chat', async route => { await held; await route.continue(); });
   await showTab(page, 'Ask');
   await page.getByLabel('Your question').fill('How does poverty here compare?');
-  await page.getByRole('button', {name: 'Ask KLEAR'}).click();
+  await page.locator('#send').click();
   // Back or Forward to another district's address in the same tab, while the answer loads.
   await page.evaluate(() => { history.pushState(null, '', '/district/house-23'); dispatchEvent(new PopStateEvent('popstate')); });
   await expect(page.locator('#profile-live')).toHaveText('Profile for House District 23 loaded.');

@@ -6,21 +6,12 @@ const REPO = 'https://github.com/HAIC-2026/KLEAR';
 const RESULTS = {PASS: ['Passed', 'pass'], FAIL: ['Failed', 'fail'], SKIPPED: ['Did not run', 'skip']};
 // Checks with their own section above the details list.
 const FEATURED = {population: 'cks-populations', apportionment: 'cks-accuracy'};
-const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
 function node(tag, text, className) { const n = document.createElement(tag); if (text != null) n.textContent = text; if (className) n.className = className; return n; }
 
 function chip(result) {
   const [text, kind] = RESULTS[result] || [result, 'skip'];
   return node('span', text, `result ${kind}`);
-}
-
-// "2026-11-11 10:38:33 HST (...)" as "November 11, 2026, 10:38 a.m. HST".
-function when(stamp) {
-  const m = /^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2})/.exec(stamp || '');
-  if (!m) return stamp || 'unknown';
-  const h = Number(m[4]), hour = h % 12 || 12;
-  return `${MONTHS[Number(m[2]) - 1]} ${Number(m[3])}, ${m[1]}, ${hour}:${m[5]}\u00a0${h < 12 ? 'a.m.' : 'p.m.'}\u00a0HST`;
 }
 
 function table(t, caption) {
@@ -49,31 +40,6 @@ function table(t, caption) {
 
 function fillList(list, items) {
   for (const text of items) list.append(node('li', /[.!?]$/.test(text) ? text : `${text}.`));
-}
-
-function renderBuild(data, checks) {
-  const card = $('build'), failed = checks.filter(c => c.gate && c.result === 'FAIL'), skipped = checks.filter(c => c.result === 'SKIPPED');
-  const required = checks.filter(c => c.gate).length;
-  let verdict, kind;
-  if (failed.length) { verdict = `${failed.length} of ${required} required checks failed: ${failed.map(c => c.title).join('; ')}.`; kind = 'fail'; }
-  else if (skipped.length) { verdict = `Build incomplete. ${skipped.length} ${skipped.length === 1 ? 'check' : 'checks'} did not run, so this build proves nothing about them.`; kind = 'skip'; }
-  else { verdict = `All ${required} required checks passed.`; kind = 'pass'; }
-  const status = node('p', '', `build-status ${kind}`);
-  status.append(node('span', '', 'status-mark'), node('span', verdict));
-  const facts = node('dl', '', 'build-facts');
-  const add = (label, value) => { const d = node('div'); d.append(node('dt', label), value instanceof Node ? value : node('dd', value)); facts.append(d); };
-  add('Built', when(data.built_at));
-  const commit = String(data.git_commit || 'unknown'), hash = commit.split(' ')[0], code = node('dd');
-  if (/^[0-9a-f]{7,40}$/.test(hash)) {
-    const a = node('a', hash, 'ext'); a.href = `${REPO}/commit/${hash}`; code.append(a);
-    if (commit !== hash) code.append(` ${commit.slice(hash.length).trim()}`);
-  } else code.textContent = commit;
-  add('Code version', code);
-  const reported = checks.length - required;
-  add('Checks', reported ? `${checks.length} in all: ${required} required, ${reported} reported` : `${checks.length}, all required`);
-  const st = data.store;
-  if (st) add('Data on this site', st.replaced ? 'Written by this build' : st.kept_previous ? 'Kept from an earlier build that passed' : 'Not built yet');
-  card.replaceChildren(status, facts);
 }
 
 function renderTable(checks) {
@@ -172,11 +138,12 @@ async function load() {
     if (!r.ok) throw new Error(data && data.error ? data.error : `The check results could not load (error ${r.status}).`);
   } catch (err) {
     const msg = err instanceof SyntaxError || err instanceof TypeError ? 'The check results could not load. Please try again.' : err.message;
-    $('build').replaceChildren(node('p', msg, 'build-status skip'));
+    $('checks-loading').hidden = true;
+    $('checks-status').textContent = msg;
     return;
   }
   const checks = data.checks || [];
-  renderBuild(data, checks);
+  $('checks-loading').hidden = true;
   renderTable(checks);
   renderPopulation(checks.find(c => c.name === 'population'));
   renderAccuracy(checks.find(c => c.name === 'apportionment'));

@@ -77,7 +77,7 @@ def test_pairs_rank_income_test_counts_and_name_catalog_programs():
 
 
 def test_page_offers_every_pair_as_written_in_config():
-    html = (web.STATIC / "compare.html").read_text(encoding="utf-8")
+    html = (web.STATIC / "rankings.html").read_text(encoding="utf-8")
     options = re.findall(
         r'name="pair" value="(\w+)"[^>]*><span class="pair-title">(.*?)</span><span class="pair-who">(.*?)</span></label>',
         html,
@@ -86,15 +86,15 @@ def test_page_offers_every_pair_as_written_in_config():
     assert plain == [
         (k, s["title"], s["who"][:1].upper() + s["who"][1:]) for k, s in config.OUTREACH_PAIRS.items()
     ]
-    # Outreach is a tab of the compare page, which every page's header links to.
-    assert {"/compare", "/outreach.js"} <= set(web.PUBLIC)
-    for page in ("index.html", "compare.html", "data.html", "accessibility.html"):
+    # Outreach is a tab of the rankings page, which every page's header links to.
+    assert {"/rankings", "/outreach.js"} <= set(web.PUBLIC)
+    for page in ("index.html", "rankings.html", "data.html", "accessibility.html"):
         nav = re.search(
             r'<nav aria-label="Main navigation">(.*?)</nav>',
             (web.STATIC / page).read_text("utf-8"),
             re.DOTALL,
         )
-        assert 'href="/compare"' in nav.group(1), page
+        assert 'href="/rankings"' in nav.group(1), page
 
 
 # the ranking
@@ -282,14 +282,14 @@ def test_profile_notes_where_the_district_is_in_a_top_tier(endpoint):
         "House District 22 has the most households in poverty that did not get SNAP of any House district: 400 ± 60."
     )
     assert item["link"] == "Compare House districts for SNAP"
-    assert item["url"] == "/compare?view=outreach&pair=snap&chamber=house"
+    assert item["url"] == "/rankings?view=outreach&pair=snap&chamber=house"
     other = get(endpoint, "/api/profile?district=house:023")[1]["outreach"]
     assert other["items"] == []
     assert (
         other["none"]
         == "House District 23 is not in the top group of House districts for any outreach measure."
     )
-    assert other["link"]["url"] == "/compare?view=outreach&chamber=house"
+    assert other["link"]["url"] == "/rankings?view=outreach&chamber=house"
 
 
 def test_profile_note_names_at_most_two_pairs_smallest_tier_first():
@@ -306,8 +306,8 @@ def test_profile_note_names_at_most_two_pairs_smallest_tier_first():
     )
     note = display.outreach_note({"name": "House District 4", "geo": "house:004"}, tops, session, _Places())
     assert [i["url"] for i in note["items"]] == [
-        "/compare?view=outreach&pair=kupuna&chamber=house",
-        "/compare?view=outreach&pair=snap&chamber=house",
+        "/rankings?view=outreach&pair=kupuna&chamber=house",
+        "/rankings?view=outreach&pair=snap&chamber=house",
     ]
     assert note["items"][0]["text"] == (
         "House District 4 is one of 2 House districts in the top group for kūpuna with income under 200% of "

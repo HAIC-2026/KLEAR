@@ -49,25 +49,37 @@ def test_counts_and_sources_come_from_the_store(small_con, tmp_path):
             "Final report, February 25, 2022",
         ),
     ]
-    assert set(data) == {"facts", "sources", "crosscheck"}
+    assert set(data) == {"facts", "stats", "sources", "crosscheck"}
+    # The same counts one by one, for the home page to set each number large over its label.
+    assert data["stats"] == [
+        {"value": "2", "label": "House districts"},
+        {"value": "1", "label": "Senate district"},
+        {"value": "3", "label": "measures"},
+        {"value": "3", "label": "public sources"},
+    ]
 
 
-def test_build_date_cross_check_and_skipped_checks_are_stated(small_con, tmp_path):
+def test_cross_check_and_skipped_checks_are_stated_but_not_the_build_date(small_con, tmp_path):
     _build(small_con)
     data = about(small_con, _report(tmp_path / "validation.json"))
     assert data["facts"][2:] == [
-        "Built Nov 6, 2026",
         "177,776 DBEDT values cross-checked, 0 mismatches",
         "3 checks passed, 2 waiting on HUD files",
     ]
     assert "177,776 values, 0 mismatches" in data["crosscheck"]
     assert "3,854 stored Census figures that DBEDT's profiles also publish match" in data["crosscheck"]
+    assert data["stats"][4:] == [
+        {"value": "177,776", "label": "DBEDT values cross-checked"},
+        {"value": "0", "label": "mismatches"},
+        {"value": "3", "label": "checks passed"},
+        {"value": "2", "label": "waiting on HUD files"},
+    ]
 
 
 def test_report_from_another_build_is_not_quoted(small_con, tmp_path):
     _build(small_con)
     data = about(small_con, _report(tmp_path / "validation.json", built_at="2026-11-07 09:00:00 HST"))
-    assert data["facts"][2:] == ["Built Nov 6, 2026", "3 checks passed, 2 waiting on HUD files"]
+    assert data["facts"][2:] == ["3 checks passed, 2 waiting on HUD files"]
     assert data["crosscheck"] is None
 
 
@@ -77,7 +89,13 @@ def test_failed_and_other_skipped_checks_are_counted(small_con, tmp_path):
         {"a": "pass", "b": "fail"},
         [{"name": "chas", "manual": True}, {"name": "x", "manual": False}],
     )
-    assert about(small_con, tmp_path / "missing.json")["facts"][-1] == "1 check passed, 1 failed, 2 skipped"
+    data = about(small_con, tmp_path / "missing.json")
+    assert data["facts"][-1] == "1 check passed, 1 failed, 2 skipped"
+    assert [(s["value"], s["label"]) for s in data["stats"][-3:]] == [
+        ("1", "check passed"),
+        ("1", "failed"),
+        ("2", "skipped"),
+    ]
 
 
 def test_each_source_says_how_its_figures_reach_a_district():

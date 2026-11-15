@@ -3,6 +3,7 @@
 import itertools
 import json
 import math
+import re
 import sys
 
 import duckdb
@@ -18,6 +19,7 @@ from klear.etl.areas import ISLANDS
 BUILD = ROOT / "data" / "build"
 STORE = BUILD / "klear.duckdb"
 OUT = ROOT / "klear" / "web" / "static" / "districts.json"
+ART = ROOT / "klear" / "web" / "static" / "islands.svg"
 TOLERANCE_DEG = 0.0008
 WEST, NORTH, LAT0 = -160.32, 22.3, 20.6
 SCALE = 190.0
@@ -105,6 +107,50 @@ def build_map(layers: dict[str, gpd.GeoDataFrame]) -> dict:
     return out
 
 
+def band_art(data: dict) -> str:
+    """The faint drawing of the islands in the band at the top of each page: every House district in a light teal with
+    white borders, from the map's own paths, rounded to whole map units since it is drawn small."""
+    x, y, w, h = data["groups"]["all"]["box"]
+    view = f"{x - w * 0.02:.0f} {y - h * 0.03:.0f} {w * 1.04:.0f} {h * 1.06:.0f}"
+    paths = []
+    for row in data["chambers"]["house"]:
+        rings = []
+        for part in re.split(r"[Zz]", row["d"]):
+            nums = [float(n) for n in re.findall(r"-?\d*\.?\d+", part)]
+            if len(nums) < 6:
+                continue
+            px, py, points = nums[0], nums[1], [(round(nums[0]), round(nums[1]))]
+            for dx, dy in itertools.batched(nums[2:], 2):
+                px, py = px + dx, py + dy
+                point = (round(px), round(py))
+                if point != points[-1]:
+                    points.append(point)
+            if len(points) < 3:
+                continue
+            # Steps in the same direction run together as one.
+            steps: list[list[int]] = []
+            for (ax, ay), (bx, by) in itertools.pairwise(points):
+                dx, dy = bx - ax, by - ay
+                if (
+                    steps
+                    and steps[-1][0] * dy == steps[-1][1] * dx
+                    and steps[-1][0] * dx + steps[-1][1] * dy > 0
+                ):
+                    steps[-1][0] += dx
+                    steps[-1][1] += dy
+                else:
+                    steps.append([dx, dy])
+            moves = "".join(f"l{dx} {dy}" for dx, dy in steps)
+            rings.append(f"M{points[0][0]} {points[0][1]}{moves}z")
+        if rings:
+            paths.append(f'<path d="{"".join(rings)}"/>')
+    return (
+        f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="{view}">'
+        '<g fill="#1d5563" fill-opacity=".16" stroke="#fff" stroke-width="2" stroke-linejoin="round">'
+        f"{''.join(paths)}</g></svg>\n"
+    )
+
+
 def zip_overlaps(con) -> dict[str, dict[str, list]]:
     """Share of each ZIP area's 2020 residents in each House and Senate district, from the site's resolver."""
     session = Session(con)
@@ -123,13 +169,15 @@ def zip_overlaps(con) -> dict[str, dict[str, list]]:
 
 
 def main() -> int:
-    """Write districts.json from data/build."""
+    """Write districts.json and the band's drawing of the islands from data/build."""
     layers = {c: gpd.read_file(BUILD / f"{c}.geojson") for c in CHAMBERS}
     data = build_map(layers)
     with duckdb.connect(str(STORE), read_only=True) as con:
         data["zips"] = zip_overlaps(con)
     OUT.write_text(json.dumps(data, ensure_ascii=False, separators=(",", ":")) + "\n", encoding="utf-8")
-    print(f"wrote {OUT.relative_to(ROOT)} ({OUT.stat().st_size // 1024} KB)")
+    ART.write_text(band_art(data), encoding="utf-8")
+    for path in (OUT, ART):
+        print(f"wrote {path.relative_to(ROOT)} ({path.stat().st_size // 1024} KB)")
     return 0
 
 

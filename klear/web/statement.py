@@ -7,8 +7,10 @@ from html import escape
 from klear.config import ROOT
 
 STATEMENT = ROOT / "docs" / "ACCESSIBILITY.md"
-# The page around the statement: the site's header and footer, with this slot where the statement goes.
+# The page around the statement: the site's header and footer, with a slot in the band for its title and first
+# paragraph, and this slot below where the rest goes.
 SLOT = "<!-- statement -->"
+HEAD_SLOT = "<!-- statement-head -->"
 # Links between documents, like ACCESSIBILITY-CHECKLIST.md, open on GitHub, where those documents live.
 REPO_DOCS = "https://github.com/HAIC-2026/KLEAR/blob/main/docs/"
 EXTERNAL = '<span class="visually-hidden"> (external site)</span>'
@@ -71,5 +73,11 @@ def markdown(text: str) -> str:
 
 
 def statement_page(shell: str, source=STATEMENT) -> bytes:
-    """The statement inside the site's page."""
-    return shell.replace(SLOT, markdown(source.read_text(encoding="utf-8")), 1).encode()
+    """The statement inside the site's page: its title and first paragraph in the band at the top, as every page's
+    title and lede are, and the rest below."""
+    body = markdown(source.read_text(encoding="utf-8"))
+    head = re.match(r"(<h1>.*?</h1>)\n<p>(.*?)</p>\n?", body)
+    if head and HEAD_SLOT in shell:
+        shell = shell.replace(HEAD_SLOT, f'{head.group(1)}\n<p class="lede">{head.group(2)}</p>', 1)
+        body = body[head.end() :]
+    return shell.replace(SLOT, body, 1).encode()
