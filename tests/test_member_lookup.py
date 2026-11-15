@@ -51,6 +51,38 @@ def test_names_in_a_question_narrow_by_given_name_and_title(con):
     assert named_in(con, "How many kūpuna live here?") == []
 
 
+@pytest.mark.parametrize(
+    "question",
+    [
+        "Which district does Representative Mele Kaʻai represent?",
+        "Which district does Mele Kaai represent?",
+        "which district does mele kaai represent",
+        "Which district does Senator Leilani Kaʻai represent?",
+        "Who represents the kaai side of the island?",
+        "Which district does Kaʻai Village belong to?",
+    ],
+)
+def test_names_in_a_question_never_match_under_another_given_name_or_title(con, question):
+    # by_name rejects the same names typed on their own.
+    assert named_in(con, question) == []
+
+
+def test_names_in_a_question_match_given_names_in_either_order_and_possessives(con):
+    leilani = [("house:022", "KAʻAI, Leilani M.")]
+    assert _names(named_in(con, "Which district does KAʻAI, Leilani M. represent?")) == leilani
+    assert _names(named_in(con, "Who represents Leilani Kaai's district?")) == leilani
+    assert _names(named_in(con, "which district does leilani m kaai represent")) == leilani
+    assert len(named_in(con, "Who represents Kaʻai's district?")) == 2
+
+
+def test_a_surname_that_is_a_place_name_needs_a_title(con):
+    con.execute("UPDATE member SET name = 'KAILUA, Pua' WHERE geo_id = '023'")
+    assert named_in(con, "Who represents Kailua?") == []
+    assert _names(named_in(con, "Which district does Representative Kailua represent?")) == [
+        ("house:023", "KAILUA, Pua")
+    ]
+
+
 def test_every_mention_says_where_and_when_it_was_listed(con):
     (m,) = members_of(con, "house", "022")
     assert as_listed(m) == (

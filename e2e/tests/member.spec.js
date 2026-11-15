@@ -8,6 +8,8 @@ const LISTED = "As listed on the Legislative Reference Bureau's Representatives 
 const BEFORE = 'dated October 5, 2026, before the November 3, 2026 general election';
 
 test('the profile and the printout name the member with where and when they were listed', async ({page}, testInfo) => {
+  // axe runs here, which is slow on a busy machine.
+  test.slow();
   await page.goto('/');
   await chooseDistrict(page);
   const member = page.locator('#district-head .profile-member');
@@ -38,4 +40,24 @@ test('an answer about who represents the district names the member and links the
   const links = answer.locator('.member-links');
   await expect(links.getByRole('link', {name: /official page/})).toHaveAttribute('href', 'https://example.org/member/house022');
   await expect(links.getByRole('link', {name: /Representatives at a Glance/})).toHaveAttribute('href', 'https://lrb.hawaii.gov/par/current-legislature/');
+});
+
+// A district, town or name the question gives comes before the chosen district, in the basic lookup.
+test('the basic lookup answers for the district or town the question names, not the chosen one', async ({page}) => {
+  await page.goto('/');
+  await chooseDistrict(page);
+  const other = await ask(page, 'Basic lookup: who represents House District 23?');
+  await expect(other).toContainText('House District 23 is represented by Representative PALAKIKO, Kawika');
+  await expect(other).not.toContainText('KAʻAI');
+
+  const town = await ask(page, 'Basic lookup: who represents Kāneʻohe?');
+  await expect(town).toContainText('Kāneʻohe spans more than one district.');
+  await expect(town).toContainText("House District 22, with most of Kāneʻohe's residents: Representative KAʻAI, Leilani M.");
+  await expect(town).toContainText("House District 23, with part of Kāneʻohe's residents: Representative PALAKIKO, Kawika");
+  await expect(town).toContainText("Senate District 12, with all of Kāneʻohe's residents: Senator KAʻAI, Noelani");
+  await expect(town.locator('.member-links').getByRole('link', {name: /official page/})).toHaveCount(3);
+
+  const wrong = await ask(page, 'Basic lookup: which district does Representative Mele Kaʻai represent?');
+  await expect(wrong).toContainText('I could not find a listed member with that exact name.');
+  await expect(wrong).not.toContainText('Leilani');
 });

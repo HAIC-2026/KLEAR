@@ -4,7 +4,7 @@ import unicodedata
 from dataclasses import replace
 
 from klear.agent import config
-from klear.agent.tools import _spec, display_name
+from klear.agent.tools import Session, _spec, display_name
 from klear.etl.places_gazetteer import plain_name, search_plain
 from klear.eval.contract import (
     MARKER,
@@ -30,7 +30,7 @@ from klear.eval.scorers import (
     program_names,
     sourced,
 )
-from klear.members import members_of
+from klear.members import MAX_SEATS, REPRESENTS, asked_seats, members_of
 from klear.programs import by_rule, catalog
 from klear.store.methods import place_note
 from klear.text import hawaiian, strip_ignorable
@@ -190,6 +190,36 @@ def _member_problems(session, texts: list[str]) -> list[str]:
     return problems
 
 
+def _seat_problems(session, texts: list[str], context) -> list[str]:
+    """Members named outside the seats the question asks about (members it names, districts or a town it names,
+    or the selected district, in the chamber it asks for), and, for a question about who holds them, seats
+    left out."""
+    named = [geo_key(r) for k, r in dict.fromkeys(MARKER.findall(" ".join(texts))) if k == "member"]
+    if not named:
+        return []
+    seats = asked_seats(Session(session.con), session.question, context or session.context)
+    if seats is None:
+        return []
+    if not seats.geos:
+        return [
+            "the question names no place KLEAR can match to districts; ask which one instead of naming a member"
+        ]
+    asked = ", ".join(f"{t}:{i}" for t, i in seats.geos)
+    problems = [
+        f"{{member:{t}:{i}}} holds a seat the question does not ask about; it asks about {asked}, so call "
+        "find_member for those and name only their members"
+        for t, i in named
+        if (t, i) not in seats.geos
+    ]
+    left = [g for g in seats.geos if g not in named]
+    if REPRESENTS.search(session.question) and left and len(seats.geos) <= MAX_SEATS:
+        problems.append(
+            f"the question asks about {asked}; name the member of each with {{member:TYPE:ID}}, or ask which one "
+            "the user means, instead of leaving out " + ", ".join(f"{t}:{i}" for t, i in left)
+        )
+    return problems
+
+
 def _words(text: str) -> list[str]:
     """Cased words of text with ignorable characters, emphasis, accents and okina removed."""
     text = EMPHASIS.sub("", strip_ignorable(unicodedata.normalize("NFKC", strip_ignorable(text))))
@@ -275,7 +305,9 @@ def build_answer(session, args: dict, context=None) -> tuple[Answer | None, list
     )
     allowed = allowed_geos(session, resolved, context)
     problems = _checked(session, answer, allowed)
-    problems += _member_problems(session, [*blocks, *caveats])
+    problems += _member_problems(session, [*blocks, *caveats]) + _seat_problems(
+        session, [*blocks, *caveats], context
+    )
     if any(p.startswith("unsourced number") for p in problems):
         problems.append(NUMBER_HINT)
     if not problems:
