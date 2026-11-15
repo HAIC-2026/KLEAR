@@ -67,13 +67,12 @@ def _units(report: PlanReport, rows: pd.DataFrame, problems: list[str]) -> tuple
     return out, failed
 
 
-def check_plan_report(
-    report: PlanReport, commission: pd.DataFrame | None = None, *, commission_problem: str | None = None
-) -> tuple[CheckResult, pd.DataFrame]:
+def check_plan_report(report: PlanReport, commission: pd.DataFrame) -> tuple[CheckResult, pd.DataFrame]:
     """Every House and Senate district needs its description from Appendix D and a permanent-resident count
     whose island table row adds up (count minus target is the deviation), equals the statewide table, sums with
-    the island unit's other districts to the unit total, and, when the plan files load, equals their count.
-    A count that fails any of these is left out, and so is a description found twice or not as expected."""
+    the island unit's other districts to the unit total, and equals the Commission's plan files. A count that
+    fails any of these is left out, and so is a description found twice or not as expected. Without the plan
+    files the build skips this check rather than pass it."""
     problems = list(report.problems)
     desc = report.descriptions
     twice = desc.duplicated(KEY, keep=False)
@@ -104,22 +103,18 @@ def check_plan_report(
         [(c, u) in failed for c, u in zip(rows.chamber, rows.unit, strict=True)], index=rows.index
     )
 
-    notes = []
-    if commission is not None:
-        files = commission.set_index(KEY)["permanent"]
-        rows["files"] = [files.get((c, g)) for c, g in zip(rows.chamber, rows.geo_id, strict=True)]
-        differ = rows.files != rows.permanent
-        problems += [
-            f"{_name(r.chamber, r.geo_id)}: {r.permanent:,} in the report, {r.files} in the plan files"
-            for r in rows[differ].itertuples()
-        ]
-        bad |= differ
-        notes.append(
-            f"Permanent residents equal the Commission's final plan files (field PopHaw2022) in "
-            f"{int((~differ).sum())} of {len(rows)} districts"
-        )
-    else:
-        notes.append(f"Commission plan files not compared: {commission_problem or 'not loaded'}")
+    files = commission.set_index(KEY)["permanent"]
+    rows["files"] = [files.get((c, g)) for c, g in zip(rows.chamber, rows.geo_id, strict=True)]
+    differ = rows.files != rows.permanent
+    problems += [
+        f"{_name(r.chamber, r.geo_id)}: {r.permanent:,} in the report, {r.files} in the plan files"
+        for r in rows[differ].itertuples()
+    ]
+    bad |= differ
+    compared = (
+        f"Permanent residents equal the Commission's final plan files (field PopHaw2022) in "
+        f"{int((~differ).sum())} of {len(rows)} districts"
+    )
     kept = rows[~bad]
 
     expected = pd.DataFrame([(c, f"{i:03d}") for c, n in SEATS.items() for i in range(1, n + 1)], columns=KEY)
@@ -150,7 +145,7 @@ def check_plan_report(
         f"Island units: {sum(u['passed'] for u in sums)} of {len(sums)} chamber and unit sums equal the "
         "report's totals"
         + (f", statewide {report.state_total['base']:,} permanent residents" if report.state_total else ""),
-        *notes,
+        compared,
     ]
     details = [{"check": "problem", "problem": p, "passed": False} for p in problems] + units
     for col in ("description_pdf_page", "permanent", "permanent_pdf_page"):

@@ -336,16 +336,36 @@ def _joined(parts: list[str], word: str = "and") -> str:
     return parts[0] if len(parts) == 1 else f"{', '.join(parts[:-1])} {word} {parts[-1]}"
 
 
-def _comparison(session, fact: dict, others: list[dict], unit: str, written: list[str] | None = None) -> str:
-    """How a district fact relates to each other place, like 'higher than Honolulu County (19.6%)'. Adds the refs
-    of the places it names to written."""
+# How a kind of place reads when an answer lists the kinds it shows.
+KINDS = {"house": "district", "senate": "district", "county": "county", "state": "state"}
+
+
+def _kinds(facts: list[dict]) -> str:
+    """The kinds of place among get_facts entries, like 'District, county and state'."""
+    kinds = list(dict.fromkeys(KINDS.get(f["geo"].split(":")[0], "place") for f in facts))
+    order = [*KINDS.values(), "place"]
+    kinds.sort(key=order.index)
+    return _joined(kinds).capitalize() if len(kinds) > 1 else ""
+
+
+def modeled_caveat(names) -> str:
+    """The caveat for figures that are CDC PLACES modeled estimates, named by their labels."""
+    names = list(dict.fromkeys(names))
+    one = len(names) == 1
+    return (
+        f"The {'figure' if one else 'figures'} for {_joined([in_sentence(n) for n in names])} "
+        f"{'is a modeled estimate' if one else 'are modeled estimates'} from CDC PLACES survey answers, "
+        "not a direct count."
+    )
+
+
+def _comparison(session, fact: dict, others: list[dict], unit: str) -> str:
+    """How a district fact relates to each other place, like 'higher than Honolulu County (19.6%)'."""
     ways: dict[str, list[str]] = {}
     for other in others:
         theirs = session.facts[other["ref"]]
         if way := actual_direction(session.facts[fact["ref"]], theirs):
             ways.setdefault(way, []).append(f"{other['geo_name']} ({_plain(theirs, unit)})")
-            if written is not None:
-                written.append(other["ref"])
     return ", ".join(f"{DIRECTION_TEXT[w]} {_joined(p)}" for w, p in ways.items())
 
 
@@ -390,16 +410,15 @@ def group_answer(con, question: str, district: tuple[str, str], shown: str, ids:
     against: dict[str, list[dict]] = {}
     for fact in there["facts"]:
         against.setdefault(fact["indicator_id"], []).append(fact)
-    lines, shaky, written = [], [], []
+    lines, shaky = [], []
     for fact in here["facts"]:
         name = short_label(fact["indicator_id"], fact["label"])
         line = f"- {name}: {fact['value_text']}"
-        written.append(fact["ref"])
         if fact["reliable"] is False:
             line += ", an unreliable estimate"
             shaky.append(in_sentence(name))
         if said := _comparison(
-            session, fact, against.get(fact["indicator_id"], []), units[fact["indicator_id"]], written
+            session, fact, against.get(fact["indicator_id"], []), units[fact["indicator_id"]]
         ):
             line += f", {said}"
         lines.append(line)
@@ -421,7 +440,6 @@ def group_answer(con, question: str, district: tuple[str, str], shown: str, ids:
         "programs": [],
         "fact_refs": [session.facts[f["ref"]] for f in facts],
         "lead": lead,
-        "written_refs": written,
         "caveats": caveats,
     }
 
@@ -458,7 +476,7 @@ def fixed_income(con, district: tuple[str, str], shown: str) -> dict:
     against: dict[str, list[dict]] = {}
     for fact in there["facts"]:
         against.setdefault(fact["indicator_id"], []).append(fact)
-    lines, notes, shaky, written = [], {}, [], []
+    lines, notes, shaky = [], {}, []
     for ind in FIXED_INCOME:
         name = short_label(ind, labels.get(ind, ind))
         if ind not in mine:
@@ -467,11 +485,10 @@ def fixed_income(con, district: tuple[str, str], shown: str) -> dict:
             continue
         fact = mine[ind]
         line = f"- {name}: {fact['value_text']}"
-        written.append(fact["ref"])
         if fact["reliable"] is False:
             line += ", an unreliable estimate"
             shaky.append(in_sentence(name))
-        if said := _comparison(session, fact, against.get(ind, []), units[ind], written):
+        if said := _comparison(session, fact, against.get(ind, []), units[ind]):
             line += f", {said}"
         lines.append(line)
         if note := fact.get("note"):
@@ -499,7 +516,6 @@ def fixed_income(con, district: tuple[str, str], shown: str) -> dict:
         "programs": chosen,
         "fact_refs": [session.facts[f["ref"]] for f in facts],
         "lead": lead,
-        "written_refs": written,
         "caveats": caveats,
     }
 
@@ -825,9 +841,8 @@ def _answer(con, question, district, earlier=()):
         + f". Source: {c['source']}, {c['year']}."
         for c, f in zip(facts, found, strict=True)
     )
-    if len(geos) > 1:
-        places = "District, county and state" if len(geos) == 3 else "District and " + geos[1].split(":")[0]
-        text += f"\n\n{places} figures are shown side by side. Consider their margins of error before drawing a conclusion."
+    if kinds := _kinds(found):
+        text += f"\n\n{kinds} figures are shown side by side. Consider their margins of error before drawing a conclusion."
     refs = [session.facts[f["ref"]] for f in found]
     notes = []
     labels = dict(con.execute("SELECT indicator_id, label FROM indicator").fetchall())
@@ -840,17 +855,8 @@ def _answer(con, question, district, earlier=()):
         notes.append(
             f"Figures for {years} are not published for {shown} yet. These are the latest available, for {vintages}."
         )
-    caveats = []
-    if modeled:
-        names = list(
-            dict.fromkeys(c["label"] for c, f in zip(facts, found, strict=True) if f["ref"] in modeled)
-        )
-        one = len(names) == 1
-        caveats.append(
-            f"The {'figure' if one else 'figures'} for {_joined([in_sentence(n) for n in names])} "
-            f"{'is a modeled estimate' if one else 'are modeled estimates'} from CDC PLACES survey answers, "
-            "not a direct count."
-        )
+    modeled_names = {f["ref"]: c["label"] for c, f in zip(facts, found, strict=True) if f["ref"] in modeled}
+    caveats = [modeled_caveat(modeled_names.values())] if modeled_names else []
     programs = program_rows(tied_programs(dict.fromkeys(r.indicator_id for r in refs), []))
     if programs:
         notes.append(
@@ -864,4 +870,5 @@ def _answer(con, question, district, earlier=()):
         "fact_refs": refs,
         "notes": notes,
         "caveats": caveats,
+        "modeled": modeled_names,
     }

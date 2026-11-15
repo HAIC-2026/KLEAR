@@ -83,3 +83,15 @@ def test_profiles_and_answers_show_caveats_with_their_sources(real_con):
     ]
     decline = build(real_con, Answer("1", ("house", "014"), "decline_partisan", ["x"], [], [], []))
     assert decline["place_caveats"] == []
+
+
+def test_a_ranking_with_no_resolved_district_names_the_place_of_each_caveat(real_con):
+    facts = [
+        FactRef(f"f{i}", "pct_people_poverty", "house", geo, "acs2024_5yr_profile", 9.0, None, None, 2.0, "x")
+        for i, geo in enumerate(["014", "046"])
+    ]
+    out = build(real_con, Answer("1", None, "none", ["x"], facts, [], []))
+    assert [c["title"] for c in out["place_caveats"]] == [
+        "Maui wildfires: House District 14",
+        "Military and student population: House District 46",
+    ]

@@ -16,7 +16,7 @@ from klear.eval.spend import TOKEN_FIELDS, load_prices, request_cost
 from klear.filelock import exclusive
 from klear.web import display
 from klear.web.answers import ask as lookup
-from klear.web.answers import asks_profile, place_of
+from klear.web.answers import asks_profile, modeled_caveat, place_of
 
 BUDGET = Path.home() / ".config" / "klear" / "web_spend.json"
 DAILY_CAP = 5.0
@@ -220,12 +220,15 @@ def basic(
 ) -> dict:
     """Free keyword lookup, laid out like an assistant answer when it found figures."""
     result = lookup(con, question, district, geocoder, earlier)
-    refs, in_lead = result.pop("fact_refs", []), result.pop("written_refs", [])
+    refs = result.pop("fact_refs", [])
     written, caveats, notes = result.pop("lead", []), result.pop("caveats", []), result.pop("notes", [])
+    modeled = result.pop("modeled", {})
     where, answered = result.pop("where", None), result.pop("district", district)
     if refs:
         answer = Answer(VERSION, answered, result["refusal"], [], refs, [], [])
-        result |= display.build(con, answer, in_lead)
+        # a written lead gives every figure in its text
+        stated = {r.ref for r in refs} if written else set()
+        result |= display.build(con, answer, stated)
         profile = asks_profile(question)
         lead = "This is the standard profile for this district. The district profile on this page compares each figure with the county and the state."
         if written:
@@ -239,6 +242,12 @@ def basic(
         if where:
             result["lead"].insert(1 if note else 0, where)
         result["lead"] += notes
+        # name only the modeled figures the layout shows
+        if modeled:
+            shown = display.shown_refs(con, answer, stated)
+            names = [name for ref, name in modeled.items() if ref in shown]
+            caveats = [c for c in caveats if c != modeled_caveat(modeled.values())]
+            caveats = [modeled_caveat(names), *caveats] if names else caveats
         result["caveats"] = caveats
     elif note and result["refusal"] in ("none", "not_available"):
         result["text"] = f"{note}\n\n{result['text']}"

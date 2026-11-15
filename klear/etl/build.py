@@ -366,10 +366,13 @@ def _plan_report(con) -> CheckResult:
     except (httpx.HTTPError, PyPdfError, ValueError) as e:
         raise StepSkipped(f"Reapportionment Commission report download or read failed: {e}") from None
     try:
-        commission, problem = load_commission(), None
+        commission = load_commission()
     except (httpx.HTTPError, OSError, RuntimeError, ValueError, KeyError) as e:
-        commission, problem = None, f"download or read failed ({type(e).__name__})"
-    result, rows = check_plan_report(report, commission, commission_problem=problem)
+        raise StepSkipped(
+            f"Reapportionment Commission plan files download or read failed ({type(e).__name__}), so the "
+            "permanent residents could not be compared with them"
+        ) from None
+    result, rows = check_plan_report(report, commission)
     name, publisher, url, vintage, page_url = SOURCES[plan_report.SOURCE_ID]
     add_source(
         con, plan_report.SOURCE_ID, name, publisher, url, vintage, plan_report.LICENSE, page_url=page_url

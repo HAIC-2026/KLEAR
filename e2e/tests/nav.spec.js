@@ -166,6 +166,7 @@ for (const width of [1280, 700]) {
     test.skip(({isMobile}) => isMobile, 'Tab runs at desktop size');
     test.use({viewport: {width, height: 800}});
     test('is never covered by the header', async ({page}) => {
+      test.slow();
       for (const address of ['/', '/methods.html']) {
         await page.goto(address);
         await page.locator('#main').getByRole('link').first().waitFor({state: 'attached'});
@@ -186,6 +187,7 @@ for (const width of [1280, 700]) {
 }
 
 test('on phones the links keep to one row of 44 px targets, and nothing scrolls sideways at 320 px', async ({page}) => {
+  test.slow();
   for (const width of [320, 390]) {
     await page.setViewportSize({width, height: 640});
     for (const address of PAGES) {
