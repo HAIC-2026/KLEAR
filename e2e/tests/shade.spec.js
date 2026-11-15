@@ -10,7 +10,7 @@ const MEASURE = 'People below the poverty level';
 test.beforeEach(async ({context, page}) => {
   await offline(context);
   await page.goto('/compare?view=rankings');
-  await expect(page.locator('#map .district').first()).toBeAttached();
+  await expect(page.locator('#map .district:not(.copy)').first()).toBeAttached();
 });
 
 test('the House map opens colored by poverty, with its legend, the picked district and the ranked table', async ({page}) => {
@@ -21,16 +21,16 @@ test('the House map opens colored by poverty, with its legend, the picked distri
   await expect(page.locator('#shade-live')).toHaveText(`${MEASURE}, by House district, now shown on the map.`);
 
   // Every House district has a shade, or the no-figure fill with dots, set by class rather than a style attribute.
-  await expect(page.locator('#map .district')).toHaveCount(51);
-  await expect(page.locator('#map .district:is(.q1,.q2,.q3,.q4,.q5,.none)')).toHaveCount(51);
-  await expect(page.locator('#map .district[data-geo="house:022"]')).toHaveClass(/\bq5\b/);
-  await expect(page.locator('#map .district[data-geo="house:023"]')).toHaveClass(/\bq1\b/);
-  await expect(page.locator('#map .district.none')).toHaveCount(49);
+  await expect(page.locator('#map .district:not(.copy)')).toHaveCount(51);
+  await expect(page.locator('#map .district:not(.copy):is(.q1,.q2,.q3,.q4,.q5,.none)')).toHaveCount(51);
+  await expect(page.locator('#map .district:not(.copy)[data-geo="house:022"]')).toHaveClass(/\bq5\b/);
+  await expect(page.locator('#map .district:not(.copy)[data-geo="house:023"]')).toHaveClass(/\bq1\b/);
+  await expect(page.locator('#map .district:not(.copy).none')).toHaveCount(49);
   await expect(page.locator('#map .marks .none')).toHaveCount(49);
   await expect(page.locator('#map .marks .unreliable')).toHaveCount(0);
   await expect(page.locator('#map-legend [style], #map .district[style], #map .marks [style]')).toHaveCount(0);
-  await expect(page.locator('#map .district[data-geo="house:022"]')).toHaveAccessibleName('House District 22, Oʻahu: 12.3% ± 2.1 points');
-  await expect(page.locator('#map .district[data-geo="house:001"]')).toHaveAccessibleName('House District 1, Hawaiʻi: no figure');
+  await expect(page.locator('#map .district:not(.copy)[data-geo="house:022"]')).toHaveAccessibleName('House District 22, Oʻahu: 12.3% ± 2.1 points');
+  await expect(page.locator('#map .district:not(.copy)[data-geo="house:001"]')).toHaveAccessibleName('House District 1, Hawaiʻi: no figure');
 
   await expect(legend.locator('.legend-title')).toHaveText(`${MEASURE}, by House district`);
   await expect(legend.locator('.legend-keys li')).toHaveText(['Lightest shade: 7.9%', 'Darkest shade: 12.3%', 'No figure']);
@@ -51,7 +51,7 @@ test('the House map opens colored by poverty, with its legend, the picked distri
   // The picked district keeps its shade, gets the picked outline, and under the map are the same figures as in its
   // profile: its own with its margin, then the state's. The fixture's two ranges overlap, so the map says so in words.
   await map.getByLabel('Or choose from a list').selectOption({label: 'House District 22'});
-  await expect(page.locator('#map .district[data-geo="house:022"]')).toHaveClass(/\bq5\b/);
+  await expect(page.locator('#map .district:not(.copy)[data-geo="house:022"]')).toHaveClass(/\bq5\b/);
   await expect(page.locator('#map .pick-line')).toHaveAttribute('d', /\S/);
   const value = page.locator('#pick-value');
   await expect(value).toBeVisible();
@@ -70,15 +70,15 @@ test('the Senate map marks an unreliable estimate with stripes', async ({page}) 
   const map = page.locator('#district-map'), legend = page.locator('#map-legend');
   await expect(page.locator('#map')).toHaveClass(/\bshaded\b/);
   await map.getByRole('button', {name: 'Senate'}).click();
-  await expect(page.locator('#map .district')).toHaveCount(25);
-  await expect(page.locator('#map .district:is(.q1,.q2,.q3,.q4,.q5,.none)')).toHaveCount(25);
-  await expect(page.locator('#map .district[data-geo="senate:012"]')).toHaveClass(/\bq3\b/);
+  await expect(page.locator('#map .district:not(.copy)')).toHaveCount(25);
+  await expect(page.locator('#map .district:not(.copy):is(.q1,.q2,.q3,.q4,.q5,.none)')).toHaveCount(25);
+  await expect(page.locator('#map .district:not(.copy)[data-geo="senate:012"]')).toHaveClass(/\bq3\b/);
   await expect(page.locator('#map .marks .unreliable')).toHaveCount(1);
   await expect(page.locator('#map .marks .none')).toHaveCount(24);
   await expect(legend.locator('.legend-title')).toHaveText(`${MEASURE}, by Senate district`);
   await expect(legend.locator('.legend-keys li')).toHaveText(['Shade 1: 3.0%', 'Unreliable estimate', 'No figure']);
   await expect(legend).toContainText('The only estimate is unreliable because its margin of error is large. It is striped.');
-  await expect(page.locator('#map .district[data-geo="senate:012"]')).toHaveAccessibleName('Senate District 12, Oʻahu: 3.0% ± 2.5 points, unreliable estimate');
+  await expect(page.locator('#map .district:not(.copy)[data-geo="senate:012"]')).toHaveAccessibleName('Senate District 12, Oʻahu: 3.0% ± 2.5 points, unreliable estimate');
   await map.getByLabel('Or choose from a list').selectOption({label: 'Senate District 12'});
   await expect(page.locator('#pick-value')).toContainText('Unreliable estimate: the margin of error is large.');
   await expect(page.locator('#map-table tbody tr')).toHaveCount(25);
@@ -96,7 +96,7 @@ test('a measure the store lacks says so and leaves the map plain', async ({page}
 
 test('the home map has no colors: it only finds districts', async ({page}) => {
   await page.goto('/');
-  await expect(page.locator('#map .district').first()).toBeAttached();
+  await expect(page.locator('#map .district:not(.copy)').first()).toBeAttached();
   await expect(page.locator('#map-shade, #map-legend, #map-table')).toHaveCount(0);
   await expect(page.locator('#map')).not.toHaveClass(/\bshaded\b/);
 });

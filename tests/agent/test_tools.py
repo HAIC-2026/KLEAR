@@ -656,6 +656,25 @@ def test_suggestions_for_names_zips_and_districts(small):
     assert small.suggest("h9") == [] and small.suggest("415 S Beretania") == []
 
 
+def test_suggestions_name_legislators_after_places(small):
+    # From three letters on, a member leads to the district they hold, in reading order.
+    assert _suggested(small, "pala") == [
+        ("Kawika Palakiko", "Representative · House District 23", "House 23")
+    ]
+    assert _suggested(small, "kaʻai") == [
+        ("Leilani M. Kaʻai", "Representative · House District 22", "House 22"),
+        ("Noelani Kaʻai", "Senator · Senate District 12", "Senate 12"),
+    ]
+    assert _suggested(small, "senator kaai") == [
+        ("Noelani Kaʻai", "Senator · Senate District 12", "Senate 12")
+    ]
+    for s in small.suggest("kaai"):
+        assert call(small, "resolve_place", text=s["query"])["matches"][0]["geo"] in (
+            "house:022",
+            "senate:012",
+        )
+
+
 def test_picked_suggestion_finds_exactly_it(small):
     out = call(small, "resolve_place", text="place:1500003")["matches"]
     assert [(m["name"], m["island"]) for m in out] == [("Kailua", "Hawaiʻi Island")]

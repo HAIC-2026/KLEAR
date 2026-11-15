@@ -12,7 +12,7 @@ from klear.etl.places_gazetteer import plain_name, search_plain
 from klear.eval.contract import FactRef, fill_value, geo_display, geo_key, short_name
 from klear.eval.scorers import counties, program_names, reliability
 from klear.labels import plain_labels
-from klear.members import Member, as_listed, by_name, members_of, timing
+from klear.members import Member, as_listed, by_name, members_of, reading_name, starting_with, timing
 from klear.programs import ELIGIBILITY_NOTE, NEEDS, Program, catalog
 from klear.rules.registry import load_rules
 from klear.store.db import MOE_STATUSES, SITE_KINDS, VALUE_STATUSES
@@ -94,6 +94,8 @@ ID_FORM = re.compile(r"^\s*(place|area|county):([0-9a-z]+)\s*$", re.IGNORECASE)
 # What search suggests while someone types: at most this many, once they have typed this many characters.
 SUGGEST_LIMIT = 8
 SUGGEST_MIN = 2
+# Most legislators the search box suggests at once, after the places.
+MEMBER_SUGGESTIONS = 3
 # A chamber and the start of a district number, as typed: h2, hd 2, house 2, sen 1, senate district 1.
 DISTRICT_START = re.compile(r"^(h|hd|hse|house|s|sd|sen|senate)\s*(?:d|dist|district)?\s*(\d{1,2})$")
 KIND_LABELS = {
@@ -340,6 +342,13 @@ class Session:
         n = self.con.execute("SELECT count(*) FROM geography WHERE geo_type = ?", [chamber]).fetchone()[0]
         return f"Hawaiʻi has {n} {chamber.title()} districts, numbered 1 to {n}."
 
+    def _has_table(self, name: str) -> bool:
+        return bool(
+            self.con.execute(
+                "SELECT count(*) FROM information_schema.tables WHERE table_name = ?", [name]
+            ).fetchone()[0]
+        )
+
     def _has_areas(self) -> bool:
         """Whether the store has the area tables; stores built before them search Census places only."""
         if self._areas is None:
@@ -530,7 +539,25 @@ class Session:
             return self._suggest_zips(key, limit)
         if m := DISTRICT_START.match(key):
             return self._suggest_districts(_chamber(m.group(1)) or "house", m.group(2), limit)
-        return self._suggest_names(key, limit)
+        # Members follow the places, from three letters on, and lead to the district each holds.
+        members = self._suggest_members(text, MEMBER_SUGGESTIONS) if len(key) >= 3 else []
+        return self._suggest_names(key, limit - len(members)) + members
+
+    def _suggest_members(self, text: str, limit: int) -> list[dict]:
+        if not self._has_table("member"):
+            return []
+        out = []
+        for m in starting_with(self.con, text, limit):
+            word = m.geo_type.title()
+            out.append(
+                {
+                    "label": reading_name(m.name),
+                    "detail": f"{m.title} · {word} District {int(m.geo_id)}",
+                    "query": f"{word} {int(m.geo_id)}",
+                    "kind": "member",
+                }
+            )
+        return out
 
     def _main_islands(self, geo_type: str) -> dict[str, str]:
         if not self._has_areas():

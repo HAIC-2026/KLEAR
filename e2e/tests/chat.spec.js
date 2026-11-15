@@ -53,7 +53,7 @@ test('three related questions, each asked with a next-question button', async ({
 });
 
 test('with no district chosen, a question naming a town offers its districts, and picking one answers for it', async ({page}) => {
-  await page.goto('/');
+  await page.goto('/ask');
   const sent = [];
   page.on('request', r => { if (r.url().endsWith('/api/chat')) sent.push(r.postDataJSON()); });
   await expect(page.locator('#welcome-text')).toHaveText('Ask about a district, a town or ZIP code, or all of Hawaiʻi.');
@@ -75,7 +75,7 @@ test('with no district chosen, a question naming a town offers its districts, an
 });
 
 test('with no district chosen, an answer about one district chooses it, and a follow-up keeps its subject', async ({page}) => {
-  await page.goto('/');
+  await page.goto('/ask');
   const sent = [];
   page.on('request', r => { if (r.url().endsWith('/api/chat')) sent.push(r.postDataJSON()); });
   const question = `How does poverty in ${DISTRICT} compare with the state?`;
@@ -93,15 +93,18 @@ test('with no district chosen, an answer about one district chooses it, and a fo
   expect(sent).toEqual([{question, district: null}, {question: 'And how does that compare with the county?', district: 'house:022', earlier: [subject]}]);
 });
 
-test('the home chat is only its question box until the first question, and its starters name their place', async ({page}) => {
-  await page.goto('/');
+test('the Ask page is only its question box until the first question, and its starters name their place', async ({page}) => {
+  await page.goto('/ask');
   await expect(page.locator('#question')).toBeVisible();
-  // No transcript, and no second district search: the search at the top of the page is the only one.
+  // No transcript, and no district search: the Find page's search is the only one.
   await expect(page.locator('#messages')).toBeHidden();
-  await expect(page.locator('#district-bar')).toBeHidden();
+  await expect(page.getByRole('combobox')).toHaveCount(0);
+  // The starters, by topic.
+  const topics = page.getByRole('group', {name: /^(People|Income|Housing|Programs)$/});
+  await expect(topics).toHaveCount(4);
   const starters = page.locator('#starters button');
-  await expect(starters).toHaveText(['How many kūpuna live in Kāneʻohe?', 'How does poverty in Pāhoa compare with the state?', 'What does the data say about housing costs in Kīhei?', 'What support programs could families in Waiʻanae explore?', 'Which House districts have the highest share of kūpuna?']);
-  // No control the home page shows asks about "this district".
+  await expect(starters).toHaveText(['How many kūpuna live in Kāneʻohe?', 'Which House districts have the highest share of kūpuna?', 'How does poverty in Pāhoa compare with the state?', 'What does the data say about housing costs in Kīhei?', 'What support programs could families in Waiʻanae explore?']);
+  // No control the Ask page shows asks about "this district".
   const visible = await page.locator('button:visible, a:visible').allInnerTexts();
   expect(visible.filter(t => /this district/i.test(t))).toEqual([]);
   await expect(page.getByText('Screenshot', {exact: false})).toHaveCount(0);
@@ -109,10 +112,12 @@ test('the home chat is only its question box until the first question, and its s
   await page.getByRole('button', {name: 'Ask KLEAR'}).click();
   await expect(page.locator('#messages')).toBeVisible();
   await expect(page.locator('#log .user')).toHaveText('You asked: How many kūpuna live in Hawaiʻi?');
+  // Once the conversation starts, the starters give way to it.
+  await expect(page.locator('#starters')).toBeHidden();
 });
 
-test('a district an answer chooses counts as asked, so picking another adds a divider and the saved chat keeps it', async ({page}) => {
-  await page.goto('/');
+test('a district an answer chooses counts as asked, so opening another adds a divider and the saved chat keeps it', async ({page}) => {
+  await page.goto('/ask');
   await page.getByLabel('Your question').fill(`How does poverty in ${DISTRICT} compare with the state?`);
   await page.getByRole('button', {name: 'Ask KLEAR'}).click();
   await expect(page.locator('#chat-live')).toContainText(`Answer ready for ${DISTRICT}.`);
@@ -120,17 +125,17 @@ test('a district an answer chooses counts as asked, so picking another adds a di
   await expect(page.locator('#log .switch')).toHaveCount(0);
   const saved = await page.evaluate(() => JSON.parse(sessionStorage.getItem('klear-chat')));
   expect(saved.map(x => [x.geo, x.name])).toEqual([['house:022', DISTRICT]]);
+  // The agent has no district search of its own: another district is opened by its address, and the conversation
+  // carries over with a divider.
+  await page.goto('/district/house-23');
   await showTab(page, 'Ask');
-  await page.getByRole('button', {name: 'Change district'}).click();
-  await page.locator('#place').fill('House 23');
-  await page.locator('#lookup').getByRole('button', {name: 'Find district'}).click();
   await expect(page.locator('#district-title')).toHaveText('House District 23');
   await expect(page.locator('#log .switch')).toHaveText('Now asking about House District 23');
 });
 
 test('with no district chosen, a slow question says it is still checking without naming a place', async ({page}) => {
   await page.clock.install();
-  await page.goto('/');
+  await page.goto('/ask');
   const release = await holdQuestions(page);
   await page.getByLabel('Your question').fill('How many kūpuna live statewide?');
   await page.getByRole('button', {name: 'Ask KLEAR'}).click();
@@ -141,7 +146,7 @@ test('with no district chosen, a slow question says it is still checking without
 });
 
 test('the statewide starter question is asked with no district chosen', async ({page}) => {
-  await page.goto('/');
+  await page.goto('/ask');
   const sent = [];
   page.on('request', r => { if (r.url().endsWith('/api/chat')) sent.push(r.postDataJSON()); });
   await page.locator('#starters').getByRole('button', {name: /highest share of kūpuna/}).click();
@@ -165,61 +170,61 @@ test('the examples include ones picked from the district profile, and they go wh
   const local = page.locator('#examples .local');
   // House 22's poverty rate is about 40 percent above Honolulu County's in the test store.
   await expect(local).toHaveCount(2);
-  await expect(local.nth(0)).toHaveAccessibleName(new RegExp(`^Survey years and the 2023 wildfires\\s*: Which survey years do the housing figures for ${DISTRICT} cover, given the 2023 Maui wildfires\\?$`));
-  await expect(local.nth(1)).toHaveAccessibleName(new RegExp(`^Poverty higher than countywide\\s*: Compare poverty in ${DISTRICT} with Honolulu County and the state\\.$`));
+  await expect(local.nth(0)).toHaveText(`Which survey years do the housing figures for ${DISTRICT} cover, given the 2023 Maui wildfires?`);
+  await expect(local.nth(1)).toHaveText(`Compare poverty in ${DISTRICT} with Honolulu County and the state.`);
+  // In one column the questions start folded under More questions.
+  const more = page.getByRole('button', {name: 'More questions'});
+  if (await more.isVisible()) await more.click();
   await local.nth(1).click();
   await expect(page.locator('#log .user')).toHaveText(`You asked: Compare poverty in ${DISTRICT} with Honolulu County and the state.`);
   await expect(page.locator('#chat-live')).toContainText(`Answer ready for ${DISTRICT}.`);
   await expect(page.locator('#log .followups')).toHaveCount(1);
 
-  await page.getByRole('button', {name: 'Change district'}).click();
-  await page.locator('#place').fill('House 23');
-  await page.locator('#lookup').getByRole('button', {name: 'Find district'}).click();
+  await page.goto('/district/house-23');
+  await showTab(page, 'Ask');
   await expect(page.locator('#district-title')).toHaveText('House District 23');
-  await expect(page).toHaveURL(/\/district\/house-23$/);
   await expect(page.locator('#log .followups')).toHaveCount(0);
   await expect(page.locator('#profile-live')).toHaveText('Profile for House District 23 loaded.');
   await expect(local).toHaveCount(1);
-  await expect(local).toHaveAccessibleName(/^Survey years and the 2023 wildfires\s*: .* for House District 23 cover/);
+  await expect(local).toHaveText(/ for House District 23 cover/);
 
   // Back to House 22: its address, its examples, and no next questions that name House 23.
   await page.goBack();
+  await showTab(page, 'Ask');
   await expect(page.locator('#district-title')).toHaveText(DISTRICT);
   await expect(page).toHaveURL(/\/district\/house-22$/);
   await expect(local).toHaveCount(2);
   await expect(page.locator('#log .followups')).toHaveCount(0);
 });
 
-test('after the first answer the suggested questions fold to one row, and More questions shows the rest', async ({page}) => {
+test('after the first answer the suggested questions fold to the first, and More questions shows the rest', async ({page}) => {
   await page.goto('/');
   await chooseDistrict(page);
   await showTab(page, 'Ask');
-  const suggest = page.getByRole('group', {name: 'Suggested questions'}), more = suggest.getByRole('button', {name: 'More questions'});
+  const suggest = page.getByRole('group', {name: 'Questions to try'}), more = suggest.getByRole('button', {name: 'More questions'});
   const questions = suggest.locator('#examples button');
   const total = await questions.count();
   const shown = () => suggest.locator('#examples button:visible');
-  const rows = () => shown().evaluateAll(all => new Set(all.map(b => Math.round(b.getBoundingClientRect().top))).size);
-  // Before the first question every suggestion shows.
-  await expect(shown()).toHaveCount(total);
-  await expect(more).toBeHidden();
+  // Before the first question every suggestion shows beside the profile, each written out in full. In one column they
+  // start folded, so the question box stays near the top of the Ask tab.
+  const wide = page.viewportSize().width >= 1200;
+  await expect(shown()).toHaveCount(wide ? total : 1);
+  await expect(shown().first()).toHaveText(/\?$|\.$/);
+  if (wide) await expect(more).toBeHidden(); else await expect(more).toBeVisible();
 
   await ask(page);
   await expect(more).toBeVisible();
   await expect(more).toHaveAttribute('aria-expanded', 'false');
-  expect(await shown().count()).toBeLessThan(total);
-  expect(await rows()).toBe(1);
-  // More questions sits at the end of that row.
-  const last = await shown().last().boundingBox(), button = await more.boundingBox();
-  expect(Math.abs(button.y - last.y)).toBeLessThan(4);
+  await expect(shown()).toHaveCount(1);
 
   await more.click();
   await expect(more).toHaveAttribute('aria-expanded', 'true');
   await expect(shown()).toHaveCount(total);
   // A new answer folds them again.
-  await shown().first().click();
+  await shown().nth(1).click();
   await expect(page.locator('#log article')).toHaveCount(2);
   await expect(more).toHaveAttribute('aria-expanded', 'false');
-  expect(await rows()).toBe(1);
+  await expect(shown()).toHaveCount(1);
 });
 
 test('a slow question shows the seconds, can be cancelled, and Retry asks it again', async ({page}) => {
@@ -323,7 +328,7 @@ test('an answer with no data points to datatrove.ai, and an answer with figures 
 });
 
 test('every page’s footer names datatrove.ai as a site that leaves KLEAR', async ({page}) => {
-  for (const address of ['/', '/compare', '/data']) {
+  for (const address of ['/', '/ask', '/compare', '/data']) {
     await page.goto(address);
     const link = page.getByRole('contentinfo').locator('a[href="https://datatrove.ai/"]');
     await expect(link).toHaveText('datatrove.ai (external site)');

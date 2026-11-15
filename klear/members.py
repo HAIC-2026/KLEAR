@@ -136,6 +136,43 @@ def _contains(words: list[str], part: list[str]) -> bool:
     return n > 0 and any(words[i : i + n] == part for i in range(len(words) - n + 1))
 
 
+def _word_case(word: str) -> str:
+    """A listed surname word in reading case: KAPELA reads Kapela and McKELVEY reads McKelvey. A suffix such as II
+    stays as written, and JR. reads Jr."""
+    if search_plain(word) in {"ii", "iii", "iv"}:
+        return word
+    head = re.match(r"^(?:Mc|Mac|De|Da|Di|La|Le)(?=[A-Z])", word)
+    lead = head.group(0) if head else ""
+    rest = word[len(lead) :]
+    return lead + (rest[:1].upper() + rest[1:].lower() if rest.isupper() or not lead else rest)
+
+
+def reading_name(name: str) -> str:
+    """A name as the Legislature lists it, SURNAME, Given, in reading order: GARRETT, Andrew Takuya reads Andrew
+    Takuya Garrett. A name without a comma is kept as it is."""
+    if "," not in name:
+        return name
+    surname, given = (part.strip() for part in name.split(",", 1))
+    parts = re.split(r"([\s-]+)", surname)
+    return f"{given} {''.join(_word_case(p) if p.strip(' -') else p for p in parts)}".strip()
+
+
+def starting_with(con, text: str, limit: int) -> list[Member]:
+    """Members with a word of their listed name starting with each word typed, for the search box's suggestions: garr
+    and rep garrett both find GARRETT, Andrew Takuya. A title such as Senator keeps that chamber's members."""
+    words, chambers = _query(text)
+    if not words:
+        return []
+    found = []
+    for m in all_members(con):
+        name = search_plain(m.name).split()
+        if all(any(n.startswith(w) for n in name) for w in words) and (
+            len(chambers) != 1 or m.geo_type in chambers
+        ):
+            found.append(m)
+    return found[:limit]
+
+
 def by_name(con, text: str) -> list[Member]:
     """Members whose listed name holds every typed word and their whole surname, ignoring case, ʻokina and
     kahakō. Exact words only: no near spellings. A title such as Senator keeps that chamber's members."""

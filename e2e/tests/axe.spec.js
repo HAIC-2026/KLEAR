@@ -14,13 +14,23 @@ test('landing page', async ({page}, testInfo) => {
   await expectAccessible(page, testInfo, 'landing page');
 });
 
-test('landing page comparing two districts', async ({page}, testInfo) => {
+test('compare page with two districts side by side', async ({page}, testInfo) => {
+  await page.goto('/compare');
   for (const query of ['House 22', 'House 23']) {
     await page.locator('#cmp-place').fill(query);
-    await page.locator('#compare').getByRole('button', {name: 'Add'}).click();
+    await page.locator('#panel-districts').getByRole('button', {name: 'Add'}).click();
   }
-  await expect(page.locator('#compare .cmp-table')).toBeVisible();
-  await expectAccessible(page, testInfo, 'landing page compare');
+  await expect(page.locator('#panel-districts .cmp-table')).toBeVisible();
+  await expectAccessible(page, testInfo, 'compare page side by side');
+});
+
+test('ask page, before and after an answer', async ({page}, testInfo) => {
+  await page.goto('/ask');
+  await expect(page.getByRole('heading', {level: 1})).toHaveText('Ask KLEAR');
+  await expectAccessible(page, testInfo, 'ask page');
+  await page.locator('#starters').getByRole('button', {name: 'How many kūpuna live in Kāneʻohe?'}).click();
+  await expect(page.locator('#log article')).toHaveCount(1);
+  await expectAccessible(page, testInfo, 'ask page with an answer');
 });
 
 test('data and methods page, with its sources, methods, glossary and checks', async ({page}, testInfo) => {
@@ -33,7 +43,7 @@ test('data and methods page, with its sources, methods, glossary and checks', as
 });
 
 test('district search results', async ({page}, testInfo) => {
-  await page.getByLabel('Town, ZIP code, street address or district').first().fill('Kāneʻohe');
+  await page.getByLabel('Town, ZIP code, street address, district or legislator').first().fill('Kāneʻohe');
   await page.getByRole('button', {name: 'Find district'}).first().click();
   await expect(page.locator('#find-matches .match')).toHaveCount(3);
   await expectAccessible(page, testInfo, 'search results');
@@ -112,8 +122,8 @@ test('answers with next questions, then a non-JSON error with Retry', async ({pa
 
 test('map with a searched ZIP code and a picked district', async ({page}, testInfo) => {
   const map = page.locator('#district-map');
-  await expect(page.locator('#map .district').first()).toBeAttached();
-  await page.getByLabel('Town, ZIP code, street address or district').first().fill('96744');
+  await expect(page.locator('#map .district:not(.copy)').first()).toBeAttached();
+  await page.getByLabel('Town, ZIP code, street address, district or legislator').first().fill('96744');
   await page.getByRole('button', {name: 'Find district'}).first().click();
   await expect(page.locator('#zip-status')).not.toBeEmpty();
   await map.scrollIntoViewIfNeeded();
@@ -139,7 +149,7 @@ test('compare page: outreach with every group open', async ({page}, testInfo) =>
 test('compare page: map colored by a measure, with a picked district and its table', async ({page}, testInfo) => {
   await page.goto('/compare?view=rankings');
   const map = page.locator('#district-map');
-  await expect(page.locator('#map .district').first()).toBeAttached();
+  await expect(page.locator('#map .district:not(.copy)').first()).toBeAttached();
   await expect(page.locator('#map-legend')).toBeVisible();
   await map.getByLabel('Or choose from a list').selectOption({label: 'House District 22'});
   await expect(page.locator('#pick-value')).toContainText('12.3%');

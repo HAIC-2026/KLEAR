@@ -80,12 +80,13 @@ function matchGroups(matches) {
     const rows = [m, ...(m.overlaps || [])].filter(g => /^(house|senate):/.test(g.geo || ''));
     if (!rows.length) continue;
     const county = (m.overlaps || []).find(g => /^county:/.test(g.geo || ''));
-    const place = m.kind === 'zcta' ? `ZIP code ${m.geo.split(':')[1]}` : m.name;
+    // A district found by its legislator's name says who holds it.
+    const place = m.kind === 'zcta' ? `ZIP code ${m.geo.split(':')[1]}` : m.member || m.name;
     // Name the island, or the county when the store has no islands. An island, county or address names itself.
-    const where = ['island', 'county', 'address'].includes(m.kind) ? '' : m.island || (county && county.name);
+    const where = ['island', 'county', 'address', 'district'].includes(m.kind) ? '' : m.island || (county && county.name);
     const rank = g => (g.geo.startsWith('senate:') ? 1000 : 0) - Math.round((g.share ?? 1) * 100);
     rows.sort((a, b) => rank(a) - rank(b) || a.geo.localeCompare(b.geo));
-    const title = m.kind === 'district' ? '' : [place, where].filter(Boolean).join(', ');
+    const title = m.kind === 'district' && !m.member ? '' : [place, where].filter(Boolean).join(', ');
     groups.push({place, kind: m.kind, title, note: kindNotes[m.kind] || '', pop: m.pop2020 || 0, rows});
   }
   return groups.sort((a, b) => b.pop - a.pop);

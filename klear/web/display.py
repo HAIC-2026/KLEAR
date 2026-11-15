@@ -28,7 +28,7 @@ from klear.eval.contract import (
 )
 from klear.eval.scorers import reliability
 from klear.labels import in_sentence, meaning, short_label
-from klear.members import as_listed, members_of, timing
+from klear.members import as_listed, members_of, reading_name, timing
 from klear.programs import (
     ELIGIBILITY_NOTE,
     GROUPS,
@@ -521,6 +521,7 @@ def member_cards(con, geos) -> list[dict]:
                 {
                     "title": m.title,
                     "name": m.name,
+                    "reads": reading_name(m.name),
                     "district": geo_display(m.geo_type, m.geo_id, ""),
                     "url": m.profile_url,
                     "source": f"Legislative Reference Bureau, {m.listing}",

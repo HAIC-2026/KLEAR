@@ -8,7 +8,7 @@ test('search, choose, read the profile, ask, open a source, and come back', asyn
   await page.goto('/');
 
   // Search: a town that spans districts lists them, with each share in the button's spoken name.
-  await page.getByLabel('Town, ZIP code, street address or district').first().fill('Kāneʻohe');
+  await page.getByLabel('Town, ZIP code, street address, district or legislator').first().fill('Kāneʻohe');
   await page.getByRole('button', {name: 'Find district'}).first().click();
   await expect(page.locator('#find-status')).toContainText('Choose a district.');
   const matches = page.locator('#find-matches');
@@ -21,7 +21,7 @@ test('search, choose, read the profile, ask, open a source, and come back', asyn
   const title = page.getByRole('heading', {level: 1});
   await expect(title).toHaveText(DISTRICT);
   await expect(title).toBeFocused();
-  await expect(page.locator('.band')).toBeHidden();
+  await expect(page.locator('#find-section')).toBeHidden();
   expect(await page.evaluate(() => scrollY)).toBe(0);
 
   // Profile: announced in one short line. It starts with the headline figures and their margins.
@@ -31,12 +31,15 @@ test('search, choose, read the profile, ask, open a source, and come back', asyn
   const headline = profile.locator('.profile-stats div').first();
   await expect(headline.locator('dd').first()).toHaveText('12.3% ± 2.1 points');
   await expect(headline.locator('dt')).toHaveText('People below the poverty level');
-  // How the figure stands against the county and the state, for screen readers: the strips show it on screen.
-  await expect(headline.locator('dd.profile-reading')).toHaveText('Higher than the county only');
-  await expect(headline.locator('dd.profile-reading')).toHaveClass(/visually-hidden/);
-  // A link at the top leads to each group of sections, and opens it.
+  // How the figure stands against the county and the state, in words for everyone, with the state's figure.
+  await expect(headline.locator('dd.profile-reading')).toHaveText(/^▲ Higher than the county only\s+Hawaiʻi: 9\.8%$/);
+  await expect(headline.locator('dd.profile-reading')).not.toHaveClass(/visually-hidden/);
+  await expect(headline.locator('dd.profile-reading')).toBeVisible();
+  // A numbered link at the top leads to each group of sections, and opens it. At a glance is section 1.
+  await expect(profile.getByRole('heading', {level: 2, name: 'At a glance'})).toBeVisible();
   const jumps = profile.getByRole('navigation', {name: 'In this profile'});
-  await expect(jumps.getByRole('link')).toHaveText(['People', 'Income and work', 'Programs and help', 'Reference']);
+  await expect(jumps.locator('.sec-title')).toHaveText(['People', 'Income and work', 'Programs and help', 'Reference']);
+  await expect(jumps.locator('.sec-num')).toHaveText(['2', '3', '4', '5']);
   await jumps.getByRole('link', {name: 'People'}).click();
   // The row's label, not its "What this means" button, which names the label to screen readers.
   await expect(profile.locator('.profile-label', {hasText: 'Kūpuna (65 and over)'})).toBeVisible();
@@ -120,7 +123,7 @@ test('figures link to their table on data.census.gov or to the methods section',
 
 test('a failed question is announced and waits in the box to retry', async ({page}) => {
   await page.goto('/');
-  await page.getByLabel('Town, ZIP code, street address or district').first().fill('House 22');
+  await page.getByLabel('Town, ZIP code, street address, district or legislator').first().fill('House 22');
   await page.getByRole('button', {name: 'Find district'}).first().click();
   await expect(page.locator('#district-title')).toHaveText(DISTRICT);
   await page.route('**/api/chat', route => route.fulfill({status: 503, contentType: 'application/json', body: '{"error": "KLEAR could not answer. Please try again."}'}));
@@ -135,7 +138,7 @@ test('a failed question is announced and waits in the box to retry', async ({pag
 
 test('focus stays put when the reader has moved on before the answer arrives', async ({page}) => {
   await page.goto('/');
-  await page.getByLabel('Town, ZIP code, street address or district').first().fill('House 22');
+  await page.getByLabel('Town, ZIP code, street address, district or legislator').first().fill('House 22');
   await page.getByRole('button', {name: 'Find district'}).first().click();
   await expect(page.locator('#district-title')).toHaveText(DISTRICT);
   let release;
@@ -144,12 +147,13 @@ test('focus stays put when the reader has moved on before the answer arrives', a
   await showTab(page, 'Ask');
   await page.getByLabel('Your question').fill('How does poverty here compare?');
   await page.getByRole('button', {name: 'Ask KLEAR'}).click();
-  // The reader moves on to the chat's own district search while the answer loads.
-  await page.getByRole('button', {name: 'Change district'}).click();
-  await expect(page.locator('#place')).toBeFocused();
+  // The reader moves on to the profile while the answer loads.
+  await showTab(page, 'Profile');
+  const people = page.locator('#profile').getByRole('navigation', {name: 'In this profile'}).getByRole('link', {name: 'People'});
+  await people.focus();
   release();
   await expect(page.locator('#chat-live')).toContainText(`Answer ready for ${DISTRICT}.`);
-  await expect(page.locator('#place')).toBeFocused();
+  await expect(people).toBeFocused();
 });
 
 test('a district chosen while an answer loads shows its profile at once', async ({page}) => {
@@ -161,9 +165,8 @@ test('a district chosen while an answer loads shows its profile at once', async 
   await showTab(page, 'Ask');
   await page.getByLabel('Your question').fill('How does poverty here compare?');
   await page.getByRole('button', {name: 'Ask KLEAR'}).click();
-  await page.getByRole('button', {name: 'Change district'}).click();
-  await page.locator('#place').fill('House 23');
-  await page.locator('#lookup').getByRole('button', {name: 'Find district'}).click();
+  // Back or Forward to another district's address in the same tab, while the answer loads.
+  await page.evaluate(() => { history.pushState(null, '', '/district/house-23'); dispatchEvent(new PopStateEvent('popstate')); });
   await expect(page.locator('#profile-live')).toHaveText('Profile for House District 23 loaded.');
   // The page heading follows the profile at once; the chat keeps the district it is answering about.
   await expect(page.getByRole('heading', {level: 1})).toHaveText('House District 23');
@@ -183,7 +186,7 @@ test('each section is one click from the top, links back up, and stays as the re
   await page.goto('/district/house-22');
   await expect(page.locator('#profile-live')).toHaveText(`Profile for ${DISTRICT} loaded.`);
   const wide = page.viewportSize().width >= 1200, profile = page.locator('#profile');
-  await expect(profile.locator('details.profile-section[open] > summary')).toHaveText(wide ? ['People', 'Income and work', 'Programs and help'] : []);
+  await expect(profile.locator('details.profile-section[open] > summary .sec-title')).toHaveText(wide ? ['People', 'Income and work', 'Programs and help'] : []);
 
   const section = profile.locator('#profile-reference');
   await expect(section).not.toHaveAttribute('open');

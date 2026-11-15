@@ -1,5 +1,6 @@
 // The profile's tables: each measure with the district, its county and the state side by side. A rate or an amount
-// also gets a range strip and a reading that screen readers hear. What a label means opens from a button beside it.
+// also gets a range strip and a reading in words, after a mark that points up, down or level. What a label means opens
+// from a button beside it.
 import {test, expect} from '@playwright/test';
 import {DISTRICT, offline} from './helpers.js';
 
@@ -19,7 +20,7 @@ test('a rate shows the district, county and state on one row, with a strip and a
   await expect(row.getByRole('rowheader')).toContainText('People below the poverty level');
   // The fixture's district range, 10.2% to 14.4%, clears the county's and touches the state's, so only the county
   // differs. The reading comes from those tested ranges, never from the gap between the estimates.
-  await expect(row.getByRole('cell')).toHaveText([/12\.3%\s*± 2\.1 points$/, /8\.9%\s*± 0\.5 points$/, /9\.8%\s*± 0\.4 points$/, 'Higher than the county only']);
+  await expect(row.getByRole('cell')).toHaveText([/12\.3%\s*± 2\.1 points$/, /8\.9%\s*± 0\.5 points$/, /9\.8%\s*± 0\.4 points$/, /▲ Higher than the county only$/]);
 
   // The strip draws the same figures, so screen readers skip it and a mouse gets them as a tip. Its scale starts at
   // 0 and ends at a round number past the largest value, here 20%.
@@ -42,7 +43,9 @@ test('a total sits beside the county and state totals, with no strip and no shar
   // Median age in the same table is compared, so the last column is there and this row leaves it empty.
   await expect(row.getByRole('cell')).toHaveText([/1,000\s*± 600$/, /5,000\s*± 50$/, /9,000$/, '']);
   await expect(row.locator('.strip')).toHaveCount(0);
-  await expect(measure(table, 'Median age').getByRole('cell').last()).toHaveText('Higher than county and state');
+  await expect(measure(table, 'Median age').getByRole('cell').last()).toHaveText(/▲ Higher than county and state$/);
+  // The mark is for sighted readers; screen readers hear the words alone.
+  await expect(measure(table, 'Median age').locator('.reading-mark')).toHaveAttribute('aria-hidden', 'true');
   await expect(page.locator('#profile')).not.toContainText(/of the total in|percent higher than|percent of the|about the same as the (rate|figure|amount)/);
 });
 
@@ -54,7 +57,7 @@ test('a place with no figure keeps its column and says why', async ({page}) => {
     /2$/, /No figure\s*not published for county geographies$/, /No figure\s*not published for state geographies$/]);
   // County-level figures are the county's own, set against the state alone.
   const county = page.getByRole('table', {name: 'County-level figures: Honolulu County, Hawaiʻi'});
-  await expect(measure(county, 'Unemployment rate').getByRole('cell')).toHaveText([/3\.0%$/, /3\.2%$/, 'Lower than the state']);
+  await expect(measure(county, 'Unemployment rate').getByRole('cell')).toHaveText([/3\.0%$/, /3\.2%$/, /▼ Lower than the state$/]);
 });
 
 test('the button beside a label opens what it means, by mouse or keyboard', async ({page}) => {

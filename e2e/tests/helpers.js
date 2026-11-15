@@ -14,9 +14,9 @@ export async function offline(context) {
     route.fulfill({status: 200, contentType: 'text/html', body: '<!doctype html><title>Source</title><h1>Source page</h1>'}));
 }
 
-// Search from the top of the home page and pick a district from the matches. The district's page opens at its profile.
+// Search from the top of the Find page and pick a district from the matches. The district's page opens at its profile.
 export async function chooseDistrict(page, query = 'Kāneʻohe', button = /^House 22\b/) {
-  await page.getByLabel('Town, ZIP code, street address or district').first().fill(query);
+  await page.getByLabel('Town, ZIP code, street address, district or legislator').fill(query);
   await page.getByRole('button', {name: 'Find district'}).first().click();
   await page.locator('#find-matches').getByRole('button', {name: button}).click();
   await expect(page.locator('#district-title')).toHaveText(DISTRICT);

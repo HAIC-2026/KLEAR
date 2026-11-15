@@ -19,15 +19,14 @@ PAGES = {
     "data.html": "/data",
     "accessibility.html": "/accessibility.html",
 }
-# The header's links in the order a visitor uses the site: find a district, ask about it, compare, then the data.
+# The header's links in the order a visitor uses the site: find a district, ask about it, compare, then the data. Each
+# opens a page of its own.
 HEADER_LINKS = [
-    ("/#find", "Find a district"),
-    ("#chat", "Ask"),
+    ("/", "Find a district"),
+    ("/ask", "Ask"),
     ("/compare", "Compare"),
     ("/data", "Data & methods"),
 ]
-# The home page section a district's page leaves out, so its header opens it on the home page from everywhere.
-HOME_ONLY = ["find"]
 
 
 def html(page: str) -> str:
@@ -43,9 +42,8 @@ def block(page: str, tag: str) -> str:
 
 
 def same(markup: str) -> str:
-    """Markup with the page's own marks taken out: which link is current, and whether a home page section is linked
-    from the home page itself (#chat) or from another page (/#chat)."""
-    return markup.replace(' aria-current="page"', "").replace('href="/#', 'href="#')
+    """Markup with the page's own mark taken out: which link is current."""
+    return markup.replace(' aria-current="page"', "")
 
 
 def links(markup: str) -> list[tuple[str, str]]:
@@ -66,25 +64,16 @@ def test_the_header_reaches_every_part_of_klear_in_task_order():
     header = block("index.html", "header")
     assert links(re.search(r"<nav .*?</nav>", header, re.DOTALL).group(0)) == HEADER_LINKS
     assert "<details" not in header, "the header has no menu: every part is one click away"
-    # Every link leads somewhere: a section of the home page, or a page the server serves.
-    home = html("index.html")
+    # Every link opens a page the server serves.
     for href, _ in HEADER_LINKS:
-        if "#" in href:
-            assert f'id="{href.split("#")[1]}"' in home, href
-        else:
-            served = web.PAGES.get(href, href)
-            assert href in web.PUBLIC and (web.STATIC / served.lstrip("/")).is_file(), href
+        served = "/index.html" if href == "/" else web.PAGES.get(href, href)
+        assert href in web.PUBLIC and (web.STATIC / served.lstrip("/")).is_file(), href
 
 
-def test_other_pages_link_the_home_page_sections_from_anywhere():
-    # On the home page, Ask is linked in place, so a district's own address keeps its district. Elsewhere it opens the
-    # home page. Find a district is left out of a district's page, so it opens the home page from everywhere.
-    home_only = "|".join(HOME_ONLY)
-    for section in HOME_ONLY:
-        assert f'href="/#{section}"' in block("index.html", "header"), section
-    assert not re.search(rf'href="/#(?!({home_only})")', block("index.html", "header"))
-    for page in set(PAGES) - {"index.html"}:
-        assert not re.search(r'href="#', block(page, "header")), page
+def test_no_header_link_jumps_into_a_page():
+    # A link to part of a page means different things on different pages, so the header has none.
+    for page in PAGES:
+        assert not re.search(r'href="/?#', block(page, "header")), page
 
 
 @pytest.mark.parametrize("page", [p for p in PAGES if p != "index.html"])
