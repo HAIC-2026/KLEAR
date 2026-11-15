@@ -1,11 +1,11 @@
 // Reflow, zoom, text size, text spacing, links, and language, checked on a page with every part showing.
 import {test, expect} from '@playwright/test';
-import {DISTRICT, ask, chooseDistrict, offline, openAll} from './helpers.js';
+import {DISTRICT, ask, chatFloats, chooseDistrict, offline, openAll, showTab} from './helpers.js';
 
 test.beforeEach(async ({context}) => offline(context));
 
-// The page with a district chosen, its profile, an answer, and every disclosure open. Below 1200 px the profile and the
-// chat are two tabs, so each check runs on both: first Ask, then Profile.
+// The page with a district chosen, its profile, an answer, and every disclosure open. Below 1200 px the chat is a
+// panel over the page, so each check runs with it open, then shut.
 async function fullPage(page) {
   await page.goto('/');
   await chooseDistrict(page);
@@ -14,9 +14,8 @@ async function fullPage(page) {
 }
 async function onEachTab(page, check) {
   await check();
-  const tab = page.getByRole('tab', {name: 'Profile'});
-  if (await tab.isVisible()) {
-    await tab.click();
+  if (await chatFloats(page)) {
+    await showTab(page, 'Profile');
     await check();
   }
 }
@@ -32,13 +31,13 @@ for (const width of [320, 640]) {
     test('the page fits without scrolling sideways', async ({page}) => {
       await fullPage(page);
       await expect(page.getByLabel('Your question')).toBeVisible();
-      const ask = page.getByRole('button', {name: 'Ask KLEAR'});
+      const ask = page.locator('#send');
       await expect(ask).toBeVisible();
       const box = await ask.boundingBox();
       expect(box.x + box.width).toBeLessThanOrEqual(width);
       await onEachTab(page, async () => expect(await sidewaysScroll(page)).toBeLessThanOrEqual(0));
       // The share buttons stay inside the screen too.
-      for (const button of await page.getByRole('group', {name: 'Share this profile'}).locator('.action').all()) {
+      for (const button of await page.locator('#share-bar .action').all()) {
         const b = await button.boundingBox();
         expect(b.x + b.width).toBeLessThanOrEqual(width);
       }
@@ -146,20 +145,23 @@ async function fullProfile(page) {
   });
 }
 
-// A district's link on a laptop: the first screen shows its name, its four headline figures and at least six more
-// figures or programs. A table row counts once for each place it shows: the district, its county and the state. The
-// chat beside the profile stays in view as the profile scrolls, and an answer with a chart has 600 px or more to be
-// read in.
+// A district's link on a laptop: the first screen shows its map, its name and its four headline figures. The chat
+// beside the profile stays in view as the profile scrolls, and an answer with a chart has 600 px or more to be read in.
 test.describe('a district at 1440 by 900', () => {
   test.skip(({isMobile}) => isMobile, 'a laptop screen');
   test.use({viewport: {width: 1440, height: 900}});
-  test('opens at its name and figures, with the chat beside it', async ({page}) => {
+  test('opens at its map, name and figures, with the chat beside it', async ({page}) => {
     await fullProfile(page);
     await page.goto('/district/house-22');
     await expect(page.locator('#profile-live')).toHaveText(`Profile for ${DISTRICT} loaded.`);
     await expect(page.getByRole('heading', {level: 1, name: DISTRICT})).toBeInViewport({ratio: 1});
+    await expect(page.locator('#district-map')).toBeInViewport({ratio: 1});
     expect(await onScreen(page, '.profile-stats dd:not(.profile-reading)')).toBe(4);
-    expect(await onScreen(page, '.profile-row .profile-figure') + await onScreen(page, '.program .program-name')).toBeGreaterThanOrEqual(6);
+    // The chat takes the right third of the page.
+    const chat = await page.locator('#chat').boundingBox(), profile = await page.locator('#profile').boundingBox();
+    expect(chat.x).toBeGreaterThan(profile.x + profile.width);
+    expect(chat.width).toBeGreaterThan(1440 * 0.25);
+    expect(chat.width).toBeLessThan(1440 * 0.36);
 
     await ask(page);
     const messages = page.locator('#messages');
@@ -173,65 +175,79 @@ test.describe('a district at 1440 by 900', () => {
   });
 });
 
-// A district's page ends where the district ends: its profile, then the footer. The Find page's map, number list and
-// counts are left out, a small map beside the name shows where it is, and the page stays under 7,000 px at 1280 wide with the
-// default groups open.
+// A district's page ends where the district ends: its profile, then the footer. The Find page's search, number list and
+// counts are left out, the map beside the name is zoomed to the district, and the page stays under 7,000 px at 1280
+// wide with the default groups open.
 test.describe('a district at 1280 wide', () => {
   test.skip(({isMobile}) => isMobile, 'a laptop screen');
   test.use({viewport: {width: 1280, height: 800}});
-  test('ends with the profile, with a small map of the district by its name', async ({page}) => {
+  test('ends with the profile, with the map of the district by its name', async ({page}) => {
     await page.goto('/district/house-22');
     await expect(page.locator('#profile-live')).toHaveText(`Profile for ${DISTRICT} loaded.`);
-    for (const id of ['district-map', 'seat-index', 'sources']) await expect(page.locator(`#${id}`), id).toBeHidden();
-    await expect(page.locator('#locator svg')).toBeVisible();
-    await expect(page.locator('#locator path.here')).toHaveCount(1);
+    for (const id of ['find-col', 'seat-index', 'sources', 'hero', 'island-tabs']) await expect(page.locator(`#${id}`), id).toBeHidden();
+    await expect(page.locator('#district-map')).toBeVisible();
+    await expect(page.locator('#map .district.picked:not(.copy)')).toHaveAttribute('data-geo', 'house:022');
     expect(await page.evaluate(() => document.documentElement.scrollHeight)).toBeLessThan(7000);
   });
 });
 
-// Beside the profile on a laptop, the agent starts compact: its title, the questions to try and the question box, only
-// as tall as they need. Once a question is asked it grows to the window's height and the conversation scrolls inside
-// it. It has no district search or width toggle of its own, and the note under its question box is two lines at most.
+// Beside the profile on a laptop, the agent is a panel as tall as the window, its question box always in view, and the
+// conversation scrolls inside it. It has no district search or width toggle of its own, and the note under its
+// question box is three lines at most.
 test.describe('a district at 1280 by 800', () => {
   test.skip(({isMobile}) => isMobile, 'a laptop screen');
   test.use({viewport: {width: 1280, height: 800}});
-  test('the agent beside the profile starts compact and grows with the conversation', async ({page}) => {
+  test('the agent beside the profile keeps its question box in view as the conversation grows', async ({page}) => {
     await page.goto('/district/house-22');
     await expect(page.locator('#profile-live')).toHaveText(`Profile for ${DISTRICT} loaded.`);
     const card = page.locator('#chat-card');
     await expect(card.getByRole('heading', {level: 2})).toHaveText(`Ask about ${DISTRICT}`);
     await expect(card.getByRole('combobox')).toHaveCount(0);
     await expect(card.getByRole('button', {name: 'Wider'})).toHaveCount(0);
-    const before = (await card.boundingBox()).height;
-    expect(before).toBeLessThan(800 - 120);
+    await expect(page.locator('#chat-fab')).toBeHidden();
+    await expect(page.locator('#chat-min')).toBeHidden();
+    expect((await card.boundingBox()).height).toBeLessThanOrEqual(800 - 64);
     await expect(page.getByLabel('Your question')).toBeInViewport();
     const note = page.locator('#chat-privacy');
     const lines = await note.evaluate(p => Math.round(p.getBoundingClientRect().height / parseFloat(getComputedStyle(p).lineHeight)));
-    expect(lines).toBeLessThanOrEqual(2);
+    expect(lines).toBeLessThanOrEqual(3);
 
     await ask(page);
-    await expect.poll(async () => (await card.boundingBox()).height).toBeGreaterThan(before);
+    await ask(page, 'How many kūpuna live in this district?');
     expect((await page.locator('#messages').boundingBox()).height).toBeGreaterThanOrEqual(400);
     await expect(page.getByLabel('Your question')).toBeInViewport();
+    expect(await page.locator('#messages').evaluate(m => m.scrollHeight > m.clientHeight)).toBe(true);
   });
 });
 
-// On a phone, Profile and Ask are each one tap from the top of a district's page.
+// On a phone, the agent is a round button at the bottom of the screen that opens it over the whole page, and the
+// minimize button at its top puts it away again.
 test.describe('a district at 390 by 844', () => {
   test.use({viewport: {width: 390, height: 844}});
-  test('Profile and Ask are tabs at the top', async ({page}) => {
+  test('the agent is a button that opens over the page and minimizes back to it', async ({page, isMobile}) => {
     await page.goto('/district/house-22');
     await expect(page.locator('#profile-live')).toHaveText(`Profile for ${DISTRICT} loaded.`);
-    const tabs = page.getByRole('tablist', {name: 'District page'});
-    await expect(tabs).toBeInViewport({ratio: 1});
-    await expect(page.locator('#profile .profile-stats')).toBeInViewport();
-    await tabs.getByRole('tab', {name: 'Ask'}).click();
-    // The questions to try fold to the first, so the question box is on the first screen.
+    const fab = page.locator('#chat-fab');
+    await expect(fab).toBeInViewport({ratio: 1});
+    await expect(fab).toHaveAttribute('aria-expanded', 'false');
+    await expect(page.getByLabel('Your question')).toBeHidden();
+    // The map and the district's name come first, with the way back and on above them.
+    await expect(page.locator('#search-another')).toBeInViewport({ratio: 1});
+    await expect(page.getByRole('heading', {level: 1, name: DISTRICT})).toBeInViewport();
+    await fab.click();
+    const panel = page.locator('#chat');
+    await expect(panel).toBeVisible();
+    const box = await panel.boundingBox();
+    expect(box.width).toBeGreaterThanOrEqual(389);
+    expect(box.height).toBeGreaterThanOrEqual(843);
+    // The questions to try fold to the first, so the question box is on the screen.
     await expect(page.getByLabel('Your question')).toBeInViewport();
     await expect(page.getByRole('button', {name: 'More questions'})).toBeVisible();
-    await tabs.getByRole('tab', {name: 'Profile'}).click();
-    await expect(page.locator('#profile .profile-stats')).toBeInViewport();
-    // The district's page starts at its heading; the map follows the profile.
+    // On a touch screen focus goes to the panel's title, so the keyboard does not cover the panel before it is read.
+    await expect(page.locator(isMobile ? '#chat-panel-title' : '#question')).toBeFocused();
+    await page.locator('#chat-min').click();
+    await expect(panel).toBeHidden();
+    await expect(fab).toBeFocused();
     expect(await page.evaluate(() => scrollY)).toBe(0);
   });
 });

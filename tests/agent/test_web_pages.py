@@ -15,16 +15,15 @@ from klear.web.statement import SLOT, STATEMENT, markdown, statement_page
 # Each page, and the address it is served at.
 PAGES = {
     "index.html": "/",
-    "compare.html": "/compare",
+    "rankings.html": "/rankings",
     "data.html": "/data",
     "accessibility.html": "/accessibility.html",
 }
-# The header's links in the order a visitor uses the site: find a district, ask about it, compare, then the data. Each
-# opens a page of its own.
+# The header's links after the wordmark, which leads home to Find: compare two districts, rank every district, then
+# the data. Each opens a page of its own; Compare is a view of the home page's file.
 HEADER_LINKS = [
-    ("/", "Find a district"),
-    ("/ask", "Ask"),
     ("/compare", "Compare"),
+    ("/rankings", "Rankings"),
     ("/data", "Data & methods"),
 ]
 
@@ -191,7 +190,13 @@ def test_the_server_serves_the_statement_and_the_menu_script(port):
 @pytest.mark.parametrize(
     ("old", "new"),
     [
-        ("/outreach.html?pair=snap&chamber=senate", "/compare?view=outreach&pair=snap&chamber=senate"),
+        ("/outreach.html?pair=snap&chamber=senate", "/rankings?view=outreach&pair=snap&chamber=senate"),
+        ("/compare.html", "/compare"),
+        (
+            "/compare?view=outreach&pair=snap&chamber=senate",
+            "/rankings?view=outreach&pair=snap&chamber=senate",
+        ),
+        ("/compare?view=rankings", "/rankings?view=rankings"),
         ("/sources.html", "/data?section=sources"),
         ("/methods.html", "/data?section=methods"),
         ("/glossary.html", "/data?section=glossary"),
@@ -207,9 +212,13 @@ def test_moved_pages_send_old_links_to_their_new_home(port, old, new):
     assert (response.status, response.getheader("Location")) == (301, new)
 
 
-def test_the_compare_and_data_pages_are_served_at_clean_addresses(port):
+def test_the_compare_rankings_and_data_pages_are_served_at_clean_addresses(port):
     con = HTTPConnection("127.0.0.1", port, timeout=10)
-    for path, title in (("/compare", "<h1>Compare districts</h1>"), ("/data", "<h1>Data and methods</h1>")):
+    for path, title in (
+        ("/compare", '<h1 id="compare-title" tabindex="-1">Compare</h1>'),
+        ("/rankings", "<h1>Rankings and outreach</h1>"),
+        ("/data", "<h1>Data and methods</h1>"),
+    ):
         con.request("GET", path)
         response = con.getresponse()
         body = response.read().decode()

@@ -1,5 +1,6 @@
-// Shared by the pages that find districts and show their figures (app.js on the home and district pages, compare.js
-// on the compare page): page helpers, the district search with its suggestions, and a figure with its margin.
+// Shared by the pages that find districts and show their figures (app.js and compare.js on the Find, district and
+// Compare views, map.js on the rankings page): page helpers, the district search with its suggestions, a figure with
+// its margin, the district shapes and a district's profile.
 
 const $ = id => document.getElementById(id);
 function node(tag, text, className) { const n = document.createElement(tag); n.textContent = text; if (className) n.className = className; return n; }
@@ -61,6 +62,80 @@ async function api(url, options) {
 
 function districtPath(geo) { const [chamber, id] = geo.split(':'); return `/district/${chamber}-${Number(id)}`; }
 function districtName(geo) { const [chamber, id] = geo.split(':'); return `${chamber === 'house' ? 'House' : 'Senate'} District ${Number(id)}`; }
+
+// A district's profile, asked for once per page and shared by the district's page, Compare and the printout. A failed
+// request is forgotten, so the next try asks again.
+const profiles = new Map();
+function profileOf(geo) {
+  if (!profiles.has(geo)) profiles.set(geo, api('/api/profile?district=' + encodeURIComponent(geo)).catch(err => { profiles.delete(geo); throw err; }));
+  return profiles.get(geo);
+}
+
+// Whether two districts' figures differ beyond their margins of error, as the profile tests a district against its
+// county and the state: 'same' when the ranges overlap, else 'a' or 'b' for the higher. Null when either has no
+// figure to test.
+function pairDifference(a, b) {
+  const ok = f => f && !f.missing && Number.isFinite(f.num);
+  if (!ok(a) || !ok(b)) return null;
+  const lo = f => (Number.isFinite(f.low) ? f.low : f.num), hi = f => (Number.isFinite(f.high) ? f.high : f.num);
+  if (lo(a) <= hi(b) && lo(b) <= hi(a)) return 'same';
+  return a.num > b.num ? 'a' : 'b';
+}
+
+// The district shapes, fetched once for the map, the band on the Find page and the small maps on Compare.
+let shapesLoad = null;
+function loadShapes() {
+  shapesLoad ||= fetch('/districts.json').then(r => { if (!r.ok) throw new Error('no shapes'); return r.json(); });
+  shapesLoad.catch(() => { shapesLoad = null; });
+  return shapesLoad;
+}
+// The box around a path written as M x y, then l dx dy steps, as districts.json writes them.
+function pathBox(d) {
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const part of d.split(/[Zz]/)) {
+    const nums = part.match(/-?\d*\.?\d+/g);
+    if (!nums || nums.length < 2) continue;
+    let x = +nums[0], y = +nums[1];
+    for (let i = 0; i + 1 < nums.length; i += 2) {
+      if (i) { x += +nums[i]; y += +nums[i + 1]; }
+      x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y);
+    }
+  }
+  return [x0, y0, x1 - x0, y1 - y0];
+}
+// A small map of one district: its island's districts of the same chamber in a light fill and this one in the
+// chamber's color with its number, framed close around it so its neighbors show. Screen readers skip it; the text
+// beside it names the district and where it is.
+async function locatorMap(geo) {
+  let data;
+  try { data = await loadShapes(); } catch { return null; }
+  const rows = data.chambers[geo.split(':')[0]] || [], row = rows.find(r => r.geo === geo);
+  if (!row) return null;
+  const ns = 'http://www.w3.org/2000/svg', svg = document.createElementNS(ns, 'svg');
+  const [bx, by, bw, bh] = pathBox(row.d), side = Math.max(bw, bh * 4 / 3, 6) * 1.9;
+  const w = side, h = side * 3 / 4, x = bx + bw / 2 - w / 2, y = by + bh / 2 - h / 2;
+  svg.setAttribute('viewBox', `${x} ${y} ${w} ${h}`);
+  svg.setAttribute('aria-hidden', 'true');
+  svg.setAttribute('focusable', 'false');
+  svg.setAttribute('class', 'locator-map');
+  const sea = document.createElementNS(ns, 'rect');
+  for (const [k, v] of Object.entries({x, y, width: w, height: h, class: 'sea'})) sea.setAttribute(k, v);
+  svg.append(sea);
+  for (const r of [...rows.filter(r => r.geo !== geo), row]) {
+    const path = document.createElementNS(ns, 'path');
+    path.setAttribute('d', r.d);
+    if (r.geo === geo) path.setAttribute('class', 'here');
+    svg.append(path);
+  }
+  const label = document.createElementNS(ns, 'text');
+  label.setAttribute('x', row.label[0]);
+  label.setAttribute('y', row.label[1]);
+  label.setAttribute('class', 'here-label');
+  label.setAttribute('font-size', w * 0.09);
+  label.textContent = row.name.replace(/\D+/g, '');
+  svg.append(label);
+  return svg;
+}
 const share = s => s < 0.01 ? '<1%' : `${Math.round(s * 100)}%`;
 // A place with more districts than this in one chamber shows a summary first, with its full list folded.
 const MANY = 8;
@@ -111,8 +186,9 @@ function mapLink(g, text) {
 }
 
 // Each place's districts in a House column and a Senate column, largest share first. A place with many districts
-// leads with how many it spans and where to narrow it down, and keeps the full list in a disclosure.
-function showMatches(groups, box, pick) {
+// leads with how many it spans and where to narrow it down, and keeps the full list in a disclosure. onMap says the
+// page has a map beside the search to show the place on.
+function showMatches(groups, box, pick, onMap) {
   for (const g of groups) {
     const wrap = node('div', '', 'match-group'), cols = node('div', '', 'chamber-cols');
     if (g.title) wrap.append(node('p', g.title, 'match-title'));
@@ -141,8 +217,8 @@ function showMatches(groups, box, pick) {
     }
     if (counts.house > MANY || counts.senate > MANY) {
       const spans = [['house', 'House'], ['senate', 'Senate']].filter(([c]) => counts[c]).map(([c, word]) => `${counts[c]} ${word}`);
-      const summary = node('p', `${g.place} spans ${spans.join(' and ')} districts. Search for a neighborhood, town or ZIP code in it, or `, 'match-summary');
-      summary.append(mapLink(g, 'see its districts on the map'), '.');
+      const summary = node('p', `${g.place} spans ${spans.join(' and ')} districts. Search for a neighborhood, town or ZIP code in it${onMap ? ', or ' : '.'}`, 'match-summary');
+      if (onMap) summary.append(mapLink(g, 'see its districts on the map'), '.');
       const all = node('details', '', 'match-all'), label = node('summary', `All ${g.rows.length} districts`);
       all.append(label, cols);
       wrap.append(summary, all);
@@ -259,12 +335,12 @@ function lookupForm(form, input, status, box, pick, onMatches) {
       if (found.size === 1) { const [[geo, name]] = found; status.textContent = ''; pick(geo, name); return; }
       if (!found.size) {
         status.textContent = data.note || 'No matching districts. Try House 22, a town or neighborhood, a ZIP code, or a street address.';
-        if ($('find')) box.append(mapNudge('Not sure which district is yours?'));
+        if (onMatches) box.append(mapNudge('Not sure which district is yours?'));
         return;
       }
       if (groups.every(g => g.kind === 'address')) status.textContent = 'Choose the House or Senate district.';
       else status.textContent = groups.some(g => g.title) ? 'Choose a district. Each percent is its share of the area’s residents.' : 'Choose a district:';
-      showMatches(groups, box, pick);
+      showMatches(groups, box, pick, Boolean(onMatches));
       if (onMatches) onMatches(groups);
     } catch (err) {
       if (mine === seq) status.textContent = err.message;

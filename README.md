@@ -12,10 +12,10 @@ KLEAR answers questions about Hawaiʻi's 51 House and 25 Senate legislative dist
 
 One-minute tour:
 
-1. On the Find page, type a town such as Kāneʻohe, a ZIP code, an address or a legislator's name. KLEAR lists the House and Senate districts that hold it and the share of its residents in each. Every district is also one click away by its number, or on the map, where urban Honolulu is drawn enlarged.
-2. Pick a district. Its own page opens with its number, where it is and who represents it, then four headline figures that each say how they compare with the state, then the full profile: a numbered section for each topic, with tables that set the district beside its county and the state, each figure with its margin of error or range. The agent sits beside it (on a phone, under the Ask tab).
-3. Ask one of the suggested questions, or your own. Each answer shows its figures as cards and charts with their sources. Open a source to see the publisher's page. Questions about towns or the whole state go on the Ask page.
-4. Open Compare, then its Outreach tab, to see which districts have the most people who meet a program's income test.
+1. On the Find page, press Find your district, then type a town such as Kāneʻohe, a ZIP code, an address or a legislator's name. KLEAR lists the House and Senate districts that hold it and the share of its residents in each. Every district is also one click away by its number, or on the map, where urban Honolulu is drawn enlarged; the House or Senate switch over them picks the chamber.
+2. Pick a district. The map zooms to it, then its own page opens with the map beside its number, where it is and who represents it, then four headline figures that each say how they compare with the state, then the full profile: a numbered section for each topic, with tables that set the district beside its county and the state, each figure with its margin of error or range. The agent sits in the right third (below 1200 px, behind the round Ask KLEAR button).
+3. Ask one of the suggested questions, or your own. Each answer shows its figures as cards and charts with their sources. Open a source to see the publisher's page. Questions about towns or the whole state can be asked from the Find page, in the agent's panel.
+4. Press Compare another district to set a second district beside the first, row by row, and print the comparison. Open Rankings, then its Outreach tab, to see which districts have the most people who meet a program's income test.
 5. Open Data & methods, then Checks, to see every check the last data build ran.
 
 Results, from the data build of November 12, 2026 HST and the tests run on it:
@@ -393,7 +393,7 @@ Health checks. GET /healthz always answers 200 with {"status": "ok"} while the s
 
 ### Outreach
 
-The compare page's Outreach tab (/compare?view=outreach; old links to /outreach.html redirect there) compares districts for five pairs of a group and the programs it may qualify for, set in `OUTREACH_PAIRS` in klear/agent/config.py: households in poverty without SNAP (SNAP), uninsured people under 138% of poverty (Med-QUEST), uninsured people from 138% to 399% of poverty (Marketplace premium tax credits), kūpuna under 200% of poverty (SSI, Kūpuna Care and Medicare Savings Programs) and working families and people below poverty (Federal EITC). The reader picks a pair and House or Senate. `GET /api/outreach?pair=ID&chamber=house|senate` ranks the group's direct ACS count with the same tiers as the assistant's rank_districts tool, so districts whose ranges overlap share a group and are listed by number, never in an order the data cannot support. Each district also shows its program-use figure from `PROFILE_BESIDE` (SNAP households, SSI households, EITC returns or Marketplace enrollees with premium tax credits) for comparison only. Figures moved from ZIP codes are too wide to rank. The page opens with a sentence naming the top tier, flags unreliable estimates, and lists each program's page and phone with the income-test caveat. Each district profile has an "Outreach opportunities" note naming up to two pairs whose top tier holds the district, the smallest tier first.
+The rankings page's Outreach tab (/rankings?view=outreach; old links to /outreach.html and /compare?view=outreach redirect there) compares districts for five pairs of a group and the programs it may qualify for, set in `OUTREACH_PAIRS` in klear/agent/config.py: households in poverty without SNAP (SNAP), uninsured people under 138% of poverty (Med-QUEST), uninsured people from 138% to 399% of poverty (Marketplace premium tax credits), kūpuna under 200% of poverty (SSI, Kūpuna Care and Medicare Savings Programs) and working families and people below poverty (Federal EITC). The reader picks a pair and House or Senate. `GET /api/outreach?pair=ID&chamber=house|senate` ranks the group's direct ACS count with the same tiers as the assistant's rank_districts tool, so districts whose ranges overlap share a group and are listed by number, never in an order the data cannot support. Each district also shows its program-use figure from `PROFILE_BESIDE` (SNAP households, SSI households, EITC returns or Marketplace enrollees with premium tax credits) for comparison only. Figures moved from ZIP codes are too wide to rank. The page opens with a sentence naming the top tier, flags unreliable estimates, and lists each program's page and phone with the income-test caveat. Each district profile has an "Outreach opportunities" note naming up to two pairs whose top tier holds the district, the smallest tier first.
 
 ### Prepared answers to the district starter questions
 
@@ -417,38 +417,57 @@ copy answer_cache.json along with klear.duckdb.
 
 ### Pages
 
-The site follows the order a visitor uses it, and its header has four links, each opening a page
-of its own: Find a district (/), Ask (/ask), Compare and Data & methods.
+The header has the KLEAR wordmark, which leads home to Find, and three links: Compare, Rankings, and
+Data & methods.
 
-- `/`, Find: one search takes a town, ZIP code, street address, district or legislator's name; its
+- `/`, Find: a band with the page's title over a faint drawing of the islands, and a button down to
+  the search and the map. A House or Senate switch over them picks the chamber for the map and the
+  numbers. One search takes a town, ZIP code, street address, district or legislator's name; its
   matches are listed with each district's share of the place's residents and light up on the map
-  beside it. Every district is listed by number, by island. The map draws each island group in its
-  own frame at its own scale, with urban Honolulu enlarged and district numbers printed on it. A
-  question box with starters by topic opens the Ask page, and the store's counts close the page.
-- `/ask`: the agent at full width, with starter questions by topic that each name a place or the
-  state. A question handed over from the Find page travels after the # in the address, so it never
-  reaches the server's logs. An answer about one district opens that district's page, and the
-  conversation carries on beside its profile.
-- `/district/house-49` and the like show a district's profile with the agent beside it (tabs on one
-  column). The page opens with the district's number large in its chamber's color, where it is, its
-  legislator in reading order and a small map (a close-up of urban Honolulu for districts there).
-  Section 1, At a glance, holds four headline figures, each with how it compares with the county and
-  the state in words, and the print, link, download and compare actions. The rest of the profile is
-  numbered by group: People, Income and work, Programs and help, Housing, Health and Reference. Each
-  figure keeps its margin of error or range, its range strip and any caution, and the reading beside
-  each strip is shown in words. The agent beside the profile starts compact, with its questions to
-  try written out in full, and grows to the window's height once a question is asked.
-- `/compare` has three tabs, each with its own address: districts side by side (up to three, with
-  Hawaiʻi beside them), rankings with the map colored by a measure, and outreach.
+  beside it. Every district of the chosen chamber is listed by number, by island, and pointing at a
+  number outlines it on the map. The map draws each island group in its own frame at its own scale,
+  with urban Honolulu enlarged and district numbers printed on it. A click on a district, a number or
+  a match zooms the map to the district, then the page turns into the district's page, the map
+  moving to its top left corner. A question box with starters by topic asks in the agent's panel,
+  and the store's counts close the page. On a phone the search comes before the map.
+- `/district/house-49` and the like: the way back to the search ("Search another district", which
+  returns to the map zoomed back out) and on to Compare ("Compare another district"), with print,
+  link and download actions; the map zoomed to the district beside its number, set large in its
+  chamber's color, where it is and its legislator; then the profile in panels. Section 1, At a glance,
+  holds four headline figures, each with how it compares with the county and the state in words. The
+  rest of the profile is numbered by group: People, Income and work, Programs and help, Housing,
+  Health and Reference. Each figure keeps its margin of error or range, its range strip and any
+  caution. From 1200 px the agent sits in the right third, as tall as the window, with its questions
+  to try written out in full. Narrower, it is a round "Ask KLEAR" button that opens the agent over
+  the page (the whole screen on a phone) and minimizes back to it, keeping the conversation.
+- `/compare`: the first district in the left third and the second in the middle, each a search, a
+  House or Senate switch and every district by number until one is chosen, then its name, a small map
+  and its legislator. Under them the two districts' figures run row by row: each measure's name and
+  Hawaiʻi's figure across both columns, each district's figure under its name, and whether they
+  differ beyond their margins of error. The agent sits in the right third and suggests questions
+  that compare the two. `/compare?d=house:022,house:023` opens a comparison.
+- `/rankings` has two tabs, each with its own address: rankings with the map colored by a measure,
+  and outreach.
 - `/data` holds the sources, the methods for estimated figures, the glossary, the latest build's
   checks and a privacy note, with a section list beside them.
+- `/ask` opens Find with the agent's panel open; a question handed over after the # in the address
+  is asked there and never reaches the server's logs.
 
-Old page addresses (/sources.html, /methods.html, /glossary.html, /checks.html, /outreach.html)
-redirect to their section or tab, keeping any #part of the link. The look is a printed briefing
-book: white paper, ink rules in place of boxes, square corners, numbered sections, and a band across
-the top of each page in the chamber's color on a district's page (House teal, Senate purple). Spacing,
-rules, buttons and headings come from one scale in style.css, so every page shares them. The site
-loads no third-party images, fonts, scripts, or analytics.
+Print opens a dialog that asks what to print: At a glance and each section of the profile as
+checkboxes, whether to print the county's and the state's figures beside the district's, or a
+one-page summary instead. The printout runs as many pages as it needs, every figure with its source
+and every address written out. On Compare the same dialog prints the two districts side by side. The
+browser's own Print prints the last choice, or the short brief: the district's name and legislator,
+At a glance, and Programs and help.
+
+Old page addresses (/sources.html, /methods.html, /glossary.html, /checks.html, /outreach.html,
+/compare.html, and the compare page's old Rankings and Outreach tabs) redirect to their section or
+tab, keeping any #part of the link. The look is a light gray page with white panels, rounded corners
+and soft shadows, numbered sections, and a band across the top of each page in the chamber's color on
+a district's page (House teal, Senate purple). Spacing, corners, shadows, buttons and headings come
+from one set of tokens in style.css, so every page shares them. Moving from Find to a district's page
+uses the browser's view transitions where it has them, and nothing moves when the device asks for
+reduced motion. The site loads no third-party images, fonts, scripts, or analytics.
 
 The KLEAR logo, the island of Oʻahu under a magnifying glass, was drawn for this project as plain
 SVG. The coastline is traced from the 2022 Senate district boundaries and simplified.
@@ -486,7 +505,7 @@ without a data build. After a build changes the boundaries, regenerate it with:
 
     uv run python -m klear.etl.mapshapes
 
-The compare page's Rankings tab shades the map by one of seven rates and medians listed in `MEASURES` in
+The rankings page's first tab shades the map by one of seven rates and medians listed in `MEASURES` in
 klear/web/shade.py: people and keiki below the poverty level, the share who are kūpuna, median
 household income, renters paying 35% or more of income, people without health insurance and
 households receiving SNAP. `GET /api/map?indicator=pct_people_poverty&chamber=house` reads the
@@ -644,20 +663,19 @@ The assistant and the free lookup follow the same rules for a few kinds of quest
 - The answer builder spells Hawaiian place names with ʻokina and kahakō in the assistant's own words too, leaving
   web addresses and official organization names as written.
 
-A district's page starts at the top with its name as the page heading, its number set large, where
-it is, then section 1, At a glance: the four headline figures with their margins and how each
-compares, beside a line of plain actions (print a one-page summary, copy the link, download the
-figures as CSV, compare). A numbered link to every section follows. The Find page's search and map
-give way to it, and Back returns to them. The sections follow in reading order: People,
-Income, Programs to explore here, then the rest. Each is a disclosure that ends with a link back to
-the top. On screens at least 1200 px wide the first three start open, the profile is the main
-column, and the agent sits beside it, sticky; it starts as tall as its questions to try and grows to
-the window's height once asked, so its conversation scrolls inside it while the profile scrolls
-beside it. Below 1200 px the profile and the agent are two tabs,
-Profile and Ask, under the district's name. Sections the reader opens or closes, and the tab, are
-remembered for the browser tab. A link to a section, such as /district/house-22#profile-housing,
-opens the page at that section. `--stick` in style.css is how much of the site header stays on
-screen as the page scrolls (none yet); the chat sticks just under it.
+A district's page starts with a bar: Search another district, Compare another district, and the
+print, copy link and CSV download actions. Under it the map, zoomed to the district, sits beside the
+page heading: the district's name with its number set large, where it is and its legislator. Then
+section 1, At a glance: the four headline figures with their margins and how each compares. A
+numbered link to every section follows. The Find page's search gives way to it, and Back returns to
+it. The sections follow in reading order: People, Income, Programs to explore here, then the rest.
+Each is a panel that opens and shuts and ends with a link back to the top. On screens at least
+1200 px wide the first three start open, the map, name and profile take the left two thirds, and the
+agent sits in the right third, sticky and as tall as the window, so its conversation scrolls inside
+it while the profile scrolls beside it. Below 1200 px the agent is a panel behind a round button.
+Sections the reader opens or closes are remembered for the browser tab. A link to a section, such as
+/district/house-22#profile-housing, opens the page at that section. `--stick` in style.css is how
+much of the site header stays on screen as the page scrolls; the chat sticks just under it.
 
 Only the static web assets are served; the repository and store cannot be
 downloaded. The server rejects cross-origin browser requests. HTTP logs are disabled to avoid recording questions.

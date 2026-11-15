@@ -252,8 +252,8 @@ def test_map_without_a_store_says_so(tmp_path):
 
 
 def test_the_map_lists_each_measure_by_its_short_label():
-    # The colored map is on the compare page's Rankings tab, opening on the first measure; the home map has none.
-    page = (web.STATIC / "compare.html").read_text(encoding="utf-8")
+    # The colored map is on the rankings page's first tab, opening on the first measure; the home map has none.
+    page = (web.STATIC / "rankings.html").read_text(encoding="utf-8")
     select = re.search(r'<select id="map-shade">(.*?)</select>', page).group(1)
     options = re.findall(r'<option value="([^"]*)"(?: selected)?>([^<]*)</option>', select)
     assert [v for v, _ in options] == list(shade.MEASURES)

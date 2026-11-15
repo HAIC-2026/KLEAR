@@ -83,8 +83,8 @@ def difference(a: str, b: str, vision: str | None = None) -> float:
 
 # Text and its background: 4.5:1 (WCAG 1.4.3).
 TEXT = [
-    ("ink", "bg"), ("ink", "surface"), ("ink", "subtle"),
-    ("muted", "bg"), ("muted", "surface"), ("muted", "subtle"),
+    ("ink", "bg"), ("ink", "surface"), ("ink", "subtle"), ("ink", "page"),
+    ("muted", "bg"), ("muted", "surface"), ("muted", "subtle"), ("muted", "page"),
     ("placeholder", "white"),
     ("house", "white"), ("senate", "white"), ("house-dark", "white"), ("senate-dark", "white"),
     ("white", "house"), ("white", "senate"), ("white", "house-dark"), ("white", "senate-dark"),
@@ -99,7 +99,7 @@ TEXT = [
 # Shapes and boundaries people need to see: 3:1 (WCAG 1.4.11).
 SHAPES = [
     ("control", "white"),  # text field and select borders
-    ("house", "bg"), ("senate", "bg"),  # focus outlines
+    ("house", "bg"), ("senate", "bg"), ("house", "page"), ("senate", "page"),  # focus outlines, on panels and the page
     ("house", "house-land"), ("senate", "senate-land"),  # map borders, and a picked district against the rest
     ("house", "map-sea"), ("senate", "map-sea"),  # map coastline
     ("house-zip", "map-dim"), ("senate-zip", "map-dim"),  # districts in a ZIP code against the rest

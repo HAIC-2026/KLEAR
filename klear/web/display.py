@@ -1074,7 +1074,7 @@ def program_rows(rule_ids: list[str]) -> list[dict]:
 
 
 # The outreach page: a chamber's districts in tiers by a group that meets a program's income test.
-OUTREACH_PAGE = "/compare"
+OUTREACH_PAGE = "/rankings"
 CHAMBER_WORDS = {"house": "House", "senate": "Senate"}
 ORDINALS = ("Top", "Second", "Third", "Fourth", "Fifth", "Sixth", "Seventh", "Eighth", "Ninth", "Tenth")
 UNRANKED = "no margin of error, so it is not placed in a group"

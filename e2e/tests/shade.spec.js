@@ -1,4 +1,4 @@
-// The compare page's Rankings and map tab: the map colored by a measure, in shades of the chamber color with a legend,
+// The rankings page's Rankings and map tab: the map colored by a measure, in shades of the chamber color with a legend,
 // stripes on unreliable estimates and dots on districts with no figure, the picked district's figure under the map,
 // and every district in a table, highest first.
 // The fixture store has a poverty rate for House 22 and 23 and an unreliable one for Senate 12; other districts have none.
@@ -9,7 +9,7 @@ const MEASURE = 'People below the poverty level';
 
 test.beforeEach(async ({context, page}) => {
   await offline(context);
-  await page.goto('/compare?view=rankings');
+  await page.goto('/rankings');
   await expect(page.locator('#map .district:not(.copy)').first()).toBeAttached();
 });
 

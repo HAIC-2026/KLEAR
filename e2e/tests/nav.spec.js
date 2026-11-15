@@ -1,6 +1,6 @@
-// The site header on every page: four links in the order a visitor uses the site (find a district, ask about it,
-// compare districts, the data and methods), each opening a page of its own, the page you are on marked, and a header
-// that stays on screen as the page scrolls without covering what has focus or what a link scrolls to.
+// The site header on every page: the wordmark, which leads home to Find, and three links (Compare, Rankings, and the
+// data and methods), each opening a page of its own, the page you are on marked, and a header that stays on screen as
+// the page scrolls without covering what has focus or what a link scrolls to.
 import {test, expect} from '@playwright/test';
 import {offline} from './helpers.js';
 
@@ -8,10 +8,10 @@ test.beforeEach(async ({context}) => offline(context));
 // Links scroll at once, so where they land can be measured.
 test.use({reducedMotion: 'reduce'});
 
-const PAGES = ['/', '/ask', '/district/house-22', '/compare', '/data', '/accessibility.html'];
-const LINKS = ['Find a district', 'Ask', 'Compare', 'Data & methods'];
-// The page each address is, as its header names it; a district's page and the statement are not in it.
-const CURRENT = {'/': 'Find a district', '/ask': 'Ask', '/compare': 'Compare', '/data': 'Data & methods'};
+const PAGES = ['/', '/district/house-22', '/compare', '/rankings', '/data', '/accessibility.html'];
+const LINKS = ['Compare', 'Rankings', 'Data & methods'];
+// The page each address is, as its header names it; Find, a district's page and the statement are not in it.
+const CURRENT = {'/compare': 'Compare', '/rankings': 'Rankings', '/data': 'Data & methods'};
 
 const nav = page => page.getByRole('navigation', {name: 'Main navigation'});
 
@@ -23,7 +23,7 @@ async function toBottom(page) {
   await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
 }
 
-test('every page has the same four links in task order and marks the page you are on', async ({page}) => {
+test('every page has the same three links and marks the page you are on', async ({page}) => {
   for (const address of PAGES) {
     await page.goto(address);
     const names = await nav(page).locator('a').evaluateAll(all => all.map(a => a.textContent.trim()));
@@ -35,10 +35,10 @@ test('every page has the same four links in task order and marks the page you ar
       continue;
     }
     await expect(current).toHaveText(CURRENT[address]);
-    // Sighted readers see it too: a thick underline on the link.
+    // Sighted readers see it too: the link sits on a tint, or is underlined on a phone.
     expect(await current.evaluate(el => {
       const s = getComputedStyle(el);
-      return s.textDecorationLine.includes('underline') && s.textDecorationThickness === '3px';
+      return s.backgroundColor !== 'rgba(0, 0, 0, 0)' || s.boxShadow !== 'none';
     }), address).toBe(true);
   }
 });
@@ -54,19 +54,12 @@ test('from the bottom of any page, the header is on screen and every part is one
   }
 });
 
-test('Find and Ask open their own pages, and Ask opens ready to type in', async ({page}) => {
+test('the wordmark leads home to Find, and an old glossary link lands below the header', async ({page}) => {
   await page.goto('/data');
   await toBottom(page);
-  await nav(page).getByRole('link', {name: /^Find/}).click();
+  await page.locator('.site-header .brand').click();
   await expect(page).toHaveURL(/:\d+\/$/);
   await expect(page.getByRole('heading', {level: 1})).toHaveText('Find your district');
-  await toBottom(page);
-  await nav(page).getByRole('link', {name: 'Ask'}).click();
-  await expect(page).toHaveURL(/\/ask$/);
-  await expect(page.getByRole('heading', {level: 1})).toHaveText('Ask KLEAR');
-  await expect(page.locator('#question')).toBeFocused();
-  await expect(page.locator('#question')).toBeInViewport();
-  expect(await belowHeader(page, page.locator('#question'))).toBeGreaterThanOrEqual(0);
   // An old link to a glossary term lands on that term in the data page, below the header.
   await page.goto('/glossary.html#cv');
   await expect(page).toHaveURL(/\/data\?section=glossary#cv$/);
@@ -86,27 +79,28 @@ test('no link on a district page leads to a hidden section', async ({page}) => {
     return !target || !target.checkVisibility();
   }).map(a => `${a.textContent.trim()} → ${a.getAttribute('href')}`));
   expect(dead).toEqual([]);
-  // The header's Ask opens the Ask page; the agent beside the profile is this district's.
-  await nav(page).getByRole('link', {name: 'Ask'}).click();
-  await expect(page).toHaveURL(/\/ask$/);
-  await expect(page.locator('#question')).toBeFocused();
+  // The header's Compare opens Compare with two searches.
+  await nav(page).getByRole('link', {name: 'Compare'}).click();
+  await expect(page).toHaveURL(/\/compare$/);
+  await expect(page.locator('#cmp-a-place')).toBeVisible();
+  await expect(page.locator('#cmp-b-place')).toBeVisible();
 });
 
-// The profile closes with a row that leads on: to comparing districts, to the data and methods, and to another district.
+// The profile closes with a row that leads on: to comparing this district, to the data and methods, and to another.
 test('a district profile ends with links to compare, the data and methods, and another district', async ({page}) => {
   await page.goto('/district/house-22');
   const end = page.getByRole('navigation', {name: 'More from KLEAR'});
-  await expect(end.getByRole('link')).toHaveText(['Compare districts', 'Sources and methods', 'Find another district']);
+  await expect(end.getByRole('link')).toHaveText(['Compare with another district', 'Sources and methods', 'Search another district']);
   await end.getByRole('link', {name: 'Sources and methods'}).click();
   await expect(page).toHaveURL(/\/data$/);
   await expect(page.getByRole('heading', {level: 1})).toHaveText('Data and methods');
   await page.goBack();
-  await page.getByRole('navigation', {name: 'More from KLEAR'}).getByRole('link', {name: 'Find another district'}).click();
+  await page.getByRole('navigation', {name: 'More from KLEAR'}).getByRole('link', {name: 'Search another district'}).click();
   await expect(page).toHaveURL(/:\d+\/$/);
   await expect(page.getByLabel('Town, ZIP code, street address, district or legislator')).toBeInViewport();
   await page.goBack();
-  await page.getByRole('navigation', {name: 'More from KLEAR'}).getByRole('link', {name: 'Compare districts'}).click();
-  await expect(page).toHaveURL(/\/compare$/);
+  await page.getByRole('navigation', {name: 'More from KLEAR'}).getByRole('link', {name: 'Compare with another district'}).click();
+  await expect(page).toHaveURL(/\/compare\?d=house:022$/);
 });
 
 test('the data page lists its sections beside them, and each opens below the header', async ({page}) => {

@@ -48,7 +48,7 @@ test('a street address in a chat question gets its own district, and the questio
   await privacy.click();
   await expect(more).toBeHidden();
   await page.getByLabel('Your question').fill('Which House and Senate district is 1 Test St, Kāneʻohe in?');
-  await page.getByRole('button', {name: 'Ask KLEAR'}).click();
+  await page.locator('#send').click();
   // The status line names the district the answer is about, the address's, not the one chosen before.
   await expect(page.locator('#chat-live')).toContainText('Answer ready for House District 23.');
   const answer = page.locator('#log article').last();
@@ -139,17 +139,21 @@ test('Escape closes the suggestions, and a clicked one picks exactly that place'
   await expect(page.locator('#district-title')).toHaveText('House District 22');
 });
 
-test('the compare page’s district search suggests too, and typing one letter suggests nothing', async ({page}) => {
+test('Compare’s district searches suggest too, and typing one letter suggests nothing', async ({page}) => {
   await page.goto('/compare');
-  const box = page.locator('#cmp-place');
+  const box = page.locator('#cmp-a-place');
   await expect(box).toHaveAttribute('role', 'combobox');
   await box.fill('o');
   await page.waitForTimeout(400);
-  await expect(page.locator('#cmp-place-list')).toBeHidden();
+  await expect(page.locator('#cmp-a-place-list')).toBeHidden();
   await box.fill('oah');
-  await expect(page.locator('#cmp-place-list').getByRole('option')).toHaveText([/^Oʻahu\s+Island$/]);
+  await expect(page.locator('#cmp-a-place-list').getByRole('option')).toHaveText([/^Oʻahu\s+Island$/]);
   await box.press('Tab');
-  await expect(page.locator('#cmp-place-list')).toBeHidden();
+  await expect(page.locator('#cmp-a-place-list')).toBeHidden();
+  // The second column's search is its own.
+  await page.locator('#cmp-b-place').fill('kai');
+  await expect(page.locator('#cmp-b-place-list').getByRole('option')).toHaveCount(2);
+  await expect(page.locator('#cmp-a-place-list')).toBeHidden();
 });
 
 // People type the ʻokina many ways, or leave it out, and the kahakō too. Each finds the same place.

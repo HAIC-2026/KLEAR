@@ -1,42 +1,97 @@
-// The Find page (/): the search, every district by number and the island map, then a question box that opens the Ask
-// page, then the store's counts. Comparing districts has its own page.
+// The Find page (/): a band with the page's title and a button down to the search and the map, the House or Senate
+// switch over them, every district by number, then a question box that asks in the agent's panel, then the store's
+// counts. Picking a district zooms the map to it and turns the page into the district's.
 import {test, expect} from '@playwright/test';
 import {DISTRICT, offline} from './helpers.js';
 
 test.beforeEach(async ({context}) => offline(context));
 
-test('the Find page finds, then asks, and leaves comparing to its own page', async ({page}) => {
+test('the Find page opens with its band, the switch, the map and the search, and no agent box until asked', async ({page}) => {
   await page.goto('/');
   await expect(page.getByRole('heading', {level: 1})).toHaveText('Find your district');
   await expect(page.locator('#find-place')).toBeVisible();
   await expect(page.locator('#map .district:not(.copy)').first()).toBeAttached();
   const titles = await page.locator('main h2:visible:not(.visually-hidden)').allTextContents();
-  expect(titles).toEqual(['Every district by number', 'Ask KLEAR']);
-  await expect(page.getByLabel('Ask about a district, a town or ZIP code, or all of Hawaiʻi')).toBeVisible();
-  // The agent's own question box and the compare tool are not on this page.
+  expect(titles).toEqual(['Search, or pick a number', 'Every district by number', 'Ask KLEAR']);
+  await expect(page.getByRole('group', {name: 'Show House or Senate districts'})).toBeVisible();
+  await expect(page.getByLabel('Ask about a district, a town or ZIP code, or all of Hawaiʻi', {exact: false})).toBeVisible();
+  // The agent's own question box waits in its panel, and Compare's searches are not on this page.
   await expect(page.getByLabel('Your question')).toBeHidden();
-  await expect(page.locator('#cmp-place')).toHaveCount(0);
-  // The header marks Find as the page you are on.
-  await expect(page.getByRole('navigation', {name: 'Main navigation'}).locator('[aria-current=page]')).toHaveText('Find a district');
+  await expect(page.locator('#chat-fab')).toBeVisible();
+  await expect(page.locator('#cmp-a-place')).toHaveCount(0);
+  // The header marks no page as the one you are on: the wordmark leads here.
+  await expect(page.getByRole('navigation', {name: 'Main navigation'}).locator('[aria-current=page]')).toHaveCount(0);
+});
+
+test('the button in the band moves down to the search and the map', async ({page}) => {
+  await page.goto('/');
+  await page.getByRole('link', {name: 'Find your district'}).click();
+  await expect(page.locator('#find-section')).toBeInViewport();
+  await expect(page.locator('#find-place')).toBeInViewport();
+  await expect.poll(() => page.locator('#find-section').evaluate(n => n.getBoundingClientRect().top)).toBeLessThan(120);
+});
+
+test('the switch shows one chamber at a time, on the map and in the numbers', async ({page}) => {
+  await page.goto('/');
+  const index = page.getByRole('navigation', {name: 'Every district by number'});
+  const sw = page.getByRole('group', {name: 'Show House or Senate districts'});
+  await expect(sw.getByRole('button', {name: 'House'})).toHaveAttribute('aria-pressed', 'true');
+  await expect(index.getByRole('link')).toHaveCount(51);
+  await expect(page.locator('#map [data-geo^="house:"].district').first()).toBeAttached();
+  await sw.getByRole('button', {name: 'Senate'}).click();
+  await expect(sw.getByRole('button', {name: 'Senate'})).toHaveAttribute('aria-pressed', 'true');
+  await expect(index.getByRole('link')).toHaveCount(25);
+  await expect(index.getByRole('link', {name: 'Senate District 12', exact: true})).toHaveAttribute('href', '/district/senate-12');
+  await expect(page.locator('#map [data-geo^="senate:"].district').first()).toBeAttached();
+  await expect(page.locator('#map [data-geo^="house:"]')).toHaveCount(0);
+  // The choice holds through a reload in the same tab.
+  await page.reload();
+  await expect(page.getByRole('group', {name: 'Show House or Senate districts'}).getByRole('button', {name: 'Senate'})).toHaveAttribute('aria-pressed', 'true');
+  await expect(index.getByRole('link')).toHaveCount(25);
 });
 
 test('every district is one click away by number, and the numbers work as links', async ({page}) => {
   await page.goto('/');
   const index = page.getByRole('navigation', {name: 'Every district by number'});
-  await expect(index.getByRole('link')).toHaveCount(76);
   await expect(index.getByRole('link', {name: 'House District 22', exact: true})).toHaveAttribute('href', '/district/house-22');
-  await expect(index.getByRole('link', {name: 'Senate District 12', exact: true})).toHaveAttribute('href', '/district/senate-12');
-  // A plain click opens the district's page in place, at its profile.
+  // A plain click zooms the map to the district and opens its page in place, at its profile.
   await index.getByRole('link', {name: 'House District 22', exact: true}).click();
   await expect(page).toHaveURL(/\/district\/house-22$/);
   await expect(page.getByRole('heading', {level: 1})).toHaveText(DISTRICT);
   await expect(page.locator('#profile-live')).toHaveText(`Profile for ${DISTRICT} loaded.`);
+  await expect(page.locator('#map .district.picked:not(.copy)')).toHaveAttribute('data-geo', 'house:022');
   await page.goBack();
   await expect(page).toHaveURL(/:\d+\/$/);
   await expect(page.locator('#find-place')).toBeVisible();
 });
 
-test('Tab reaches each chamber’s numbers once, and the arrow keys move along them', async ({page, isMobile}) => {
+test('a district opens with the map beside its name, and Search another district comes back to the map', async ({page, isMobile}) => {
+  await page.goto('/');
+  await page.getByRole('navigation', {name: 'Every district by number'}).getByRole('link', {name: 'House District 22', exact: true}).click();
+  await expect(page.locator('#profile-live')).toHaveText(`Profile for ${DISTRICT} loaded.`);
+  const map = await page.locator('#district-map').boundingBox(), head = await page.locator('#district-head').boundingBox();
+  if (isMobile) expect(map.y + map.height).toBeLessThanOrEqual(head.y + 1);  // on a phone the map sits over the name
+  else {
+    expect(map.x + map.width).toBeLessThanOrEqual(head.x);  // the map at the left, the name beside it
+    expect(Math.abs(map.y - head.y)).toBeLessThan(4);
+  }
+  // The district is zoomed in: its outline fills a good part of the small map.
+  const share = await page.evaluate(() => {
+    const svg = document.getElementById('map'), vb = svg.viewBox.baseVal;
+    const d = svg.querySelector('.district.copy.picked') || svg.querySelector('.district.picked');
+    const b = d.getBBox();
+    return (b.width * b.height) / (vb.width * vb.height);
+  });
+  expect(share).toBeGreaterThan(0.08);
+  await page.locator('#search-another').click();
+  await expect(page).toHaveURL(/:\d+\/$/);
+  await expect(page.locator('#find-place')).toBeVisible();
+  await expect(page.locator('#find-section')).toBeInViewport();
+  if (!isMobile) await expect(page.locator('#find-place')).toBeFocused();
+  await expect(page.locator('#chat-panel-title')).toHaveText('Ask KLEAR');
+});
+
+test('Tab reaches the numbers once, and the arrow keys move along them', async ({page, isMobile}) => {
   test.skip(isMobile, 'keys run at desktop size');
   await page.goto('/');
   const index = page.getByRole('navigation', {name: 'Every district by number'});
@@ -46,29 +101,43 @@ test('Tab reaches each chamber’s numbers once, and the arrow keys move along t
   await expect(index.getByRole('link', {name: 'House District 2', exact: true})).toBeFocused();
   await page.keyboard.press('End');
   await expect(index.getByRole('link', {name: 'House District 51', exact: true})).toBeFocused();
+  // Tab leaves the numbers for the map beside them, which comes next.
   await page.keyboard.press('Tab');
-  await expect(index.getByRole('link', {name: 'Senate District 1', exact: true})).toBeFocused();
+  await expect(page.locator('#island-tabs button').first()).toBeFocused();
   await page.keyboard.press('Shift+Tab');
   await expect(index.getByRole('link', {name: 'House District 51', exact: true})).toBeFocused();
 });
 
-test('a question on the Find page opens the Ask page and is asked there', async ({page}) => {
+test('a starter question on the Find page is asked in the agent’s panel', async ({page}) => {
   await page.goto('/');
   const question = 'How many kūpuna live in Kāneʻohe?';
-  await page.getByRole('group', {name: 'Questions to try'}).getByRole('button', {name: question}).click();
-  // The question travels after the # and leaves the address once it is asked.
-  await expect(page).toHaveURL(/\/ask$/);
-  await expect(page.getByRole('heading', {level: 1})).toHaveText('Ask KLEAR');
+  await page.locator('#home-starters').getByRole('button', {name: question}).click();
+  await expect(page.locator('#chat')).toBeVisible();
   await expect(page.locator('#log .user')).toContainText(question);
   await expect(page.locator('#log article')).toHaveCount(1);
-  await expect(page.getByRole('navigation', {name: 'Main navigation'}).locator('[aria-current=page]')).toHaveText('Ask');
+  await expect(page).toHaveURL(/:\d+\/$/);
+  // Minimizing the panel keeps the conversation for the next time it opens.
+  await page.locator('#chat-min').click();
+  await expect(page.locator('#chat')).toBeHidden();
+  await expect(page.locator('#chat-fab')).toBeFocused();
+  await page.locator('#chat-fab').click();
+  await expect(page.locator('#log article')).toHaveCount(1);
 });
 
-test('a question typed on the Find page is asked on the Ask page', async ({page}) => {
+test('a question typed on the Find page is asked in the agent’s panel', async ({page}) => {
   await page.goto('/');
-  await page.getByLabel('Ask about a district, a town or ZIP code, or all of Hawaiʻi').fill('How many kūpuna live in Kāneʻohe?');
-  await page.getByRole('button', {name: 'Ask KLEAR'}).click();
-  await expect(page).toHaveURL(/\/ask$/);
+  await page.locator('#home-question').fill('How many kūpuna live in Kāneʻohe?');
+  await page.locator('#home-ask').getByRole('button', {name: 'Ask KLEAR'}).click();
+  await expect(page.locator('#chat')).toBeVisible();
+  await expect(page.locator('#log .user')).toContainText('Kāneʻohe');
+});
+
+test('the old Ask page opens the Find page with the panel open, and asks a question handed to it', async ({page}) => {
+  await page.goto('/ask');
+  await expect(page).toHaveURL(/:\d+\/$/);
+  await expect(page.locator('#chat')).toBeVisible();
+  await page.goto(`/ask#q=${encodeURIComponent('How many kūpuna live in Kāneʻohe?')}`);
+  await expect(page).toHaveURL(/:\d+\/$/);
   await expect(page.locator('#log .user')).toContainText('Kāneʻohe');
 });
 
