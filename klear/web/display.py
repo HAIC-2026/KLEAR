@@ -62,7 +62,7 @@ SHARES_SOURCE = {
 }
 # How KLEAR moves ZIP code and tract figures to districts (tier A) and averages modeled ones (tier M), with a
 # section for each source, anchored by its source_id.
-METHODS_PAGE = "/methods.html"
+METHODS_PAGE = "/data"
 METHOD_TIERS = {"A", "M"}
 METHODS_TEXT = "How KLEAR estimates district ranges"
 VINTAGE_NOTE = re.compile(r"\s*\(\{vintage:\w+\}\)")
@@ -1073,7 +1073,7 @@ def program_rows(rule_ids: list[str]) -> list[dict]:
 
 
 # The outreach page: a chamber's districts in tiers by a group that meets a program's income test.
-OUTREACH_PAGE = "/outreach.html"
+OUTREACH_PAGE = "/compare"
 CHAMBER_WORDS = {"house": "House", "senate": "Senate"}
 ORDINALS = ("Top", "Second", "Third", "Fourth", "Fifth", "Sixth", "Seventh", "Eighth", "Ninth", "Tenth")
 UNRANKED = "no margin of error, so it is not placed in a group"
@@ -1278,7 +1278,7 @@ def outreach_note(district: dict, tops: dict, session, store: _Store) -> dict:
                 "text": text,
                 "caution": _caution(t["fact"]),
                 "link": f"Compare {word} districts for {spec['title']}",
-                "url": f"{OUTREACH_PAGE}?pair={t['pair']}&chamber={chamber}",
+                "url": f"{OUTREACH_PAGE}?view=outreach&pair={t['pair']}&chamber={chamber}",
             }
         )
     more = len(tops["tops"]) - len(items)
@@ -1291,7 +1291,10 @@ def outreach_note(district: dict, tops: dict, session, store: _Store) -> dict:
         "more": f"It is in the top group for {more} more {'measure' if more == 1 else 'measures'}."
         if more
         else "",
-        "link": {"text": "Where outreach could help most", "url": f"{OUTREACH_PAGE}?chamber={chamber}"},
+        "link": {
+            "text": "Where outreach could help most",
+            "url": f"{OUTREACH_PAGE}?view=outreach&chamber={chamber}",
+        },
         "note": "Groups meet a program's income test only.",
     }
 

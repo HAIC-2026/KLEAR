@@ -65,9 +65,9 @@ class _Ids(HTMLParser):
 
 def test_the_methods_page_has_a_section_for_every_estimated_source():
     parser = _Ids()
-    parser.feed((web.STATIC / "methods.html").read_text(encoding="utf-8"))
+    parser.feed((web.STATIC / "data.html").read_text(encoding="utf-8"))
     assert set(METHOD_SOURCES) <= parser.ids
-    assert "/methods.html" in web.PUBLIC
+    assert "/data" in web.PUBLIC
 
 
 @pytest.fixture
@@ -82,7 +82,7 @@ def real_con():
 
 def test_every_estimated_source_in_the_built_store_has_a_methods_section(real_con):
     parser = _Ids()
-    parser.feed((web.STATIC / "methods.html").read_text(encoding="utf-8"))
+    parser.feed((web.STATIC / "data.html").read_text(encoding="utf-8"))
     used = {
         r[0]
         for r in real_con.execute("SELECT DISTINCT source_id FROM fact WHERE tier IN ('A', 'M')").fetchall()

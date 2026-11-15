@@ -57,7 +57,7 @@ test('groups not above the state’s go in a closed disclosure with their count'
     p.programs.others_title = 'Other programs';
   });
   const section = await openPrograms(page);
-  const open = section.locator(':scope > .program-group');
+  const open = section.locator('.profile-part > .program-group');
   await expect(open).toHaveCount(1);
   await expect(open.locator('.program-group-title')).toHaveText('Kūpuna');
   const others = section.locator('details.program-others');
@@ -66,7 +66,8 @@ test('groups not above the state’s go in a closed disclosure with their count'
   await expect(others.locator(':scope > summary')).toHaveText(`Other programs (${rest})`);
   expect(rest + await open.locator('.program').count()).toBe(await section.locator('.program').count());
   if (testInfo.project.name === 'desktop') {
-    const box = await section.boundingBox();
+    // The programs part of its group, before the tables of programs in use.
+    const box = await section.locator('.profile-part').first().boundingBox();
     expect(box.height).toBeLessThan(900);
   }
   await others.locator(':scope > summary').click();

@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#ffffff">
+  <meta name="description" content="Compare Hawaiʻi House and Senate districts side by side, rank every district by one measure on a map, and see where program outreach could help most. Every figure shows its margin of error.">
+  <title>Compare districts – KLEAR</title>
+  <link rel="icon" href="/favicon.ico?v=2" sizes="32x32">
+  <link rel="icon" href="/favicon.svg?v=2" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=2">
+  <link rel="preload" href="/fonts/public-sans.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/style.css">
+  <script src="/nav.js" defer></script>
+  <script src="/kit.js" defer></script>
+  <script src="/compare.js" defer></script>
+  <script src="/outreach.js" defer></script>
+  <script src="/map.js" defer></script>
+</head>
+<body class="compare-page">
+  <a class="skip" href="#main">Skip to content</a>
+  <header class="site-header">
+    <a class="brand" href="/"><img class="brand-logo" src="/logo.svg" width="36" height="36" alt=""><span class="brand-text"><strong>KLEAR</strong><span class="brand-sub">Hawaiʻi district data</span></span></a>
+    <nav aria-label="Main navigation">
+      <ul class="nav-links">
+        <li><a href="/#find">Find<span class="nav-long"> a district</span></a></li>
+        <li><a href="/#chat">Ask</a></li>
+        <li><a href="/compare" aria-current="page">Compare</a></li>
+        <li><a href="/data">Data<span class="nav-long"> &amp; methods</span></a></li>
+      </ul>
+    </nav>
+  </header>
+  <main id="main" class="page">
+    <div class="wrap">
+      <p class="crumb"><a href="/">KLEAR</a> <span aria-hidden="true">/</span> <span aria-current="page">Compare</span></p>
+      <h1>Compare districts</h1>
+      <p class="lede">Set districts side by side, rank every district by one measure, or see where program outreach could help most.</p>
+
+      <div class="page-tabs" role="tablist" aria-label="Ways to compare">
+        <button type="button" role="tab" id="tab-districts" aria-controls="panel-districts" aria-selected="true">Districts side by side</button>
+        <button type="button" role="tab" id="tab-rankings" aria-controls="panel-rankings" aria-selected="false" tabindex="-1">Rankings and map</button>
+        <button type="button" role="tab" id="tab-outreach" aria-controls="panel-outreach" aria-selected="false" tabindex="-1">Outreach</button>
+      </div>
+
+      <section class="tab-panel" id="panel-districts" role="tabpanel" aria-labelledby="tab-districts">
+        <form id="cmp-find" class="cmp-find">
+          <label for="cmp-place">Add a district: town, ZIP code, street address or district</label>
+          <div class="inputrow"><div class="combo"><input id="cmp-place" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="cmp-place-list" required maxlength="160" placeholder="e.g. Hilo, 96744, or Senate 12" autocomplete="off"><ul id="cmp-place-list" class="suggestions" role="listbox" aria-label="Suggestions" hidden></ul></div><button type="submit">Add</button></div><p id="cmp-place-count" class="visually-hidden" role="status"></p>
+          <p id="cmp-status" class="status" role="status"></p>
+          <div id="cmp-matches"></div>
+        </form>
+        <ul class="cmp-chosen" id="cmp-chosen" aria-label="Districts compared"></ul>
+        <p id="cmp-live" class="visually-hidden" role="status"></p>
+        <div id="cmp-result"></div>
+      </section>
+
+      <section class="tab-panel" id="panel-rankings" role="tabpanel" aria-labelledby="tab-rankings" hidden>
+        <div class="rank-layout" id="district-map">
+          <div class="rank-controls">
+            <div class="shade-row"><label for="map-shade">Measure</label><select id="map-shade"><option value="pct_people_poverty" selected>People below the poverty level</option><option value="pct_children_poverty">Keiki below the poverty level</option><option value="pct_65_plus">Share who are kūpuna (65 and over)</option><option value="median_household_income">Median household income</option><option value="pct_rent_burden_35_plus">Renters paying 35% or more of income</option><option value="pct_uninsured">People without health insurance</option><option value="pct_hh_snap">Households receiving SNAP</option></select><p id="shade-status" class="status" role="status"></p><p id="shade-live" class="visually-hidden" role="status"></p></div>
+            <div class="map-controls">
+              <div class="segmented" role="group" aria-label="Chamber"><button type="button" data-chamber="house" aria-pressed="true">House</button><button type="button" data-chamber="senate" aria-pressed="false">Senate</button></div>
+              <div class="island-tabs" id="island-tabs" role="group" aria-label="Zoom to island"></div>
+            </div>
+          </div>
+          <div class="card map-card">
+            <h2 id="map-title" class="visually-hidden">Districts colored by the chosen measure</h2>
+            <div class="map-frame"><svg id="map" role="group" tabindex="-1" aria-labelledby="map-title" aria-describedby="map-keys" preserveAspectRatio="xMidYMid meet"></svg><p id="map-keys" hidden>Arrow keys move between districts. Enter picks one, and Enter again opens it.</p><p id="map-loading" class="map-loading">Loading map…</p><div class="zoom-buttons"><button type="button" id="zoom-in" aria-label="Zoom in">+</button><button type="button" id="zoom-out" aria-label="Zoom out">−</button></div><p id="map-hint" class="map-hint" hidden>Pinch, or hold Ctrl while scrolling, to zoom</p></div>
+            <div id="map-legend" class="map-legend" hidden></div>
+            <div class="map-footer">
+              <div class="map-pick" aria-live="polite"><span class="small-label" id="pick-island">No district picked yet</span><strong id="pick-name">Tap an area on the map</strong><span id="pick-value" class="pick-value" hidden></span></div>
+              <div class="map-pick-actions">
+                <label for="map-list" class="visually-hidden">Or choose from a list</label>
+                <select id="map-list"><option value="">Or choose from a list…</option></select>
+                <button type="button" id="pick-go" class="button" disabled>Open a district</button>
+              </div>
+            </div>
+          </div>
+          <details id="map-table" class="card rank-table" open hidden><summary>Every district, highest first</summary><div class="table-scroll" tabindex="0" role="region" aria-labelledby="map-table-caption"><table><caption id="map-table-caption"></caption><thead><tr><th scope="col">District</th><th scope="col">Estimate</th><th scope="col">90% margin of error</th><th scope="col" id="map-table-note">Note</th></tr></thead><tbody id="map-table-body"></tbody></table></div></details>
+        </div>
+      </section>
+
+      <section class="tab-panel" id="panel-outreach" role="tabpanel" aria-labelledby="tab-outreach" hidden>
+        <form id="out-choose" class="outreach-choose">
+          <fieldset class="pair-choice">
+            <legend>Program</legend>
+            <div class="pair-options">
+              <label class="pair-option"><input type="radio" name="pair" value="snap" checked><span class="pair-title">SNAP</span><span class="pair-who">Households in poverty that did not get SNAP</span></label>
+              <label class="pair-option"><input type="radio" name="pair" value="med_quest"><span class="pair-title">Med-QUEST</span><span class="pair-who">Uninsured people with income under 138% of poverty</span></label>
+              <label class="pair-option"><input type="radio" name="pair" value="marketplace"><span class="pair-title">Marketplace tax credits</span><span class="pair-who">Uninsured people with income from 138% to 399% of poverty</span></label>
+              <label class="pair-option"><input type="radio" name="pair" value="kupuna"><span class="pair-title"><span lang="haw">Kūpuna</span> programs</span><span class="pair-who"><span lang="haw">Kūpuna</span> with income under 200% of poverty</span></label>
+              <label class="pair-option"><input type="radio" name="pair" value="eitc"><span class="pair-title">Federal EITC</span><span class="pair-who">Working families and people below poverty</span></label>
+            </div>
+          </fieldset>
+          <fieldset class="chamber-choice">
+            <legend>Districts</legend>
+            <div class="chamber-options">
+              <label class="chamber-option house"><input type="radio" name="chamber" value="house" checked>House</label>
+              <label class="chamber-option senate"><input type="radio" name="chamber" value="senate">Senate</label>
+            </div>
+          </fieldset>
+        </form>
+        <p class="tab-note">Districts are grouped by how many people meet the program’s income test. Within a group the ranges overlap, so the data cannot say which district has more.</p>
+        <p id="out-status" class="status" role="status">Loading the districts…</p>
+        <p id="out-live" class="visually-hidden" role="status"></p>
+        <section id="out-result" class="card outreach-result" aria-labelledby="out-result-title" hidden>
+          <h2 id="out-result-title"></h2>
+          <div id="out-summary"></div>
+          <div id="out-tiers"></div>
+          <div id="out-sources"></div>
+        </section>
+      </section>
+    </div>
+  </main>
+  <footer>
+    <div class="wrap">
+      <div class="footer-inner">
+        <div class="footer-about" id="about">
+          <div class="footer-brand"><img src="/favicon.svg" width="40" height="40" alt=""><p class="footer-name"><strong>KLEAR</strong><span>Hawaiʻi district data</span></p></div>
+          <p>Made for HAIC 2026. Challenge champion: DBEDT Research and Economic Analysis Division. Not an official State of Hawaiʻi product. For Hawaiʻi data beyond districts, try <a class="ext" href="https://datatrove.ai/">datatrove.ai<span class="visually-hidden"> (external site)</span></a>, a HAIC 2026 sponsor.</p>
+          <p class="footer-team">Team: <a class="ext" href="https://github.com/KantaS12">Kanta Saito<span class="visually-hidden"> on GitHub (external site)</span></a>, <a class="ext" href="https://github.com/andrewhe6">Andrew He<span class="visually-hidden"> on GitHub (external site)</span></a>, <a class="ext" href="https://github.com/rainemendoza">Raine S. Mendoza<span class="visually-hidden"> on GitHub (external site)</span></a>, <a class="ext" href="https://github.com/Lukas-Moroz">Lukas Moroz<span class="visually-hidden"> on GitHub (external site)</span></a>, <a class="ext" href="https://github.com/elijah-saloma">Elijah Saloma<span class="visually-hidden"> on GitHub (external site)</span></a>.</p>
+        </div>
+        <div class="footer-col">
+          <h2 class="footer-title">Reports</h2>
+          <ul>
+            <li><a href="/data">Data &amp; methods</a></li>
+            <li><a class="ext" href="https://github.com/HAIC-2026/KLEAR/blob/main/docs/VALIDATION.md">Validation report<span class="visually-hidden"> (external site)</span></a></li>
+            <li><a href="/accessibility.html">Accessibility statement</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h2 class="footer-title">Questions or corrections</h2>
+          <p><a class="ext" href="https://github.com/HAIC-2026/KLEAR/issues">Open a GitHub issue<span class="visually-hidden"> (external site)</span></a></p>
+        </div>
+      </div>
+    </div>
+  </footer>
+</body>
+</html>

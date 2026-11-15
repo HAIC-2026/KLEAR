@@ -1,5 +1,5 @@
 // The profile's tables: each measure with the district, its county and the state side by side. A rate or an amount
-// also gets a range strip and a reading. What a label means opens from a button beside it.
+// also gets a range strip and a reading that screen readers hear. What a label means opens from a button beside it.
 import {test, expect} from '@playwright/test';
 import {DISTRICT, offline} from './helpers.js';
 
@@ -33,7 +33,7 @@ test('a rate shows the district, county and state on one row, with a strip and a
   expect(await style('.strip-mark.above', 'left')).toBeCloseTo(44.5, 1);
   expect(await style('.strip-mark.below', 'left')).toBeCloseTo(49, 1);
   // The key under the table names each mark.
-  await expect(page.locator('#profile-income .profile-key')).toHaveText(new RegExp(`^${DISTRICT}, with a line for its margin of error or range\\s*Honolulu County\\s*Hawaiʻi\\s*Each strip starts at 0 and has its own scale\\.$`));
+  await expect(page.locator('#profile-income-work .profile-key').first()).toHaveText(new RegExp(`^${DISTRICT}, with a line for its margin of error or range\\s*Honolulu County\\s*Hawaiʻi\\s*Each strip starts at 0 and has its own scale\\.$`));
 });
 
 test('a total sits beside the county and state totals, with no strip and no share sentence', async ({page}) => {
@@ -69,7 +69,7 @@ test('the button beside a label opens what it means, by mouse or keyboard', asyn
   await button.click();
   await expect(button).toHaveAttribute('aria-expanded', 'true');
   await expect(about.getByText('Half of residents are younger than this age and half are older.')).toBeVisible();
-  await expect(about.getByRole('link', {name: 'Glossary of terms (opens in a new tab)'})).toHaveAttribute('href', '/glossary.html');
+  await expect(about.getByRole('link', {name: 'Glossary of terms (opens in a new tab)'})).toHaveAttribute('href', '/data#glossary');
   await button.focus();
   await page.keyboard.press('Enter');
   await expect(button).toHaveAttribute('aria-expanded', 'false');
@@ -82,7 +82,7 @@ test('the button beside a label opens what it means, by mouse or keyboard', asyn
 
 test('a table that fits shows columns, one that does not stacks, and the page never scrolls sideways', async ({page}) => {
   const wide = page.viewportSize().width >= 1200;
-  const box = page.locator('#profile-income .profile-rows');
+  const box = page.locator('#profile-income-work .profile-rows').first();
   await expect(box).toHaveClass(wide ? 'profile-rows' : 'profile-rows stacked');
   // Stacked, each figure names its place, since the column headings are out of sight.
   const places = measure(box, 'People below the poverty level').locator('.profile-place');

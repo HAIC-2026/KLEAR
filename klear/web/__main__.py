@@ -39,15 +39,18 @@ STATIC = Path(__file__).with_name("static")
 PUBLIC = (
     "/",
     "/index.html",
-    "/checks.html",
-    "/glossary.html",
-    "/outreach.html",
-    "/outreach.js",
+    "/compare",
+    "/compare.html",
+    "/data",
+    "/data.html",
     "/accessibility.html",
+    "/kit.js",
     "/nav.js",
-    "/checks.js",
-    "/checks.css",
     "/app.js",
+    "/compare.js",
+    "/outreach.js",
+    "/data.js",
+    "/checks.js",
     "/style.css",
     "/logo.svg",
     "/favicon.svg",
@@ -55,12 +58,22 @@ PUBLIC = (
     "/apple-touch-icon.png",
     "/map.js",
     "/districts.json",
-    "/methods.html",
-    "/sources.html",
-    "/sources.js",
     "/fonts/public-sans.woff2",
     "/fonts/public-sans-ext.woff2",
 )
+# The site's pages in the order a visitor uses them: find a district (and ask about it), compare districts, then the
+# data and methods behind every figure. Clean addresses serve their page's file.
+PAGES = {"/compare": "/compare.html", "/data": "/data.html"}
+# Pages that moved into those two, kept working for old links and bookmarks. A link's #part, such as
+# /methods.html#irs_soi_zip_2023, carries over by itself, since the new address has none; a page with no #part
+# opens at its section, which data.js scrolls to from the section named here.
+MOVED = {
+    "/outreach.html": "/compare?view=outreach",
+    "/sources.html": "/data?section=sources",
+    "/methods.html": "/data?section=methods",
+    "/glossary.html": "/data?section=glossary",
+    "/checks.html": "/data?section=checks",
+}
 # Health and readiness checks. Cloud Run reserves some paths that end in z at its front end, so each check also
 # answers at an /api/ path that visitors and uptime monitors can reach from outside.
 HEALTH = ("/healthz", "/api/health")
@@ -332,6 +345,17 @@ class Handler(SimpleHTTPRequestHandler):
             return self.shading(query.get("indicator", [""])[0], query.get("chamber", [""])[0])
         if DISTRICT_PAGE.fullmatch(path.path):
             self.path = "/index.html"
+            return super().do_GET()
+        if path.path in MOVED:
+            # The old outreach page's choices, such as ?pair=snap&chamber=senate, carry over to the new one.
+            target = MOVED[path.path] + (f"&{path.query}" if path.query and "?" in MOVED[path.path] else "")
+            self.send_response(301)
+            self.send_header("Location", target)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return None
+        if path.path in PAGES:
+            self.path = PAGES[path.path]
             return super().do_GET()
         if path.path == "/accessibility.html":
             try:

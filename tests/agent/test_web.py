@@ -69,7 +69,7 @@ def test_lookup_and_private_files(endpoint):
     assert json.loads(data)["matches"][0]["geo"] == "house:022"
     for path in ["/../pyproject.toml", "/.env", "/data/build/klear.duckdb"]:
         assert request(endpoint, "GET", path)[0] == 404
-    assert request(endpoint, "GET", "/sources.html")[0] == 200
+    assert request(endpoint, "GET", "/data")[0] == request(endpoint, "GET", "/compare")[0] == 200
 
 
 def test_public_files_and_cache_policy(endpoint):
@@ -487,7 +487,16 @@ def test_web_command_serves_real_store_and_assets(small_con, tmp_path):
             )
         assert line.startswith("KLEAR: http://127.0.0.1:"), line
         port = urlsplit(line.split()[1]).port
-        for path in ["/", "/app.js", "/map.js", "/style.css", "/sources.js", "/fonts/public-sans.woff2"]:
+        for path in [
+            "/",
+            "/app.js",
+            "/map.js",
+            "/style.css",
+            "/kit.js",
+            "/compare.js",
+            "/data.js",
+            "/fonts/public-sans.woff2",
+        ]:
             assert request(port, "GET", path)[0] == 200
         assert request(port, "GET", "/.env")[0] == 404
         status, resolved = request(port, "GET", "/api/resolve?q=House%2022")

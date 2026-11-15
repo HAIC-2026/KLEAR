@@ -391,9 +391,9 @@ Website spending has its own cap of 5 dollars per HST day, kept in ~/.config/kle
 
 Health checks. GET /healthz always answers 200 with {"status": "ok"} while the server runs. GET /readyz answers 200 when the store is built and current, else 503, with ready, store (ok, missing, outdated or unreadable), built (the build day), prepared_answers (prepared starter answers for this build) and assistant (on or off). Neither calls the model or shows keys, file paths or questions. Cloud Run reserves some paths that end in z, so the same checks also answer at /api/health and /api/ready.
 
-### Outreach page
+### Outreach
 
-/outreach.html ("Outreach" in the site menu) compares districts for five pairs of a group and the programs it may qualify for, set in `OUTREACH_PAIRS` in klear/agent/config.py: households in poverty without SNAP (SNAP), uninsured people under 138% of poverty (Med-QUEST), uninsured people from 138% to 399% of poverty (Marketplace premium tax credits), kūpuna under 200% of poverty (SSI, Kūpuna Care and Medicare Savings Programs) and working families and people below poverty (Federal EITC). The reader picks a pair and House or Senate. `GET /api/outreach?pair=ID&chamber=house|senate` ranks the group's direct ACS count with the same tiers as the assistant's rank_districts tool, so districts whose ranges overlap share a group and are listed by number, never in an order the data cannot support. Each district also shows its program-use figure from `PROFILE_BESIDE` (SNAP households, SSI households, EITC returns or Marketplace enrollees with premium tax credits) for comparison only. Figures moved from ZIP codes are too wide to rank. The page opens with a sentence naming the top tier, flags unreliable estimates, and lists each program's page and phone with the income-test caveat. Each district profile has an "Outreach opportunities" note naming up to two pairs whose top tier holds the district, the smallest tier first.
+The compare page's Outreach tab (/compare?view=outreach; old links to /outreach.html redirect there) compares districts for five pairs of a group and the programs it may qualify for, set in `OUTREACH_PAIRS` in klear/agent/config.py: households in poverty without SNAP (SNAP), uninsured people under 138% of poverty (Med-QUEST), uninsured people from 138% to 399% of poverty (Marketplace premium tax credits), kūpuna under 200% of poverty (SSI, Kūpuna Care and Medicare Savings Programs) and working families and people below poverty (Federal EITC). The reader picks a pair and House or Senate. `GET /api/outreach?pair=ID&chamber=house|senate` ranks the group's direct ACS count with the same tiers as the assistant's rank_districts tool, so districts whose ranges overlap share a group and are listed by number, never in an order the data cannot support. Each district also shows its program-use figure from `PROFILE_BESIDE` (SNAP households, SSI households, EITC returns or Marketplace enrollees with premium tax credits) for comparison only. Figures moved from ZIP codes are too wide to rank. The page opens with a sentence naming the top tier, flags unreliable estimates, and lists each program's page and phone with the income-test caveat. Each district profile has an "Outreach opportunities" note naming up to two pairs whose top tier holds the district, the smallest tier first.
 
 ### Prepared answers to the district starter questions
 
@@ -415,12 +415,30 @@ answers are no longer used and the next prewarm run drops them. Prepared answers
 with --basic-only too. The startup lines say how many prepared answers match the store. To host the site elsewhere,
 copy answer_cache.json along with klear.duckdb.
 
-The landing page uses no photo (issue #64): its first screen is the page's question and the district
-search on a plain dark band. Below them come the question box with five starter questions that each
-name a place or the state, the map, a worked example drawn live from House District 49's profile
-(its four headline figures and first three programs, with a link to its page), and three lines of
-counts with a link to the full source table on `sources.html`. It loads no third-party images, fonts,
-scripts, or analytics.
+### Pages
+
+The site follows the order a visitor uses it, and its header has four links: Find a district, Ask,
+Compare, and Data & methods.
+
+- `/` finds a district. One search takes a town, ZIP code, street address or district; its matches
+  are listed with each district's share of the place's residents and light up on the map below it.
+  Then come the question box with starter questions that each name a place or the state, a worked
+  example drawn live from House District 49's profile, and the store's counts. There is no photo
+  (issue #64).
+- `/district/house-49` and the like show a district's profile with the chat beside it (tabs on one
+  column). The profile is in six groups: People, Income and work, Programs and help, Housing, Health
+  and Reference. Each figure keeps its margin of error or range, its range strip and any caution;
+  the reading sentence beside a strip is for screen readers. Each table's sources are folded under
+  it, and a small map beside the name shows where the district is.
+- `/compare` has three tabs, each with its own address: districts side by side (up to three, with
+  Hawaiʻi beside them), rankings with the map colored by a measure, and outreach.
+- `/data` holds the sources, the methods for estimated figures, the glossary, the latest build's
+  checks and a privacy note, with a section list beside them.
+
+Old page addresses (/sources.html, /methods.html, /glossary.html, /checks.html, /outreach.html)
+redirect to their section or tab, keeping any #part of the link. Spacing, cards, buttons and headings
+come from one scale in style.css, so every page shares them. The site loads no third-party images,
+fonts, scripts, or analytics.
 
 The KLEAR logo, the island of Oʻahu under a magnifying glass, was drawn for this project as plain
 SVG. The coastline is traced from the 2022 Senate district boundaries and simplified.
@@ -450,7 +468,7 @@ without a data build. After a build changes the boundaries, regenerate it with:
 
     uv run python -m klear.etl.mapshapes
 
-"Color the map by" shades the map by one of seven rates and medians listed in `MEASURES` in
+The compare page's Rankings tab shades the map by one of seven rates and medians listed in `MEASURES` in
 klear/web/shade.py: people and keiki below the poverty level, the share who are kūpuna, median
 household income, renters paying 35% or more of income, people without health insurance and
 households receiving SNAP. `GET /api/map?indicator=pct_people_poverty&chamber=house` reads the

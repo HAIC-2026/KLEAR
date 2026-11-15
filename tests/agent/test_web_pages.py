@@ -1,6 +1,7 @@
 """Every page of the site has the same header and footer, marks itself as the page you are on, and reaches every other
 part of KLEAR. The accessibility statement is served on the site from docs/ACCESSIBILITY.md."""
 
+import html as entities
 import re
 import threading
 from functools import partial
@@ -14,28 +15,19 @@ from klear.web.statement import SLOT, STATEMENT, markdown, statement_page
 # Each page, and the address it is served at.
 PAGES = {
     "index.html": "/",
-    "outreach.html": "/outreach.html",
-    "sources.html": "/sources.html",
-    "methods.html": "/methods.html",
-    "glossary.html": "/glossary.html",
-    "checks.html": "/checks.html",
+    "compare.html": "/compare",
+    "data.html": "/data",
     "accessibility.html": "/accessibility.html",
 }
-# The header's links in order: tasks first, then the Data and methods menu, then About.
+# The header's links in the order a visitor uses the site: find a district, ask about it, compare, then the data.
 HEADER_LINKS = [
     ("/#find", "Find a district"),
     ("#chat", "Ask"),
-    ("#district-map", "Map"),
-    ("/outreach.html", "Outreach"),
-    ("/sources.html", "Sources"),
-    ("/methods.html", "Methods"),
-    ("/glossary.html", "Glossary"),
-    ("/checks.html", "How we check KLEAR"),
-    ("/#about", "About"),
+    ("/compare", "Compare"),
+    ("/data", "Data & methods"),
 ]
-# The home page sections a district's page leaves out, so its header opens them on the home page from everywhere.
-HOME_ONLY = ["find", "about"]
-MENU = ["Sources", "Methods", "Glossary", "How we check KLEAR"]
+# The home page section a district's page leaves out, so its header opens it on the home page from everywhere.
+HOME_ONLY = ["find"]
 
 
 def html(page: str) -> str:
@@ -58,7 +50,7 @@ def same(markup: str) -> str:
 
 def links(markup: str) -> list[tuple[str, str]]:
     return [
-        (href, re.sub(r"<[^>]+>", "", text).strip())
+        (href, entities.unescape(re.sub(r"<[^>]+>", "", text)).strip())
         for href, text in re.findall(r'<a [^>]*?href="([^"]+)"[^>]*>(.*?)</a>', markup, re.DOTALL)
     ]
 
@@ -73,23 +65,20 @@ def test_every_page_has_the_same_header_and_footer(tag):
 def test_the_header_reaches_every_part_of_klear_in_task_order():
     header = block("index.html", "header")
     assert links(re.search(r"<nav .*?</nav>", header, re.DOTALL).group(0)) == HEADER_LINKS
-    # The menu is a details element, so it opens with no script.
-    menu = re.search(r'<details class="nav-menu"><summary>(.*?)</summary>(.*?)</details>', header, re.DOTALL)
-    assert re.sub(r"<[^>]+>", "", menu.group(1)) == "Data and methods"
-    assert [text for _, text in links(menu.group(2))] == MENU
+    assert "<details" not in header, "the header has no menu: every part is one click away"
     # Every link leads somewhere: a section of the home page, or a page the server serves.
     home = html("index.html")
     for href, _ in HEADER_LINKS:
         if "#" in href:
             assert f'id="{href.split("#")[1]}"' in home, href
         else:
-            assert href in web.PUBLIC and (web.STATIC / href.lstrip("/")).is_file(), href
+            served = web.PAGES.get(href, href)
+            assert href in web.PUBLIC and (web.STATIC / served.lstrip("/")).is_file(), href
 
 
 def test_other_pages_link_the_home_page_sections_from_anywhere():
-    # On the home page, the sections a district's page also shows (Ask and Map) are linked in place, so a district's
-    # own address keeps its district. Elsewhere they open the home page. Find a district and About are left out of a
-    # district's page, so they open the home page from everywhere. Sources is a page of its own.
+    # On the home page, Ask is linked in place, so a district's own address keeps its district. Elsewhere it opens the
+    # home page. Find a district is left out of a district's page, so it opens the home page from everywhere.
     home_only = "|".join(HOME_ONLY)
     for section in HOME_ONLY:
         assert f'href="/#{section}"' in block("index.html", "header"), section
@@ -117,15 +106,20 @@ def test_the_home_page_marks_no_link_as_current():
     assert "aria-current" not in block("index.html", "header") + block("index.html", "footer")
 
 
-def test_the_footer_lists_the_reports_and_the_statement_on_the_site():
+def test_the_footer_says_who_made_klear_and_lists_the_team_the_reports_and_the_statement():
     footer = block("index.html", "footer")
-    assert [text for _, text in links(footer)][:6] == [
-        "Sources",
-        "Methods",
-        "Glossary",
-        "How we check KLEAR",
+    assert "Made for HAIC 2026" in footer and "Not an official State of Hawaiʻi product" in footer
+    assert [text for _, text in links(footer)] == [
+        "datatrove.ai (external site)",
+        "Kanta Saito on GitHub (external site)",
+        "Andrew He on GitHub (external site)",
+        "Raine S. Mendoza on GitHub (external site)",
+        "Lukas Moroz on GitHub (external site)",
+        "Elijah Saloma on GitHub (external site)",
+        "Data & methods",
         "Validation report (external site)",
         "Accessibility statement",
+        "Open a GitHub issue (external site)",
     ]
     assert '<a href="/accessibility.html">Accessibility statement</a>' in footer
     assert "ACCESSIBILITY.md" not in footer
@@ -203,3 +197,32 @@ def test_the_server_serves_the_statement_and_the_menu_script(port):
     con.close()
     page = bodies["/accessibility.html"].decode()
     assert "<h1>KLEAR accessibility statement</h1>" in page and '<header class="site-header">' in page
+
+
+@pytest.mark.parametrize(
+    ("old", "new"),
+    [
+        ("/outreach.html?pair=snap&chamber=senate", "/compare?view=outreach&pair=snap&chamber=senate"),
+        ("/sources.html", "/data?section=sources"),
+        ("/methods.html", "/data?section=methods"),
+        ("/glossary.html", "/data?section=glossary"),
+        ("/checks.html", "/data?section=checks"),
+    ],
+)
+def test_moved_pages_send_old_links_to_their_new_home(port, old, new):
+    con = HTTPConnection("127.0.0.1", port, timeout=10)
+    con.request("GET", old)
+    response = con.getresponse()
+    response.read()
+    con.close()
+    assert (response.status, response.getheader("Location")) == (301, new)
+
+
+def test_the_compare_and_data_pages_are_served_at_clean_addresses(port):
+    con = HTTPConnection("127.0.0.1", port, timeout=10)
+    for path, title in (("/compare", "<h1>Compare districts</h1>"), ("/data", "<h1>Data and methods</h1>")):
+        con.request("GET", path)
+        response = con.getresponse()
+        body = response.read().decode()
+        assert response.status == 200 and title in body, path
+    con.close()

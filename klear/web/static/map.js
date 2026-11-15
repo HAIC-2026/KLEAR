@@ -1,4 +1,6 @@
-// Interactive House and Senate district map that sets the district the chat asks about.
+// Interactive House and Senate district map. On the home page it finds a district: the search above it highlights
+// a place's districts, and picking one opens its page. On the compare page it is colored by a measure, with a table
+// of the same figures. Each page holds only the controls it uses, so every optional element may be missing.
 (() => {
   const svgNS = 'http://www.w3.org/2000/svg';
   const svg = document.getElementById('map');
@@ -14,10 +16,12 @@
   let data = null, chamber = 'house', group = 'all', picked = null, view = null, goal = null, anim = 0, settleTimer = 0, hintTimer = 0;
   const pointers = new Map();
   let gesture = null, dragged = false, area = null, waiting = null, labelInfo = [], districts = [], stop = null, fitted = null, frameSize = '';
-  const zipStatus = document.getElementById('zip-status'), zipMatches = document.getElementById('zip-matches');
+  const zipStatus = document.getElementById('zip-status') || {}, zipMatches = document.getElementById('zip-matches');
   // Coloring the map by a measure: the figures for the chosen measure and chamber, by district, or null for the plain map.
   const shadeSelect = document.getElementById('map-shade'), legend = document.getElementById('map-legend'), table = document.getElementById('map-table');
-  const shadeStatus = document.getElementById('shade-status'), shadeLive = document.getElementById('shade-live'), pickValue = document.getElementById('pick-value');
+  const shadeStatus = document.getElementById('shade-status') || {}, shadeLive = document.getElementById('shade-live') || {}, pickValue = document.getElementById('pick-value');
+  // What the button under the map does with the picked district: ask about it on the home page, open it elsewhere.
+  const OPEN = typeof choose === 'function' ? 'Ask about' : 'Open';
   const SHADE_CLASSES = ['q1', 'q2', 'q3', 'q4', 'q5', 'none'], MISSING = 'not available', shadeCache = new Map();
   let shading = null, figures = new Map(), shadeAsk = 0, marks = null;
 
@@ -261,10 +265,10 @@
     for (const d of districts) d.path.setAttribute('aria-pressed', String(d.row === row));
     for (const p of pickMarks) p.setAttribute('d', row ? row.d : '');
     document.getElementById('pick-name').textContent = row ? row.name : 'Tap an area on the map';
+    go.textContent = row ? `${OPEN} ${row.name}` : `${OPEN} a district`;
     document.getElementById('pick-island').textContent = row ? row.islands : 'No district picked yet';
     showPickValue();
     go.disabled = !row;
-    go.textContent = row ? `Ask about ${row.name}` : 'Ask about a district';
     list.value = row ? row.geo : '';
     declutter();
     updateStop();
@@ -295,7 +299,7 @@
 
   // Arrow keys move between districts in number order, zooming to a district's island when it is out of view or too small to see.
   function onKey(e, d) {
-    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); if (picked === d.row) choose(d.row.geo, d.row.name); else pick(d.row); return; }
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); if (picked === d.row) go.click(); else pick(d.row); return; }
     const i = districts.indexOf(d), last = districts.length - 1;
     const to = {ArrowRight: i + 1, ArrowDown: i + 1, ArrowLeft: i - 1, ArrowUp: i - 1, Home: 0, End: last}[e.key];
     if (to === undefined || e.altKey || e.ctrlKey || e.metaKey) return;
@@ -374,7 +378,7 @@
   // Highlight the districts an area's residents live in, a ZIP code typed here or a place found by the search,
   // and zoom to them. The area holds its label and, for each chamber, [district, share of residents] pairs.
   function showArea() {
-    zipMatches.replaceChildren();
+    if (zipMatches) zipMatches.replaceChildren();
     zipLines.replaceChildren();
     for (const p of svg.querySelectorAll('.zip-hit')) p.classList.remove('zip-hit');
     svg.classList.toggle('zip-mode', Boolean(area));
@@ -382,7 +386,7 @@
     const rowsByGeo = new Map(data.chambers[chamber].map(r => [r.geo, r]));
     const hits = area[chamber].map(([geo, share]) => ({row: rowsByGeo.get(geo), share})).filter(h => h.row);
     const kind = chamber === 'house' ? 'House' : 'Senate';
-    zipStatus.textContent = hits.length === 1 ? `${area.label} is all in ${hits[0].row.name}.` : `${area.label} spans ${hits.length} ${kind} districts. Share of its residents in each:`;
+    zipStatus.textContent = hits.length === 1 ? `${area.label} is all in ${hits[0].row.name}.` : `${area.label} spans ${hits.length} ${kind} districts${zipMatches ? '. Share of its residents in each:' : ', outlined on the map.'}`;
     let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
     const main = hits.some(h => h.share >= 0.05) ? hits.filter(h => h.share >= 0.05) : hits;
     for (const {row, share} of hits) {
@@ -391,7 +395,7 @@
       const path = svg.querySelector(`.district[data-geo="${row.geo}"]`);
       const b = path.getBBox();
       if (main.some(h => h.row === row)) { x0 = Math.min(x0, b.x); y0 = Math.min(y0, b.y); x1 = Math.max(x1, b.x + b.width); y1 = Math.max(y1, b.y + b.height); }
-      if (hits.length > 1) {
+      if (hits.length > 1 && zipMatches) {
         const chip = document.createElement('button');
         chip.type = 'button'; chip.className = `match ${chamber}`;
         const label = `${kind} ${row.name.replace(/\D+/g, '')}`, part = share < 0.01 ? '<1%' : `${Math.round(share * 100)}%`;
@@ -408,7 +412,8 @@
     if (hits.length === 1) pick(hits[0].row);
   }
 
-  document.getElementById('zip-form').addEventListener('submit', e => {
+  const zipForm = document.getElementById('zip-form');
+  if (zipForm) zipForm.addEventListener('submit', e => {
     e.preventDefault();
     if (!data) return;
     const zip = document.getElementById('zip').value.replace(/\D/g, '');
@@ -421,7 +426,7 @@
     pick(null);
     showArea();
   });
-  document.getElementById('zip').addEventListener('input', e => { if (!e.target.value.trim() && area) { area = null; zipStatus.textContent = ''; showArea(); } });
+  if (zipForm) document.getElementById('zip').addEventListener('input', e => { if (!e.target.value.trim() && area) { area = null; zipStatus.textContent = ''; showArea(); } });
 
   const html = (name, text, className) => { const n = document.createElement(name); if (text) n.textContent = text; if (className) n.className = className; return n; };
   // Fill an element with text, marking the Hawaiian words for groups of people so screen readers can pronounce them,
@@ -457,7 +462,7 @@
 
   // Color the map by the chosen measure, for the chamber shown, or go back to the plain map.
   function loadShade() {
-    const indicator = shadeSelect.value, ask = ++shadeAsk;
+    const indicator = shadeSelect ? shadeSelect.value : '', ask = ++shadeAsk;
     shadeStatus.textContent = '';
     if (!indicator || !data) {
       if (shading) shadeLive.textContent = 'The map is plain again.';
@@ -515,6 +520,7 @@
   // The legend: each shade's range, low to high, the marks for unreliable estimates and missing figures, how to read
   // the shades, and the source, year and state figure.
   function showLegend() {
+    if (!legend) return;
     legend.hidden = !shading;
     legend.replaceChildren();
     if (!shading) return;
@@ -538,6 +544,7 @@
 
   // The same figures as a table, folded under the map.
   function showTable() {
+    if (!table) return;
     table.hidden = !shading;
     const body = document.getElementById('map-table-body');
     body.replaceChildren();
@@ -558,12 +565,13 @@
 
   // The picked district's figure, margin and how it compares with the state, under its name. Screen readers hear it.
   function showPickValue() {
+    if (!pickValue) return;
     const fig = picked && figureOf(picked);
     says(pickValue, fig ? fig.text : '');
     pickValue.hidden = !fig;
   }
 
-  shadeSelect.addEventListener('change', loadShade);
+  if (shadeSelect) shadeSelect.addEventListener('change', loadShade);
 
   function setChamber(name) {
     chamber = name;
@@ -581,7 +589,7 @@
     if (picked && picked.geo === geo) return;
     area = null;
     zipStatus.textContent = '';
-    document.getElementById('zip').value = '';
+    if (zipForm) document.getElementById('zip').value = '';
     const kind = geo.split(':')[0];
     if (kind !== chamber) setChamber(kind); else showArea();
     const row = data.chambers[chamber].find(r => r.geo === geo);
@@ -593,13 +601,17 @@
   function showFound(found) {
     waiting = null;
     area = found;
-    document.getElementById('zip').value = '';
+    if (zipForm) document.getElementById('zip').value = '';
     pick(null);
     showArea();
   }
   document.addEventListener('klear:area', e => { if (data) showFound(e.detail); else waitingArea = e.detail; });
   list.addEventListener('change', () => { const row = data && data.chambers[chamber].find(r => r.geo === list.value); pick(row || null); if (row) zoom(row.group); });
-  go.addEventListener('click', () => { if (picked) choose(picked.geo, picked.name); });
+  go.addEventListener('click', () => {
+    if (!picked) return;
+    if (typeof choose === 'function') choose(picked.geo, picked.name);
+    else { const [kind, id] = picked.geo.split(':'); location.href = `/district/${kind}-${Number(id)}`; }
+  });
   // Refit when the frame itself changes size, not when only the window height does (phone toolbars).
   window.addEventListener('resize', () => {
     if (!data || !view) return;
@@ -632,5 +644,5 @@
     if (waitingArea) showFound(waitingArea);
     else if (waiting) follow(waiting);
     document.getElementById('map-loading').hidden = true;
-  }).catch(() => { document.getElementById('map-loading').textContent = 'The map could not load. Use the search or the list below.'; });
+  }).catch(() => { document.getElementById('map-loading').textContent = 'The map could not load. Use the search or the list.'; });
 })();

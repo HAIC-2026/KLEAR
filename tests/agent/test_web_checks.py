@@ -135,16 +135,17 @@ def test_checks_endpoint_serves_the_build_next_to_the_store(server):
     body = json.loads(data)
     assert status == 200 and headers["Cache-Control"] == "no-store"
     assert body["built_at"].startswith("2026-11-11") and len(body["checks"]) == 4
-    for path in ("/checks.html", "/checks.js", "/checks.css"):
+    for path in ("/data", "/checks.js"):
         assert get(port, path)[0] == 200, path
 
 
-def test_checks_page_assets_are_public_and_linked_from_the_footer():
-    page = (web.STATIC / "checks.html").read_text(encoding="utf-8")
+def test_checks_section_assets_are_public_and_the_data_page_is_linked_from_the_footer():
+    page = (web.STATIC / "data.html").read_text(encoding="utf-8")
     refs = re.findall(r'(?:src|href)="(/[^"#?]*)', page)
-    assert {"/checks.js", "/checks.css", "/style.css"} <= set(refs) <= set(web.PUBLIC)
+    assert {"/checks.js", "/data.js", "/style.css"} <= set(refs) <= set(web.PUBLIC)
+    assert '<section class="data-section" id="checks"' in page
     footer = (web.STATIC / "index.html").read_text(encoding="utf-8").split("<footer>")[1]
-    assert '<a href="/checks.html">How we check KLEAR</a>' in footer
+    assert '<a href="/data">Data &amp; methods</a>' in footer
     script = (web.STATIC / "checks.js").read_text(encoding="utf-8")
     assert "/api/checks" in script and "innerHTML" not in script
     for text in (page, script):

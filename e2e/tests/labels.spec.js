@@ -26,7 +26,7 @@ test('a chart label opens to its definition, official label and who it counts', 
   await expect(about.locator('dt')).toHaveText(['Official label', 'Who is counted']);
   await expect(about.locator('dd')).toHaveText(['Percent of people below the poverty level', 'people']);
   const glossary = about.getByRole('link', {name: 'Glossary of terms (opens in a new tab)'});
-  await expect(glossary).toHaveAttribute('href', '/glossary.html');
+  await expect(glossary).toHaveAttribute('href', '/data#glossary');
   await expect(glossary).toHaveAttribute('target', '_blank');
 });
 
@@ -56,10 +56,12 @@ test('every label on screen is short and has its meaning beside it', async ({pag
 });
 
 test('the glossary opens from the footer and explains margin of error', async ({page}) => {
-  await page.getByRole('contentinfo').getByRole('link', {name: 'Glossary'}).click();
-  await expect(page).toHaveURL(/\/glossary\.html$/);
-  await expect(page.getByRole('heading', {level: 1})).toHaveText('Glossary');
+  await page.getByRole('contentinfo').getByRole('link', {name: 'Data & methods'}).click();
+  await expect(page).toHaveURL(/\/data$/);
+  await page.getByRole('navigation', {name: 'On this page'}).getByRole('link', {name: 'Glossary'}).click();
+  await expect(page.getByRole('heading', {level: 2, name: 'Glossary'})).toBeInViewport();
   await expect(page.locator('#margin-of-error dt')).toHaveText('Margin of error (±)');
+  // An old link to a term loads the data page at that term.
   await page.goto('/glossary.html#cv');
   await expect(page.locator('#cv')).toBeInViewport();
 });

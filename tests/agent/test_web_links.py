@@ -74,9 +74,7 @@ def test_sources_open_readable_pages_and_each_figure_can_be_checked(small_con):
     ]
     # A figure KLEAR moved to districts opens the methods section for its source instead.
     assert tax["url"] == "https://www.irs.gov/statistics/soi-tax-stats"
-    assert tax["links"] == [
-        {"text": "How KLEAR estimates district ranges", "url": "/methods.html#irs_soi_zip_2023"}
-    ]
+    assert tax["links"] == [{"text": "How KLEAR estimates district ranges", "url": "/data#irs_soi_zip_2023"}]
     # A source with nothing more to check is cited as before.
     assert other == {
         "name": "American Community Survey 5-year",
@@ -118,9 +116,7 @@ def test_real_profile_links_each_figure_to_where_it_can_be_checked(real_con, ses
     assert acs["url"] == PROFILES_PAGE
     assert {"text": "Table DP05 for House District 22", "url": DP05_HOUSE_22} in acs["links"]
     irs = next(s for s in sections["Programs in use"]["sources"] if s["name"].startswith("IRS"))
-    assert irs["links"] == [
-        {"text": "How KLEAR estimates district ranges", "url": "/methods.html#irs_soi_zip_2023"}
-    ]
+    assert irs["links"] == [{"text": "How KLEAR estimates district ranges", "url": "/data#irs_soi_zip_2023"}]
     # No source anywhere in the profile, or its spreadsheet, opens an API answer or a download.
     cited = [x["url"] for s in out["sections"] for x in s["sources"]]
     rows = list(csv.reader(io.StringIO(profile_csv(real_con, raw, session)[1:])))
@@ -158,13 +154,13 @@ def get(port, path):
 
 def test_methods_page_is_served_with_its_assets(small_con, tmp_path, server):
     small_con.close()
-    status, body, headers = get(server(tmp_path / "small.duckdb"), "/methods.html")
+    status, body, headers = get(server(tmp_path / "small.duckdb"), "/data")
     assert status == 200 and headers["Content-Type"] == "text/html"
-    assert b"How KLEAR estimates district figures" in body and b'id="irs_soi_zip_2023"' in body
+    assert b'<h2 id="methods-title">Methods</h2>' in body and b'id="irs_soi_zip_2023"' in body
     refs = re.findall(r'(?:src|href)="(/[^"#?]*)', body.decode("utf-8"))
     assert refs and set(refs) <= set(web.PUBLIC)
     index = (web.STATIC / "index.html").read_text(encoding="utf-8")
-    assert 'href="/methods.html"' in index
+    assert 'href="/data"' in index
 
 
 def test_a_store_from_an_older_klear_waits_for_a_rebuild(tmp_path, monkeypatch, capsys, server):

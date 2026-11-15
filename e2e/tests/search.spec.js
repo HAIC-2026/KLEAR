@@ -5,7 +5,7 @@ import {chooseDistrict, expectAccessible, offline, showTab} from './helpers.js';
 test.beforeEach(async ({context}) => offline(context));
 
 async function search(page, text) {
-  await page.getByLabel('District, place, ZIP code, or street address').first().fill(text);
+  await page.getByLabel('Town, ZIP code, street address or district').first().fill(text);
   await page.getByRole('button', {name: 'Find district'}).first().click();
   return page.locator('#find-matches');
 }
@@ -20,9 +20,9 @@ test('a neighborhood names its island, says what kind of area it is, and shows e
 
 test('a street address lists its districts, and the page says where the address goes', async ({page}) => {
   await page.goto('/');
-  await expect(page.locator('#find .privacy')).toContainText('goes to the U.S. Census Bureau only to find its district');
+  await expect(page.locator('#find .privacy')).toHaveText('Addresses go to the U.S. Census Bureau only to find the district, and are never stored.');
   const matches = await search(page, '1 Test St');
-  await expect(page.locator('#find-status')).toHaveText('Choose the House or Senate district to ask about.');
+  await expect(page.locator('#find-status')).toHaveText('Choose the House or Senate district.');
   await expect(matches.locator('.match-title')).toHaveText('1 Test St, Kāneʻohe, HI 96744');
   await expect(matches.getByRole('button')).toHaveText(['House 23', 'Senate 12']);
   await expect(page.locator('#find .privacy')).toBeVisible();
@@ -34,8 +34,11 @@ test('a street address in a chat question gets its own district, and the questio
   await page.goto('/');
   await chooseDistrict(page);
   await showTab(page, 'Ask');
-  await expect(page.locator('#question-form .chat-privacy')).toHaveText('An AI model answers from KLEAR’s data. Questions, with your last two in this tab, go to its provider, Anthropic, so leave out personal details. Addresses go to the Census Bureau only to find a district.');
-  await expect(page.locator('#question-form .chat-privacy')).toBeVisible();
+  // One line under the question box says where questions go, and links to the privacy section for the rest.
+  const note = page.locator('#chat-privacy');
+  await expect(note).toHaveText('An AI model from Anthropic answers from KLEAR’s data, so leave out personal details. Privacy');
+  await expect(note).toBeVisible();
+  await expect(note.getByRole('link', {name: 'Privacy'})).toHaveAttribute('href', '/data#privacy');
   await page.getByLabel('Your question').fill('Which House and Senate district is 1 Test St, Kāneʻohe in?');
   await page.getByRole('button', {name: 'Ask KLEAR'}).click();
   // The status line names the district the answer is about, the address's, not the one chosen before.
@@ -78,15 +81,16 @@ test('a place with many districts leads with a summary, folds its list, and show
   await expect(matches.getByRole('button', {name: 'House 18 10% of Oʻahu residents'})).toBeVisible();
   await expectAccessible(page, testInfo, 'search with a folded list');
 
-  await matches.getByRole('link', {name: 'see its districts on the map'}).click();
-  await expect(page.locator('#zip-status')).toHaveText('Oʻahu spans 10 House districts. Share of its residents in each:');
-  await expect(page.locator('#zip-matches').getByRole('button')).toHaveCount(10);
+  // The search's results already light up on the map below it; the link moves to the map.
+  await expect(page.locator('#zip-status')).toHaveText('Oʻahu spans 10 House districts, outlined on the map.');
   await expect(page.locator('#map .district.zip-hit')).toHaveCount(10);
+  await matches.getByRole('link', {name: 'see its districts on the map'}).click();
+  await expect(page.locator('#district-map')).toBeInViewport();
 });
 
 test('typing suggests places, and the arrow keys and Enter pick one, which searches at once', async ({page}, testInfo) => {
   await page.goto('/');
-  const box = page.getByRole('combobox', {name: 'District, place, ZIP code, or street address'}).first();
+  const box = page.getByRole('combobox', {name: 'Town, ZIP code, street address or district'}).first();
   await box.fill('wai');
   const list = page.locator('#find-place-list');
   const options = list.getByRole('option');
@@ -113,7 +117,7 @@ test('typing suggests places, and the arrow keys and Enter pick one, which searc
 
 test('Escape closes the suggestions, and a clicked one picks exactly that place', async ({page}) => {
   await page.goto('/');
-  const box = page.getByRole('combobox', {name: 'District, place, ZIP code, or street address'}).first();
+  const box = page.getByRole('combobox', {name: 'Town, ZIP code, street address or district'}).first();
   await box.fill('kai');
   const list = page.locator('#find-place-list'), options = list.getByRole('option');
   await expect(options).toHaveText([/^Kailua\s+Oʻahu · Town$/, /^Kailua\s+Hawaiʻi Island · Town$/]);
@@ -148,7 +152,7 @@ const TYPED = ['Kāneʻohe', "Kane'ohe", 'Kane`ohe', 'Kane‘ohe', 'Kane’ohe',
 
 test('the ʻokina typed as ʻ, \', `, ‘, ’, ʼ or ´, or left out, finds the place', async ({page}) => {
   await page.goto('/');
-  const box = page.getByRole('combobox', {name: 'District, place, ZIP code, or street address'}).first();
+  const box = page.getByRole('combobox', {name: 'Town, ZIP code, street address or district'}).first();
   const options = page.locator('#find-place-list').getByRole('option');
   for (const text of TYPED) {
     await box.fill(text);
@@ -160,7 +164,7 @@ test('the ʻokina typed as ʻ, \', `, ‘, ’, ʼ or ´, or left out, finds the
 
 test('after more typing, the keys never pick an option left from the earlier text', async ({page}) => {
   await page.goto('/');
-  const box = page.getByRole('combobox', {name: 'District, place, ZIP code, or street address'}).first();
+  const box = page.getByRole('combobox', {name: 'Town, ZIP code, street address or district'}).first();
   await box.fill('wai');
   await expect(page.locator('#find-place-list').getByRole('option')).toHaveCount(2);
   // Waikīkī is still listed when these keys arrive, before the list for kai loads.

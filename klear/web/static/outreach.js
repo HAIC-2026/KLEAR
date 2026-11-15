@@ -1,5 +1,7 @@
-// Where outreach could help most: one program's group across House or Senate districts, in tiers whose ranges
-// overlap, from /api/outreach. The program and chamber live in the address, so a link opens the same view.
+// The compare page's Outreach tab: one program's group across House or Senate districts, in tiers whose ranges
+// overlap, from /api/outreach. The program and chamber live in the address, so a link opens the same view. Its own
+// scope, so its helpers do not meet kit.js's.
+(() => {
 const $ = id => document.getElementById(id);
 function node(tag, text, className) { const n = document.createElement(tag); if (text != null) n.textContent = text; if (className) n.className = className; return n; }
 const hidden = text => node('span', text, 'visually-hidden');
@@ -84,10 +86,7 @@ function summary(d) {
   if (facts.children.length) out.push(facts);
   const about = meaning(d.label, d.meaning);
   if (about) out.push(about);
-  const caveat = node('div', '', 'outreach-caveat');
-  if (d.caveat) caveat.append(says('p', d.caveat));
-  caveat.append(node('p', d.note));
-  out.push(caveat);
+  out.push(node('p', d.note, 'outreach-note'));
   if (d.programs.length) {
     const box = node('div', '', 'outreach-programs');
     box.append(node('h3', d.programs.length > 1 ? 'Programs for this group' : 'Program for this group'), ...d.programs.map(programCard));
@@ -181,21 +180,28 @@ function sources(d) {
 }
 
 function render(d) {
-  $('main').dataset.chamber = d.chamber;
-  $('result-title').replaceChildren(says('span', d.heading));
-  $('summary').replaceChildren(...summary(d));
-  $('tiers').replaceChildren(...tiers(d));
-  $('sources').replaceChildren(sources(d));
-  $('result').hidden = false;
+  $('panel-outreach').dataset.chamber = d.chamber;
+  $('out-result-title').replaceChildren(says('span', d.heading));
+  $('out-summary').replaceChildren(...summary(d));
+  $('out-tiers').replaceChildren(...tiers(d));
+  $('out-sources').replaceChildren(sources(d));
+  $('out-result').hidden = false;
 }
 
-const picked = name => { const r = document.querySelector(`#choose input[name=${name}]:checked`); return r ? r.value : ''; };
+const picked = name => { const r = document.querySelector(`#out-choose input[name=${name}]:checked`); return r ? r.value : ''; };
 let seq = 0;
-async function load() {
+// A choice the reader makes goes in the address, so a link or refresh opens the same program and chamber.
+async function load(e) {
   const pair = picked('pair'), chamber = picked('chamber'), mine = ++seq;
-  try { history.replaceState(null, '', `/outreach.html?pair=${pair}&chamber=${chamber}`); } catch { /* history unavailable */ }
-  $('status').textContent = 'Loading the districts…';
-  $('live').textContent = '';
+  if (e) {
+    const url = new URL(location.href);
+    url.searchParams.set('view', 'outreach');
+    url.searchParams.set('pair', pair);
+    url.searchParams.set('chamber', chamber);
+    try { history.replaceState(null, '', url.pathname + url.search); } catch { /* history unavailable */ }
+  }
+  $('out-status').textContent = 'Loading the districts…';
+  $('out-live').textContent = '';
   let r, data = null;
   try {
     r = await fetch(`/api/outreach?pair=${encodeURIComponent(pair)}&chamber=${encodeURIComponent(chamber)}`);
@@ -203,21 +209,22 @@ async function load() {
   } catch { /* shown below */ }
   if (mine !== seq) return;
   if (!r || !r.ok || !data || !Array.isArray(data.tiers)) {
-    $('result').hidden = true;
-    $('status').textContent = (data && data.error) || 'KLEAR could not load the districts. Check your connection and try again.';
+    $('out-result').hidden = true;
+    $('out-status').textContent = (data && data.error) || 'KLEAR could not load the districts. Check your connection and try again.';
     return;
   }
   render(data);
-  $('status').textContent = '';
-  $('live').textContent = `Showing ${data.heading}.`;
+  $('out-status').textContent = '';
+  $('out-live').textContent = `Showing ${data.heading}.`;
 }
 
 // Open the program and chamber the address names, when they are ones the page offers.
 const params = new URLSearchParams(location.search);
 for (const name of ['pair', 'chamber']) {
-  const want = params.get(name), input = want && [...document.querySelectorAll(`#choose input[name=${name}]`)].find(i => i.value === want);
+  const want = params.get(name), input = want && [...document.querySelectorAll(`#out-choose input[name=${name}]`)].find(i => i.value === want);
   if (input) input.checked = true;
 }
-$('choose').addEventListener('change', load);
-$('choose').addEventListener('submit', e => e.preventDefault());
+$('out-choose').addEventListener('change', load);
+$('out-choose').addEventListener('submit', e => e.preventDefault());
 load();
+})();

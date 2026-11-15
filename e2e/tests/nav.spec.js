@@ -1,5 +1,6 @@
-// The site header on every page: the same links in task order, the page you are on marked, a header that stays on
-// screen as the page scrolls without covering what has focus or what a link scrolls to, and a menu that needs no script.
+// The site header on every page: four links in the order a visitor uses the site (find a district, ask about it,
+// compare districts, the data and methods), the page you are on marked, and a header that stays on screen as the page
+// scrolls without covering what has focus or what a link scrolls to.
 import {test, expect} from '@playwright/test';
 import {offline} from './helpers.js';
 
@@ -7,14 +8,12 @@ test.beforeEach(async ({context}) => offline(context));
 // Links scroll at once, so where they land can be measured.
 test.use({reducedMotion: 'reduce'});
 
-const PAGES = ['/', '/outreach.html', '/sources.html', '/methods.html', '/glossary.html', '/checks.html', '/accessibility.html'];
-const LINKS = ['Find a district', 'Ask', 'Map', 'Outreach', 'Sources', 'Methods', 'Glossary', 'How we check KLEAR', 'About'];
-// The page each address is, as its header names it; the home page and the statement are not in the header.
-const CURRENT = {'/outreach.html': 'Outreach', '/sources.html': 'Sources', '/methods.html': 'Methods', '/glossary.html': 'Glossary', '/checks.html': 'How we check KLEAR'};
+const PAGES = ['/', '/district/house-22', '/compare', '/data', '/accessibility.html'];
+const LINKS = ['Find a district', 'Ask', 'Compare', 'Data & methods'];
+// The page each address is, as its header names it; the home page, a district's page and the statement are not in it.
+const CURRENT = {'/compare': 'Compare', '/data': 'Data & methods'};
 
 const nav = page => page.getByRole('navigation', {name: 'Main navigation'});
-const menuButton = page => nav(page).locator('summary');
-const menu = page => nav(page).locator('.nav-menu ul');
 
 // How far below the part of the header that stays on screen an element starts. Negative means the header covers it.
 function belowHeader(page, target) {
@@ -24,59 +23,59 @@ async function toBottom(page) {
   await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
 }
 
-test('every page has the same links in task order and marks the page you are on', async ({page}) => {
+test('every page has the same four links in task order and marks the page you are on', async ({page}) => {
   for (const address of PAGES) {
     await page.goto(address);
     const names = await nav(page).locator('a').evaluateAll(all => all.map(a => a.textContent.trim()));
     expect(names, address).toEqual(LINKS);
-    await expect(menuButton(page)).toHaveText(/^Data( and methods)?$/);
+    await expect(nav(page).locator('details'), address).toHaveCount(0);
     const current = nav(page).locator('[aria-current=page]');
     if (!CURRENT[address]) {
       await expect(current, address).toHaveCount(0);
       continue;
     }
     await expect(current).toHaveText(CURRENT[address]);
-    // Sighted readers see it too: a thick underline on the link, or on the menu's button when the page is in the menu.
-    const shown = (await current.isVisible()) ? current : menuButton(page);
-    await expect(shown).toBeVisible();
-    expect(await shown.evaluate(el => {
+    // Sighted readers see it too: a thick underline on the link.
+    expect(await current.evaluate(el => {
       const s = getComputedStyle(el);
       return s.textDecorationLine.includes('underline') && s.textDecorationThickness === '3px';
     }), address).toBe(true);
   }
 });
 
-test('from the bottom of any page, the header is on screen and every part is one or two clicks away', async ({page}) => {
+test('from the bottom of any page, the header is on screen and every part is one click away', async ({page}) => {
   for (const address of PAGES) {
     await page.goto(address);
     await toBottom(page);
     await expect(nav(page), address).toBeInViewport();
-    // Two clicks: the menu, then a page in it.
-    const next = address === '/methods.html' ? 'Glossary' : 'Methods';
-    await menuButton(page).click();
-    await menu(page).getByRole('link', {name: next}).click();
-    await expect(page).toHaveURL(new RegExp(`/${next.toLowerCase()}\\.html$`));
+    const next = address === '/compare' ? 'Data & methods' : 'Compare';
+    await nav(page).getByRole('link', {name: new RegExp(`^${next.split(' ')[0]}`)}).click();
+    await expect(page).toHaveURL(new RegExp(next === 'Compare' ? '/compare$' : '/data$'));
   }
 });
 
-test('the home page sections a link opens start below the header', async ({page}) => {
+test('the home page parts the header opens start below it', async ({page}) => {
   await page.goto('/');
-  for (const [name, target] of [['Map', '#district-map'], ['Ask', '#chat'], ['Find', '#find'], ['About', '#about']]) {
-    await toBottom(page);
-    await nav(page).getByRole('link', {name: new RegExp(`^${name}`)}).click();
-    await expect(page).toHaveURL(new RegExp(`${target}$`));
-    const section = page.locator(target);
-    await expect(section).toBeInViewport();
-    expect(await belowHeader(page, section), name).toBeGreaterThanOrEqual(0);
-  }
-  // A link to a glossary term from another page lands below the header too.
+  await toBottom(page);
+  await nav(page).getByRole('link', {name: /^Find/}).click();
+  await expect(page).toHaveURL(/#find$/);
+  await expect(page.locator('#find')).toBeInViewport();
+  expect(await belowHeader(page, page.locator('#find'))).toBeGreaterThanOrEqual(0);
+  // Ask moves to the question box, ready to type in.
+  await toBottom(page);
+  await nav(page).getByRole('link', {name: 'Ask'}).click();
+  await expect(page.locator('#question')).toBeFocused();
+  await expect(page.locator('#question')).toBeInViewport();
+  expect(await belowHeader(page, page.locator('#question'))).toBeGreaterThanOrEqual(0);
+  // An old link to a glossary term lands on that term in the data page, below the header.
   await page.goto('/glossary.html#cv');
+  await expect(page).toHaveURL(/\/data\?section=glossary#cv$/);
+  await expect(page.locator('#cv')).toBeInViewport();
   expect(await belowHeader(page, page.locator('#cv'))).toBeGreaterThanOrEqual(0);
 });
 
-// A district's page leaves out the home page's sections, so a link on it never points at one of them: every link to a
-// part of the same page leads to something that shows, the header's Sources opens the sources page, and its About
-// opens the home page's About.
+// A district's page leaves out the home page's search, map and example, so a link on it never points at one of them:
+// every link to a part of the same page leads to something that shows. The header's Ask opens the question box there.
 test('no link on a district page leads to a hidden section', async ({page}) => {
   await page.goto('/district/house-22');
   await expect(page.locator('#profile .profile-end')).toBeVisible();
@@ -87,78 +86,43 @@ test('no link on a district page leads to a hidden section', async ({page}) => {
     return !target || !target.checkVisibility();
   }).map(a => `${a.textContent.trim()} → ${a.getAttribute('href')}`));
   expect(dead).toEqual([]);
-
-  await menuButton(page).click();
-  await nav(page).getByRole('link', {name: 'Sources'}).click();
-  await expect(page).toHaveURL(/\/sources\.html$/);
-  await page.goto('/district/house-22');
-  await nav(page).getByRole('link', {name: 'About'}).click();
-  await expect(page).toHaveURL(/\/#about$/);
-  await expect(page.locator('#about')).toBeInViewport();
+  await nav(page).getByRole('link', {name: 'Ask'}).click();
+  await expect(page.locator('#question')).toBeFocused();
+  await expect(page.locator('#question')).toBeInViewport();
+  await expect(page).toHaveURL(/\/district\/house-22$/);
 });
 
-// The profile closes with a row that leads on: to the sources, to how KLEAR is checked, and to another district.
-test('a district profile ends with links to the sources, the checks and another district', async ({page}) => {
+// The profile closes with a row that leads on: to comparing districts, to the data and methods, and to another district.
+test('a district profile ends with links to compare, the data and methods, and another district', async ({page}) => {
   await page.goto('/district/house-22');
   const end = page.getByRole('navigation', {name: 'More from KLEAR'});
-  await expect(end.getByRole('link')).toHaveText(['Sources and methods', 'How we check KLEAR', 'Find another district']);
+  await expect(end.getByRole('link')).toHaveText(['Compare districts', 'Sources and methods', 'Find another district']);
   await end.getByRole('link', {name: 'Sources and methods'}).click();
-  await expect(page).toHaveURL(/\/sources\.html$/);
-  await expect(page.getByRole('heading', {level: 1})).toHaveText('Data and sources');
+  await expect(page).toHaveURL(/\/data$/);
+  await expect(page.getByRole('heading', {level: 1})).toHaveText('Data and methods');
   await page.goBack();
   await page.getByRole('navigation', {name: 'More from KLEAR'}).getByRole('link', {name: 'Find another district'}).click();
   await expect(page).toHaveURL(/\/#find$/);
-  await expect(page.getByLabel('District, place, ZIP code, or street address').first()).toBeInViewport();
+  await expect(page.getByLabel('Town, ZIP code, street address or district').first()).toBeInViewport();
   await page.goBack();
-  await page.getByRole('navigation', {name: 'More from KLEAR'}).getByRole('link', {name: 'How we check KLEAR'}).click();
-  await expect(page).toHaveURL(/\/checks\.html$/);
+  await page.getByRole('navigation', {name: 'More from KLEAR'}).getByRole('link', {name: 'Compare districts'}).click();
+  await expect(page).toHaveURL(/\/compare$/);
 });
 
-test.describe('the menu', () => {
-  test('closes on Escape, after a link on the same page, and on a click elsewhere', async ({page}) => {
-    await page.goto('/');
-    await menuButton(page).click();
-    await expect(menu(page)).toBeVisible();
-    await page.keyboard.press('Escape');
-    await expect(menu(page)).toBeHidden();
-    // Every link in the menu opens another page, so this one is held on the page to see the menu close after it.
-    await menuButton(page).click();
-    const sources = menu(page).getByRole('link', {name: 'Sources'});
-    await sources.evaluate(a => a.addEventListener('click', e => e.preventDefault(), {once: true}));
-    await sources.click();
-    await expect(menu(page)).toBeHidden();
-    await menuButton(page).click();
-    await page.getByRole('heading', {name: 'Data and sources'}).click();
-    await expect(menu(page)).toBeHidden();
-  });
-
-  test('Escape returns focus to the menu button', async ({page, isMobile}) => {
-    test.skip(isMobile, 'a keyboard check');
-    await page.goto('/glossary.html');
-    await menuButton(page).focus();
-    await page.keyboard.press('Enter');
-    await page.keyboard.press('Tab');
-    await expect(menu(page).getByRole('link', {name: 'Sources'})).toBeFocused();
-    await page.keyboard.press('Escape');
-    await expect(menu(page)).toBeHidden();
-    await expect(menuButton(page)).toBeFocused();
-    // Moving on past the menu closes it.
-    await page.keyboard.press('Enter');
-    for (let i = 0; i < 5; i++) await page.keyboard.press('Tab');
-    await expect(nav(page).getByRole('link', {name: 'About'})).toBeFocused();
-    await expect(menu(page)).toBeHidden();
-  });
-
-  test.describe('with no script', () => {
-    test.use({javaScriptEnabled: false});
-    test('still opens and leads to each page', async ({page}) => {
-      await page.goto('/glossary.html');
-      await menuButton(page).click();
-      await menu(page).getByRole('link', {name: 'How we check KLEAR'}).click();
-      await expect(page).toHaveURL(/\/checks\.html$/);
-      await expect(page.getByRole('heading', {level: 1})).toHaveText('How we check KLEAR');
-    });
-  });
+test('the data page lists its sections beside them, and each opens below the header', async ({page}) => {
+  await page.goto('/data');
+  const sections = page.getByRole('navigation', {name: 'On this page'});
+  await expect(sections.getByRole('link')).toHaveText(['Sources', 'Methods', 'Glossary', 'Checks', 'Privacy']);
+  for (const [name, id] of [['Glossary', 'glossary'], ['Checks', 'checks'], ['Sources', 'sources']]) {
+    await sections.getByRole('link', {name}).click();
+    await expect(page).toHaveURL(new RegExp(`#${id}$`));
+    await expect(page.locator(`#${id} h2`).first()).toBeInViewport();
+    expect(await belowHeader(page, page.locator(`#${id}`)), name).toBeGreaterThanOrEqual(0);
+  }
+  // An old address with no #part opens at its section.
+  await page.goto('/methods.html');
+  await expect(page).toHaveURL(/\/data#methods$/);
+  await expect(page.locator('#methods h2')).toBeInViewport();
 });
 
 // Tab forward down the page and back up it: focus is never under the header, at desktop size and with the phone
@@ -169,7 +133,7 @@ for (const width of [1280, 700]) {
     test.use({viewport: {width, height: 800}});
     test('is never covered by the header', async ({page}) => {
       test.slow();
-      for (const address of ['/', '/methods.html']) {
+      for (const address of ['/', '/data']) {
         await page.goto(address);
         await page.locator('#main').getByRole('link').first().waitFor({state: 'attached'});
         await page.getByRole('contentinfo').getByRole('link').last().focus();
@@ -194,15 +158,10 @@ test('on phones the links keep to one row of 44 px targets, and nothing scrolls 
     await page.setViewportSize({width, height: 640});
     for (const address of PAGES) {
       await page.goto(address);
-      const items = await nav(page).locator('.nav-links > li > a, .nav-links summary').evaluateAll(all => all.map(el => el.getBoundingClientRect()));
+      const items = await nav(page).locator('.nav-links > li > a').evaluateAll(all => all.map(el => el.getBoundingClientRect()));
       expect(new Set(items.map(r => Math.round(r.top))).size, `${address} at ${width}`).toBe(1);
       for (const r of items) expect(r.height, `${address} at ${width}`).toBeGreaterThanOrEqual(44);
       expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), `${address} at ${width}`).toBeLessThanOrEqual(0);
-      // The open menu stays on the screen too.
-      await menuButton(page).click();
-      const box = await menu(page).boundingBox();
-      expect(box.x, address).toBeGreaterThanOrEqual(0);
-      expect(box.x + box.width, address).toBeLessThanOrEqual(width);
     }
   }
 });
@@ -214,5 +173,5 @@ test('the accessibility statement is a page of the site', async ({page}) => {
   await expect(page.getByRole('heading', {level: 1})).toHaveText('KLEAR accessibility statement');
   await expect(page.getByRole('heading', {level: 2, name: 'Report a problem'})).toBeVisible();
   await expect(page.getByRole('contentinfo').getByRole('link', {name: 'Accessibility statement'})).toHaveAttribute('aria-current', 'page');
-  await expect(page.getByRole('contentinfo').getByRole('link', {name: 'Methods'})).toHaveAttribute('href', '/methods.html');
+  await expect(page.getByRole('contentinfo').getByRole('link', {name: 'Data & methods'})).toHaveAttribute('href', '/data');
 });

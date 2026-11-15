@@ -12,15 +12,16 @@ test('each district has its own address, which Back, Forward and a pasted link f
   await expect(page).toHaveURL(/\/district\/house-22$/);
   await expect(page).toHaveTitle(`${DISTRICT} – KLEAR`);
 
-  // Another district, chosen from the chat's own search, adds another address; a section link within the same
-  // district changes nothing.
+  // Another district, chosen from the chat's own search, adds another address; a link to a part of the same
+  // district's page changes nothing.
   await showTab(page, 'Ask');
   await page.getByRole('button', {name: 'Change district'}).click();
   await page.locator('#place').fill('House 23');
   await page.locator('#lookup').getByRole('button', {name: 'Find district'}).click();
   await expect(page).toHaveURL(/\/district\/house-23$/);
-  await page.getByRole('navigation', {name: 'Main navigation'}).getByRole('link', {name: 'Map'}).click();
-  await expect(page).toHaveURL(/\/district\/house-23#district-map$/);
+  await showTab(page, 'Profile');
+  await page.locator('#profile').getByRole('navigation', {name: 'In this profile'}).getByRole('link', {name: 'People'}).click();
+  await expect(page).toHaveURL(/\/district\/house-23#profile-people$/);
   await page.goBack();
   await expect(page.locator('#district-title')).toHaveText('House District 23');
   await page.goBack();
@@ -190,8 +191,8 @@ test('the profile’s figures download as a CSV file', async ({page}) => {
 test('the profile gives the official description and permanent residents with their report pages', async ({page}) => {
   await page.goto('/');
   await chooseDistrict(page);
-  // The report's section comes after the figures; its link at the top of the profile opens it.
-  await page.locator('#profile').getByRole('navigation', {name: 'In this profile'}).getByRole('link', {name: 'Reapportionment plan'}).click();
+  // The report's part closes the Reference group, after the figures; that group's link at the top of the profile opens it.
+  await page.locator('#profile').getByRole('navigation', {name: 'In this profile'}).getByRole('link', {name: 'Reference'}).click();
   const plan = page.locator('.profile-plan');
   await expect(plan).toBeVisible();
   await expect(plan).toContainText('Official description: The 22nd Representative District comprises the portion of the island of Oʻahu including Manoa. (report page D-017, PDF page 891)');

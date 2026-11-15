@@ -1,9 +1,11 @@
-// How we check KLEAR: renders the latest build's checks, eval results and limits from /api/checks.
+// The Checks section of the data and methods page: the latest build's checks, eval results and limits from
+// /api/checks. Its own scope, so its helpers do not meet data.js's.
+(() => {
 const $ = id => document.getElementById(id);
 const REPO = 'https://github.com/HAIC-2026/KLEAR';
 const RESULTS = {PASS: ['Passed', 'pass'], FAIL: ['Failed', 'fail'], SKIPPED: ['Did not run', 'skip']};
 // Checks with their own section above the details list.
-const FEATURED = {population: 'populations', apportionment: 'accuracy'};
+const FEATURED = {population: 'cks-populations', apportionment: 'cks-accuracy'};
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
 function node(tag, text, className) { const n = document.createElement(tag); if (text != null) n.textContent = text; if (className) n.className = className; return n; }
@@ -23,7 +25,7 @@ function when(stamp) {
 
 function table(t, caption) {
   const wrap = node('div', '', 'table-block'), scroll = node('div', '', 'table-scroll'), tab = node('table', '', 'data-table');
-  if (caption) wrap.append(node('h3', t.title, 'table-title'));
+  if (caption) wrap.append(node('h4', t.title, 'table-title'));
   if (t.columns.length > 4) wrap.append(node('p', 'Swipe the table sideways to see every column.', 'scroll-hint'));
   const cap = node('caption', t.title, 'visually-hidden'), head = node('thead'), hr = node('tr'), body = node('tbody');
   for (const c of t.columns) { const th = node('th', c.label, c.align === 'right' ? 'num' : ''); th.scope = 'col'; hr.append(th); }
@@ -87,7 +89,7 @@ function renderTable(checks) {
     tr.append(name, node('td', c.gate ? 'Required' : 'Reported', 'type-cell'), result, node('td', c.summary, 'found-cell'));
     body.append(tr);
   }
-  $('checks').hidden = false;
+  $('cks-list').hidden = false;
 }
 
 function renderPopulation(c) {
@@ -98,13 +100,13 @@ function renderPopulation(c) {
     d.append(node('summary', `Show all ${t.rows.length} districts`), table(t, false));
     $('population-table').append(d);
   }
-  $('populations').hidden = false;
+  $('cks-populations').hidden = false;
 }
 
 function renderAccuracy(c) {
   if (!c || !c.tables.length) return;
   for (const t of c.tables) $('accuracy-table').append(table(t, false));
-  $('accuracy').hidden = false;
+  $('cks-accuracy').hidden = false;
 }
 
 function renderAnswers(ev) {
@@ -119,7 +121,7 @@ function renderAnswers(ev) {
   if (held.error) notes.push(`Held-out totals are not available: ${held.error}`);
   else notes.push(`Held-out run: safety reviewer ${held.reviewer}. ${held.source}`);
   fillList($('answer-notes'), notes);
-  $('answers').hidden = false;
+  $('cks-answers').hidden = false;
 }
 
 function renderDetails(checks) {
@@ -147,7 +149,7 @@ function renderDetails(checks) {
     d.append(body);
     box.append(d);
   }
-  $('details').hidden = false;
+  $('cks-what').hidden = false;
 }
 
 function openCheck(name) {
@@ -159,7 +161,7 @@ function renderLimits(data) {
   const items = [...(data.caveats || []), ...((data.eval || {}).limits || [])];
   if (!items.length) return;
   fillList($('limit-list'), items);
-  $('limits').hidden = false;
+  $('cks-limits').hidden = false;
 }
 
 async function load() {
@@ -186,3 +188,4 @@ async function load() {
 }
 window.addEventListener('hashchange', () => { const h = location.hash.slice(1); if (h.startsWith('check-')) openCheck(h.slice(6)); });
 load();
+})();

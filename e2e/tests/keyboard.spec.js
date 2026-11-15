@@ -17,7 +17,7 @@ test('skip link, search, ask, and read the answer with the keyboard', async ({pa
   await expect(skip).toBeInViewport();
   await page.keyboard.press('Enter');
   await page.keyboard.press('Tab');
-  await expect(page.getByLabel('District, place, ZIP code, or street address').first()).toBeFocused();
+  await expect(page.getByLabel('Town, ZIP code, street address or district').first()).toBeFocused();
 
   // A search with one match opens the district's page with focus on its name. The next stop, a link shown only while
   // it has focus, skips past the profile to the question box beside it.
@@ -171,7 +171,7 @@ test('a district under the mouse is outlined above its neighbors, and the outlin
 });
 
 test('the Ask button keeps focus while the answer loads, then focus moves to the answer', async ({page}) => {
-  await page.getByLabel('District, place, ZIP code, or street address').first().fill('House 22');
+  await page.getByLabel('Town, ZIP code, street address or district').first().fill('House 22');
   await page.keyboard.press('Enter');
   await expect(page.locator('#district-title')).toHaveText(DISTRICT);
   let release;
@@ -193,12 +193,17 @@ test('the Ask button keeps focus while the answer loads, then focus moves to the
   await expect(send).not.toHaveAttribute('aria-disabled');
 });
 
-test('the shaded map: choose a measure, move between districts, hear each figure and open the table', async ({page}) => {
+test('the shaded map on the compare page: choose a measure, move between districts, hear each figure and reach the table', async ({page}) => {
+  await page.goto('/compare?view=rankings');
   await expect(page.locator('#map .district').first()).toBeAttached();
-  const select = page.getByLabel('Color the map by');
+  await expect(page.locator('#map')).toHaveClass(/\bshaded\b/);
+  const select = page.locator('#map-shade');
   await select.focus();
   await expect(select).toBeFocused();
   await page.keyboard.press('ArrowDown');
+  await expect(select).toHaveValue('pct_children_poverty');
+  await expect(page.locator('#shade-status')).toHaveText('The data store has no figures for this measure yet. Try another one.');
+  await page.keyboard.press('ArrowUp');
   await expect(select).toHaveValue('pct_people_poverty');
   await expect(page.locator('#map')).toHaveClass(/\bshaded\b/);
 
@@ -216,11 +221,12 @@ test('the shaded map: choose a measure, move between districts, hear each figure
   await expect(page.locator('#pick-name')).toHaveText('House District 22');
   await expect(page.locator('#pick-value')).toContainText('People below the poverty level: 12.3% ± 2.1 points.');
 
-  // Tab on to the table and open it.
+  // Tab on to the ranked table, which is open, and into it.
   const summary = page.locator('#map-table summary');
   for (let i = 0; i < 8 && !(await summary.evaluate(el => el === document.activeElement)); i++) await page.keyboard.press('Tab');
   await expect(summary).toBeFocused();
-  await page.keyboard.press('Enter');
   await expect(page.locator('#map-table')).toHaveAttribute('open', '');
+  await page.keyboard.press('Tab');
+  await expect(page.locator('#map-table .table-scroll')).toBeFocused();
   await expect(page.locator('#map-table tbody tr').first().locator('th')).toHaveText('House District 22');
 });
