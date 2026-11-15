@@ -268,7 +268,9 @@ def test_the_map_lists_each_measure_by_its_short_label():
 def test_shading_uses_classes_never_style_attributes():
     script = (web.STATIC / "map.js").read_text(encoding="utf-8")
     # Only custom properties, which the style sheet reads: the label size and where the hover label sits.
-    assert not re.search(r"\.style\.(?!setProperty\('--(label|tip-x|tip-y)')|setAttribute\('style'|cssText", script)
+    assert not re.search(
+        r"\.style\.(?!setProperty\('--(label|tip-x|tip-y)')|setAttribute\('style'|cssText", script
+    )
     css = (web.STATIC / "style.css").read_text(encoding="utf-8")
     for q in range(1, 6):
         assert f"#map.shaded .district.q{q}{{fill:var(--q{q})}}" in css
