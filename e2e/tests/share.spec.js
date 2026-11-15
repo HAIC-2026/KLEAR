@@ -130,7 +130,7 @@ test('printing gives the short brief by default, with every source, year and add
   const glance = sheet.locator('.sheet-glance').getByRole('table');
   await expect(glance.locator('thead th')).toHaveText(['Measure', DISTRICT, 'Honolulu County', 'Hawaiʻi', 'How it compares', 'Source']);
   await expect(glance.getByRole('row', {name: /People below the poverty level/})).toHaveText(
-    /^People below the poverty level\s*12\.3%\s*± 2\.1 points\s*8\.9%\s*± 0\.5 points\s*9\.8%\s*± 0\.4 points\s*Higher than the county only\s*1$/);
+    /^People below the poverty level\s*12\.3%\s*± 2\.1 points\s*8\.9%\s*± 0\.5 points\s*9\.8%\s*± 0\.4 points\s*▲ 38% above county; ≈ 26% above state, no clear difference\s*1$/);
   await expect(sheet.locator('.sheet-note').first()).toContainText('± is the 90% margin of error.');
   await expect(sheet.locator('.sheet-about')).toContainText(/Shares of 2020 Census residents \(source \d\)\./);
 
@@ -343,7 +343,7 @@ test('a comparison prints the two districts side by side', async ({page}) => {
   const sheet = await printNow(page, dialog);
   await expect(sheet.getByRole('heading', {level: 1})).toHaveText(`${DISTRICT} and House District 23`);
   await expect(sheet.locator('.sheet-glance thead th')).toHaveText(['Measure', DISTRICT, 'House District 23', 'Hawaiʻi', 'Difference', 'Source']);
-  await expect(sheet.locator('.sheet-glance').getByRole('row', {name: /People below the poverty level/})).toContainText(`Higher in ${DISTRICT}`);
+  await expect(sheet.locator('.sheet-glance').getByRole('row', {name: /People below the poverty level/})).toContainText(`56% higher in ${DISTRICT}`);
   await expect(sheet.locator('.sheet-section > h2')).toHaveText(['1 At a glance', '2 People', '4 Programs and help', 'Sources']);
   await expect(sheet.locator('.sheet-live')).toContainText('/compare?d=house:022,house:023');
   await page.emulateMedia({media: null});

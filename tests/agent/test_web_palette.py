@@ -95,10 +95,10 @@ TEXT = [
     ("white", "ink"),
     ("ink", "house-hover"), ("ink", "senate-hover"),  # district numbers on a district under the mouse
     ("on-dark", "house"), ("on-dark", "senate"), ("on-dark-muted", "house"), ("on-dark-muted", "senate"),  # the header bar
-    ("ink", "house-tint"), ("ink", "senate-tint"), ("muted", "house-tint"), ("muted", "senate-tint"),  # tinted panels
+    ("ink", "house-tint"), ("ink", "senate-tint"), ("muted", "house-tint"), ("muted", "senate-tint"),  # the agent's title
     ("house", "house-tint"), ("senate", "senate-tint"),
-    ("topic-people", "white"), ("topic-income", "white"), ("topic-programs", "white"),  # each topic's number
-    ("topic-housing", "white"), ("topic-health", "white"), ("topic-reference", "white"),
+    ("up", "white"), ("down", "white"), ("up", "subtle"), ("down", "subtle"),  # higher and lower in a comparison
+    ("white", "band-end"), ("on-dark", "band-end"), ("on-dark", "house"),  # the band's title and lede
 ]  # fmt: skip
 
 # Shapes and boundaries people need to see: 3:1 (WCAG 1.4.11).

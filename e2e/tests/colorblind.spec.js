@@ -61,9 +61,10 @@ test('the map colored by a measure under simulated color blindness', async ({con
   // House: the two shades the fixture store has, dots on districts with no figure, a picked district and the hover
   // outline.
   await expect(page.locator('#map')).toHaveClass(/\bshaded\b/);
-  // House 22 sits in urban Honolulu, so picking it shows the enlargement, where its neighbor 23 is hovered.
-  await map.getByLabel('Or choose from a list').selectOption({label: 'House District 22'});
-  await page.locator('#map .district.copy[data-geo="house:023"]').hover();
+  // House 22 sits in urban Honolulu, so picking it zooms the map to the city, where its neighbor 23 is hovered.
+  await map.getByRole('button', {name: 'Honolulu', exact: true}).click();
+  await page.locator('#map .district[data-geo="house:022"]').click();
+  await page.locator('#map .district[data-geo="house:023"]').hover();
   await expect(page.locator('#map .hover-line')).toHaveAttribute('d', /\S/);
   await shoot('map-shaded-house', page.locator('.map-frame'));
   await shoot('map-shaded-legend', page.locator('#map-legend'));

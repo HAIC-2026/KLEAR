@@ -345,13 +345,6 @@ async function goFind(push = true) {
   });
   focusFind();
 }
-// The band's button moves down to the search and the map.
-$('hero-cta').addEventListener('click', e => {
-  if (!plainClick(e)) return;
-  e.preventDefault();
-  $('find-section').scrollIntoView({block: 'start', behavior: reduceMotion.matches ? 'auto' : 'smooth'});
-  focusFind();
-});
 for (const id of ['search-another', 'compare-home']) $(id).addEventListener('click', e => { if (plainClick(e)) { e.preventDefault(); goFind(); } });
 // On the Find page, the / key jumps to the search from anywhere but a field being typed in, as on many search sites.
 document.addEventListener('keydown', e => {
@@ -509,14 +502,6 @@ $('home-ask').onsubmit = e => {
 $('home-question').addEventListener('keydown', e => {
   if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && !e.isComposing) { e.preventDefault(); $('home-ask').requestSubmit(); }
 });
-// The band at the top of the Find page draws the islands from the district shapes, faint, behind its title.
-loadShapes().then(data => {
-  const svg = $('hero-art'), ns = 'http://www.w3.org/2000/svg', [x, y, w, h] = data.groups.all.box, g = document.createElementNS(ns, 'g');
-  svg.setAttribute('viewBox', `${x - w * 0.02} ${y - h * 0.03} ${w * 1.04} ${h * 1.06}`);
-  for (const r of data.chambers.house) { const p = document.createElementNS(ns, 'path'); p.setAttribute('d', r.d); g.append(p); }
-  svg.replaceChildren(g);
-}).catch(() => { /* the band reads the same without it */ });
-
 // A district's suggested questions, written out in full, so what they say is what they ask.
 for (const question of [...examples, statewideExample]) {
   const b = says('button', question);
@@ -557,7 +542,7 @@ async function loadProfile(geo, name) {
   $('starter').hidden = true;
   panel.hidden = false;
   districtHead(name, null);
-  panel.replaceChildren(node('p', 'Loading the district profile…', 'profile-status'));
+  panel.replaceChildren(profileLoading());
   try {
     const data = await profileOf(geo);
     if (seq !== profileSeq) return;
@@ -581,6 +566,19 @@ async function loadProfile(geo, name) {
   }
 }
 
+// While a profile loads, gray bars where it will be: At a glance with its four figures, then the first sections.
+function profileLoading() {
+  const box = node('div', '', 'profile-loading');
+  box.append(node('p', 'Loading the district profile…', 'profile-status visually-hidden'));
+  const glance = node('div', '', 'profile-glance'), stats = node('div', '', 'skeleton-stats');
+  glance.setAttribute('aria-hidden', 'true');
+  for (let i = 0; i < 4; i++) stats.append(skeleton(['w-60', 'big w-45', 'w-45', 'w-80']));
+  glance.append(skeleton(['title w-30']), stats);
+  box.append(glance);
+  for (const width of ['w-20', 'w-30', 'w-30']) box.append(skeleton([`title ${width}`], 'profile-section'));
+  return box;
+}
+
 // The district's name, which heads its page beside its map: the chamber over the district's number, which is set
 // large in the chamber's color. Under it, where the district is (its county and island, its largest places, and the
 // districts of the other chamber it overlaps) and its legislator.
@@ -592,7 +590,8 @@ function districtHead(name, p) {
   const about = $('district-about'), member = $('district-member');
   about.replaceChildren();
   member.replaceChildren();
-  if (!p) return;
+  // While the profile loads, gray lines where the place and legislator go.
+  if (!p) { if (name) about.append(skeleton(['w-60', 'w-80', 'w-45'])); return; }
   if (p.where) about.append(node('p', p.where, 'district-where'));
   const meta = [p.places.length ? `Includes ${placesList(p)}.` : '', p.overlaps.length ? `Overlaps ${overlapsList(p)}.` : ''];
   if (meta.some(Boolean)) about.append(node('p', meta.filter(Boolean).join(' '), 'district-meta'));
@@ -628,53 +627,55 @@ function meaning(label, m) {
   return box;
 }
 
-// The top of a strip's scale: a round number just past the largest value it holds. A rate never runs past 100%.
-const SCALE_STEPS = [1, 1.2, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10];
-function scaleTop(most, unit) {
-  if (!(most > 0)) return 1;
-  const power = 10 ** Math.floor(Math.log10(most * 1.05));
-  const top = power * SCALE_STEPS.find(s => s * power >= most * 1.05);
-  return unit === 'percent' ? Math.min(top, 100) : top;
-}
 const isNumber = v => typeof v === 'number' && Number.isFinite(v);
 
-// A rate or an amount drawn against the places beside it: the home place's estimate as a dot on a line for its margin
-// of error or range, and each other place as a pointer on its own line, above the track for the first and below it
-// for the second. Every strip starts at 0 and has its own scale. Screen readers skip it: the cells beside it hold
-// the same figures, and the reading under it says what they show. Null for a total, which is not compared.
-const STRIP_LANES = ['above', 'below'];
-function rangeStrip(r, home, cols) {
-  const others = cols.map((c, i) => [r.against.find(a => a.geo === c.geo), STRIP_LANES[i]]).filter(([a, lane]) => a && a.direction && isNumber(a.num) && lane);
-  if (!isNumber(r.num) || !others.length) return null;
-  const top = scaleTop(Math.max(r.high, ...others.map(([a]) => a.high)), r.unit);
-  const at = v => `${Math.max(0, Math.min(100, (v / top) * 100)).toFixed(2)}%`;
-  const span = (className, low, high) => {
-    const s = node('span', '', className);
-    s.style.left = at(low);
-    if (high !== undefined) s.style.width = `${Math.max(0, Math.min(100, (high / top) * 100) - Math.max(0, (low / top) * 100)).toFixed(2)}%`;
-    return s;
-  };
-  const strip = node('span', '', 'strip');
-  strip.setAttribute('aria-hidden', 'true');
-  strip.append(node('span', '', 'strip-track'));
-  const told = [`${home}: ${[r.value, r.spread].filter(Boolean).join(' ')}`];
-  for (const [a, lane] of others) {
-    strip.append(span(`strip-range other ${lane}`, a.low, a.high), span(`strip-mark ${lane}`, a.num));
-    told.push(`${a.place}: ${[a.value, a.spread].filter(Boolean).join(' ')}`);
+// How far one figure is above or below another, as a percentage of the other: "16% above", "<1% below", "the same
+// as". Null when there is no number to measure from.
+function percentApart(mine, theirs) {
+  if (!isNumber(mine) || !isNumber(theirs) || theirs === 0) return null;
+  const p = (mine - theirs) / Math.abs(theirs) * 100, size = Math.abs(p), side = p > 0 ? 'above' : 'below';
+  if (!p) return 'the same as';
+  return size < 1 ? `<1% ${side}` : `${Math.round(size)}% ${side}`;
+}
+// What a place is called in a comparison line: the county or the state, or its name.
+const placeWord = a => ({county: 'county', state: 'state'})[String(a.geo || '').split(':')[0]] || a.place;
+// The mark before a comparison: up or down for a difference beyond the margins of error, about-equal for none.
+const MARKS = {higher: '▲', lower: '▼', within_margin: '≈'};
+// Which way one figure lies from another, for its color: 'up' for higher, 'down' for lower, '' for the same.
+const sideOf = (mine, theirs) => (mine > theirs ? 'up' : mine < theirs ? 'down' : '');
+// How a rate or an amount compares with each place beside it, a line apiece: "▲ 16% above county", green above and red
+// below. A difference inside the margins of error is marked about-equal and set lighter, and screen readers hear that it
+// is no clear difference. Empty for a total, which is not compared.
+function compareLines(r, tag = 'span') {
+  const lines = [];
+  for (const a of r.against || []) {
+    const apart = !a.missing && a.direction && percentApart(r.num, a.num);
+    if (!apart) continue;
+    const line = node(tag, '', `compare-line ${a.direction} ${sideOf(r.num, a.num)}`.trim()), mark = node('span', MARKS[a.direction] || '', 'reading-mark');
+    mark.setAttribute('aria-hidden', 'true');
+    line.append(mark, ' ', `${apart} ${placeWord(a)}`);
+    if (a.direction === 'within_margin') line.append(hidden(', no clear difference'));
+    lines.push(line);
   }
-  strip.append(span('strip-range home', r.low, r.high), span('strip-dot', r.num));
-  strip.title = `${told.join('. ')}.`;
-  return strip;
+  return lines;
 }
 
-// What the marks on a section's strips stand for, under its table.
-function stripKey(home, cols) {
+// How two districts' figures differ, in words: "16% higher in House District 22", or "No clear difference (2% apart)"
+// when their margins of error overlap. The percentage is of the lower figure. '' when either has no figure to test.
+function pairWords(a, b, names) {
+  const d = pairDifference(a, b);
+  if (!d) return '';
+  const [hi, lo] = a.num >= b.num ? [a.num, b.num] : [b.num, a.num], size = lo > 0 ? (hi - lo) / lo * 100 : 0;
+  const pct = !size ? '' : size < 1 ? '<1%' : `${Math.round(size)}%`;
+  if (d === 'same') return pct ? `No clear difference (${pct} apart)` : 'No clear difference';
+  const name = names[d === 'a' ? 0 : 1];
+  return pct ? `${pct} higher in ${name}` : `Higher in ${name}`;
+}
+
+// What the marks in a section's comparisons stand for, under its table.
+function compareKey() {
   const key = node('p', '', 'profile-key');
-  key.setAttribute('aria-hidden', 'true');
-  const item = (mark, text) => { const s = node('span', '', 'profile-key-item'); s.append(node('span', '', mark), text); return s; };
-  key.append(item('strip-dot', `${home}, with a line for its margin of error or range`));
-  cols.slice(0, STRIP_LANES.length).forEach((c, i) => key.append(item(`strip-mark ${STRIP_LANES[i]}`, c.place)));
-  key.append(node('span', 'Each strip starts at 0 and has its own scale.', 'profile-key-note'));
+  key.append('▲ higher or ▼ lower beyond the margins of error, ≈ no clear difference. Each percentage is of the county’s or the state’s figure.');
   return key;
 }
 
@@ -693,10 +694,9 @@ function profileRow(r, home, cols, compares) {
   head.append(label);
   row.append(head, figureCell(r, home, true), ...cols.map(c => figureCell(r.against.find(a => a.geo === c.geo), c.place, false)));
   if (compares) {
-    const how = node('td', '', 'profile-how'), strip = rangeStrip(r, home, cols);
+    const how = node('td', '', 'profile-how');
     how.setAttribute('role', 'cell');
-    if (strip) how.append(strip);
-    if (r.reading) how.append(readingLine(r.reading, 'span'));
+    how.append(...compareLines(r));
     row.append(how);
   }
   const notes = [];
@@ -752,23 +752,12 @@ const tableFit = new ResizeObserver(entries => {
   for (const e of entries) refit.add(e.target.closest('.profile-rows'));
 });
 
-// How a figure stands against the county and the state, in words, after a mark for sighted readers: up for higher,
-// down for lower, and about-equal for no clear difference. A figure higher than one place and lower than the other
-// gets no mark.
-function readingLine(text, tag, extra) {
-  const line = node(tag, '', 'profile-reading'), mark = /^Higher/.test(text) && !/lower/i.test(text) ? '▲' : /^Lower/.test(text) && !/higher/i.test(text) ? '▼' : /^No clear/.test(text) ? '≈' : '';
-  if (mark) { const m = node('span', mark, 'reading-mark'); m.setAttribute('aria-hidden', 'true'); line.append(m, ' '); }
-  line.append(text);
-  if (extra) line.append(node('span', ` ${extra}`, 'reading-state'));
-  return line;
-}
-
 // A section's figures as one table: a row per measure, a column for the home place and one for each place it is set
 // against, and a last column for how each rate or amount compares. A section of totals alone has no last column.
 function profileTable(sec) {
   const home = sec.place || '', cols = [];
   for (const a of sec.rows.flatMap(r => r.against)) if (a.geo && !cols.some(c => c.geo === a.geo)) cols.push({geo: a.geo, place: a.place});
-  const compares = sec.rows.some(r => r.reading);
+  const compares = sec.rows.some(r => compareLines(r).length);
   const table = node('table', '', 'profile-table'), caption = table.createCaption(), headRow = table.createTHead().insertRow();
   table.setAttribute('role', 'table');
   caption.className = 'visually-hidden';
@@ -785,7 +774,7 @@ function profileTable(sec) {
   body.append(...sec.rows.flatMap(r => profileRow(r, home, cols, compares)));
   const box = node('div', '', 'profile-rows');
   box.append(table);
-  if (compares && sec.rows.some(r => isNumber(r.num) && r.against.some(a => a.direction && isNumber(a.num)))) box.append(stripKey(home, cols));
+  if (compares) box.append(compareKey());
   tableFit.observe(box);
   tableFit.observe(table);
   return box;
@@ -1033,7 +1022,6 @@ function profileJumps(sections) {
     const li = document.createElement('li'), a = node('a', '');
     a.append(sectionNumber(d.querySelector('.sec-num').textContent), node('span', d.dataset.title, 'sec-title'));
     a.href = `#${d.id}`;
-    a.dataset.topic = d.dataset.key;
     a.onclick = () => { if (!d.open) { d.open = true; rememberOpen(d.dataset.key, true); } };
     li.append(a);
     list.append(li);
@@ -1222,8 +1210,8 @@ function outreachNone(o) {
   return line;
 }
 
-// A district's headline figures with their margins, as the top of its profile shows them. Under each, how it compares
-// with the county and the state, with the state's figure, or for a count, its share of the state's.
+// A district's headline figures with their margins, as the top of its profile shows them. Under each, how far above or
+// below the county and the state it is, with the state's figure, or for a count, its share of the state's.
 function headlineStats(headline) {
   const stats = node('dl', '', 'profile-stats');
   // Each term comes before its value, as a description list needs; the CSS shows the value on top.
@@ -1233,9 +1221,13 @@ function headlineStats(headline) {
     if (h.spread) value.append(' ', node('span', h.spread, 'moe'));
     if (h.caution) value.append(' ', cautionChip(h.caution));
     s.append(says('dt', h.label), value);
-    const state = (h.against || []).find(a => /^state:/.test(a.geo || ''));
-    if (h.reading) s.append(readingLine(h.reading, 'dd', state && state.value ? `Hawaiʻi: ${state.value}` : ''));
-    else if (h.unit === 'count' && state && isNumber(h.num) && state.num > 0) s.append(node('dd', `${shareOf(h.num / state.num)} of Hawaiʻi’s total`, 'profile-reading'));
+    const state = (h.against || []).find(a => /^state:/.test(a.geo || '')), lines = compareLines(h);
+    if (lines.length) {
+      const how = node('dd', '', 'profile-reading');
+      for (const line of lines) how.append(line);
+      if (state && state.value) how.append(node('span', `Hawaiʻi: ${state.value}`, 'reading-state'));
+      s.append(how);
+    } else if (h.unit === 'count' && state && isNumber(h.num) && state.num > 0) s.append(node('dd', `${shareOf(h.num / state.num)} of Hawaiʻi’s total`, 'profile-reading'));
     stats.append(s);
   }
   return stats;
@@ -1308,7 +1300,6 @@ function openPrint() {
   const compare = target.kind === 'compare', choice = printChoice || PRINT_BRIEF, chosen = new Set(choice.parts);
   $('print-list').replaceChildren(...printSections(target).map(([key, title], i) => {
     const label = node('label', '', 'print-part'), box = node('input', '');
-    label.dataset.topic = key;
     box.type = 'checkbox';
     box.name = 'part';
     box.value = key;
@@ -1442,11 +1433,11 @@ function sheetEnd(sources) {
 }
 // The printout's heading: what it is and who it covers on the left; where to find it online, and how current it is,
 // on the right.
-function sheetHeading(kicker, title, lines, address, built) {
+function sheetHeading(kicker, title, lines, address) {
   const head = node('header', '', 'sheet-head'), who = node('div', ''), live = node('div', '', 'sheet-live');
   who.append(node('p', kicker, 'sheet-kicker'), node('h1', title), ...lines);
   live.append(node('p', 'Full profile, sources and questions online', ''), sheetUrl(location.origin + address));
-  const dates = node('p', built ? `Data built ${built} · ` : '', 'sheet-dates');
+  const dates = node('p', '', 'sheet-dates');
   dates.append(node('span', `Printed ${longDate(new Date())}`, 'sheet-printed'));
   live.append(dates);
   head.append(who, live);
@@ -1513,6 +1504,7 @@ function sheetTable(columns, groups, cite, wordsTitle) {
   const notes = ['± is the 90% margin of error. Where two figures’ margins overlap, the difference may not be real.'];
   if (ranged) notes.push('A range gives the low and high bounds of an estimate.');
   if (unreliable) notes.push('† The margin of error is large; use with care.');
+  if (wordsTitle === 'How it compares') notes.push(`${wordsTitle}: ▲ higher or ▼ lower beyond the margins of error, ≈ no clear difference, each percentage of the county’s or the state’s figure.`);
   return [table, node('p', notes.join(' '), 'sheet-note')];
 }
 
@@ -1524,11 +1516,11 @@ function districtSheet(p, choice) {
   const columns = [{kind: 'home', name: p.district, get: r => r}];
   if (choice.places && county) columns.push({kind: 'county', name: county, get: r => againstOf(r, 'county')});
   if (choice.places) columns.push({kind: 'state', name: 'Hawaiʻi', get: r => againstOf(r, 'state')});
-  const rowsOf = rows => rows.map(r => ({label: r.label, figs: columns.map(c => c.get(r)), words: r.reading || ''}));
+  const rowsOf = rows => rows.map(r => ({label: r.label, figs: columns.map(c => c.get(r)), words: compareLines(r).map(l => l.textContent).join('; ')}));
   const lines = [];
   if (p.where) lines.push(node('p', p.where, 'sheet-where'));
   lines.push(...memberLines(p));
-  const parts = [sheetHeading('KLEAR district profile', p.district, lines, districtPath(p.geo), p.built)];
+  const parts = [sheetHeading('KLEAR district profile', p.district, lines, districtPath(p.geo))];
   // Where the district is goes under its heading, though its source is numbered after the figures'.
   const about = node('div', '', 'sheet-about'), line = (label, text) => { const l = node('p', ''); l.append(node('b', label), ` ${text}`); return l; };
   parts.push(about);
@@ -1628,8 +1620,7 @@ function compareSheet(list, choice) {
     const mine = byId.map(m => m.get(id) || null), first = mine.find(Boolean);
     const figs = mine.slice();
     if (choice.places) figs.push(mine.map(r => r && againstOf(r, 'state')).find(Boolean) || null);
-    const d = list.length === 2 ? pairDifference(mine[0], mine[1]) : null;
-    const words = d === 'same' ? 'No clear difference' : d === 'a' ? `Higher in ${names[0]}` : d === 'b' ? `Higher in ${names[1]}` : '';
+    const words = list.length === 2 ? pairWords(mine[0], mine[1], names) : '';
     return {label: first.label, figs, words};
   });
   const idsOf = rows => rows.map(r => r.id);
@@ -1640,7 +1631,7 @@ function compareSheet(list, choice) {
     for (const m of p.members || []) l.append(` · ${m.title} ${m.reads || m.name}`);
     return l;
   });
-  const parts = [sheetHeading('KLEAR comparison', names.join(' and '), lines, `/compare?d=${list.map(p => p.geo).join(',')}`, list[0].built)];
+  const parts = [sheetHeading('KLEAR comparison', names.join(' and '), lines, `/compare?d=${list.map(p => p.geo).join(',')}`)];
   const words = list.length === 2 ? 'Difference' : '';
   let number = 1;
   if (chosen.has('glance')) parts.push(sheetSection(`${number} At a glance`, 'sheet-glance', ...sheetTable(columns, [['', rowsFor(union(list.map(p => idsOf(p.headline))))]], cite, words)));
@@ -1732,7 +1723,7 @@ function sheetParts(p, limit = SHEET_PROGRAMS) {
     who.append(line);
   }
   live.append(node('p', 'Full profile, sources and questions online', ''), url(location.origin + districtPath(p.geo)));
-  const dates = node('p', p.built ? `Data built ${p.built} · ` : '', 'sheet-dates');
+  const dates = node('p', '', 'sheet-dates');
   dates.append(node('span', `Printed ${longDate(new Date())}`, 'sheet-printed'));
   live.append(dates);
   head.append(who, live);
@@ -2034,7 +2025,10 @@ function waiting(name) {
   cancel.type = 'button';
   cancel.onclick = () => stop('cancel');
   text.append(clock);
-  box.append(text, cancel);
+  const dots = node('span', '', 'typing');
+  dots.setAttribute('aria-hidden', 'true');
+  dots.append(node('i', ''), node('i', ''), node('i', ''));
+  box.append(dots, text, cancel);
   let note = 15;
   const tick = setInterval(() => {
     const s = Math.floor((Date.now() - started) / 1000);

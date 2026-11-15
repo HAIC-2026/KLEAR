@@ -11,6 +11,7 @@ import pandas as pd
 import pytest
 
 from klear.config import ROOT
+from klear.etl.mapshapes import band_art
 from klear.labels import short_label
 from klear.store.db import add_facts, add_geographies, add_indicators
 from klear.web import __main__ as web
@@ -39,6 +40,18 @@ def test_map_files_are_public(endpoint):  # noqa: F811
         assert request(endpoint, "GET", path)[0] == 200
     status, page = request(endpoint, "GET", "/")
     assert status == 200 and b'src="/map.js"' in page and b'id="map"' in page
+
+
+def test_the_band_draws_the_islands_from_the_map(endpoint):  # noqa: F811
+    # The faint islands in the band at the top of each page are the map's own House districts, written by the build.
+    art = (web.STATIC / "islands.svg").read_text(encoding="utf-8")
+    assert art == band_art(json.loads(MAP.read_text(encoding="utf-8")))
+    assert art.count("<path ") == COUNTS["house"]
+    assert request(endpoint, "GET", "/islands.svg")[0] == 200
+    for page in ("index.html", "rankings.html", "data.html", "accessibility.html"):
+        assert '<img class="hero-art" src="/islands.svg"' in (web.STATIC / page).read_text(
+            encoding="utf-8"
+        ), page
 
 
 def test_zip_table_covers_hawaii_zips():
@@ -261,7 +274,15 @@ def test_the_map_lists_each_measure_by_its_short_label():
     for value, text in options:
         assert text == short_label(value, ""), value
     assert '<label for="map-shade">Measure</label>' in page
-    assert "<summary>Every district, highest first</summary>" in page
+    # Beside the map, the district ranking: a card with its own title that is always open, a rank on each row.
+    assert (
+        '<h2 id="map-table-title">District ranking</h2>' in page
+        and "<details" not in page.split('id="map-table"')[1][:80]
+    )
+    assert '<th scope="col" class="rank-num">Rank</th>' in page
+    # The table can also run lowest first, by district number or by island.
+    order = re.search(r'<select id="map-order">(.*?)</select>', page).group(1)
+    assert re.findall(r'<option value="(\w+)"', order) == ["high", "low", "number", "island"]
     assert 'id="map-shade"' not in (web.STATIC / "index.html").read_text(encoding="utf-8")
 
 

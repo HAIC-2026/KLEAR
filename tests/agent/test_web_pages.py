@@ -85,10 +85,8 @@ def test_each_page_marks_itself_as_the_current_page(page):
     in_footer = f'href="{here}"' in same(footer)
     assert current and current == [here] * (in_header + in_footer), page
     assert (header + footer).count("aria-current") == len(current), page
-    # The breadcrumb names the page as the current one too.
-    assert re.search(
-        r'<p class="crumb"><a href="/">KLEAR</a> .*?<span aria-current="page">[^<]+</span></p>', html(page)
-    )
+    # The band at the top names the page; there is no breadcrumb.
+    assert 'class="crumb"' not in html(page)
 
 
 def test_the_home_page_marks_no_link_as_current():
@@ -100,11 +98,12 @@ def test_the_footer_says_who_made_klear_and_lists_the_team_the_reports_and_the_s
     assert "Made for HAIC 2026" in footer and "Not an official State of Hawaiʻi product" in footer
     assert [text for _, text in links(footer)] == [
         "datatrove.ai (external site)",
+        # In the order that spells KLEAR.
         "Kanta Saito on GitHub (external site)",
-        "Andrew He on GitHub (external site)",
-        "Raine S. Mendoza on GitHub (external site)",
         "Lukas Moroz on GitHub (external site)",
         "Elijah Saloma on GitHub (external site)",
+        "Andrew He on GitHub (external site)",
+        "Raine S. Mendoza on GitHub (external site)",
         "Data & methods",
         "Validation report (external site)",
         "Accessibility statement",
@@ -112,6 +111,10 @@ def test_the_footer_says_who_made_klear_and_lists_the_team_the_reports_and_the_s
     ]
     assert '<a href="/accessibility.html">Accessibility statement</a>' in footer
     assert "ACCESSIBILITY.md" not in footer
+    # The team is a list under its own heading, as the reports are, one member to a line.
+    team = re.search(r'<h2 class="footer-title">Team</h2>\s*<ul>(.*?)</ul>', footer, re.DOTALL)
+    member = r"<li><a [^>]*>[^<]+<span[^>]*> on GitHub \(external site\)</span></a></li>"
+    assert team and len(re.findall(member, team.group(1))) == 5
 
 
 def test_every_page_loads_the_menu_script_and_is_public():
@@ -157,6 +160,9 @@ def test_the_statement_page_holds_the_whole_statement():
     page = statement_page(shell).decode()
     assert SLOT not in page
     assert page.count("<h1>") == 1 and "<h1>KLEAR accessibility statement</h1>" in page
+    # The title and the first paragraph sit in the band at the top, as every page's title and lede do.
+    band = re.search(r'<div class="hero">.*?</div>\s*</div>', page, re.DOTALL).group(0)
+    assert "<h1>KLEAR accessibility statement</h1>" in band and '<p class="lede">KLEAR aims to meet' in band
     headings = re.findall(r"^## (.+)$", STATEMENT.read_text(encoding="utf-8"), re.MULTILINE)
     assert headings and re.findall(r"<h2>(.+?)</h2>", page) == headings
     # Links between documents open on GitHub, where those documents live.

@@ -38,7 +38,7 @@ test('data and methods page, with its sources, methods, glossary and checks', as
   await page.goto('/data');
   await expect(page.getByRole('heading', {level: 1})).toHaveText('Data and methods');
   await expect(page.locator('#source-wrap')).toBeVisible();
-  await expect(page.locator('#build')).not.toContainText('Loading the latest build');
+  await expect(page.locator('#checks-loading')).toBeHidden();
   await openAll(page);
   await expectAccessible(page, testInfo, 'data and methods page');
 });
@@ -155,7 +155,8 @@ test('rankings page: map colored by a measure, with a picked district and its ta
   const map = page.locator('#district-map');
   await expect(page.locator('#map .district:not(.copy)').first()).toBeAttached();
   await expect(page.locator('#map-legend')).toBeVisible();
-  await map.getByLabel('Or choose from a list').selectOption({label: 'House District 22'});
+  await map.getByRole('button', {name: 'Honolulu', exact: true}).click();
+  await page.locator('#map .district[data-geo="house:022"]').click();
   await expect(page.locator('#pick-value')).toContainText('12.3%');
   await openAll(page);
   await expectAccessible(page, testInfo, 'shaded map');

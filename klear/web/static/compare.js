@@ -21,11 +21,17 @@
     cols.append(colOf[slot]);
   }
   root.append(cols, live, result);
+  // The House or Senate switch in the bar over the columns, for the numbers in whichever column is still choosing. It
+  // shows only while one is (style.css).
+  const barSwitch = $('chamber-switch').cloneNode(true);
+  barSwitch.removeAttribute('id');
+  $('stage-bar').prepend(barSwitch);
 
   const pickTitle = slot => (chosen[slot === 'a' ? 'b' : 'a'] ? 'Choose a district to compare' : slot === 'a' ? 'Choose a district' : 'Choose a second district');
 
-  // A column with no district: the same search, House or Senate switch and numbers as the Find page. The numbers are a
-  // copy of the Find page's, so a click fills this column instead of opening the district's page.
+  // A column with no district: the same search and numbers as the Find page, for the chamber the House or Senate
+  // switch in the bar over the columns shows; the switch is there only while a column is choosing. The numbers are a copy of the Find page's, so a click fills this column instead of opening the
+  // district's page.
   const resets = {};
   function picker(slot) {
     const box = node('div', '', 'cmp-pick'), id = `cmp-${slot}`;
@@ -35,7 +41,7 @@
     const label = node('label', 'Town, ZIP code, street address, district or legislator');
     label.htmlFor = `${id}-place`;
     const row = node('div', '', 'inputrow'), combo = node('div', '', 'combo'), input = node('input', '');
-    Object.assign(input, {id: `${id}-place`, required: true, maxLength: 160, placeholder: 'Hilo, 96744, Senate 12 or a name', autocomplete: 'off'});
+    Object.assign(input, {id: `${id}-place`, required: true, maxLength: 160, placeholder: 'Hilo, 96744 or Senate 12', autocomplete: 'off'});
     for (const [k, v] of Object.entries({role: 'combobox', 'aria-autocomplete': 'list', 'aria-expanded': 'false', 'aria-controls': `${id}-place-list`})) input.setAttribute(k, v);
     const list = node('ul', '', 'suggestions');
     list.id = `${id}-place-list`;
@@ -51,8 +57,6 @@
     count.setAttribute('role', 'status');
     status.setAttribute('role', 'status');
     form.append(label, row, count, status, matches);
-    const switcher = $('chamber-switch').cloneNode(true);
-    switcher.removeAttribute('id');
     const seats = $('seat-index').cloneNode(true);
     seats.removeAttribute('id');
     seats.classList.add('cmp-seats');
@@ -62,7 +66,7 @@
     for (const attr of ['aria-labelledby', 'aria-describedby']) {
       for (const n of [seats, ...seats.querySelectorAll(`[${attr}]`)]) if (n.hasAttribute(attr)) n.setAttribute(attr, `${id}-${n.getAttribute(attr)}`);
     }
-    box.append(form, switcher, seats);
+    box.append(form, seats);
     colOf[slot].replaceChildren(box);
     if (resets[slot]) resets[slot]();
     resets[slot] = lookupForm(form, input, status, matches, (geo, name) => set(slot, geo, name, true));
@@ -99,8 +103,16 @@
     colOf[slot].replaceChildren(box);
   }
 
+  // A column while its district loads: the district's name, then gray bars where its map and facts will be.
+  function columnLoading(geo) {
+    const box = node('div', '', 'cmp-card');
+    box.append(node('p', `Loading ${districtName(geo)}…`, 'profile-status'), skeleton(['block', 'w-60', 'w-45']));
+    return box;
+  }
+
   function update() {
     const list = SLOTS.filter(s => chosen[s]).map(s => chosen[s]);
+    document.documentElement.classList.toggle('cmp-choosing', list.length < SLOTS.length);
     if (document.documentElement.dataset.page === 'compare') {
       try { history.replaceState(null, '', list.length ? `/compare?d=${list.join(',')}` : '/compare'); } catch { /* history unavailable */ }
     }
@@ -109,7 +121,7 @@
         if (!colOf[slot].querySelector('.cmp-pick')) picker(slot);
         else colOf[slot].querySelector('.cmp-pick-title').textContent = pickTitle(slot);
       } else if (!(loaded[slot] && loaded[slot].geo === chosen[slot])) {
-        colOf[slot].replaceChildren(node('p', `Loading ${districtName(chosen[slot])}…`, 'profile-status'));
+        colOf[slot].replaceChildren(columnLoading(chosen[slot]));
       }
     }
     load();
@@ -128,7 +140,8 @@
     const waiting = slots.filter(s => !(loaded[s] && loaded[s].geo === chosen[s]));
     if (waiting.length) {
       const text = `Loading the figures for ${waiting.map(s => districtName(chosen[s])).join(' and ')}…`, note = result.querySelector('.cmp-note');
-      if (note) note.textContent = text; else result.replaceChildren(node('p', text, 'cmp-note'));
+      if (note) note.textContent = text;
+      else result.replaceChildren(node('p', text, 'cmp-note'), ...['w-20', 'w-30', 'w-30'].map(w => skeleton([`title ${w}`, 'w-60', 'w-45'], 'cmp-section')));
     }
     try {
       const list = await Promise.all(slots.map(s => profileOf(chosen[s])));
@@ -170,20 +183,22 @@
     }
   }
 
-  // One district's figure under its name: the estimate, its margin of error or range, and a caution when it is shaky.
-  function figure(f, place) {
-    const td = node('td', '', 'cmp-figure');
+  // One district's figure under its name: the estimate, its margin of error or range, a caution when it is shaky, and
+  // how far above or below the other district's figure it is.
+  function figure(f, place, versus, chamber) {
+    const td = node('td', '', `cmp-figure ${chamber}`);
     td.append(node('span', place, 'cmp-place'));
     if (!f || f.missing) { td.append(node('span', 'No figure', 'none')); return td; }
     td.append(node('span', f.plain || f.value, 'num'));
     if (f.spread) td.append(node('span', f.spread, 'moe'));
     if (f.caution) td.append(cautionChip(f.caution));
+    if (versus) td.append(versus);
     return td;
   }
 
   // Every measure either district has, in the profile's group and row order, as one table per group: each measure is
   // a row group, its name and Hawaiʻi's figure across the top, then each district's figure in its own column, then
-  // whether they differ. The groups open and shut like the profile's sections, numbered from At a glance.
+  // whether they differ and by how much. The groups open and shut like the profile's sections, numbered from At a glance.
   function table(list) {
     const names = list.map(p => p.district), byId = list.map(p => new Map([...p.headline, ...p.sections.flatMap(s => s.rows)].map(r => [r.id, r])));
     const groups = [['glance', 'At a glance', [...new Set(list.flatMap(p => p.headline.map(r => r.id)))]]];
@@ -192,7 +207,7 @@
       if (ids.length) groups.push([key, title, ids]);
     }
     const out = [node('p', list.length === 2
-      ? 'Each figure shows its 90% margin of error or range. Where two ranges overlap, the data cannot say which district is higher.'
+      ? 'Each figure shows its 90% margin of error or range, and under it how far above or below the other district’s it is: ▲ higher or ▼ lower beyond the margins of error, ≈ no clear difference.'
       : 'Choose a second district to set its figures beside these.', 'cmp-note')];
     // The districts' names over their columns stay in view while the rows scroll under them.
     const heads = node('div', '', 'cmp-sticky');
@@ -219,24 +234,30 @@
         const state = rows.map(r => r && (r.against || []).find(a => !a.missing && String(a.geo || '').startsWith('state:'))).find(Boolean);
         if (state && (state.plain || state.value)) label.append(' ', node('span', `Hawaiʻi: ${state.plain || state.value}`, 'cmp-state'));
         top.append(label);
-        const values = body.insertRow();
+        const values = body.insertRow(), diff = list.length === 2 ? pairDifference(rows[0], rows[1]) : null;
         values.className = 'cmp-values';
-        values.append(...rows.map((r, j) => figure(r, names[j])));
-        const diff = list.length === 2 ? pairDifference(rows[0], rows[1]) : null;
-        if (diff) {
-          values.classList.add(`higher-${diff}`);
-          const cell = node('td', '', `cmp-diff ${diff}`), mark = node('span', diff === 'same' ? '≈' : '▲', 'cmp-diff-mark');
-          mark.setAttribute('aria-hidden', 'true');
-          cell.colSpan = 2;
-          cell.append(mark, ' ', diff === 'same' ? 'No clear difference' : `Higher in ${names[diff === 'a' ? 0 : 1]}`);
-          body.insertRow().append(cell);
-        }
+        values.append(...rows.map((r, j) => figure(r, names[j], diff && pairLine(r, rows[1 - j], diff, j ? 'b' : 'a', names[1 - j]), list[j].geo.split(':')[0])));
+        if (diff) values.classList.add(`higher-${diff}`);
       }
       d.append(summary, t);
       d.open = typeof saved[d.dataset.key] === 'boolean' ? saved[d.dataset.key] : i < 3;
       out.push(d);
     });
     return out;
+  }
+
+  // Under a district's figure, how far above or below the other district's it is, as a percentage of the other's: "▲ 56%
+  // above House 23", green above and red below. About-equal, and set lighter, when their margins of error overlap;
+  // screen readers hear that it is no clear difference.
+  function pairLine(mine, theirs, diff, slot, other) {
+    const apart = percentApart(mine.num, theirs.num);
+    if (!apart) return null;
+    const kind = diff === 'same' ? 'within_margin' : diff === slot ? 'higher' : 'lower';
+    const line = node('span', '', `compare-line ${kind} ${sideOf(mine.num, theirs.num)}`.trim()), mark = node('span', MARKS[kind], 'reading-mark');
+    mark.setAttribute('aria-hidden', 'true');
+    line.append(mark, ' ', `${apart} ${other.replace(' District', '')}`);
+    if (kind === 'within_margin') line.append(hidden(', no clear difference'));
+    return line;
   }
 
   // The districts the address names: up to two, House or Senate.

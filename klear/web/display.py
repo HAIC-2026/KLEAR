@@ -656,8 +656,8 @@ def _beside(item: dict | None, session, store: _Store) -> dict | None:
 
 
 def _bounds(f) -> dict:
-    """A fact's estimate with its low and high bounds as bare numbers, for the profile's range strips: the
-    published range, or the estimate less and plus its margin of error."""
+    """A fact's estimate with its low and high bounds as bare numbers, for the comparisons on the profile and on
+    Compare: the published range, or the estimate less and plus its margin of error."""
     if not _has(f.value):
         return {"num": None, "low": None, "high": None}
     if _has(f.value_low) and _has(f.value_high):
@@ -708,8 +708,8 @@ def _profile_row(row: dict, session, store: _Store) -> dict:
         compared.append(_source(theirs, store))
         plain = _plain(theirs, unit)
         note = place_note(theirs.source_id, theirs.geo_type) or ""
-        # The other place's figure in its own column, on the profile and the printed summary, with the numbers its
-        # range strip is drawn from. A rate or an amount also carries its tested direction; a total has none. The
+        # The other place's figure in its own column, on the profile and the printed summary, with the numbers the
+        # comparison is measured from. A rate or an amount also carries its tested direction; a total has none. The
         # printed summary writes a note on how the place's figure was made after the value; the profile sets it
         # under the value.
         against.append(

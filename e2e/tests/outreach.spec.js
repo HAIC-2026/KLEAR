@@ -10,8 +10,10 @@ const LEAD = 'House District 22 has the most households in poverty that did not 
 test('the outreach tab names the top group two clicks from the home page', async ({page}) => {
   await page.goto('/');
   await page.getByRole('navigation', {name: 'Main navigation'}).getByRole('link', {name: 'Rankings'}).click();
-  // The tabs work once the page's script has run, which opens the first.
+  // The tabs work once the page's scripts have run. The first tab is open from the start, so wait for the table that
+  // the map's script, which runs after the tabs', shows at once.
   await expect(page.getByRole('tab', {name: 'Rankings and map'})).toHaveAttribute('aria-selected', 'true');
+  await expect(page.locator('#map-table')).toBeVisible();
   await page.getByRole('tab', {name: 'Outreach'}).click();
   await expect(page).toHaveURL(/\/rankings\?view=outreach$/);
   await expect(page.locator('#out-result-title')).toHaveText('Households in poverty without SNAP, by House district');

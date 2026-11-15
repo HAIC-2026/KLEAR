@@ -30,10 +30,14 @@
     </nav>
   </header>
   <main id="main" class="page">
-    <div class="wrap">
-      <p class="crumb"><a href="/">KLEAR</a> <span aria-hidden="true">/</span> <span aria-current="page">Data and methods</span></p>
-      <h1>Data and methods</h1>
-      <p class="lede">Where every figure comes from, how KLEAR estimates the ones not published for districts, what its terms mean, and how each build is checked.</p>
+    <div class="hero">
+      <img class="hero-art" src="/islands.svg" alt="" width="1017" height="681">
+      <div class="wrap hero-inner">
+        <h1>Data and methods</h1>
+        <p class="lede">Where every figure comes from, how KLEAR estimates the ones not published for districts, what its terms mean, and how each build is checked.</p>
+      </div>
+    </div>
+    <div class="wrap page-body">
       <div class="data-layout">
         <nav class="data-nav" aria-label="On this page">
           <ul>
@@ -169,9 +173,8 @@
           <section class="data-section" id="checks" aria-labelledby="checks-title">
             <h2 id="checks-title">How we check KLEAR</h2>
             <p>KLEAR rebuilds every number from public sources with one command, and each build checks its own work. A build that fails a required check never replaces the data the site serves. These are the results of the build the site is serving.</p>
-            <div class="card build-card" id="build" aria-live="polite">
-              <p class="build-status" id="build-status">Loading the latest build…</p>
-            </div>
+            <p class="status" id="checks-status" role="status"></p>
+            <div class="skeleton" id="checks-loading" aria-hidden="true"><span class="skeleton-bar w-80"></span><span class="skeleton-bar w-60"></span><span class="skeleton-bar w-45"></span></div>
             <section class="check-part" id="cks-list" aria-labelledby="cks-list-title" hidden>
               <h3 id="cks-list-title">Data checks</h3>
               <p>A required check stops the build when it fails. A reported check shows numbers that need judgment but does not stop it.</p>
@@ -224,7 +227,16 @@
         <div class="footer-about" id="about">
           <div class="footer-brand"><img src="/favicon.svg" width="40" height="40" alt=""><p class="footer-name"><strong>KLEAR</strong><span>Hawaiʻi district data</span></p></div>
           <p>Made for HAIC 2026. Challenge champion: DBEDT Research and Economic Analysis Division. Not an official State of Hawaiʻi product. For Hawaiʻi data beyond districts, try <a class="ext" href="https://datatrove.ai/">datatrove.ai<span class="visually-hidden"> (external site)</span></a>, a HAIC 2026 sponsor.</p>
-          <p class="footer-team">Team: <a class="ext" href="https://github.com/KantaS12">Kanta Saito<span class="visually-hidden"> on GitHub (external site)</span></a>, <a class="ext" href="https://github.com/andrewhe6">Andrew He<span class="visually-hidden"> on GitHub (external site)</span></a>, <a class="ext" href="https://github.com/rainemendoza">Raine S. Mendoza<span class="visually-hidden"> on GitHub (external site)</span></a>, <a class="ext" href="https://github.com/Lukas-Moroz">Lukas Moroz<span class="visually-hidden"> on GitHub (external site)</span></a>, <a class="ext" href="https://github.com/elijah-saloma">Elijah Saloma<span class="visually-hidden"> on GitHub (external site)</span></a>.</p>
+        </div>
+        <div class="footer-col">
+          <h2 class="footer-title">Team</h2>
+          <ul>
+            <li><a class="ext" href="https://github.com/KantaS12">Kanta Saito<span class="visually-hidden"> on GitHub (external site)</span></a></li>
+            <li><a class="ext" href="https://github.com/Lukas-Moroz">Lukas Moroz<span class="visually-hidden"> on GitHub (external site)</span></a></li>
+            <li><a class="ext" href="https://github.com/elijah-saloma">Elijah Saloma<span class="visually-hidden"> on GitHub (external site)</span></a></li>
+            <li><a class="ext" href="https://github.com/andrewhe6">Andrew He<span class="visually-hidden"> on GitHub (external site)</span></a></li>
+            <li><a class="ext" href="https://github.com/rainemendoza">Raine S. Mendoza<span class="visually-hidden"> on GitHub (external site)</span></a></li>
+          </ul>
         </div>
         <div class="footer-col">
           <h2 class="footer-title">Reports</h2>

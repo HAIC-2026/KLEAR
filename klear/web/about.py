@@ -1,7 +1,6 @@
 """What the landing page says about the store: its size, build, checks, and sources."""
 
 import json
-from datetime import datetime
 from pathlib import Path
 
 from klear.web.display import build_month, year_text
@@ -141,13 +140,7 @@ def about(con, validation: Path) -> dict:
     crosscheck = None
     build = con.execute("SELECT built_at, checks, skipped_steps FROM build_info").fetchone()
     if build:
-        built_at = build[0]
-        try:
-            day = datetime.strptime(built_at[:10], "%Y-%m-%d")
-            facts.append(f"Built {day:%b} {day.day}, {day.year}")
-        except ValueError:
-            pass
-        report = _report(validation, built_at)
+        report = _report(validation, build[0])
         fidelity = report.get("source_fidelity")
         if fidelity and "n_compared" in fidelity:
             mismatches = _n(fidelity.get("n_mismatch", 0), "mismatch", "mismatches")

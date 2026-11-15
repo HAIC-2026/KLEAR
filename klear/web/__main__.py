@@ -58,6 +58,7 @@ PUBLIC = (
     "/checks.js",
     "/style.css",
     "/logo.svg",
+    "/islands.svg",
     "/favicon.svg",
     "/favicon.ico",
     "/apple-touch-icon.png",

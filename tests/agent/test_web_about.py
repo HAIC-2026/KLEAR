@@ -52,11 +52,10 @@ def test_counts_and_sources_come_from_the_store(small_con, tmp_path):
     assert set(data) == {"facts", "sources", "crosscheck"}
 
 
-def test_build_date_cross_check_and_skipped_checks_are_stated(small_con, tmp_path):
+def test_cross_check_and_skipped_checks_are_stated_but_not_the_build_date(small_con, tmp_path):
     _build(small_con)
     data = about(small_con, _report(tmp_path / "validation.json"))
     assert data["facts"][2:] == [
-        "Built Nov 6, 2026",
         "177,776 DBEDT values cross-checked, 0 mismatches",
         "3 checks passed, 2 waiting on HUD files",
     ]
@@ -67,7 +66,7 @@ def test_build_date_cross_check_and_skipped_checks_are_stated(small_con, tmp_pat
 def test_report_from_another_build_is_not_quoted(small_con, tmp_path):
     _build(small_con)
     data = about(small_con, _report(tmp_path / "validation.json", built_at="2026-11-07 09:00:00 HST"))
-    assert data["facts"][2:] == ["Built Nov 6, 2026", "3 checks passed, 2 waiting on HUD files"]
+    assert data["facts"][2:] == ["3 checks passed, 2 waiting on HUD files"]
     assert data["crosscheck"] is None
 
 

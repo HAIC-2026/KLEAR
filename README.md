@@ -12,7 +12,7 @@ KLEAR answers questions about Hawaiʻi's 51 House and 25 Senate legislative dist
 
 One-minute tour:
 
-1. On the Find page, press Find your district, then type a town such as Kāneʻohe, a ZIP code, an address or a legislator's name. KLEAR lists the House and Senate districts that hold it and the share of its residents in each. Every district is also one click away by its number, or on the map, where urban Honolulu is drawn enlarged; the House or Senate switch over them picks the chamber.
+1. On the Find page, type a town such as Kāneʻohe, a ZIP code, an address or a legislator's name in the search (or press /). KLEAR lists the House and Senate districts that hold it and the share of its residents in each. Every district is also one click away by its number, or on the map, whose Honolulu tab zooms in on the city; the House or Senate switch at the top of the map's card picks the chamber.
 2. Pick a district. The map zooms to it, then its own page opens with the map beside its number, where it is and who represents it, then four headline figures that each say how they compare with the state, then the full profile: a numbered section for each topic, with tables that set the district beside its county and the state, each figure with its margin of error or range. The agent sits in the right third (below 1200 px, behind the round Ask KLEAR button).
 3. Ask one of the suggested questions, or your own. Each answer shows its figures as cards and charts with their sources. Open a source to see the publisher's page. Questions about towns or the whole state can be asked from the Find page, in the agent's panel.
 4. Press Compare another district to set a second district beside the first, row by row, and print the comparison. Open Rankings, then its Outreach tab, to see which districts have the most people who meet a program's income test.
@@ -417,43 +417,53 @@ copy answer_cache.json along with klear.duckdb.
 
 ### Pages
 
-The header is a solid bar in House teal (Senate purple on a Senate district's page) with the KLEAR
+The header is a solid bar in House teal on every page with the KLEAR
 wordmark and four tabs: Districts (home, the same as the wordmark), Compare, Rankings, and Data &
 methods. The tab you are on is bold with a thick white bar under it; Districts is current on Find and
 on every district's page.
 
-- `/`, Find: a band with the page's title over a faint drawing of the islands, and a button down to
-  the search and the map. A House or Senate switch over them picks the chamber for the map and the
-  numbers. One search takes a town, ZIP code, street address, district or legislator's name; its
+- `/`, Find: a band with the page's title over a faint drawing of the islands, then the map beside
+  the search. A House or Senate switch at the top of the map's card picks the chamber for the map and
+  the numbers. One search takes a town, ZIP code, street address, district or legislator's name; its
   matches are listed with each district's share of the place's residents and light up on the map
   beside it. Every district of the chosen chamber is listed by number, by island, and pointing at a
   number outlines it on the map, and pointing at the map labels the district under the pointer. The /
-  key jumps to the search from anywhere on the page. The map draws each island group in its own frame at its own scale,
-  with urban Honolulu enlarged and district numbers printed on it. A click on a district, a number or
-  a match zooms the map to the district, then the page turns into the district's page, the map
-  moving to its top left corner. A question box with starters by topic asks in the agent's panel,
+  key jumps to the search from anywhere on the page. The map draws every island where it lies, with
+  district numbers on it, and its tabs zoom to each island and to urban Honolulu. A click on a
+  district, a number or a match zooms the map to the district, then the page turns into the
+  district's page, the map moving to its top left corner. A question box with starters by topic asks in the agent's panel,
   and the store's counts close the page. On a phone the search comes before the map. A link under the
   map leads to Rankings, where the map is colored by a measure.
 - `/district/house-49` and the like: the way back to the search ("Search another district", which
-  returns to the map zoomed back out) and on to Compare ("Compare another district"), with print,
-  link and download actions; the map zoomed to the district beside its number, set large in its
-  chamber's color, where it is and its legislator; then the profile in panels. Section 1, At a glance,
-  holds four headline figures, each with how it compares with the county and the state in words. The
-  rest of the profile is numbered by group: People, Income and work, Programs and help, Housing,
-  Health and Reference. Each figure keeps its margin of error or range, its range strip and any
+  returns to the whole map) and on to Compare ("Compare another district"), with print, link and
+  download actions; the map zoomed to the district beside its number, set large in its chamber's color, where it is and its legislator; then the
+  profile in panels. Section 1, At a glance, holds four headline figures, each saying how far above
+  or below the county and the state it is, as a percentage of their figures ("16% above county"),
+  green above and red below, marked ▲ or ▼ for a difference beyond the margins of error and ≈ for
+  none. The rest of the profile is
+  numbered by group: People, Income and work, Programs and help, Housing, Health and Reference, each
+  table ending in the same comparison. Each figure keeps its margin of error or range and any
   caution. From 1200 px the agent sits in the right third, as tall as the window, with its questions
   to try written out in full. Narrower, it is a round "Ask KLEAR" button that opens the agent over
   the page (the whole screen on a phone) and minimizes back to it, keeping the conversation.
-- `/compare`: the first district in the left third and the second in the middle, each a search, a
-  House or Senate switch and every district by number until one is chosen, then its name, a small map
-  and its legislator. Under them the two districts' figures run row by row: each measure's name and
-  Hawaiʻi's figure across both columns, each district's figure under its name, and whether they
-  differ beyond their margins of error. The agent sits in the right third and suggests questions
-  that compare the two. `/compare?d=house:022,house:023` opens a comparison.
-- `/rankings` has two tabs, each with its own address: rankings with the map colored by a measure,
-  and outreach.
+- `/compare`: the first district in the left third and the second in the middle, each a search and
+  every district by number until one is chosen (a House or Senate switch sits in the bar above them
+  meanwhile), then its name, a small map zoomed to it and its legislator. Under them the two
+  districts' figures run row by row: each measure's name and Hawaiʻi's figure across both columns,
+  and each district's figure under its name with how far above or below the other it is ("▲ 56%
+  above House 13"), marked ≈ when their margins of error overlap. The agent sits in the right third
+  and suggests questions that compare the two. `/compare?d=house:022,house:023` opens a comparison.
+- `/rankings` has two tabs, each with its own address: rankings, with the map colored by a measure
+  beside the district ranking, and outreach. The ranking numbers every district, 1 for the highest
+  figure, and runs highest or lowest first, by district number or by island. A click on the map
+  picks a district and marks it in the ranking; a second click opens it, as does its name in the
+  ranking.
 - `/data` holds the sources, the methods for estimated figures, the glossary, the latest build's
   checks and a privacy note, with a section list beside them.
+- Compare, Rankings, Data and the accessibility statement open with the same band as Find: the
+  page's title and a short lede over the faint drawing of the islands
+  (klear/web/static/islands.svg, which the map build writes from the district shapes). The footer
+  lists the team, the reports and where to send questions, each in its own column.
 - `/ask` opens Find with the agent's panel open; a question handed over after the # in the address
   is asked there and never reaches the server's logs.
 
@@ -508,7 +518,9 @@ latin subset of Archivo[wdth,wght]:
 The district map draws the official 2022 House and Senate boundaries as plain SVG, with no map
 tiles or map library. Its shapes, and the share of each ZIP area's residents in each district,
 live in klear/web/static/districts.json, so the map works
-without a data build. After a build changes the boundaries, regenerate it with:
+without a data build. The map draws the whole chain where it lies and zooms to an island, urban
+Honolulu or a district. After a build changes the boundaries, regenerate districts.json and the
+band's islands.svg with:
 
     uv run python -m klear.etl.mapshapes
 
@@ -528,8 +540,8 @@ any common color vision deficiency. They are set by class, never by a style attr
 stripes are ink on the three light shades and white on the two dark ones. Stripes mark an unreliable estimate and dots a
 district with no figure, so neither depends on color. The legend gives each shade's range, the
 source and year, and says that districts whose margins of error overlap may not differ. The
-picked district's figure and state comparison show under the map, and "Show as a table" lists
-every district, highest first.
+district ranking beside the map lists every district with its rank and marks the one picked on the
+map.
 
 The landing page resolves House/Senate numbers, towns, neighborhoods, islands, counties
 and ZIPs using the built store. Overlaps are shown as choices instead of guessing a district:

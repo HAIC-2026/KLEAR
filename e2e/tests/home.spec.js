@@ -39,12 +39,10 @@ test('the / key jumps to the search from anywhere on the Find page, but not whil
   await expect(page.locator('.key-hint')).toBeHidden();
 });
 
-test('the button in the band moves down to the search and the map', async ({page}) => {
+test('the band is short, so the search shows on the first screen with no button to reach it', async ({page}) => {
   await page.goto('/');
-  await page.getByRole('link', {name: 'Find your district'}).click();
-  await expect(page.locator('#find-section')).toBeInViewport();
+  await expect(page.getByRole('link', {name: 'Find your district'})).toHaveCount(0);
   await expect(page.locator('#find-place')).toBeInViewport();
-  await expect.poll(() => page.locator('#find-section').evaluate(n => n.getBoundingClientRect().top)).toBeLessThan(120);
 });
 
 test('the switch shows one chamber at a time, on the map and in the numbers', async ({page}) => {
@@ -91,20 +89,43 @@ test('a district opens with the map beside its name, and Search another district
     expect(map.x + map.width).toBeLessThanOrEqual(head.x);  // the map at the left, the name beside it
     expect(Math.abs(map.y - head.y)).toBeLessThan(4);
   }
-  // The district is zoomed in: its outline fills a good part of the small map.
-  const share = await page.evaluate(() => {
-    const svg = document.getElementById('map'), vb = svg.viewBox.baseVal;
-    const d = svg.querySelector('.district.copy.picked') || svg.querySelector('.district.picked');
-    const b = d.getBBox();
+  // The map is zoomed in to the district alone: its outline fills a good part of the small map.
+  const share = () => page.evaluate(() => {
+    const svg = document.getElementById('map'), vb = svg.viewBox.baseVal, b = svg.querySelector('.district.picked').getBBox();
     return (b.width * b.height) / (vb.width * vb.height);
   });
-  expect(share).toBeGreaterThan(0.08);
+  await expect.poll(share).toBeGreaterThan(0.08);
   await page.locator('#search-another').click();
+  // Back on Find, the whole chain again, with nothing picked.
+  await expect(page.locator('#map .district.picked')).toHaveCount(0);
+  await expect.poll(() => page.evaluate(() => document.getElementById('map').viewBox.baseVal.width)).toBeGreaterThan(900);
   await expect(page).toHaveURL(/:\d+\/$/);
   await expect(page.locator('#find-place')).toBeVisible();
   await expect(page.locator('#find-section')).toBeInViewport();
   if (!isMobile) await expect(page.locator('#find-place')).toBeFocused();
   await expect(page.locator('#chat-panel-title')).toHaveText('Ask KLEAR');
+});
+
+test('the map shows every island where it lies, and its tabs zoom to each island and to urban Honolulu', async ({page, isMobile}) => {
+  await page.goto('/');
+  await expect(page.locator('#map .district')).toHaveCount(51);
+  const width = () => page.evaluate(() => document.getElementById('map').viewBox.baseVal.width);
+  await expect.poll(width).toBeGreaterThan(900);
+  // Each island group's caption sits beside it, on a map wide enough to hold them.
+  const captions = page.locator('#map .frame-caption.island');
+  await expect(captions).toHaveText(['Kauaʻi · 3 House', 'Oʻahu · 34 House', 'Maui County · 6 House', 'Hawaiʻi Island · 8 House']);
+  if (!isMobile) await expect(captions.first()).toBeVisible();
+  await page.getByRole('group', {name: 'Zoom to island'}).getByRole('button', {name: 'Honolulu'}).click();
+  await expect.poll(width).toBeLessThan(100);
+});
+
+test('each district on Compare has a small map zoomed in to it, with its number', async ({page}) => {
+  await page.goto('/compare?d=house:022,house:023');
+  const map = page.locator('.cmp-col-a .locator-map');
+  await expect(map.locator('path.here')).toHaveCount(1);
+  await expect(map.locator('.here-label')).toHaveText('22');
+  // Close in: much narrower than the whole chain.
+  expect(await map.evaluate(svg => svg.viewBox.baseVal.width)).toBeLessThan(100);
 });
 
 test('Tab reaches the numbers once, and the arrow keys move along them', async ({page, isMobile}) => {
@@ -117,9 +138,9 @@ test('Tab reaches the numbers once, and the arrow keys move along them', async (
   await expect(index.getByRole('link', {name: 'House District 2', exact: true})).toBeFocused();
   await page.keyboard.press('End');
   await expect(index.getByRole('link', {name: 'House District 51', exact: true})).toBeFocused();
-  // Tab leaves the numbers for the map beside them, which comes next.
+  // Tab leaves the numbers for the map's card beside them, which starts with the House or Senate switch.
   await page.keyboard.press('Tab');
-  await expect(page.locator('#island-tabs button').first()).toBeFocused();
+  await expect(page.locator('#chamber-switch [data-chamber=house]')).toBeFocused();
   await page.keyboard.press('Shift+Tab');
   await expect(index.getByRole('link', {name: 'House District 51', exact: true})).toBeFocused();
 });

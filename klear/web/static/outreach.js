@@ -205,12 +205,16 @@ async function load(e) {
   }
   $('out-status').textContent = 'Loading the districts…';
   $('out-live').textContent = '';
+  // Gray bars where the groups will be, until they come.
+  $('out-result').hidden = true;
+  $('out-loading').hidden = false;
   let r, data = null;
   try {
     r = await fetch(`/api/outreach?pair=${encodeURIComponent(pair)}&chamber=${encodeURIComponent(chamber)}`);
     data = await r.json();
   } catch { /* shown below */ }
   if (mine !== seq) return;
+  $('out-loading').hidden = true;
   if (!r || !r.ok || !data || !Array.isArray(data.tiers)) {
     $('out-result').hidden = true;
     $('out-status').textContent = (data && data.error) || 'KLEAR could not load the districts. Check your connection and try again.';

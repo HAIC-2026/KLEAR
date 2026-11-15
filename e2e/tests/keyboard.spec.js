@@ -16,11 +16,8 @@ test('skip link, search, ask, and read the answer with the keyboard', async ({pa
   await expect(skip).toBeFocused();
   await expect(skip).toBeInViewport();
   await page.keyboard.press('Enter');
-  // The first stop is the band's button, which moves down to the search and puts focus in it.
-  await page.keyboard.press('Tab');
-  const down = page.getByRole('link', {name: 'Find your district'});
-  await expect(down).toBeFocused();
-  await page.keyboard.press('Enter');
+  // The / key jumps to the search from anywhere on Find.
+  await page.keyboard.press('/');
   await expect(page.getByLabel('Town, ZIP code, street address, district or legislator').first()).toBeFocused();
 
   // A search with one match opens the district's page with focus on its name. The next stop, a link shown only while
@@ -213,7 +210,7 @@ test('the shaded map on the rankings page: choose a measure, move between distri
   await expect(select).toHaveValue('pct_people_poverty');
   await expect(page.locator('#map')).toHaveClass(/\bshaded\b/);
 
-  // Each district's name carries its figure, and Enter shows it with the state comparison under the map.
+  // Each district's name carries its figure, and Enter shows it with the state comparison over the map.
   await page.locator('#zoom-out').focus();
   await page.keyboard.press('Tab');
   const focused = page.locator('#map .district:focus');
@@ -224,14 +221,13 @@ test('the shaded map on the rankings page: choose a measure, move between distri
   await expect(page.locator('#map .ring-line')).toHaveAttribute('d', /\S/);
   await page.keyboard.press('Enter');
   await expect(focused).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.locator('#pick-name')).toHaveText('House District 22');
+  await expect(page.locator('#map-table tbody tr.picked')).toHaveAttribute('data-geo', 'house:022');
   await expect(page.locator('#pick-value')).toContainText('People below the poverty level: 12.3% ± 2.1 points.');
 
-  // Tab on to the ranked table, which is open, and into it.
-  const summary = page.locator('#map-table summary');
-  for (let i = 0; i < 8 && !(await summary.evaluate(el => el === document.activeElement)); i++) await page.keyboard.press('Tab');
-  await expect(summary).toBeFocused();
-  await expect(page.locator('#map-table')).toHaveAttribute('open', '');
+  // Tab on to the district ranking: its choice of order, then the table.
+  const order = page.getByLabel('Order');
+  for (let i = 0; i < 8 && !(await order.evaluate(el => el === document.activeElement)); i++) await page.keyboard.press('Tab');
+  await expect(order).toBeFocused();
   await page.keyboard.press('Tab');
   await expect(page.locator('#map-table .table-scroll')).toBeFocused();
   await expect(page.locator('#map-table tbody tr').first().locator('th')).toHaveText('House District 22');

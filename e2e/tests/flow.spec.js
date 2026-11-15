@@ -31,8 +31,8 @@ test('search, choose, read the profile, ask, open a source, and come back', asyn
   const headline = profile.locator('.profile-stats div').first();
   await expect(headline.locator('dd').first()).toHaveText('12.3% ± 2.1 points');
   await expect(headline.locator('dt')).toHaveText('People below the poverty level');
-  // How the figure stands against the county and the state, in words for everyone, with the state's figure.
-  await expect(headline.locator('dd.profile-reading')).toHaveText(/^▲ Higher than the county only\s+Hawaiʻi: 9\.8%$/);
+  // How far above or below the county and the state the figure is, with the state's figure.
+  await expect(headline.locator('dd.profile-reading')).toHaveText(/^▲ 38% above county\s*≈ 26% above state, no clear difference\s*Hawaiʻi: 9\.8%$/);
   await expect(headline.locator('dd.profile-reading')).not.toHaveClass(/visually-hidden/);
   await expect(headline.locator('dd.profile-reading')).toBeVisible();
   // A numbered link at the top leads to each group of sections, and opens it. At a glance is section 1.

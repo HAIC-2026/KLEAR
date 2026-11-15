@@ -25,6 +25,14 @@ function cautionChip(why) {
   if (why) chip.append(hidden(`. ${why}`));
   return chip;
 }
+// A placeholder shaped like what is loading: a gray bar for each line, in the widths and kinds given (such as 'title
+// w-30' or 'big w-45'). Screen readers skip it; a status line beside it says what is loading.
+function skeleton(bars, className = '') {
+  const box = node('div', '', `skeleton ${className}`.trim());
+  box.setAttribute('aria-hidden', 'true');
+  for (const kind of bars) box.append(node('span', '', `skeleton-bar ${kind}`));
+  return box;
+}
 // A caution chip with its reason written out beside it.
 function cautionLine(why) {
   const p = node('p', '', 'profile-caution');
@@ -82,7 +90,7 @@ function pairDifference(a, b) {
   return a.num > b.num ? 'a' : 'b';
 }
 
-// The district shapes, fetched once for the map, the band on the Find page and the small maps on Compare.
+// The district shapes, fetched once for the map and the small maps on Compare.
 let shapesLoad = null;
 function loadShapes() {
   shapesLoad ||= fetch('/districts.json').then(r => { if (!r.ok) throw new Error('no shapes'); return r.json(); });
@@ -112,8 +120,8 @@ async function locatorMap(geo) {
   const rows = data.chambers[geo.split(':')[0]] || [], row = rows.find(r => r.geo === geo);
   if (!row) return null;
   const ns = 'http://www.w3.org/2000/svg', svg = document.createElementNS(ns, 'svg');
-  const [bx, by, bw, bh] = pathBox(row.d), side = Math.max(bw, bh * 4 / 3, 6) * 1.9;
-  const w = side, h = side * 3 / 4, x = bx + bw / 2 - w / 2, y = by + bh / 2 - h / 2;
+  const [bx, by, bw, bh] = pathBox(row.d), side = Math.max(bw, bh * 3 / 2, 6) * 1.9;
+  const w = side, h = side * 2 / 3, x = bx + bw / 2 - w / 2, y = by + bh / 2 - h / 2;
   svg.setAttribute('viewBox', `${x} ${y} ${w} ${h}`);
   svg.setAttribute('aria-hidden', 'true');
   svg.setAttribute('focusable', 'false');

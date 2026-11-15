@@ -36,30 +36,32 @@
     </nav>
   </header>
   <main id="main">
-    <!-- Find: a band with the page's title over the islands, and a button down to the search and the map. -->
-    <section class="hero" id="hero" aria-labelledby="page-title">
-      <svg class="hero-art" id="hero-art" aria-hidden="true" focusable="false" preserveAspectRatio="xMaxYMid meet"></svg>
-      <div class="wrap hero-inner">
+    <!-- The band across the top, over a faint drawing of the islands, as on every page: the view's title and what it
+         does. -->
+    <div class="hero" id="hero">
+      <img class="hero-art" src="/islands.svg" alt="" width="1017" height="681">
+      <div class="wrap hero-inner hero-find">
         <h1 id="page-title">Find your district</h1>
         <p class="lede">Who lives in each Hawaiʻi House and Senate district, what households earn and pay for housing, and which programs can help. Every figure shows its source and margin of error.</p>
-        <a class="button hero-cta" id="hero-cta" href="#find-section">Find your district<svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 5v14M6 13l6 6 6-6"/></svg></a>
       </div>
-    </section>
+      <div class="wrap hero-inner hero-compare">
+        <h1 id="compare-title" tabindex="-1">Compare</h1>
+        <p class="lede">Set two House or Senate districts side by side, figure by figure, each with its margin of error and how far apart the two are.</p>
+      </div>
+    </div>
 
-    <!-- The stage holds each view's working parts. Find: the House or Senate switch over the map and the search. A
-         district: the way back and on, the map zoomed to the district beside its name, its profile under them, and the
-         agent in the right third. Compare: two districts side by side, and the agent. Below 1200 px the agent is a
+    <!-- The stage holds each view's working parts. Find: the map, with the House or Senate switch and the island tabs
+         over it, beside the search and the numbers. A district: the way back and on, the map zoomed to the district
+         beside its name, its profile under them, and the agent in the right third. Compare: two districts side by side, and the agent. Below 1200 px the agent is a
          panel that the round button opens. -->
     <div class="stage" id="find-section" data-seats="house">
       <div class="stage-bar" id="stage-bar">
-        <div class="chamber-switch" id="chamber-switch" role="group" aria-label="Show House or Senate districts"><button type="button" data-chamber="house" aria-pressed="true">House</button><button type="button" data-chamber="senate" aria-pressed="false">Senate</button></div>
         <nav class="district-bar" id="district-bar" aria-label="District page">
           <a class="bar-link back" id="search-another" href="/"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M19 12H5M11 6l-6 6 6 6"/></svg>Search another<span class="bar-long"> district</span></a>
           <a class="bar-link" id="compare-another" href="/compare">Compare another<span class="bar-long"> district</span><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
         </nav>
         <div class="compare-head" id="compare-head">
           <a class="bar-link back" id="compare-home" href="/"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M19 12H5M11 6l-6 6 6 6"/></svg>Back to home</a>
-          <h1 id="compare-title" tabindex="-1">Compare</h1>
         </div>
         <div class="share-bar" id="share-bar" role="group" aria-label="Share"></div>
       </div>
@@ -68,7 +70,7 @@
         <h2 class="find-title" id="find-title" tabindex="-1">Search, or pick a number</h2>
           <form id="find" class="find">
             <label for="find-place">Town, ZIP code, street address, district or legislator</label>
-            <div class="inputrow"><div class="combo"><input id="find-place" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="find-place-list" required maxlength="160" placeholder="Kāneʻohe, 96744, House 22 or a name" autocomplete="off" aria-keyshortcuts="/"><kbd class="key-hint" aria-hidden="true" title="Press / to search">/</kbd><ul id="find-place-list" class="suggestions" role="listbox" aria-label="Suggestions" hidden></ul></div><button type="submit">Find district</button></div><p id="find-place-count" class="visually-hidden" role="status"></p>
+            <div class="inputrow"><div class="combo"><input id="find-place" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="find-place-list" required maxlength="160" placeholder="Kāneʻohe, 96744 or House 22" autocomplete="off" aria-keyshortcuts="/"><kbd class="key-hint" aria-hidden="true" title="Press / to search">/</kbd><ul id="find-place-list" class="suggestions" role="listbox" aria-label="Suggestions" hidden></ul></div><button type="submit">Find district</button></div><p id="find-place-count" class="visually-hidden" role="status"></p>
             <p class="help privacy">Addresses go to the U.S. Census Bureau only to find the district, and are never stored.</p>
             <p id="find-status" class="status" role="status"></p>
             <div id="find-matches"></div>
@@ -95,7 +97,7 @@
 
       <div class="stage-map map-card" id="district-map">
         <h2 id="map-title" class="visually-hidden">Districts on the map</h2>
-        <div class="map-controls"><div class="island-tabs" id="island-tabs" role="group" aria-label="Zoom to island"></div></div>
+        <div class="map-controls"><div class="chamber-switch" id="chamber-switch" role="group" aria-label="Show House or Senate districts"><button type="button" data-chamber="house" aria-pressed="true">House</button><button type="button" data-chamber="senate" aria-pressed="false">Senate</button></div><div class="island-tabs" id="island-tabs" role="group" aria-label="Zoom to island"></div></div>
         <div class="map-frame"><div class="zoom-buttons"><button type="button" id="zoom-in" aria-label="Zoom in">+</button><button type="button" id="zoom-out" aria-label="Zoom out">−</button></div><svg id="map" role="group" tabindex="-1" aria-labelledby="map-title" aria-describedby="map-keys" preserveAspectRatio="xMidYMid meet"></svg><p id="map-keys" hidden>Arrow keys move between districts, and Enter opens one.</p><p id="map-loading" class="map-loading">Loading map…</p><p id="map-hint" class="map-hint" hidden>Pinch, or hold Ctrl while scrolling, to zoom</p></div>
         <p id="zip-status" class="status map-status" role="status"></p>
         <p class="map-more"><a href="/rankings">See every district colored by poverty, income, rent and more</a></p>
@@ -166,7 +168,16 @@
         <div class="footer-about" id="about">
           <div class="footer-brand"><img src="/favicon.svg" width="40" height="40" alt=""><p class="footer-name"><strong>KLEAR</strong><span>Hawaiʻi district data</span></p></div>
           <p>Made for HAIC 2026. Challenge champion: DBEDT Research and Economic Analysis Division. Not an official State of Hawaiʻi product. For Hawaiʻi data beyond districts, try <a class="ext" href="https://datatrove.ai/">datatrove.ai<span class="visually-hidden"> (external site)</span></a>, a HAIC 2026 sponsor.</p>
-          <p class="footer-team">Team: <a class="ext" href="https://github.com/KantaS12">Kanta Saito<span class="visually-hidden"> on GitHub (external site)</span></a>, <a class="ext" href="https://github.com/andrewhe6">Andrew He<span class="visually-hidden"> on GitHub (external site)</span></a>, <a class="ext" href="https://github.com/rainemendoza">Raine S. Mendoza<span class="visually-hidden"> on GitHub (external site)</span></a>, <a class="ext" href="https://github.com/Lukas-Moroz">Lukas Moroz<span class="visually-hidden"> on GitHub (external site)</span></a>, <a class="ext" href="https://github.com/elijah-saloma">Elijah Saloma<span class="visually-hidden"> on GitHub (external site)</span></a>.</p>
+        </div>
+        <div class="footer-col">
+          <h2 class="footer-title">Team</h2>
+          <ul>
+            <li><a class="ext" href="https://github.com/KantaS12">Kanta Saito<span class="visually-hidden"> on GitHub (external site)</span></a></li>
+            <li><a class="ext" href="https://github.com/Lukas-Moroz">Lukas Moroz<span class="visually-hidden"> on GitHub (external site)</span></a></li>
+            <li><a class="ext" href="https://github.com/elijah-saloma">Elijah Saloma<span class="visually-hidden"> on GitHub (external site)</span></a></li>
+            <li><a class="ext" href="https://github.com/andrewhe6">Andrew He<span class="visually-hidden"> on GitHub (external site)</span></a></li>
+            <li><a class="ext" href="https://github.com/rainemendoza">Raine S. Mendoza<span class="visually-hidden"> on GitHub (external site)</span></a></li>
+          </ul>
         </div>
         <div class="footer-col">
           <h2 class="footer-title">Reports</h2>

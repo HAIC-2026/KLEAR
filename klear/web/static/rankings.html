@@ -32,39 +32,35 @@
     </nav>
   </header>
   <main id="main" class="page">
-    <div class="wrap">
-      <p class="crumb"><a href="/">KLEAR</a> <span aria-hidden="true">/</span> <span aria-current="page">Rankings</span></p>
-      <h1>Rankings and outreach</h1>
-      <p class="lede">Color every district by one measure and rank them, or see where program outreach could help most. To set two districts side by side, use <a href="/compare">Compare</a>.</p>
-
+    <div class="hero">
+      <img class="hero-art" src="/islands.svg" alt="" width="1017" height="681">
+      <div class="wrap hero-inner">
+        <h1>Rankings and outreach</h1>
+        <p class="lede">Color every district by one measure and rank them, or see where program outreach could help most. To set two districts side by side, use <a href="/compare">Compare</a>.</p>
+      </div>
+    </div>
+    <div class="wrap page-body">
       <div class="page-tabs" role="tablist" aria-label="Rankings and outreach">
         <button type="button" role="tab" id="tab-rankings" aria-controls="panel-rankings" aria-selected="true">Rankings and map</button>
         <button type="button" role="tab" id="tab-outreach" aria-controls="panel-outreach" aria-selected="false" tabindex="-1">Outreach</button>
       </div>
 
       <section class="tab-panel" id="panel-rankings" role="tabpanel" aria-labelledby="tab-rankings">
+        <!-- The map's card: the measure and the chamber, then the island tabs, the map and its legend. Beside it, the
+             district ranking in the order chosen, with the district picked on the map marked. -->
         <div class="rank-layout" id="district-map">
-          <div class="rank-controls">
-            <div class="shade-row"><label for="map-shade">Measure</label><select id="map-shade"><option value="pct_people_poverty" selected>People below the poverty level</option><option value="pct_children_poverty">Keiki below the poverty level</option><option value="pct_65_plus">Share who are kūpuna (65 and over)</option><option value="median_household_income">Median household income</option><option value="pct_rent_burden_35_plus">Renters paying 35% or more of income</option><option value="pct_uninsured">People without health insurance</option><option value="pct_hh_snap">Households receiving SNAP</option></select><p id="shade-status" class="status" role="status"></p><p id="shade-live" class="visually-hidden" role="status"></p></div>
-            <div class="map-controls">
-              <div class="segmented" role="group" aria-label="Chamber"><button type="button" data-chamber="house" aria-pressed="true">House</button><button type="button" data-chamber="senate" aria-pressed="false">Senate</button></div>
-              <div class="island-tabs" id="island-tabs" role="group" aria-label="Zoom to island"></div><div class="zoom-buttons"><button type="button" id="zoom-in" aria-label="Zoom in">+</button><button type="button" id="zoom-out" aria-label="Zoom out">−</button></div>
-            </div>
-          </div>
           <div class="map-card">
-            <h2 id="map-title" class="visually-hidden">Districts colored by the chosen measure</h2>
-            <div class="map-frame"><svg id="map" role="group" tabindex="-1" aria-labelledby="map-title" aria-describedby="map-keys" preserveAspectRatio="xMidYMid meet"></svg><p id="map-keys" hidden>Arrow keys move between districts. Enter picks one, and Enter again opens it.</p><p id="map-loading" class="map-loading">Loading map…</p><p id="map-hint" class="map-hint" hidden>Pinch, or hold Ctrl while scrolling, to zoom</p></div>
-            <div id="map-legend" class="map-legend" hidden></div>
-            <div class="map-footer">
-              <div class="map-pick" aria-live="polite"><span class="small-label" id="pick-island">No district picked yet</span><strong id="pick-name">Tap an area on the map</strong><span id="pick-value" class="pick-value" hidden></span></div>
-              <div class="map-pick-actions">
-                <label for="map-list" class="visually-hidden">Or choose from a list</label>
-                <select id="map-list"><option value="">Or choose from a list…</option></select>
-                <button type="button" id="pick-go" class="button" disabled>Open a district</button>
-              </div>
+            <div class="rank-controls">
+              <div class="shade-row"><label for="map-shade">Measure</label><select id="map-shade"><option value="pct_people_poverty" selected>People below the poverty level</option><option value="pct_children_poverty">Keiki below the poverty level</option><option value="pct_65_plus">Share who are kūpuna (65 and over)</option><option value="median_household_income">Median household income</option><option value="pct_rent_burden_35_plus">Renters paying 35% or more of income</option><option value="pct_uninsured">People without health insurance</option><option value="pct_hh_snap">Households receiving SNAP</option></select><p id="shade-status" class="status" role="status"></p><p id="shade-live" class="visually-hidden" role="status"></p></div>
+              <div class="chamber-switch" role="group" aria-label="Show House or Senate districts"><button type="button" data-chamber="house" aria-pressed="true">House</button><button type="button" data-chamber="senate" aria-pressed="false">Senate</button></div>
             </div>
+            <p id="pick-value" class="visually-hidden" role="status"></p>
+            <div class="map-controls"><div class="island-tabs" id="island-tabs" role="group" aria-label="Zoom to island"></div></div>
+            <h2 id="map-title" class="visually-hidden">Districts colored by the chosen measure</h2>
+            <div class="map-frame"><div class="zoom-buttons"><button type="button" id="zoom-in" aria-label="Zoom in">+</button><button type="button" id="zoom-out" aria-label="Zoom out">−</button></div><svg id="map" role="group" tabindex="-1" aria-labelledby="map-title" aria-describedby="map-keys" preserveAspectRatio="xMidYMid meet"></svg><p id="map-keys" hidden>Arrow keys move between districts. Enter picks one, and Enter again opens it.</p><p id="map-loading" class="map-loading">Loading map…</p><p id="map-hint" class="map-hint" hidden>Pinch, or hold Ctrl while scrolling, to zoom</p></div>
+            <div id="map-legend" class="map-legend" hidden></div>
           </div>
-          <details id="map-table" class="card rank-table" open hidden><summary>Every district, highest first</summary><div class="table-scroll" tabindex="0" role="region" aria-labelledby="map-table-caption"><table><caption id="map-table-caption"></caption><thead><tr><th scope="col">District</th><th scope="col">Estimate</th><th scope="col">90% margin of error</th><th scope="col" id="map-table-note">Note</th></tr></thead><tbody id="map-table-body"></tbody></table></div></details>
+          <section id="map-table" class="card rank-table" aria-labelledby="map-table-title" hidden><div class="rank-head"><h2 id="map-table-title">District ranking</h2><div class="rank-order"><label for="map-order">Order</label><select id="map-order"><option value="high" selected>Highest first</option><option value="low">Lowest first</option><option value="number">By district number</option><option value="island">By island</option></select></div></div><div class="rank-loading" id="map-table-loading" aria-hidden="true" hidden></div><div class="table-scroll" tabindex="0" role="region" aria-labelledby="map-table-caption"><table><caption id="map-table-caption"></caption><thead><tr><th scope="col" class="rank-num">Rank</th><th scope="col">District</th><th scope="col">Estimate</th><th scope="col">90% margin of error</th></tr></thead><tbody id="map-table-body"></tbody></table></div><p class="rank-key" id="map-table-key" hidden><span class="unreliable-mark" aria-hidden="true">!</span> Unreliable estimate: its margin of error is large.</p></section>
         </div>
       </section>
 
@@ -91,6 +87,7 @@
         <p class="tab-note">Districts are grouped by how many people meet the program’s income test, from the most to the fewest.</p>
         <p id="out-status" class="status" role="status">Loading the districts…</p>
         <p id="out-live" class="visually-hidden" role="status"></p>
+        <div class="card outreach-result outreach-loading" id="out-loading" aria-hidden="true"><span class="skeleton-bar title w-60"></span><span class="skeleton-bar w-80"></span><span class="skeleton-bar w-60"></span><span class="skeleton-bar w-30"></span><span class="skeleton-bar title w-20"></span><span class="skeleton-bar w-80"></span><span class="skeleton-bar w-80"></span><span class="skeleton-bar w-80"></span></div>
         <section id="out-result" class="card outreach-result" aria-labelledby="out-result-title" hidden>
           <h2 id="out-result-title"></h2>
           <div id="out-summary"></div>
@@ -106,7 +103,16 @@
         <div class="footer-about" id="about">
           <div class="footer-brand"><img src="/favicon.svg" width="40" height="40" alt=""><p class="footer-name"><strong>KLEAR</strong><span>Hawaiʻi district data</span></p></div>
           <p>Made for HAIC 2026. Challenge champion: DBEDT Research and Economic Analysis Division. Not an official State of Hawaiʻi product. For Hawaiʻi data beyond districts, try <a class="ext" href="https://datatrove.ai/">datatrove.ai<span class="visually-hidden"> (external site)</span></a>, a HAIC 2026 sponsor.</p>
-          <p class="footer-team">Team: <a class="ext" href="https://github.com/KantaS12">Kanta Saito<span class="visually-hidden"> on GitHub (external site)</span></a>, <a class="ext" href="https://github.com/andrewhe6">Andrew He<span class="visually-hidden"> on GitHub (external site)</span></a>, <a class="ext" href="https://github.com/rainemendoza">Raine S. Mendoza<span class="visually-hidden"> on GitHub (external site)</span></a>, <a class="ext" href="https://github.com/Lukas-Moroz">Lukas Moroz<span class="visually-hidden"> on GitHub (external site)</span></a>, <a class="ext" href="https://github.com/elijah-saloma">Elijah Saloma<span class="visually-hidden"> on GitHub (external site)</span></a>.</p>
+        </div>
+        <div class="footer-col">
+          <h2 class="footer-title">Team</h2>
+          <ul>
+            <li><a class="ext" href="https://github.com/KantaS12">Kanta Saito<span class="visually-hidden"> on GitHub (external site)</span></a></li>
+            <li><a class="ext" href="https://github.com/Lukas-Moroz">Lukas Moroz<span class="visually-hidden"> on GitHub (external site)</span></a></li>
+            <li><a class="ext" href="https://github.com/elijah-saloma">Elijah Saloma<span class="visually-hidden"> on GitHub (external site)</span></a></li>
+            <li><a class="ext" href="https://github.com/andrewhe6">Andrew He<span class="visually-hidden"> on GitHub (external site)</span></a></li>
+            <li><a class="ext" href="https://github.com/rainemendoza">Raine S. Mendoza<span class="visually-hidden"> on GitHub (external site)</span></a></li>
+          </ul>
         </div>
         <div class="footer-col">
           <h2 class="footer-title">Reports</h2>
