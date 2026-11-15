@@ -251,6 +251,18 @@ def test_basic_industries_compare_with_county_and_state_when_asked(real_con):
     assert all(" County (" in x and "Hawaiʻi (" in x for x in lines[1:]), lines
 
 
+def test_basic_industries_count_every_figure_written_in_the_list(real_con):
+    answer = _basic(real_con, "What industries do residents of this district work in?", ("house", "022"))
+    written = [x for x in answer["lead"][1].split("\n")[1:] if "%" in x]
+    assert len(written) == len(INDUSTRIES)
+    assert answer["verified"]["figures"] == len(INDUSTRIES)
+    assert answer["verified"]["text"].startswith(f"All {len(INDUSTRIES)} figures in this answer")
+    compared = _basic(
+        real_con, "Compare the largest industries in House District 22 with the county and the state."
+    )
+    assert compared["verified"]["figures"] == 3 * len(INDUSTRIES)
+
+
 def test_basic_college_degree_question_gives_education(real_con):
     answer = _basic(real_con, "What share of adults here have a college degree?")
     assert [t["label"] for t in answer["tiles"]] == [
