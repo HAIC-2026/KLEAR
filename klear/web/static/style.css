@@ -49,11 +49,17 @@
   --fs-xs:13px;--fs-sm:14px;--fs-base:16px;--fs-lead:17px;--fs-md:18px;--fs-lg:20px;--fs-xl:24px;--fs-num:32px;
   --fs-h2:clamp(22px,2.2vw,28px);--fs-h1:clamp(30px,3.4vw,40px);--fs-hero:clamp(32px,4.2vw,50px);
 
-  /* Shape: rounded panels and controls, and soft shadows that lift panels off the page. */
-  --r-sm:6px;--r-ctl:10px;--r-card:16px;--r-bubble:0px;--r-pill:999px;--control-h:48px;--letterhead-w:4px;
-  --shadow-sm:0 1px 2px rgb(23 35 38 / .06),0 1px 3px rgb(23 35 38 / .05);
-  --shadow-md:0 4px 14px rgb(23 35 38 / .08),0 1px 3px rgb(23 35 38 / .06);
-  --shadow-lg:0 14px 36px rgb(23 35 38 / .18),0 3px 8px rgb(23 35 38 / .08);
+  /* Shape: flat panels with hairline borders and small corners. Only what floats over the page, the agent's panel,
+     its button and the print dialog, casts a shadow. Switches and the bar's links stay round. */
+  --r-sm:4px;--r-ctl:6px;--r-card:6px;--r-bubble:0px;--r-pill:999px;--control-h:48px;--letterhead-w:0px;
+  --shadow-sm:none;--shadow-md:none;
+  --shadow-lg:0 10px 28px rgb(23 35 38 / .2),0 2px 6px rgb(23 35 38 / .1);
+
+  /* A color for each topic of the profile, on its section's number and rule, muted so the chamber colors still lead.
+     Each is 4.5:1 or more on white. */
+  --topic-people:#2a6496;--topic-income:#2d7148;--topic-programs:#8a5300;--topic-housing:#a4442c;--topic-health:#9b2f6a;--topic-reference:#5c696d;
+  /* The light tint behind At a glance and the agent's title, by chamber. */
+  --house-tint:#eef5f7;--senate-tint:#f3f0f9;
 
   /* Site header: its height, and how much of it stays on screen as the page scrolls. The header rules set --stick. */
   --header-h:64px;--stick:0px;
@@ -95,24 +101,26 @@ h3{font-size:var(--fs-lg);line-height:1.3;margin:0 0 8px}
 /* Links that leave the site get a drawn arrow, so it looks the same on every system. */
 a.ext::after{content:"";display:inline-block;width:.5em;height:.5em;margin-left:.35em;vertical-align:.12em;border-top:.13em solid currentColor;border-right:.13em solid currentColor;background:linear-gradient(to bottom right,transparent 42%,currentColor 42%,currentColor 58%,transparent 58%)}
 
-/* Header: the same on every page (tests/agent/test_web_pages.py checks this): the wordmark, which leads home to Find,
-   and three links: Compare, Rankings, and Data & methods. A white bar with a thin chamber-colored band on top and a
-   soft shadow under it. When the screen is tall enough it stays at the top as the page scrolls: all of it on wide
-   screens, and only its row of links on phones. --stick is how much of it stays, so whatever the page scrolls to stops
-   below it. */
-.site-header{position:relative;z-index:30;height:var(--header-h);padding:0 var(--gutter);display:flex;align-items:center;justify-content:space-between;gap:var(--s-5);background:#fff;border-top:var(--letterhead-w) solid var(--letterhead);box-shadow:0 1px 0 var(--line),0 2px 12px rgb(23 35 38 / .05)}
+/* Header: the same on every page (tests/agent/test_web_pages.py checks this): the wordmark, which leads home, and four
+   tabs: Districts (home, the same as the wordmark), Compare, Rankings, and Data & methods. A solid bar in House teal,
+   or Senate purple on a Senate district's page, with white text; the tab you are on is bold with a thick white bar
+   under it. When the screen is tall enough it stays at the top as the page scrolls: all of it on wide screens, and only
+   its row of tabs on phones. --stick is how much of it stays, so whatever the page scrolls to stops below it. */
+.site-header{position:relative;z-index:30;height:var(--header-h);padding:0 var(--gutter);display:flex;align-items:center;justify-content:space-between;gap:var(--s-5);background:var(--letterhead);color:#fff;border-bottom:1px solid rgb(0 0 0 / .18)}
 body[data-chamber=senate]{--letterhead:var(--senate);--chamber:var(--senate)}
-.brand{display:inline-flex;align-items:center;gap:10px;color:var(--ink);text-decoration:none;white-space:nowrap;border-radius:var(--r-ctl)}
-.brand-logo{display:block;flex:none;width:36px;height:36px}
+.site-header :focus-visible{outline-color:#fff}
+.brand{display:inline-flex;align-items:center;gap:10px;color:#fff;text-decoration:none;white-space:nowrap;border-radius:var(--r-sm)}
+.brand-logo{display:block;flex:none;width:38px;height:38px;padding:3px;border-radius:var(--r-ctl);background:#fff}
 .brand-text{display:inline-flex;align-items:baseline;gap:12px}
 .brand strong{font-family:var(--display);font-stretch:125%;font-size:var(--fs-lg);font-weight:800;letter-spacing:.12em}
-.brand-sub{font-size:var(--fs-sm);color:var(--muted)}
-.site-header nav{font-size:var(--fs-base);font-weight:600}
-.nav-links{display:flex;align-items:center;gap:var(--s-1);margin:0;padding:0;list-style:none}
-/* Block, not flex, so the space before a label's longer part stays. 44 px tall. */
-.nav-links a{display:block;padding:10px 14px;line-height:24px;border-radius:var(--r-pill);color:var(--ink);text-decoration:none;white-space:nowrap}
-/* The page you are on: its link set on the chamber's pale tint. Screen readers hear "current page". */
-.nav-links a[aria-current=page]{background:var(--accent-soft);color:var(--accent-dark)}
+.brand-sub{font-size:var(--fs-sm);color:var(--on-dark-muted)}
+.site-header nav{align-self:stretch;font-size:var(--fs-base);font-weight:600}
+.nav-links{display:flex;align-items:stretch;height:100%;gap:var(--s-1);margin:0;padding:0;list-style:none}
+/* Block, not flex, so the space before a label's longer part stays. As tall as the bar, so the current tab's white
+   bar sits on its bottom edge. */
+.nav-links a{display:block;height:100%;padding:20px 14px;line-height:24px;color:var(--on-dark);text-decoration:none;white-space:nowrap}
+/* The page you are on: bold and white, with a thick white bar under it. Screen readers hear "current page". */
+.nav-links a[aria-current=page]{color:#fff;font-weight:800;box-shadow:inset 0 -4px 0 #fff}
 footer a[aria-current=page]{font-weight:700;text-decoration-thickness:3px}
 .crumb{margin:0 0 var(--s-3);font-size:var(--fs-sm);color:var(--muted)}
 .crumb a{color:var(--muted)}
@@ -122,21 +130,20 @@ footer a[aria-current=page]{font-weight:700;text-decoration-thickness:3px}
   .site-header{position:sticky;top:0}
 }
 @media(max-width:1023px){.brand-sub{display:none}}
-/* Phones: the logo on one row, and the links spread across the next in one row. Only the links stay as the page
+/* Phones: the logo on one row, and the tabs spread across the next in one row. Only the tabs stay as the page
    scrolls. */
 @media(max-width:760px){
   .site-header{height:auto;flex-wrap:wrap;gap:0}
   .brand{height:52px}
-  .site-header nav{flex:1 0 100%;border-top:1px solid var(--line)}
+  .site-header nav{flex:1 0 100%;border-top:1px solid rgb(255 255 255 / .2)}
   /* One row; with much wider text spacing, a second row rather than a page that scrolls sideways. */
-  .nav-links{flex-wrap:wrap;justify-content:space-around;gap:0 var(--s-2)}
-  .nav-links a{padding:10px 12px;border-radius:0}
-  .nav-links a[aria-current=page]{background:none;box-shadow:inset 0 -3px var(--accent)}
+  .nav-links{flex-wrap:wrap;justify-content:space-around;gap:0 var(--s-1)}
+  .nav-links a{padding:10px 10px}
 }
-@media(max-width:760px) and (min-height:560px){:root{--stick:46px}.site-header{top:calc(-52px - var(--letterhead-w))}}
+@media(max-width:760px) and (min-height:560px){:root{--stick:46px}.site-header{top:-52px}}
 /* Shorter labels where the full ones do not fit: Data. */
 @media(max-width:560px){.nav-long{display:none}}
-@media(max-width:359px){.site-header nav{font-size:var(--fs-sm)}.nav-links{gap:0}}
+@media(max-width:359px){.site-header nav{font-size:var(--fs-sm)}.nav-links a{padding-left:6px;padding-right:6px}}
 @media print{.site-header{position:static}}
 
 /* index.html is three views, and page.js marks which one the address shows before the page paints: Find (home), a
@@ -174,6 +181,14 @@ html[data-page=home] .stage-bar{justify-content:center}
 .find-title:focus{outline:none}.find-title:focus-visible{outline:3px solid var(--accent);outline-offset:3px}
 .find .status:empty{margin:0;min-height:0}
 #find-matches:not(:empty){margin-top:var(--s-3);padding-top:var(--s-3);border-top:1px solid var(--line)}
+/* The / key's hint at the end of the search box, for mouse and keyboard users, until the box is in use. */
+.key-hint{position:absolute;top:50%;right:12px;transform:translateY(-50%);min-width:24px;padding:1px 7px;border:1px solid var(--control);border-radius:var(--r-sm);background:var(--subtle);color:var(--muted);font:600 var(--fs-sm)/1.4 var(--sans);text-align:center;pointer-events:none}
+.combo:focus-within .key-hint,#find-place:not(:placeholder-shown)~.key-hint{display:none}
+@media(pointer:fine){#find-place{padding-right:44px}}
+@media(pointer:coarse){.key-hint{display:none}}
+/* Under the Find map, the way to the map colored by a measure. */
+.map-more{margin:var(--s-2) var(--s-3) var(--s-3);font-size:var(--fs-sm);font-weight:600}
+html:not([data-page=home]) .map-more{display:none}
 
 /* The House or Senate switch: two buttons in one pill, the chosen one filled in its chamber's color. */
 .chamber-switch{display:inline-flex;padding:4px;gap:4px;background:#fff;border:1px solid var(--line);border-radius:var(--r-pill);box-shadow:var(--shadow-sm)}
@@ -187,8 +202,8 @@ html[data-page=home] .stage-bar{justify-content:center}
    its page. */
 .seat-index{margin-top:var(--s-5)}
 [data-seats=house] .seat-chamber.senate,[data-seats=senate] .seat-chamber.house{display:none}
-.seat-title{margin:0 0 var(--s-3);font-size:var(--fs-xs);font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
-.seat-chamber-title{margin:0 0 var(--s-2);font-family:var(--display);font-stretch:110%;font-size:var(--fs-xs);font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--house)}
+.seat-title{margin:0 0 var(--s-3);font-size:var(--fs-base);font-weight:700;color:var(--ink)}
+.seat-chamber-title{margin:0 0 var(--s-2);font-family:var(--display);font-size:var(--fs-sm);font-weight:700;color:var(--house)}
 .seat-chamber.senate .seat-chamber-title{color:var(--senate)}
 .seat-row{display:grid;grid-template-columns:6.75rem minmax(0,1fr);gap:4px var(--s-3);align-items:start}
 .seat-row+.seat-row{margin-top:8px}
@@ -208,7 +223,7 @@ html[data-page=home] .stage-bar{justify-content:center}
 .ask-teaser .note{max-width:var(--measure);margin:var(--s-4) 0 0;font-size:var(--fs-xs);color:var(--muted)}
 .topic-starters{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--s-4) var(--s-5);margin-top:var(--s-5)}
 .topic{min-width:0}
-.topic-title{margin:0 0 4px;padding-bottom:4px;border-bottom:1px solid var(--line);font-size:var(--fs-xs);font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.topic-title{margin:0 0 4px;padding-bottom:4px;border-bottom:1px solid var(--line);font-size:var(--fs-sm);font-weight:700;color:var(--ink)}
 .topic ul{margin:0;padding:0;list-style:none}
 .topic .starter{display:block;width:100%;padding:6px 0;border:0;background:none;color:var(--accent-dark);font-size:var(--fs-sm);font-weight:600;line-height:1.4;text-align:left;text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:3px;text-wrap:pretty}
 .topic li+li .starter{border-top:1px solid var(--line)}
@@ -316,7 +331,7 @@ article .answer-head h3{margin:0}
 .mode-badge{margin:0;padding:1px 8px;border:1px solid var(--line);border-radius:var(--r-pill);background:#fff;color:var(--muted);font-size:var(--fs-xs);font-weight:600;line-height:1.5;white-space:nowrap}
 /* Next questions under the newest answer, each written out in full. */
 .followups{display:grid;gap:0;margin-top:20px;white-space:normal}
-.followups-title{margin:0 0 4px;font-size:var(--fs-xs);font-weight:700;letter-spacing:.08em;text-transform:uppercase;line-height:1.4;color:var(--muted)}
+.followups-title{margin:0 0 4px;font-size:var(--fs-sm);font-weight:700;line-height:1.4;color:var(--ink)}
 .switch-offer{margin:16px 0 0}
 .followup{padding:8px 0;border:0;border-top:1px solid var(--line);border-radius:0;background:none;color:var(--accent-dark);font-size:var(--fs-sm);font-weight:600;line-height:1.4;text-align:left;text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:3px;text-wrap:pretty}
 .switch-offer .followup{padding:8px 14px;border:1px solid var(--accent);text-decoration:none}
@@ -379,7 +394,7 @@ summary{font-weight:600;color:var(--accent);cursor:pointer}
 /* The masthead: the chamber in spaced capitals over the district's number, large and condensed in the chamber color. */
 .district-head h1,.cmp-name{margin:0 0 var(--s-2);line-height:1;letter-spacing:0}
 .district-head h1:focus{outline:none}.district-head h1:focus-visible{outline:3px solid var(--accent);outline-offset:3px}
-.mast-chamber{display:block;font-family:var(--display);font-stretch:112%;font-size:var(--fs-xs);font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--chamber)}
+.mast-chamber{display:block;font-size:var(--fs-base);font-weight:700;color:var(--chamber)}
 .mast-number{display:block;margin:2px 0 -.06em -.04em;font-family:var(--display);font-stretch:68%;font-size:clamp(64px,6vw,96px);font-weight:800;line-height:.86;letter-spacing:-.02em;color:var(--chamber);font-variant-numeric:lining-nums}
 .district-facts{min-width:0}
 .district-where{margin:0;font-size:var(--fs-base);font-weight:600;line-height:1.45}
@@ -436,7 +451,7 @@ details.profile-member-about{margin:0;padding:0;border:0;font-size:var(--fs-xs);
 .profile-back a{display:inline-block;padding:4px 0;font-size:var(--fs-sm);font-weight:600}
 /* The row that closes the profile: where to read about the data, and the way to another district. */
 .profile-end{display:flex;flex-wrap:wrap;align-items:baseline;gap:0 18px;margin:var(--block-gap) 0 0;padding-top:8px;border-top:2px solid var(--ink)}
-.profile-end-title{margin:0;font-size:var(--fs-xs);font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.profile-end-title{margin:0;font-size:var(--fs-sm);font-weight:700;color:var(--ink)}
 .profile-end ul{display:flex;flex:1 1 24rem;flex-wrap:wrap;gap:0 18px;margin:0;padding:0;list-style:none}
 .profile-end a{display:inline-block;padding:10px 0;font-size:var(--fs-sm);font-weight:600}
 /* Each numbered section opens and shuts under its own ink rule, with a plus that turns to a minus when open. */
@@ -576,7 +591,7 @@ article .answer-programs summary+.program-grid{margin-top:10px}
 /* Suggested questions, written out in full: a list under the agent's introduction, and after an answer, under it. */
 #messages{display:flex;flex-direction:column}
 .suggest{padding:4px 0}
-.suggest-title{margin:var(--s-3) 0 2px;font-size:var(--fs-xs);font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.suggest-title{margin:var(--s-3) 0 2px;font-size:var(--fs-sm);font-weight:700;color:var(--ink)}
 /* After the first answer: the first question, with More questions for the rest (the page hides the others). */
 .suggest.folded{display:block}
 .more-questions{display:inline-flex;align-items:center;margin-top:4px;padding:6px 0;border:0;background:none;color:var(--accent-dark);font-size:var(--fs-sm);font-weight:600;line-height:1.4;white-space:nowrap}
@@ -592,6 +607,8 @@ article .answer-programs summary+.program-grid{margin-top:10px}
 html.chat-open .chat-dock{display:block}
 html.chat-open .chat-dock #messages{flex:1 1 0px;min-height:80px;overflow-y:auto;scroll-padding-block:12px}
 html.chat-open .chat-min{display:grid}
+/* The panel floats over the page, so it alone among the panels casts a shadow. */
+html.chat-open .chat-card{box-shadow:var(--shadow-lg)}
 .chat-fab{position:fixed;z-index:45;right:max(var(--s-4),env(safe-area-inset-right));bottom:max(var(--s-4),env(safe-area-inset-bottom));display:inline-flex;align-items:center;gap:10px;min-height:56px;padding:0 22px 0 18px;border:0;border-radius:var(--r-pill);background:var(--accent);color:#fff;font-size:var(--fs-base);font-weight:700;box-shadow:var(--shadow-lg)}
 body[data-chamber=senate] .chat-fab{background:var(--senate)}
 .chat-fab .icon{width:22px;height:22px}
@@ -642,6 +659,21 @@ body[data-chamber=senate] .chat-fab{background:var(--senate)}
 .profile-end{margin:var(--s-4) 0 0;padding:var(--s-2) var(--card-pad)}
 .cmp-section{padding:0 var(--card-pad) var(--s-2);background:#fff;border:1px solid var(--line);border-radius:var(--r-card);box-shadow:var(--shadow-sm);overflow:hidden}
 .profile-stats>div{border-left-color:var(--line)}
+/* Each topic's color: on its section's number, on the rule across the top of its panel, and on its number in the
+   links at the top of the profile, the comparison and the print dialog. At a glance takes the chamber's color. */
+[data-key=people],[data-key=cmp-people],[data-topic=people]{--topic:var(--topic-people)}
+[data-key=income-work],[data-key=cmp-income-work],[data-topic=income-work]{--topic:var(--topic-income)}
+[data-key=programs],[data-key=cmp-programs],[data-topic=programs]{--topic:var(--topic-programs)}
+[data-key=housing],[data-key=cmp-housing],[data-topic=housing]{--topic:var(--topic-housing)}
+[data-key=health],[data-key=cmp-health],[data-topic=health]{--topic:var(--topic-health)}
+[data-key=reference],[data-key=cmp-reference],[data-topic=reference]{--topic:var(--topic-reference)}
+.sec-num,.print-num{color:var(--topic,var(--chamber))}
+.profile .profile-section,.cmp-section{border-top:4px solid var(--topic,var(--chamber))}
+/* At a glance and the agent's title sit on a light tint of the chamber's color, so the eye finds them first. */
+:root{--key-tint:var(--house-tint)}
+body[data-chamber=senate],.chat-dock[data-chamber=senate]{--key-tint:var(--senate-tint)}
+.profile-glance{background:var(--key-tint);border-top:4px solid var(--chamber)}
+.chat-head{background:var(--key-tint)}
 
 /* The map's card: the island frames on white, the zoom buttons in the frame's top right corner, and the island tabs
    over it on Find. On a district's page the card is the map alone, zoomed to the district. */
@@ -672,7 +704,7 @@ html.moving .stage-map{view-transition-name:district-map}
 .print-intro{margin:0;font-size:var(--fs-sm);color:var(--muted)}
 .print-dialog fieldset{margin:0;padding:0;border:0;min-width:0}
 .print-dialog fieldset:disabled{opacity:.5}
-.print-dialog legend{padding:0;margin-bottom:var(--s-2);font-size:var(--fs-xs);font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.print-dialog legend{padding:0;margin-bottom:var(--s-2);font-size:var(--fs-sm);font-weight:700;color:var(--ink)}
 .print-quick{display:flex;gap:var(--s-4);margin:-6px 0 var(--s-1)}
 .print-quick .textbutton{padding:4px 0;font-size:var(--fs-sm)}
 .print-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--s-1) var(--s-4)}
@@ -790,11 +822,14 @@ article .elsewhere{font-size:var(--fs-sm)}
 .map-frame.atlas{border:0;background:var(--bg)}
 #map .frame{fill:var(--map-sea);stroke:var(--line);stroke-width:1px;vector-effect:non-scaling-stroke}
 #map .frame-captions{pointer-events:none}
-#map .frame-caption{font-family:var(--sans);font-size:var(--label);font-weight:700;letter-spacing:.06em;text-transform:uppercase;fill:var(--ink)}
+#map .frame-caption{font-family:var(--sans);font-size:var(--label);font-weight:700;fill:var(--ink)}
 #map.narrow .frame-caption.long,#map:not(.narrow) .frame-caption.short{display:none}
 #map .callout{fill:none;stroke:var(--ink);stroke-width:1px;stroke-dasharray:4 3;vector-effect:non-scaling-stroke}
 .map-hint{position:absolute;left:12px;right:12px;bottom:12px;width:fit-content;margin:0 auto;padding:8px 14px;background:var(--ink);color:#fff;font-size:var(--fs-xs);font-weight:600;border-radius:var(--r-ctl);text-align:center;text-wrap:balance;pointer-events:none}
 .map-loading{position:absolute;inset:0;display:grid;place-items:center;margin:0;color:var(--muted);font-size:var(--fs-sm)}
+.map-tip{position:absolute;z-index:3;top:0;left:0;display:grid;gap:1px;max-width:16rem;padding:6px 10px;border:1px solid var(--ink);border-radius:var(--r-sm);background:#fff;color:var(--ink);font-size:var(--fs-sm);line-height:1.35;pointer-events:none;white-space:nowrap}
+.map-tip span{font-size:var(--fs-xs);color:var(--muted)}
+@media(max-width:640px){.key-hint{display:none}}
 .map-footer{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:var(--s-4);border-top:1px solid var(--line);margin-top:var(--s-4);padding-top:var(--s-4)}
 .map-pick-actions{display:flex;flex-wrap:wrap;align-items:center;gap:var(--s-2)}
 .map-pick-actions select{width:auto;max-width:18rem}
@@ -900,7 +935,7 @@ details.fold[open]>summary{margin-bottom:var(--s-2)}
 .cmp-result{margin-top:var(--s-5)}
 .cmp-empty,.cmp-note{max-width:var(--measure);margin:0 0 var(--s-3);font-size:var(--fs-sm);color:var(--muted)}
 /* The two names over their columns, held under the header while the rows scroll. */
-.cmp-sticky{position:sticky;z-index:5;top:var(--stick);display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--s-5);margin:0 0 var(--s-3);padding:var(--s-2) var(--s-4);background:rgb(255 255 255 / .94);border:1px solid var(--line);border-radius:var(--r-ctl);box-shadow:var(--shadow-sm);font-weight:700;backdrop-filter:blur(6px)}
+.cmp-sticky{position:sticky;z-index:5;top:var(--stick);display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--s-5);margin:0 0 var(--s-3);padding:var(--s-2) var(--s-4);background:#fff;border:1px solid var(--line);border-radius:var(--r-ctl);font-weight:700}
 .cmp-sticky-name.house{color:var(--house-dark)}.cmp-sticky-name.senate{color:var(--senate-dark)}
 .cmp-sticky:has(.cmp-sticky-name:only-child){grid-template-columns:minmax(0,1fr)}
 .cmp-section{margin:0 0 var(--s-3)}
@@ -985,7 +1020,7 @@ footer a{color:var(--accent-dark)}
 .footer-name{display:grid;margin:0;line-height:1.25}
 .footer-name strong{font-family:var(--display);font-stretch:125%;font-size:var(--fs-lg);font-weight:800;letter-spacing:.12em;color:var(--ink)}
 .footer-name span{font-size:var(--fs-sm);color:var(--muted)}
-.footer-title{margin:0 0 var(--s-3);font-size:var(--fs-xs);font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ink)}
+.footer-title{margin:0 0 var(--s-3);font-size:var(--fs-sm);font-weight:700;color:var(--ink)}
 .footer-col ul{display:grid;gap:10px;margin:0;padding:0;list-style:none}
 .footer-col p{margin:0}
 
@@ -1054,7 +1089,8 @@ footer a{color:var(--accent-dark)}
 }
 
 @media(hover:hover){
-.nav-links a:not([aria-current]):hover,.textbutton:not(:disabled):hover{text-decoration:underline;text-decoration-thickness:2px}
+.textbutton:not(:disabled):hover{text-decoration:underline;text-decoration-thickness:2px}
+.nav-links a:not([aria-current]):hover{color:#fff;box-shadow:inset 0 -4px 0 rgb(255 255 255 / .45)}
 .inputrow button:not(:disabled):hover,.question-row button:not(:disabled,[aria-disabled=true]):hover,.button:not(:disabled):hover{background:var(--accent-dark);border-color:var(--accent-dark)}
 .page-tabs [role=tab][aria-selected=false]:hover{color:var(--ink);border-bottom-color:var(--line)}.cmp-remove:hover{background:#fff}.data-nav a:not([aria-current]):hover{background:var(--subtle)}
 .match.house:hover{background:var(--house-soft-hover)}.match.senate:hover{background:var(--senate-soft-hover)}
@@ -1062,7 +1098,7 @@ footer a{color:var(--accent-dark)}
 .island-tabs button[aria-pressed=false]:hover,.zoom-buttons button:hover,.seat-nums a:hover{background:var(--accent-soft)}
 .seat-chamber.senate .seat-nums a:hover{background:var(--senate-soft)}
 .switch-offer .followup:not([aria-disabled=true]):hover,.pending .cancel:hover{background:var(--accent-soft)}.retry:not([aria-disabled=true]):hover{background:var(--error-bg)}
-.share-bar .action:hover,.bar-link:hover{background:var(--accent-soft)}.chamber-switch button[aria-pressed=false]:hover{background:var(--surface)}.chat-min:hover{background:var(--surface)}.chat-fab:hover{filter:brightness(.92)}.nav-links a:not([aria-current]):hover{background:var(--surface)}
+.share-bar .action:hover,.bar-link:hover{background:var(--accent-soft)}.chamber-switch button[aria-pressed=false]:hover{background:var(--surface)}.chat-min:hover{background:var(--surface)}.chat-fab:hover{filter:brightness(.92)}
 .segmented [data-chamber=house][aria-pressed=false]:hover{background:var(--house-soft)}.segmented [data-chamber=senate][aria-pressed=false]:hover{background:var(--senate-soft)}
 }
 /* Touch screens: larger targets for controls and for links that stand alone in lists. */
@@ -1094,11 +1130,11 @@ footer a{color:var(--accent-dark)}
 .print-sheet{font-family:var(--sans);font-size:var(--pt-base);line-height:1.35;color:var(--ink);-webkit-print-color-adjust:exact;print-color-adjust:exact}
 .print-sheet p{margin:0}
 .print-sheet h1{margin:1pt 0 0;font-size:var(--pt-title);line-height:1.1}
-.print-sheet h2{margin:0 0 3pt;padding-bottom:2pt;border-bottom:1pt solid var(--ink);font-size:var(--pt-sm);letter-spacing:.06em;text-transform:uppercase}
+.print-sheet h2{margin:0 0 3pt;padding-bottom:2pt;border-bottom:1pt solid var(--ink);font-size:var(--pt-sm)}
 
 /* Heading: the district on the left; where to find it online, and how current it is, on the right */
 .sheet-head{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6pt 18pt;align-items:end;padding-bottom:6pt;border-bottom:2.5pt solid var(--rule)}
-.sheet-kicker{font-size:var(--pt-xs);font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.sheet-kicker{font-size:var(--pt-xs);font-weight:700;color:var(--muted)}
 .sheet-where{margin-top:2pt;font-size:var(--pt-md)}
 .sheet-member{margin-top:2pt;font-size:var(--pt-sm)}
 .sheet-member b{font-weight:600}
@@ -1125,7 +1161,7 @@ footer a{color:var(--accent-dark)}
 .print-sheet .sheet-figures .moe{width:1%;padding-right:7pt;font-size:var(--pt-xs);color:var(--muted)}
 .print-sheet .sheet-figures .src{width:1%;padding-left:4pt;font-size:var(--pt-xs);color:var(--muted);text-align:center}
 .print-sheet .sheet-figures .sheet-none{padding:2pt 10pt;font-size:var(--pt-xs);color:var(--muted);text-align:center}
-.print-sheet .sheet-figures .sheet-group{padding:5pt 0 1pt;font-size:var(--pt-xs);line-height:1.2;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--rule)}
+.print-sheet .sheet-figures .sheet-group{padding:5pt 0 1pt;font-size:var(--pt-xs);line-height:1.2;font-weight:700;color:var(--rule)}
 .sheet-note{margin-top:3pt;font-size:var(--pt-xs);color:var(--muted)}
 
 /* Programs and sources: one entry each, its address on a line of its own */
@@ -1247,7 +1283,7 @@ details.tier[open] summary{margin-bottom:6px}
 .profile-outreach li{display:flex;flex-wrap:wrap;align-items:baseline;column-gap:var(--s-3)}
 .profile-outreach-none{margin:var(--s-3) 0 0;padding-top:var(--s-3);border-top:1px solid var(--line);font-size:var(--fs-sm);line-height:1.5;color:var(--muted)}
 .profile-outreach-none a{font-weight:600}
-.profile-outreach h2{margin:0;font-size:var(--fs-xs);font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ink)}
+.profile-outreach h2{margin:0;font-size:var(--fs-sm);font-weight:700;color:var(--ink)}
 .profile-outreach ul{margin:0;padding:0;list-style:none}
 .profile-outreach li+li{margin-top:10px}
 .profile-outreach p{margin:0}
@@ -1262,7 +1298,7 @@ details.tier[open] summary{margin-bottom:6px}
 .build-status.pass .status-mark{background:var(--house)}
 .build-status.fail{color:var(--error-ink)}.build-status.fail .status-mark{background:var(--error-ink)}
 .build-facts{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--s-4) var(--s-5);margin:var(--s-5) 0 0;padding-top:var(--s-4);border-top:1px solid var(--line)}
-.build-facts dt{font-size:var(--fs-xs);font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.build-facts dt{font-size:var(--fs-sm);font-weight:600;color:var(--muted)}
 .build-facts dd{margin:var(--s-1) 0 0;font-size:var(--fs-base);font-variant-numeric:tabular-nums}
 .result{display:inline-block;padding:2px 10px;border:1px solid var(--line);border-radius:var(--r-pill);background:var(--surface);color:var(--muted);font-size:var(--fs-sm);font-weight:600;line-height:1.5;white-space:nowrap}
 .result.pass{background:var(--house-soft);border-color:var(--house);color:var(--house-dark)}

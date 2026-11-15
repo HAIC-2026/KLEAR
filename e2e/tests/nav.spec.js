@@ -1,6 +1,6 @@
-// The site header on every page: the wordmark, which leads home to Find, and three links (Compare, Rankings, and the
-// data and methods), each opening a page of its own, the page you are on marked, and a header that stays on screen as
-// the page scrolls without covering what has focus or what a link scrolls to.
+// The site header on every page: the wordmark and four tabs (Districts, which leads home to Find as the wordmark does,
+// Compare, Rankings, and the data and methods), each opening a page of its own, the page you are on marked, and a
+// header that stays on screen as the page scrolls without covering what has focus or what a link scrolls to.
 import {test, expect} from '@playwright/test';
 import {offline} from './helpers.js';
 
@@ -9,9 +9,9 @@ test.beforeEach(async ({context}) => offline(context));
 test.use({reducedMotion: 'reduce'});
 
 const PAGES = ['/', '/district/house-22', '/compare', '/rankings', '/data', '/accessibility.html'];
-const LINKS = ['Compare', 'Rankings', 'Data & methods'];
-// The page each address is, as its header names it; Find, a district's page and the statement are not in it.
-const CURRENT = {'/compare': 'Compare', '/rankings': 'Rankings', '/data': 'Data & methods'};
+const LINKS = ['Districts', 'Compare', 'Rankings', 'Data & methods'];
+// The tab each address belongs to; the statement is in none.
+const CURRENT = {'/': 'Districts', '/district/house-22': 'Districts', '/compare': 'Compare', '/rankings': 'Rankings', '/data': 'Data & methods'};
 
 const nav = page => page.getByRole('navigation', {name: 'Main navigation'});
 
@@ -23,7 +23,7 @@ async function toBottom(page) {
   await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
 }
 
-test('every page has the same three links and marks the page you are on', async ({page}) => {
+test('every page has the same four tabs and marks the one you are on', async ({page}) => {
   for (const address of PAGES) {
     await page.goto(address);
     const names = await nav(page).locator('a').evaluateAll(all => all.map(a => a.textContent.trim()));
@@ -35,10 +35,10 @@ test('every page has the same three links and marks the page you are on', async 
       continue;
     }
     await expect(current).toHaveText(CURRENT[address]);
-    // Sighted readers see it too: the link sits on a tint, or is underlined on a phone.
+    // Sighted readers see it too: the tab is bold, with a thick white bar under it.
     expect(await current.evaluate(el => {
       const s = getComputedStyle(el);
-      return s.backgroundColor !== 'rgba(0, 0, 0, 0)' || s.boxShadow !== 'none';
+      return Number(s.fontWeight) >= 700 && s.boxShadow.includes('-4px');
     }), address).toBe(true);
   }
 });
@@ -54,12 +54,16 @@ test('from the bottom of any page, the header is on screen and every part is one
   }
 });
 
-test('the wordmark leads home to Find, and an old glossary link lands below the header', async ({page}) => {
+test('the wordmark and the Districts tab lead home to Find, and an old glossary link lands below the header', async ({page}) => {
   await page.goto('/data');
   await toBottom(page);
   await page.locator('.site-header .brand').click();
   await expect(page).toHaveURL(/:\d+\/$/);
   await expect(page.getByRole('heading', {level: 1})).toHaveText('Find your district');
+  await page.goto('/rankings');
+  await nav(page).getByRole('link', {name: 'Districts'}).click();
+  await expect(page).toHaveURL(/:\d+\/$/);
+  await expect(nav(page).locator('[aria-current=page]')).toHaveText('Districts');
   // An old link to a glossary term lands on that term in the data page, below the header.
   await page.goto('/glossary.html#cv');
   await expect(page).toHaveURL(/\/data\?section=glossary#cv$/);

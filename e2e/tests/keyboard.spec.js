@@ -164,11 +164,15 @@ test('a district under the mouse is outlined above its neighbors, and the outlin
   const before = await fill();
   await district.hover();
   await expect(page.locator('#map .hover-line')).toHaveAttribute('d', await district.getAttribute('d'));
+  // A label beside the pointer names the district and says a click opens it.
+  await expect(page.locator('.map-tip')).toBeVisible();
+  await expect(page.locator('.map-tip')).toHaveText(/^House District 22\s*Oʻahu · click to open$/);
   await expect.poll(fill).not.toBe(before);
   // The hover outline is not the keyboard focus ring.
   await expect(page.locator('#map .ring-line')).toHaveAttribute('d', '');
   await page.mouse.move(1, 1);
   await expect(page.locator('#map .hover-line')).toHaveAttribute('d', '');
+  await expect(page.locator('.map-tip')).toBeHidden();
   await expect.poll(fill).toBe(before);
 });
 

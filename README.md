@@ -417,19 +417,23 @@ copy answer_cache.json along with klear.duckdb.
 
 ### Pages
 
-The header has the KLEAR wordmark, which leads home to Find, and three links: Compare, Rankings, and
-Data & methods.
+The header is a solid bar in House teal (Senate purple on a Senate district's page) with the KLEAR
+wordmark and four tabs: Districts (home, the same as the wordmark), Compare, Rankings, and Data &
+methods. The tab you are on is bold with a thick white bar under it; Districts is current on Find and
+on every district's page.
 
 - `/`, Find: a band with the page's title over a faint drawing of the islands, and a button down to
   the search and the map. A House or Senate switch over them picks the chamber for the map and the
   numbers. One search takes a town, ZIP code, street address, district or legislator's name; its
   matches are listed with each district's share of the place's residents and light up on the map
   beside it. Every district of the chosen chamber is listed by number, by island, and pointing at a
-  number outlines it on the map. The map draws each island group in its own frame at its own scale,
+  number outlines it on the map, and pointing at the map labels the district under the pointer. The /
+  key jumps to the search from anywhere on the page. The map draws each island group in its own frame at its own scale,
   with urban Honolulu enlarged and district numbers printed on it. A click on a district, a number or
   a match zooms the map to the district, then the page turns into the district's page, the map
   moving to its top left corner. A question box with starters by topic asks in the agent's panel,
-  and the store's counts close the page. On a phone the search comes before the map.
+  and the store's counts close the page. On a phone the search comes before the map. A link under the
+  map leads to Rankings, where the map is colored by a measure.
 - `/district/house-49` and the like: the way back to the search ("Search another district", which
   returns to the map zoomed back out) and on to Compare ("Compare another district"), with print,
   link and download actions; the map zoomed to the district beside its number, set large in its
@@ -462,10 +466,13 @@ At a glance, and Programs and help.
 
 Old page addresses (/sources.html, /methods.html, /glossary.html, /checks.html, /outreach.html,
 /compare.html, and the compare page's old Rankings and Outreach tabs) redirect to their section or
-tab, keeping any #part of the link. The look is a light gray page with white panels, rounded corners
-and soft shadows, numbered sections, and a band across the top of each page in the chamber's color on
-a district's page (House teal, Senate purple). Spacing, corners, shadows, buttons and headings come
-from one set of tokens in style.css, so every page shares them. Moving from Find to a district's page
+tab, keeping any #part of the link. The look is a light gray page with flat white panels, hairline
+borders and small corners, sentence-case headings, numbered sections with a muted color for each topic
+(People, Income and work, Programs and help, Housing, Health, Reference), and a light chamber tint
+behind At a glance and the agent's title. Only what floats over the page, the agent's panel, its
+button and the print dialog, casts a shadow. Spacing, corners, colors, buttons and headings come from
+one set of tokens in style.css, so every page shares them. Each answer has a Copy answer button that
+copies its question, text, figures and sources as plain text. Moving from Find to a district's page
 uses the browser's view transitions where it has them, and nothing moves when the device asks for
 reduced motion. The site loads no third-party images, fonts, scripts, or analytics.
 

@@ -94,6 +94,11 @@ TEXT = [
     ("on-dark", "ink"), ("on-dark-muted", "ink"), ("on-dark", "band-bg"),
     ("white", "ink"),
     ("ink", "house-hover"), ("ink", "senate-hover"),  # district numbers on a district under the mouse
+    ("on-dark", "house"), ("on-dark", "senate"), ("on-dark-muted", "house"), ("on-dark-muted", "senate"),  # the header bar
+    ("ink", "house-tint"), ("ink", "senate-tint"), ("muted", "house-tint"), ("muted", "senate-tint"),  # tinted panels
+    ("house", "house-tint"), ("senate", "senate-tint"),
+    ("topic-people", "white"), ("topic-income", "white"), ("topic-programs", "white"),  # each topic's number
+    ("topic-housing", "white"), ("topic-health", "white"), ("topic-reference", "white"),
 ]  # fmt: skip
 
 # Shapes and boundaries people need to see: 3:1 (WCAG 1.4.11).

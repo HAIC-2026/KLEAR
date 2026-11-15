@@ -19,9 +19,10 @@ PAGES = {
     "data.html": "/data",
     "accessibility.html": "/accessibility.html",
 }
-# The header's links after the wordmark, which leads home to Find: compare two districts, rank every district, then
-# the data. Each opens a page of its own; Compare is a view of the home page's file.
+# The header's tabs after the wordmark: Districts, which leads home to Find as the wordmark does, Compare, Rankings,
+# then the data. Each opens a page of its own; Compare is a view of the home page's file.
 HEADER_LINKS = [
+    ("/", "Districts"),
     ("/compare", "Compare"),
     ("/rankings", "Rankings"),
     ("/data", "Data & methods"),

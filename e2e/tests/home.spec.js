@@ -19,8 +19,24 @@ test('the Find page opens with its band, the switch, the map and the search, and
   await expect(page.getByLabel('Your question')).toBeHidden();
   await expect(page.locator('#chat-fab')).toBeVisible();
   await expect(page.locator('#cmp-a-place')).toHaveCount(0);
-  // The header marks no page as the one you are on: the wordmark leads here.
-  await expect(page.getByRole('navigation', {name: 'Main navigation'}).locator('[aria-current=page]')).toHaveCount(0);
+  // The header marks Districts as the tab you are on, and the map links to the map colored by a measure.
+  await expect(page.getByRole('navigation', {name: 'Main navigation'}).locator('[aria-current=page]')).toHaveText('Districts');
+  await expect(page.getByRole('link', {name: /colored by poverty, income, rent and more/})).toHaveAttribute('href', '/rankings');
+});
+
+test('the / key jumps to the search from anywhere on the Find page, but not while typing', async ({page, isMobile}) => {
+  test.skip(isMobile, 'a keyboard shortcut');
+  await page.goto('/');
+  await expect(page.locator('#find-place')).toHaveAttribute('aria-keyshortcuts', '/');
+  await expect(page.locator('.key-hint')).toBeVisible();
+  await page.locator('#home-question').focus();
+  await page.keyboard.type('a/b');
+  await expect(page.locator('#home-question')).toHaveValue('a/b');
+  await page.locator('#home-question').blur();
+  await page.keyboard.press('/');
+  await expect(page.locator('#find-place')).toBeFocused();
+  await expect(page.locator('#find-place')).toHaveValue('');
+  await expect(page.locator('.key-hint')).toBeHidden();
 });
 
 test('the button in the band moves down to the search and the map', async ({page}) => {

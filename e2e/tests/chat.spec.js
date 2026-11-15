@@ -330,6 +330,24 @@ test('an answer with no data points to datatrove.ai, and an answer with figures 
   await expect(found.getByRole('link', {name: /datatrove/})).toHaveCount(0);
 });
 
+test('Copy answer copies the question, the answer, its figures and its sources as text', async ({page, context, browserName}) => {
+  test.skip(browserName !== 'chromium', 'Reading the clipboard back needs Chromium permissions');
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  await page.goto('/');
+  await chooseDistrict(page);
+  const answer = await ask(page);
+  await answer.getByRole('button', {name: `Copy answer for ${DISTRICT}`}).click();
+  await expect(answer.locator('.copy-status')).toHaveText('Copied.');
+  await expect(page.locator('#chat-live')).toHaveText('Answer copied.');
+  const text = await page.evaluate(() => navigator.clipboard.readText());
+  expect(text).toContain('Question: How does poverty here compare with the county and state?');
+  expect(text).toContain(`KLEAR's answer for ${DISTRICT}:`);
+  // The clipboard may write line ends as CRLF, as Windows does.
+  expect(text).toMatch(/Figures:\r?\n- .+: .+/);
+  expect(text).toMatch(/Sources:\r?\n- American Community Survey 5-year, 2020-2024 https:\/\/example\.org/);
+  expect(text).toContain('not an official State of Hawaiʻi product');
+});
+
 test('every page’s footer names datatrove.ai as a site that leaves KLEAR', async ({page}) => {
   for (const address of ['/', '/ask', '/compare', '/data']) {
     await page.goto(address);

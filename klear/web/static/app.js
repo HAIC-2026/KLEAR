@@ -146,11 +146,13 @@ function routeGeo() {
   return m && +m[2] >= 1 && +m[2] <= SEATS[m[1]] ? `${m[1]}:${m[2].padStart(3, '0')}` : null;
 }
 
-// Show one of the three views. The header marks Compare as the current page when it shows.
+// Show one of the three views. The header marks its tab as the current page: Districts on Find and a district's
+// page, Compare on Compare.
 function setView(name) {
   document.documentElement.dataset.page = name;
+  const tab = name === 'compare' ? 'compare' : 'districts';
   for (const a of document.querySelectorAll('.site-header a[data-page]')) {
-    if (a.dataset.page === name) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
+    if (a.dataset.page === tab) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
   }
   if (name === 'home') document.title = BASE_TITLE;
   else if (name === 'compare') document.title = COMPARE_TITLE;
@@ -351,6 +353,14 @@ $('hero-cta').addEventListener('click', e => {
   focusFind();
 });
 for (const id of ['search-another', 'compare-home']) $(id).addEventListener('click', e => { if (plainClick(e)) { e.preventDefault(); goFind(); } });
+// On the Find page, the / key jumps to the search from anywhere but a field being typed in, as on many search sites.
+document.addEventListener('keydown', e => {
+  if (e.key !== '/' || e.ctrlKey || e.metaKey || e.altKey || e.defaultPrevented || view() !== 'home' || document.documentElement.classList.contains('chat-cover')) return;
+  if (e.target.closest('input, textarea, select, [contenteditable], dialog')) return;
+  e.preventDefault();
+  $('find-section').scrollIntoView({block: 'start'});
+  $('find-place').focus({preventScroll: true});
+});
 
 // Compare: this district in the left third, and a search for another in the middle.
 function openCompare(geos) {
@@ -1023,6 +1033,7 @@ function profileJumps(sections) {
     const li = document.createElement('li'), a = node('a', '');
     a.append(sectionNumber(d.querySelector('.sec-num').textContent), node('span', d.dataset.title, 'sec-title'));
     a.href = `#${d.id}`;
+    a.dataset.topic = d.dataset.key;
     a.onclick = () => { if (!d.open) { d.open = true; rememberOpen(d.dataset.key, true); } };
     li.append(a);
     list.append(li);
@@ -1059,22 +1070,26 @@ function planPart(plan) {
 }
 // Copy a link to the district. Without the clipboard API, as on a page served over plain HTTP, copy through a
 // selection, and failing that show the address to copy by hand.
-async function copyLink(url, status) {
-  let copied = false;
+async function copyText(text) {
   try {
-    await navigator.clipboard.writeText(url);
-    copied = true;
+    await navigator.clipboard.writeText(text);
+    return true;
   } catch {
     // Fixed and transparent, so selecting it neither scrolls the page nor shows.
-    const back = document.activeElement, box = node('textarea', url, 'copy-buffer');
+    const back = document.activeElement, box = node('textarea', text, 'copy-buffer');
+    let copied = false;
     box.readOnly = true;
     document.body.append(box);
     box.focus({preventScroll: true});
-    box.setSelectionRange(0, url.length);
+    box.setSelectionRange(0, text.length);
     try { copied = document.execCommand('copy'); } catch { /* not supported */ }
     box.remove();
     if (back && back.focus) back.focus({preventScroll: true});
+    return copied;
   }
+}
+async function copyLink(url, status) {
+  const copied = await copyText(url);
   const text = copied ? 'Link copied.' : `Copy this link: ${url}`;
   status.replaceChildren(...(copied ? [icon('check'), text] : [text]));
   // Cleared first, so a second copy is announced again.
@@ -1293,6 +1308,7 @@ function openPrint() {
   const compare = target.kind === 'compare', choice = printChoice || PRINT_BRIEF, chosen = new Set(choice.parts);
   $('print-list').replaceChildren(...printSections(target).map(([key, title], i) => {
     const label = node('label', '', 'print-part'), box = node('input', '');
+    label.dataset.topic = key;
     box.type = 'checkbox';
     box.name = 'part';
     box.value = key;
@@ -2283,6 +2299,7 @@ function basicAnswer(answer, name) {
   }
   if (answer.place_caveats && answer.place_caveats.length) article.append(placeNotes(answer.place_caveats, 'answer-notes'));
   if (answer.programs && answer.programs.length) article.append(answerPrograms(answer.programs, answer.program_sources, answer.program_groups));
+  article.append(copyAnswer(article, answer, name));
   return article;
 }
 
@@ -2509,7 +2526,44 @@ function renderAnswer(answer, name) {
   }
   if (answer.programs && answer.programs.length) article.append(answerPrograms(answer.programs, answer.program_sources, answer.program_groups));
   if (answer.prepared) article.append(node('p', answer.prepared, 'prepared'));
+  article.append(copyAnswer(article, answer, name));
   return article;
+}
+
+// A button under an answer that copies it as plain text for an email or a memo: the question, the answer, each figure
+// with its margin, each chart's sentence, the notes, and the sources with their addresses.
+function copyAnswer(article, answer, name) {
+  const box = node('p', '', 'copy-answer'), button = node('button', 'Copy answer', 'textbutton'), status = node('span', '', 'copy-status');
+  button.type = 'button';
+  button.append(hidden(name ? ` for ${name}` : ''));
+  button.onclick = async () => {
+    const sent = article.previousElementSibling;
+    const asked = sent && sent.matches('.user') ? sent.textContent.replace(/^You asked:\s*/, '') : '';
+    const copied = await copyText(answerText(answer, name, asked));
+    status.textContent = copied ? 'Copied.' : 'Your browser did not allow copying.';
+    $('chat-live').textContent = '';
+    requestAnimationFrame(() => { $('chat-live').textContent = copied ? 'Answer copied.' : 'The answer could not be copied.'; });
+  };
+  box.append(button, ' ', status);
+  return box;
+}
+function answerText(answer, name, asked) {
+  const out = [];
+  if (asked) out.push(`Question: ${asked}`);
+  out.push(`KLEAR's answer${name ? ` for ${name}` : ''}:`);
+  if (answer.lead) out.push(...answer.lead.flatMap(p => p.split('\n')).filter(l => l.trim()).map(l => l.replace(/^\s*[*-]\s+/, '- ')));
+  else if (answer.text) out.push(answer.text);
+  const figure = t => `- ${t.label}: ${t.value}${t.spread ? ` (${t.spread})` : ''}${t.geography ? `, ${t.geography}` : ''}`;
+  const figures = [...(answer.tiles || []), ...(answer.more || []), ...(answer.facts || [])].filter(t => t && t.label && t.value);
+  if (figures.length) out.push('', 'Figures:', ...figures.map(figure));
+  const charts = (answer.charts || []).filter(c => c.summary);
+  if (charts.length) out.push('', ...charts.map(c => `- ${c.summary}`));
+  for (const c of answer.caveats || []) out.push('', c);
+  const sources = (answer.sources || []).length ? answer.sources : (answer.facts || []).map(f => ({name: f.source, year: f.year, url: f.url})).filter(s => s.name);
+  const seen = new Set(), listed = sources.filter(s => { const key = `${s.name} ${s.year}`; if (seen.has(key)) return false; seen.add(key); return true; });
+  if (listed.length) out.push('', 'Sources:', ...listed.map(s => `- ${s.name}${s.year ? `, ${s.year}` : ''}${s.url ? ` ${s.url}` : ''}`));
+  out.push('', `From KLEAR, ${location.origin}. Public, aggregated data; not an official State of Hawaiʻi product.`);
+  return out.join('\n');
 }
 
 // The home page's last strip: three lines of counts from the data store. Without a store it stays hidden.

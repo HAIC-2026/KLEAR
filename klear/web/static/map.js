@@ -329,7 +329,7 @@
   }
   svg.addEventListener('pointerup', endPointer);
   // A drag captures the pointer, so a district may miss its pointerleave; leaving the map always clears the outline.
-  svg.addEventListener('pointerleave', () => showHover(null));
+  svg.addEventListener('pointerleave', () => { showHover(null); hideTip(); });
   svg.addEventListener('pointercancel', endPointer);
   // A drag ends with a click on whatever district is under the finger; ignore it.
   svg.addEventListener('click', e => { if (dragged) { e.stopPropagation(); dragged = false; } }, true);
@@ -449,6 +449,33 @@
     for (const p of [hoverHalo, hoverLine]) p.setAttribute('d', path ? path.getAttribute('d') : '');
   }
 
+  // On the Find map, a label beside the pointer names the district under it and its island, and says a click opens it.
+  // Screen readers skip it: each district's spoken name says the same. The rankings page shows its figure below the map.
+  const tip = go ? null : document.createElement('div');
+  if (tip) {
+    tip.className = 'map-tip';
+    tip.setAttribute('aria-hidden', 'true');
+    tip.hidden = true;
+    frameEl.append(tip);
+  }
+  function showTip(row, e) {
+    if (!tip || !e || e.pointerType === 'touch') return;
+    if (tip.dataset.geo !== row.geo) {
+      tip.dataset.geo = row.geo;
+      const name = document.createElement('strong'), where = document.createElement('span');
+      name.textContent = row.name;
+      where.textContent = `${row.islands} · click to open`;
+      tip.replaceChildren(name, where);
+    }
+    tip.hidden = false;
+    const r = frameEl.getBoundingClientRect(), w = tip.offsetWidth, h = tip.offsetHeight;
+    let x = e.clientX - r.left + 14, y = e.clientY - r.top + 14;
+    if (x + w > r.width - 4) x = e.clientX - r.left - w - 14;
+    if (y + h > r.height - 4) y = e.clientY - r.top - h - 14;
+    tip.style.transform = `translate(${Math.max(4, x)}px, ${Math.max(4, y)}px)`;
+  }
+  function hideTip() { if (tip) { tip.hidden = true; delete tip.dataset.geo; } }
+
   // The island frames under the districts: each frame's sea and edge, its caption above it, and on Oʻahu a dashed box
   // around the part of the city that is enlarged. Screen readers skip them; each district's name says its island.
   function drawFrames() {
@@ -486,7 +513,8 @@
       path.addEventListener('focus', () => showRing(path));
       path.addEventListener('blur', () => showRing(null));
       path.addEventListener('pointerenter', e => showHover(path, e));
-      path.addEventListener('pointerleave', e => showHover(null, e));
+      path.addEventListener('pointerleave', e => { showHover(null, e); hideTip(); });
+      path.addEventListener('pointermove', e => showTip(row, e));
       shapes.append(path);
       // The enlarged copy of a district in urban Honolulu picks it too, but is not a second stop for the keyboard.
       let copy = null;
@@ -496,7 +524,8 @@
         const tip = el('title'); tip.textContent = name; copy.append(tip);
         copy.addEventListener('click', () => activate(row));
         copy.addEventListener('pointerenter', e => showHover(copy, e));
-        copy.addEventListener('pointerleave', e => showHover(null, e));
+        copy.addEventListener('pointerleave', e => { showHover(null, e); hideTip(); });
+        copy.addEventListener('pointermove', e => showTip(row, e));
         copies.append(copy);
       }
       const at = row.insetLabel || row.label, text = el('text', {x: at[0], y: at[1], class: 'label'});

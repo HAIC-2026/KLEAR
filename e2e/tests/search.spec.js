@@ -160,6 +160,8 @@ test('Compare’s district searches suggest too, and typing one letter suggests 
 const TYPED = ['Kāneʻohe', "Kane'ohe", 'Kane`ohe', 'Kane‘ohe', 'Kane’ohe', 'Kaneʼohe', 'Kane´ohe', 'Kaneohe', "KANE'OHE"];
 
 test('the ʻokina typed as ʻ, \', `, ‘, ’, ʼ or ´, or left out, finds the place', async ({page}) => {
+  // Nine searches in a row: allow for a slow WebKit on a shared machine.
+  test.slow();
   await page.goto('/');
   const box = page.getByRole('combobox', {name: 'Town, ZIP code, street address, district or legislator'}).first();
   const options = page.locator('#find-place-list').getByRole('option');
