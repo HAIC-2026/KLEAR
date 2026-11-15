@@ -14,6 +14,7 @@
   <script src="/nav.js" defer></script>
   <script src="/kit.js" defer></script>
   <script src="/app.js" defer></script>
+  <script src="/compare.js" defer></script>
   <script src="/map.js" defer></script>
 </head>
 <body class="home-page">
@@ -106,10 +107,21 @@
       </div>
     </section>
 
-    <section class="example" id="example" aria-labelledby="example-title" hidden>
+    <section class="compare-section" id="compare" aria-labelledby="compare-title">
       <div class="wrap">
-        <h2 id="example-title" class="section-title">What a district page shows</h2>
-        <div class="card example-card" id="example-card"></div>
+        <div class="section-title-row">
+          <h2 id="compare-title" class="section-title">Compare districts</h2>
+          <a class="section-more" href="/compare?view=rankings">Rankings and outreach</a>
+        </div>
+        <form id="cmp-find" class="cmp-find">
+          <label for="cmp-place">Add a district: town, ZIP code, street address or district</label>
+          <div class="inputrow"><div class="combo"><input id="cmp-place" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="cmp-place-list" required maxlength="160" placeholder="e.g. Hilo, 96744, or Senate 12" autocomplete="off"><ul id="cmp-place-list" class="suggestions" role="listbox" aria-label="Suggestions" hidden></ul></div><button type="submit">Add</button></div><p id="cmp-place-count" class="visually-hidden" role="status"></p>
+          <p id="cmp-status" class="status" role="status"></p>
+          <div id="cmp-matches"></div>
+        </form>
+        <ul class="cmp-chosen" id="cmp-chosen" aria-label="Districts compared"></ul>
+        <p id="cmp-live" class="visually-hidden" role="status"></p>
+        <div id="cmp-result"></div>
       </div>
     </section>
 

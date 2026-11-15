@@ -420,11 +420,11 @@ copy answer_cache.json along with klear.duckdb.
 The site follows the order a visitor uses it, and its header has four links: Find a district, Ask,
 Compare, and Data & methods.
 
-- `/` finds a district. One search takes a town, ZIP code, street address or district; its matches
-  are listed with each district's share of the place's residents and light up on the map below it.
-  Then come the question box with starter questions that each name a place or the state, a worked
-  example drawn live from House District 49's profile, and the store's counts. There is no photo
-  (issue #64).
+- `/` holds the first three steps, one section each. Find: one search takes a town, ZIP code,
+  street address or district; its matches are listed with each district's share of the place's
+  residents and light up on the map below it. Ask: the question box with starter questions that
+  each name a place or the state. Compare: up to three districts side by side, the same tool as the
+  compare page's first tab. Then the store's counts. There is no photo (issue #64).
 - `/district/house-49` and the like show a district's profile with the chat beside it (tabs on one
   column). The profile is in six groups: People, Income and work, Programs and help, Housing, Health
   and Reference. Each figure keeps its margin of error or range, its range strip and any caution;
