@@ -507,10 +507,10 @@ def test_scoring_crash_fails_one_question_and_continues(tmp_path, eval_store, mo
 
     real = runner.score
 
-    def flaky(g, a, con):
+    def flaky(g, a, con, **kw):
         if g.id == "q1":
             raise TypeError("bad value")
-        return real(g, a, con)
+        return real(g, a, con, **kw)
 
     monkeypatch.setattr(runner, "score", flaky)
     res = run([_gold(0), _gold(1), _gold(2)], Fake(), eval_store, mode="replay")

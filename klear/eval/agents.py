@@ -173,6 +173,11 @@ def _path(dir: Path, name: str, golden_id: str) -> Path:
     return Path(dir) / name / f"{golden_id}.json"
 
 
+def tool_context(trace) -> dict:
+    """The places, names and list sizes an agent's tools returned, from the "seen" entry of its trace."""
+    return next((t["seen"] for t in reversed(trace or []) if isinstance(t, dict) and "seen" in t), {})
+
+
 class RecordedAgent:
     def __init__(self, dir: Path, name: str):
         if not GOLDEN_ID.fullmatch(name):
@@ -193,6 +198,7 @@ class RecordedAgent:
             raw, usage = data["answer"], Usage(**data["usage"])
         except (ValueError, KeyError, TypeError) as e:
             raise RecordingError(f"malformed recording {path}: {e}") from e
+        self.seen = tool_context(data.get("trace"))
         return answer_from_json(raw), usage
 
 

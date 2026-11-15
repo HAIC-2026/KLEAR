@@ -149,3 +149,16 @@ def test_golden_id_validated(tmp_path, bad):
         RecordedAgent(tmp_path, "m").answer(bad, "x", None)
     with pytest.raises(RecordingError, match="golden id"):
         save_recording(tmp_path, "m", bad, Answer("1", None, "none", ["x"], [], [], []), Usage(0, 0, 0.0))
+
+
+def test_a_recording_gives_back_what_the_tools_returned(tmp_path, eval_store):
+    a, _ = StubAgent(eval_store).answer("p-1", "How many kūpuna live here?", ("house", "022"))
+    seen = {"resolved": ["senate:012"], "names": ["Hale"], "counts": [3]}
+    save_recording(tmp_path, "m1", "p-1", a, Usage(1, 1, 0.1), [{"stop": "end_turn"}, {"seen": seen}])
+    agent = RecordedAgent(tmp_path, "m1")
+    agent.answer("p-1", "q", None)
+    assert agent.seen == seen
+    save_recording(tmp_path, "m2", "p-1", a, Usage(1, 1, 0.1))
+    agent = RecordedAgent(tmp_path, "m2")
+    agent.answer("p-1", "q", None)
+    assert agent.seen == {}

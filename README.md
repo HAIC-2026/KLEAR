@@ -6,7 +6,7 @@ KLEAR answers questions about Hawaiʻi's 51 House and 25 Senate legislative dist
 
 ## For judges
 
-- Team: [team name as registered with HAIC]
+- Team: KLEAR. Members: Kanta Saito (KantaS12), Andrew He (andrewhe6), Raine S. Mendoza (rainemendoza), Lukas Moroz (Lukas-Moroz), Elijah Saloma (elijah-saloma).
 - The quickest way to try KLEAR is the live site above: no setup, keys or download. Until the finals demo it asks for a password.
 - Security and privacy: [docs/SECURITY-PRIVACY.md](docs/SECURITY-PRIVACY.md). How the numbers are checked: [docs/VALIDATION.md](docs/VALIDATION.md).
 
@@ -525,7 +525,8 @@ sends district null. The basic lookup finds a district, ZIP code, town, neighbor
 named in the question, the same way the search box does. One district is answered and chosen on the page,
 so its profile loads. A place that spans several districts gets the search's district buttons in the
 answer, and picking one chooses it and asks again. A county, or an island that is one county such as
-Oʻahu, is answered with the county's figures, and a statewide question with Hawaiʻi's. A question that
+Oʻahu, is answered with the county's figures, and a statewide question with Hawaiʻi's. A comparison such as
+"how does that compare with Hawaiʻi as a whole?" keeps the place and adds the state beside it. A question that
 names no place asks for one, and a question that ranks every district says it needs the assistant. With
 the assistant on, the question goes to the agent with no district, and it resolves the place itself.
 

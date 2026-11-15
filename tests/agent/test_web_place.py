@@ -1,8 +1,11 @@
 """Questions that name their own place, asked with no district chosen, and follow-ups that keep their subject."""
 
 import pytest
+import yaml
 
 from klear.agent.earlier import Exchange, earlier_block, parse_earlier
+from klear.eval.agents import ScriptClient, load_script
+from klear.eval.golden import ROOT
 from klear.web.answers import NAME_A_PLACE, NEEDS_ASSISTANT
 from klear.web.assistant import Assistant, DailyBudget, basic
 from tests.agent.fake_client import FakeClient, tool
@@ -166,3 +169,73 @@ def test_an_assistant_answer_about_a_county_keeps_it_as_its_subject(small_con, t
         "places": ["county:15003"],
     }
     assert "district" not in result and "choices" not in result
+
+
+def _golden(golden_id: str) -> dict:
+    return yaml.safe_load((ROOT / "eval/golden/follow_up" / f"{golden_id}.yaml").read_text(encoding="utf-8"))
+
+
+def _earlier(golden: dict) -> tuple[Exchange, ...]:
+    return tuple(
+        Exchange(e["question"], tuple(e["district"]), tuple(e["indicators"])) for e in golden["earlier"]
+    )
+
+
+@pytest.mark.parametrize("district", [None, ("house", "022")])
+def test_a_follow_up_comparing_with_the_whole_state_keeps_its_place(small_con, district):
+    first = basic(small_con, KUPUNA, None)
+    earlier = (Exchange(KUPUNA, ("house", "022"), tuple(first["subject"]["indicators"])),)
+    for question in (
+        "How does that compare with Hawaiʻi as a whole?",
+        "Is that higher than across the state?",
+    ):
+        follow = basic(small_con, question, district, earlier=earlier)
+        assert places(follow) == {"House District 22", "Hawaiʻi"}
+        assert follow["subject"]["geo"] == "house:022"
+        assert "District and state figures are shown side by side." in follow["text"]
+
+
+def test_the_golden_county_follow_up_compares_the_county_with_the_state(real_con):
+    golden = _golden("follow_up-006")
+    result = basic(real_con, golden["question"], None, earlier=_earlier(golden))
+    assert {tuple(f) for f in golden["facts"]} <= {
+        (i, *p.split(":")) for i in result["subject"]["indicators"] for p in result["subject"]["places"]
+    }
+    assert result["subject"]["geo"] == "county:15009"
+    assert places(result) == {"Maui County", "Hawaiʻi"}
+    assert "County and state figures are shown side by side." in result["text"]
+
+
+def test_the_assistant_keeps_the_county_of_a_follow_up_compared_with_the_state(real_con, tmp_path):
+    golden = _golden("follow_up-006")
+    path = ROOT / "eval/scripts/follow_up-006.yaml"
+    budget = DailyBudget(5.0, tmp_path / "web_spend.json")
+    client = ScriptClient(load_script(path), path)
+    result = Assistant(budget, client=client).ask(
+        real_con, golden["question"], None, earlier=_earlier(golden)
+    )
+    assert result["mode"] == "assistant" and result["subject"]["geo"] == "county:15009"
+
+
+@pytest.mark.parametrize("district", [None, ("house", "022")])
+def test_a_question_only_about_the_whole_state_answers_for_the_state(small_con, district):
+    earlier = (Exchange(KUPUNA, ("house", "022"), ("pop_65_plus",)),)
+    for question in ("How many kūpuna live statewide?", "How many kūpuna live across the whole state?"):
+        for before in ((), earlier):
+            result = basic(small_con, question, district, earlier=before)
+            assert places(result) == {"Hawaiʻi"} and result["subject"]["geo"] == "state:15"
+
+
+@pytest.mark.parametrize("district", [None, ("house", "022")])
+def test_kupuna_on_fixed_incomes_statewide_are_not_compared_with_the_state(small_con, district):
+    result = basic(small_con, "How many kūpuna live on fixed incomes statewide?", district)
+    assert result["lead"][0].startswith("Kūpuna and fixed incomes in Hawaiʻi.\n")
+    assert "compared with" not in result["text"] and "margin of error of" not in result["text"]
+    assert places(result) == {"Hawaiʻi"} and result["subject"]["geo"] == "state:15"
+    assert len(result["facts"]) == len({f["label"] for f in result["facts"]})
+
+
+def test_a_follow_up_naming_hawaii_as_a_whole_matches_no_measure_of_its_own(real_con):
+    from klear.web.answers import indicators
+
+    assert indicators(real_con, "How does that compare with Hawaiʻi as a whole?") == []

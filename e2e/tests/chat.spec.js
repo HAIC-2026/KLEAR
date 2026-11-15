@@ -111,6 +111,35 @@ test('the home chat is only its question box until the first question, and its s
   await expect(page.locator('#log .user')).toHaveText('You asked: How many kūpuna live in Hawaiʻi?');
 });
 
+test('a district an answer chooses counts as asked, so picking another adds a divider and the saved chat keeps it', async ({page}) => {
+  await page.goto('/');
+  await page.getByLabel('Your question').fill(`How does poverty in ${DISTRICT} compare with the state?`);
+  await page.getByRole('button', {name: 'Ask KLEAR'}).click();
+  await expect(page.locator('#chat-live')).toContainText(`Answer ready for ${DISTRICT}.`);
+  await expect(page.locator('#district-title')).toHaveText(DISTRICT);
+  await expect(page.locator('#log .switch')).toHaveCount(0);
+  const saved = await page.evaluate(() => JSON.parse(sessionStorage.getItem('klear-chat')));
+  expect(saved.map(x => [x.geo, x.name])).toEqual([['house:022', DISTRICT]]);
+  await showTab(page, 'Ask');
+  await page.getByRole('button', {name: 'Change district'}).click();
+  await page.locator('#place').fill('House 23');
+  await page.locator('#lookup').getByRole('button', {name: 'Find district'}).click();
+  await expect(page.locator('#district-title')).toHaveText('House District 23');
+  await expect(page.locator('#log .switch')).toHaveText('Now asking about House District 23');
+});
+
+test('with no district chosen, a slow question says it is still checking without naming a place', async ({page}) => {
+  await page.clock.install();
+  await page.goto('/');
+  const release = await holdQuestions(page);
+  await page.getByLabel('Your question').fill('How many kūpuna live statewide?');
+  await page.getByRole('button', {name: 'Ask KLEAR'}).click();
+  await expect(page.locator('#log .pending')).toBeVisible();
+  await page.clock.fastForward('00:16');
+  await expect(page.locator('#chat-live')).toHaveText(/^Still checking district data and sources: \d+ seconds so far\. Press Cancel to stop\.$/);
+  release();
+});
+
 test('the statewide starter question is asked with no district chosen', async ({page}) => {
   await page.goto('/');
   const sent = [];

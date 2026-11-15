@@ -1,6 +1,6 @@
 // District search beyond towns: neighborhoods, islands, street addresses and numbers out of range.
 import {test, expect} from '@playwright/test';
-import {ask, chooseDistrict, expectAccessible, offline, showTab} from './helpers.js';
+import {chooseDistrict, expectAccessible, offline, showTab} from './helpers.js';
 
 test.beforeEach(async ({context}) => offline(context));
 
@@ -36,7 +36,11 @@ test('a street address in a chat question gets its own district, and the questio
   await showTab(page, 'Ask');
   await expect(page.locator('#question-form .chat-privacy')).toHaveText('An AI model answers from KLEAR’s data. Questions, with your last two in this tab, go to its provider, Anthropic, so leave out personal details. Addresses go to the Census Bureau only to find a district.');
   await expect(page.locator('#question-form .chat-privacy')).toBeVisible();
-  const answer = await ask(page, 'Which House and Senate district is 1 Test St, Kāneʻohe in?');
+  await page.getByLabel('Your question').fill('Which House and Senate district is 1 Test St, Kāneʻohe in?');
+  await page.getByRole('button', {name: 'Ask KLEAR'}).click();
+  // The status line names the district the answer is about, the address's, not the one chosen before.
+  await expect(page.locator('#chat-live')).toContainText('Answer ready for House District 23.');
+  const answer = page.locator('#log article').last();
   await expect(answer).toContainText('That address is in House District 23 and Senate District 12.');
   // The answer is labeled with the address's district, and so are its next questions.
   await expect(answer.locator('h3')).toHaveText('KLEAR, House District 23');

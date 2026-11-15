@@ -4,7 +4,7 @@ import unicodedata
 from dataclasses import replace
 
 from klear.agent import config
-from klear.agent.tools import _spec, display_name
+from klear.agent.tools import Session, _spec, display_name
 from klear.etl.places_gazetteer import plain_name, search_plain
 from klear.eval.contract import (
     MARKER,
@@ -30,7 +30,7 @@ from klear.eval.scorers import (
     program_names,
     sourced,
 )
-from klear.members import members_of
+from klear.members import MAX_SEATS, REPRESENTS, asked_seats, members_of
 from klear.programs import by_rule, catalog
 from klear.store.methods import place_note
 from klear.text import hawaiian, strip_ignorable
@@ -190,11 +190,51 @@ def _member_problems(session, texts: list[str]) -> list[str]:
     return problems
 
 
+def _seat_problems(session, texts: list[str], context) -> list[str]:
+    """Members named outside the seats the question asks about (members it names, districts or a town it names,
+    or the selected district, in the chamber it asks for), and, for a question about who holds them, seats
+    left out."""
+    named = [geo_key(r) for k, r in dict.fromkeys(MARKER.findall(" ".join(texts))) if k == "member"]
+    if not named:
+        return []
+    seats = asked_seats(Session(session.con), session.question, context or session.context)
+    if seats is None:
+        return []
+    if not seats.geos:
+        return [
+            "the question names no place KLEAR can match to districts; ask which one instead of naming a member"
+        ]
+    asked = ", ".join(f"{t}:{i}" for t, i in seats.geos)
+    problems = [
+        f"{{member:{t}:{i}}} holds a seat the question does not ask about; it asks about {asked}, so call "
+        "find_member for those and name only their members"
+        for t, i in named
+        if (t, i) not in seats.geos
+    ]
+    left = [g for g in seats.geos if g not in named]
+    if REPRESENTS.search(session.question) and left and len(seats.geos) <= MAX_SEATS:
+        problems.append(
+            f"the question asks about {asked}; name the member of each with {{member:TYPE:ID}}, or ask which one "
+            "the user means, instead of leaving out " + ", ".join(f"{t}:{i}" for t, i in left)
+        )
+    return problems
+
+
 def _words(text: str) -> list[str]:
     """Cased words of text with ignorable characters, emphasis, accents and okina removed."""
     text = EMPHASIS.sub("", strip_ignorable(unicodedata.normalize("NFKC", strip_ignorable(text))))
     text = unicodedata.normalize("NFD", text.translate(OKINA_MARKS))
     return re.findall(r"[A-Za-z0-9]+", "".join(c for c in text if not unicodedata.combining(c)))
+
+
+def other_county_programs(session, resolved, programs) -> dict[str, str]:
+    """Listed program or rule ids whose program serves only counties the district has no residents in, with the
+    counties it serves."""
+    if resolved is None or resolved[0] not in ("house", "senate"):
+        return {}
+    owners = by_rule() | {p.program_id: p for p in catalog()}
+    here = {p.program_id for p in session.programs_for([resolved])}
+    return {x: owners[x].level_label for x in programs if x in owners and owners[x].program_id not in here}
 
 
 def _strings(args: dict, key: str) -> tuple[list[str], list[str]]:
@@ -259,6 +299,11 @@ def build_answer(session, args: dict, context=None) -> tuple[Answer | None, list
     problems += [
         f"unknown program id {x!r}, expected one of {sorted(known)}" for x in programs if x not in known
     ]
+    problems += [
+        f"program {x} serves only {where}, where {resolved[0]}:{resolved[1]} has no residents; "
+        "list only programs list_programs or district_programs gives for this district"
+        for x, where in other_county_programs(session, resolved, programs).items()
+    ]
     if refusal in NO_FACT_REFUSALS and (
         refs or any(k != "geo" for t in [*blocks, *caveats] for k, _ in MARKER.findall(t))
     ):
@@ -275,7 +320,9 @@ def build_answer(session, args: dict, context=None) -> tuple[Answer | None, list
     )
     allowed = allowed_geos(session, resolved, context)
     problems = _checked(session, answer, allowed)
-    problems += _member_problems(session, [*blocks, *caveats])
+    problems += _member_problems(session, [*blocks, *caveats]) + _seat_problems(
+        session, [*blocks, *caveats], context
+    )
     if any(p.startswith("unsourced number") for p in problems):
         problems.append(NUMBER_HINT)
     if not problems:
@@ -364,7 +411,8 @@ def finish(session, answer: Answer) -> Answer:
     caveats = [spelled(t) for t in answer.caveats]
     resolved, refusal, programs = answer.resolved, answer.refusal, list(answer.programs)
     state_only = bool(answer.facts) and all(f.geo_type == "state" for f in answer.facts)
-    if STATEWIDE.search(session.question) and (resolved is None or state_only):
+    # A statewide comparison with figures for another place keeps that place, not the state.
+    if STATEWIDE.search(session.question) and (state_only or (resolved is None and not answer.facts)):
         resolved = ("state", "15")
     if refusal not in ("none", "not_available"):
         return replace(answer, blocks=blocks, caveats=caveats, resolved=resolved)
@@ -395,9 +443,23 @@ def finish(session, answer: Answer) -> Answer:
         caveats.append(
             f"{shown} {'is a modeled estimate' if len(modeled) == 1 else 'are modeled estimates'}."
         )
+    caveats += _dated(answer.facts, [*blocks, *caveats])
     return replace(
         answer, resolved=resolved, refusal=refusal, blocks=blocks, caveats=caveats, programs=programs
     )
+
+
+def _dated(facts, texts: list[str]) -> list[str]:
+    """A note giving the year of each source whose shown figures carry no {vintage} marker."""
+    marked = [(k, r) for t in texts for k, r in MARKER.findall(t)]
+    by_ref = {f.ref: f for f in facts}
+    shown = [by_ref[r] for k, r in marked if k == "fact" and r in by_ref]
+    dated = {by_ref[r].source_id for k, r in marked if k == "vintage" and r in by_ref}
+    first = {}
+    for f in shown:
+        if f.source_id not in dated:
+            first.setdefault(f.source_id, f)
+    return [f"{{label:{f.ref}}}: {{vintage:{f.ref}}}." for f in first.values()]
 
 
 def listing_caveats(texts: list[str]) -> list[str]:
@@ -731,7 +793,8 @@ def template_answer(
     if compared:
         blocks.append("\n".join(compared))
     names = known_programs()
-    programs = [p for p in dict.fromkeys(programs) if p in names]
+    elsewhere = other_county_programs(session, resolved, programs)
+    programs = [p for p in dict.fromkeys(programs) if p in names and p not in elsewhere]
     programs += tied_programs(dict.fromkeys(f.indicator_id for f in facts), programs)
     if programs:
         blocks.append("Related programs: " + ", ".join(display_name(names[p]) for p in programs) + ".")

@@ -81,6 +81,9 @@ CLAIM_TOKEN = re.compile(
     re.IGNORECASE,
 )
 PHRASE_DIRECTION = {p: d for d, ps in COMPARE_PHRASES.items() for p in ps}
+# Most words between a comparison and the place it compares with, as in "higher than the rate in {geo}".
+OBJECT_WORDS = 6
+MARGIN_WORD = re.compile(r"\bmargins?\b", re.IGNORECASE)
 # A sentence that also says the gap is within the margin of error makes no higher or lower claim.
 HEDGE = re.compile(
     r"(?<!not )(?<!outside )within the margin|not (?:statistically )?significant", re.IGNORECASE
@@ -426,8 +429,11 @@ def answer_problems(
     return problems
 
 
-def _fidelity(g: Golden, a: Answer, con) -> Outcome:
-    return _verdict("fidelity", answer_problems(a, con, _allowed_geos(g, a, con), g.question))
+def _fidelity(g: Golden, a: Answer, con, seen=None) -> Outcome:
+    seen = seen or {}
+    allowed = _allowed_geos(g, a, con) | {k for r in seen.get("resolved", []) if (k := geo_key(r))}
+    problems = answer_problems(a, con, allowed, g.question, seen.get("names", []), seen.get("counts", []))
+    return _verdict("fidelity", problems)
 
 
 def _verdict(check: str, problems: list[str]) -> Outcome:
@@ -515,8 +521,11 @@ def direction_claims(text: str) -> list[tuple[tuple[str, str], str, tuple[str, s
             if m.group(3):
                 subject = subject or topic
                 pending = PHRASE_DIRECTION[m.group(3).casefold()] if subject else None
+                after = m.end()
             elif pending:
-                claims.append((subject, pending, (m.group(1), m.group(2))))
+                gap = sentence[after : m.start()]
+                if len(gap.split()) <= OBJECT_WORDS and not MARGIN_WORD.search(gap):
+                    claims.append((subject, pending, (m.group(1), m.group(2))))
                 pending = None
             else:
                 subject = (m.group(1), m.group(2))
@@ -549,14 +558,15 @@ def _direction(g: Golden, a: Answer, low: str) -> Outcome:
     return _verdict("direction", problems)
 
 
-def score(g: Golden, a: Answer, con, programs: dict[str, str] | None = None) -> list[Outcome]:
+def score(g: Golden, a: Answer, con, programs: dict[str, str] | None = None, seen=None) -> list[Outcome]:
+    """Outcomes of every check; seen holds what the agent's tools returned, which the answer may name."""
     names = known_programs() if programs is None else programs
     try:
         text = render(a, con)
     except (ContractError, KeyError):
         text = "\n\n".join(MARKER.sub(" ", t) for t in [*a.blocks, *a.caveats])
     low = _plain(text)
-    out = [_fidelity(g, a, con)]
+    out = [_fidelity(g, a, con, seen)]
     if g.district is None:
         out.append(Outcome("district", None, "no expected district"))
     else:

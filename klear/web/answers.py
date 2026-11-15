@@ -23,9 +23,10 @@ from klear.agent.config import (
     PROFILE_LARGEST,
 )
 from klear.agent.tools import Session
+from klear.etl.places_gazetteer import search_plain
 from klear.eval.contract import geo_display
 from klear.labels import in_sentence, meaning, short_label
-from klear.members import as_listed, members_of, named_in, timing
+from klear.members import MAX_SEATS, REPRESENTS, Seats, as_listed, asked_seats, members_of, named_in, timing
 from klear.web.display import (
     CAUTION,
     _plain,
@@ -134,6 +135,7 @@ POINTING = {
     "statewide",
     "hawaii",
     "island",
+    "whole",
     "those",
     "these",
     "them",
@@ -150,7 +152,14 @@ RANKING = re.compile(
     r"|\b(?:rank|ranks|ranked|ranking)\b.*\bdistricts\b|\btop\s+(?:\w+\s+)?districts\b",
     re.IGNORECASE,
 )
+# Words that set the subject against another place, so a statewide phrase adds the state instead of replacing it.
+COMPARING = re.compile(
+    r"\b(?:compar\w*|versus|vs|against|than|relative\s+to|next\s+to|alongside)\b", re.IGNORECASE
+)
 CHAMBERS = ("house", "senate")
+STATE = ("state", "15")
+# The word for each kind of place, in the line under figures shown side by side.
+KIND_WORDS = {"house": "district", "senate": "district", "county": "county", "state": "state"}
 # A share of residents at or above this reads as all of them, and an island holding this much of a county's
 # residents is answered with the county's figures.
 WHOLE = 0.995
@@ -227,6 +236,13 @@ def asks_fixed_income(question: str) -> bool:
     return _has(q, *KUPUNA) and _has(q, "income", "poverty", "poor", "ssi", "supplemental security", "afford")
 
 
+def asks_programs(question: str) -> bool:
+    """Whether a question asks which programs or benefits could help, rather than about one measure."""
+    q = question.casefold()
+    words = ("program", "benefit", "assistance", "support", "help available")
+    return any(w in q for w in words) and not any(_has(q, *stems) for stems, _ in TOPICS)
+
+
 def indicators(con, question):
     """Indicator ids for a question: every profile figure for a profile question, else up to three, with
     topic keywords first and then words shared with labels."""
@@ -254,13 +270,13 @@ def indicators(con, question):
         return ["pop_under_18", "pct_children_poverty", "pct_hh_with_children"]
     if _has(q, "population", "people", "residents"):
         return ["pop_total", "pop_under_18", "pop_65_plus"]
-    terms = set(WORDS.findall(q)) - STOP - POINTING
+    terms = set(WORDS.findall(search_plain(question))) - STOP - POINTING
     if not terms - GENERIC:
         return []
     rows = con.execute("SELECT indicator_id, label FROM indicator ORDER BY indicator_id").fetchall()
     ranked = []
     for key, label in rows:
-        shared = terms & set(WORDS.findall(label.casefold()))
+        shared = terms & set(WORDS.findall(search_plain(label)))
         if shared - GENERIC:
             ranked.append((len(shared), key))
     return [key for _, key in sorted(ranked, reverse=True)[:3]]
@@ -336,6 +352,29 @@ def _joined(parts: list[str], word: str = "and") -> str:
     return parts[0] if len(parts) == 1 else f"{', '.join(parts[:-1])} {word} {parts[-1]}"
 
 
+# How a kind of place reads when an answer lists the kinds it shows.
+KINDS = {"house": "district", "senate": "district", "county": "county", "state": "state"}
+
+
+def _kinds(facts: list[dict]) -> str:
+    """The kinds of place among get_facts entries, like 'District, county and state'."""
+    kinds = list(dict.fromkeys(KINDS.get(f["geo"].split(":")[0], "place") for f in facts))
+    order = [*KINDS.values(), "place"]
+    kinds.sort(key=order.index)
+    return _joined(kinds).capitalize() if len(kinds) > 1 else ""
+
+
+def modeled_caveat(names) -> str:
+    """The caveat for figures that are CDC PLACES modeled estimates, named by their labels."""
+    names = list(dict.fromkeys(names))
+    one = len(names) == 1
+    return (
+        f"The {'figure' if one else 'figures'} for {_joined([in_sentence(n) for n in names])} "
+        f"{'is a modeled estimate' if one else 'are modeled estimates'} from CDC PLACES survey answers, "
+        "not a direct count."
+    )
+
+
 def _comparison(session, fact: dict, others: list[dict], unit: str) -> str:
     """How a district fact relates to each other place, like 'higher than Honolulu County (19.6%)'."""
     ways: dict[str, list[str]] = {}
@@ -347,13 +386,16 @@ def _comparison(session, fact: dict, others: list[dict], unit: str) -> str:
 
 
 def _places(con, question: str, district: tuple[str, str]) -> list[tuple[str, str]]:
-    """The district's main county and the state when the question asks to compare with them."""
+    """The district's main county and the state when the question asks to compare with them, or names the whole
+    state beside the place, as in 'compare with Hawaiʻi as a whole'. None for the state itself."""
+    if district == STATE:
+        return []
     q = question.casefold()
     out = []
     if "county" in q and (county := main_county(con, district)):
         out.append(county)
-    if "compare" in q or "state" in q or "hawaiʻi" in q or "hawaii" in q:
-        out.append(("state", "15"))
+    if "compare" in q or "state" in q or "hawaiʻi" in q or "hawaii" in q or STATEWIDE.search(question):
+        out.append(STATE)
     return out
 
 
@@ -361,14 +403,10 @@ def group_answer(con, question: str, district: tuple[str, str], shown: str, ids:
     """A group of shares, such as the industries residents work in, listed largest first, each beside the main
     county and the state when the question asks for them."""
     opening, counts = GROUPS[ids]
-    statewide = bool(STATEWIDE.search(question))
-    home = ("state", "15") if statewide else district
-    places = [] if statewide else _places(con, question, district)
-    if statewide:
-        shown = "Hawaiʻi"
+    places = _places(con, question, district)
     session = Session(con)
-    order = session.largest(ids, home)
-    here = json.loads(session.run("get_facts", {"indicator_ids": order, "geos": [":".join(home)]}))
+    order = session.largest(ids, district)
+    here = json.loads(session.run("get_facts", {"indicator_ids": order, "geos": [":".join(district)]}))
     there = {"facts": []}
     if places and order:
         there = json.loads(
@@ -498,28 +536,8 @@ def fixed_income(con, district: tuple[str, str], shown: str) -> dict:
 
 
 # Who holds a district's seat, or which district a named member holds.
-REPRESENTS = re.compile(
-    r"\b(?:represent\w*|reps?|senators?|legislators?|lawmakers?|members? of the (?:house|senate|legislature))\b",
-    re.IGNORECASE,
-)
 ASKS_WHO = re.compile(r"\b(?:who|whom|who's|name of)\b", re.IGNORECASE)
 ASKS_WHICH = re.compile(r"\b(?:which|what)\s+(?:house\s+|senate\s+)?district", re.IGNORECASE)
-NAMED_DISTRICT = re.compile(
-    r"\b(house|senate|hd|sd)\s*(?:district\s*)?(?:no\.?\s*|number\s*|#\s*)?(\d{1,2})\b", re.IGNORECASE
-)
-
-
-def _named_district(con, question: str) -> tuple[str, str] | None:
-    """A House or Senate district the question names, such as House District 22 or SD 5."""
-    m = NAMED_DISTRICT.search(question)
-    if m is None:
-        return None
-    chamber = "senate" if m.group(1).casefold() in ("senate", "sd") else "house"
-    geo = (chamber, f"{int(m.group(2)):03d}")
-    found = con.execute("SELECT 1 FROM geography WHERE geo_type = ? AND geo_id = ?", list(geo)).fetchone()
-    return geo if found else None
-
-
 SELECTED = re.compile(r"\b(?:my|our|this|here|selected|current)\b", re.IGNORECASE)
 MEMBER_WORDS = {
     "house",
@@ -535,6 +553,14 @@ MEMBER_WORDS = {
     "of",
     "currently",
 }
+NAME_THE_DISTRICT = (
+    "Name the district, such as House District 22, or choose it on the page, and I will give the member the "
+    "Legislature lists for it."
+)
+NO_SUCH_NAME = (
+    "I could not find a listed member with that exact name. Names must match as the Legislature lists them, "
+    "such as a full last name with the first name or a title such as Senator, and I do not guess near spellings."
+)
 
 
 def _about_selected(question: str) -> bool:
@@ -550,20 +576,57 @@ def _member_line(m, lead: str) -> str:
     return f"{lead}, {as_listed(m)}."
 
 
-def member_answer(con, question: str, district: tuple[str, str]) -> dict | None:
-    """Who a Legislature listing names for a district, or the district of a member named exactly, with where and
-    when it was listed and whether the listing may predate the election results. None when not asked."""
+def _names(listed) -> str:
+    return " and ".join(f"{m.title} {m.name}" for m in listed) or "no member in the listing KLEAR holds"
+
+
+def _part(share: float) -> str:
+    return "all" if share >= WHOLE else "most" if share >= 0.5 else "part"
+
+
+def _seats_text(con, seats: Seats) -> tuple[str, list]:
+    """Who holds each seat asked about, with the share of the area's residents each district holds when the area
+    is a town or spans the other chamber's districts, and the members named."""
+    listed = {g: members_of(con, *g) for g in seats.geos}
+    named = [m for g in seats.geos for m in listed[g]]
+    lists = {m.listing: m for m in named}
+    said = " ".join(f"Names of {m.title.lower()}s are {as_listed(m)}." for m in lists.values())
+    if seats.kind in ("district", "selected") and seats.of == seats.geos:
+        lines = [
+            f"{geo_display(*g, '')} is represented by {_names(listed[g])}"
+            if listed[g]
+            else f"No member is listed for {geo_display(*g, '')} in the Legislature listing KLEAR holds"
+            for g in seats.geos
+        ]
+        if len(lines) == 1 and named:
+            return _member_line(named[0], lines[0]), named
+        return "\n".join(f"- {line.rstrip('.')}." for line in lines) + (f"\n\n{said}" if said else ""), named
+    area = seats.area or _joined([geo_display(*g, "") for g in seats.of])
+    where = {g: geo_display(*g, "") for g in seats.geos}
+    if len(seats.geos) == 1:
+        (g,) = seats.geos
+        share = seats.shares.get(g, 1.0)
+        how = "" if share >= WHOLE else "mostly " if share >= 0.5 else "partly "
+        lead = f"{area} is {how}in {where[g]}, which is represented by {_names(listed[g])}"
+        return (_member_line(named[0], lead) if named else f"{lead}."), named
+    kind = f" {seats.chamber.title()}" if seats.chamber else ""
+    lines = [
+        f"- {where[g]}, with {_part(seats.shares.get(g, 1.0))} of {area}'s residents: {_names(listed[g])}"
+        for g in seats.geos
+    ]
+    text = f"{area} spans more than one{kind} district. The Legislature lists these members for them:\n"
+    return text + "\n".join(lines) + (f"\n\n{said}" if said else ""), named
+
+
+def member_answer(con, question: str, district: tuple[str, str] | None, earlier=()) -> dict | None:
+    """Who a Legislature listing names for the districts a question asks about, or the district of a member it
+    names exactly, with where and when it was listed and whether the listing may predate the election results.
+    A district, town or chamber the question names comes before the chosen district. None when not asked."""
     if not REPRESENTS.search(question):
         return None
     named = named_in(con, question)
     if not named and not ASKS_WHO.search(question):
-        if not ASKS_WHICH.search(question):
-            return None
-        text = (
-            "I could not find a listed member with that exact name. Names must match as the Legislature lists "
-            "them, such as a full last name, and I do not guess near spellings."
-        )
-        return {"text": text, "refusal": "none", "facts": [], "programs": []}
+        return _reply(NO_SUCH_NAME) if ASKS_WHICH.search(question) else None
     if named:
         lines = []
         for m in named:
@@ -576,24 +639,34 @@ def member_answer(con, question: str, district: tuple[str, str]) -> dict | None:
         notes = list(dict.fromkeys(timing(m) for m in named))
         geos = [(m.geo_type, m.geo_id) for m in named]
     else:
-        geo = _named_district(con, question)
-        if geo is None and address_in(question):
+        if address_in(question):
             return None
-        if geo is None and not _about_selected(question):
-            text = (
-                "Name the district, such as House District 22, or choose it on the page, and I will give the "
-                "member the Legislature lists for it. A town can span more than one district."
+        if STATEWIDE.search(question):
+            return _reply(f"Each House and Senate district has its own member. {NAME_THE_DISTRICT}")
+        subject = district or next((x.district for x in reversed(earlier) if x.district), None)
+        seats = asked_seats(Session(con), question, subject, frozenset(STOP | GENERIC | POINTING))
+        if seats is None:
+            return _reply(NAME_THE_DISTRICT)
+        if seats.kind == "selected" and not _about_selected(question):
+            return _reply(f"{NAME_THE_DISTRICT} A town can span more than one district.")
+        if seats.choices:
+            names = _joined(_match_names(seats.choices), "or")
+            return _reply(f"Your question could mean {names}. {NAME_THE_DISTRICT}")
+        if seats.note:
+            return _reply(f"{seats.note} {NAME_THE_DISTRICT}")
+        if not seats.geos:
+            return _reply(
+                f"KLEAR does not hold a district for {seats.area or 'that place'}. {NAME_THE_DISTRICT}"
             )
-            return {"text": text, "refusal": "none", "facts": [], "programs": []}
-        geo = geo or district
-        listed = members_of(con, *geo)
-        where = geo_display(*geo, "")
-        if not listed:
-            text = f"No member is listed for {where} in the Legislature listing KLEAR holds."
-            return {"text": text, "refusal": "none", "facts": [], "programs": [], "district": geo}
-        names = " and ".join(f"{m.title} {m.name}" for m in listed)
-        text = _member_line(listed[0], f"{where} is represented by {names}")
-        notes, geos = [timing(listed[0])], [geo]
+        if len(seats.geos) > MAX_SEATS:
+            counts = _joined(
+                [f"{n} {c.title()} districts" for c in CHAMBERS if (n := sum(g[0] == c for g in seats.geos))]
+            )
+            area = seats.area or _joined([geo_display(*g, "") for g in seats.of])
+            return _reply(f"{area} spans {counts}, too many to list here. {NAME_THE_DISTRICT}")
+        text, listed = _seats_text(con, seats)
+        notes = list(dict.fromkeys(timing(m) for m in listed))
+        geos = list(seats.geos)
     out = {
         "text": "\n\n".join([text, *notes]),
         "refusal": "none",
@@ -653,16 +726,33 @@ def _match_name(match: dict) -> str:
     return f"ZIP code {match['geo'].split(':')[1]}" if match["kind"] == "zcta" else match["name"]
 
 
+def _match_names(matches: list[dict]) -> list[str]:
+    """Distinct names of candidate places, each with its island when two share a name."""
+    names = [_match_name(m) for m in matches]
+    return list(
+        dict.fromkeys(
+            f"{n} on {m['island']}" if names.count(n) > 1 and m.get("island") else n
+            for n, m in zip(names, matches, strict=True)
+        )
+    )
+
+
 def place_of(con, question: str, selected, earlier=()) -> tuple[tuple[str, str] | None, str, dict | None]:
-    """The place to answer for: one the question names, else the selected district, else the whole state for a
-    statewide question, else the place of the last answer. Also a line saying where a named town lies, or a reply
-    to send instead of an answer: district choices when a named place spans several, or a request to name one."""
+    """The place to answer for: one the question names, else the whole state for a question only about the state,
+    else the selected district, else the place of the last answer. A statewide phrase in a comparison, such as
+    'compare with Hawaiʻi as a whole', keeps the subject, and the state is added beside it. Also a line saying
+    where a named town lies, or a reply to send instead of an answer: district choices when a named place spans
+    several, or a request to name one."""
     session = Session(con)
-    statewide = bool(STATEWIDE.search(question))
-    found = None if statewide else session.place_named(question, frozenset(STOP | GENERIC | POINTING))
+    statewide = STATEWIDE.search(question)
+    rest = STATEWIDE.sub(" ", question) if statewide else question
+    found = session.place_named(rest, frozenset(STOP | GENERIC | POINTING))
     if found is None:
+        # Programs are matched to one district, so a statewide program question keeps the chosen one.
+        if statewide and not COMPARING.search(question) and not (selected and asks_programs(question)):
+            return STATE, "", None
         last = next((x.district for x in reversed(earlier) if x.district), None)
-        subject = selected or (("state", "15") if statewide else last)
+        subject = selected or last or (STATE if statewide else None)
         return subject, "", None if subject else _reply(NAME_A_PLACE)
     matches = found.get("matches") or []
     if not matches:
@@ -689,7 +779,7 @@ def place_of(con, question: str, selected, earlier=()) -> tuple[tuple[str, str] 
     lead = (
         f"{_match_name(first)} spans more than one {chamber.title()} district."
         if len(matches) == 1
-        else f"Your question could mean {_joined(list(dict.fromkeys(_match_name(m) for m in matches)), 'or')}."
+        else f"Your question could mean {_joined(_match_names(matches), 'or')}."
     )
     return None, "", _reply(f"{lead} Choose a district below, and KLEAR will answer for it.", choices=matches)
 
@@ -734,7 +824,7 @@ def ask(con, question, district, geocoder=None, earlier=()):
             "facts": [],
             "programs": [],
         }
-    if (member := member_answer(con, question, district)) is not None:
+    if (member := member_answer(con, question, district, earlier)) is not None:
         return member
     if address := address_in(question):
         return address_answer(con, question, address, geocoder)
@@ -759,9 +849,7 @@ def _answer(con, question, district, earlier=()):
     q = question.casefold()
     if asks_fixed_income(q):
         return fixed_income(con, district, shown)
-    if any(
-        word in q for word in ("program", "benefit", "assistance", "support", "help available")
-    ) and not any(_has(q, *stems) for stems, _ in TOPICS):
+    if asks_programs(q):
         if district[0] not in CHAMBERS:
             return _reply(PROGRAMS_NEED_DISTRICT)
         return program_answer(con, district, shown)
@@ -777,14 +865,14 @@ def _answer(con, question, district, earlier=()):
             "facts": [],
             "programs": [],
         }
-    statewide = bool(STATEWIDE.search(question)) or district == ("state", "15")
-    geos = ["state:15"] if statewide else [f"{district[0]}:{district[1]}"]
+    statewide = district == STATE
+    geos = [":".join(district)]
     if not statewide:
         geos += [":".join(p) for p in _places(con, question, district)]
     session = Session(con)
     if asks_profile(q):
         for group, n in PROFILE_LARGEST.values():
-            ids += [i for i in session.largest(group, ("state", "15") if statewide else district)[:n]]
+            ids += [i for i in session.largest(group, district)[:n]]
     here, county_ids = (ids, []) if statewide else _split(con, ids, district[0])
     result = {"facts": []}
     if here:
@@ -818,9 +906,8 @@ def _answer(con, question, district, earlier=()):
         + f". Source: {c['source']}, {c['year']}."
         for c, f in zip(facts, found, strict=True)
     )
-    if len(geos) > 1:
-        places = "District, county and state" if len(geos) == 3 else "District and " + geos[1].split(":")[0]
-        text += f"\n\n{places} figures are shown side by side. Consider their margins of error before drawing a conclusion."
+    if kinds := _kinds(found):
+        text += f"\n\n{kinds} figures are shown side by side. Consider their margins of error before drawing a conclusion."
     refs = [session.facts[f["ref"]] for f in found]
     notes = []
     labels = dict(con.execute("SELECT indicator_id, label FROM indicator").fetchall())
@@ -833,17 +920,8 @@ def _answer(con, question, district, earlier=()):
         notes.append(
             f"Figures for {years} are not published for {shown} yet. These are the latest available, for {vintages}."
         )
-    caveats = []
-    if modeled:
-        names = list(
-            dict.fromkeys(c["label"] for c, f in zip(facts, found, strict=True) if f["ref"] in modeled)
-        )
-        one = len(names) == 1
-        caveats.append(
-            f"The {'figure' if one else 'figures'} for {_joined([in_sentence(n) for n in names])} "
-            f"{'is a modeled estimate' if one else 'are modeled estimates'} from CDC PLACES survey answers, "
-            "not a direct count."
-        )
+    modeled_names = {f["ref"]: c["label"] for c, f in zip(facts, found, strict=True) if f["ref"] in modeled}
+    caveats = [modeled_caveat(modeled_names.values())] if modeled_names else []
     programs = program_rows(tied_programs(dict.fromkeys(r.indicator_id for r in refs), []))
     if programs:
         notes.append(
@@ -857,4 +935,5 @@ def _answer(con, question, district, earlier=()):
         "fact_refs": refs,
         "notes": notes,
         "caveats": caveats,
+        "modeled": modeled_names,
     }

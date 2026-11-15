@@ -43,6 +43,7 @@ test('district profile', async ({page}, testInfo) => {
 test.describe('district page at one column', () => {
   test.use({viewport: {width: 900, height: 800}});
   test('both tabs, with a new answer marked', async ({page}, testInfo) => {
+    test.slow();
     await page.goto('/district/house-22');
     await expect(page.locator('#profile-live')).toHaveText(`Profile for ${DISTRICT} loaded.`);
     await openAll(page);

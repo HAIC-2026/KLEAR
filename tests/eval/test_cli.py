@@ -117,7 +117,7 @@ def test_only_accepts_a_tag(setup, tmp_path):
 def test_scoring_value_error_is_reported_not_refused(setup, tmp_path, monkeypatch, capsys):
     from klear.eval import runner
 
-    def boom(*a):
+    def boom(*a, **kw):
         raise ValueError("bad compare")
 
     monkeypatch.setattr(runner, "score", boom)

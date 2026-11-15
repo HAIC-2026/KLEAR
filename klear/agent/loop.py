@@ -84,6 +84,15 @@ def _call_record(block) -> dict:
     return {"text": getattr(block, "text", "")}
 
 
+def seen(session) -> dict:
+    """What the tools returned that an answer may name or count: resolved places, names and list sizes."""
+    return {
+        "resolved": sorted(":".join(g) for g in session.resolved),
+        "names": sorted(session.names),
+        "counts": sorted(session.counts),
+    }
+
+
 class KlearAgent:
     name = "klear"
 
@@ -291,4 +300,5 @@ class KlearAgent:
         session.context = context
         session.question = question
         answer, (inp, out, write, read) = self._run(session, question, context, earlier)
+        self.seen = seen(session)
         return answer, Usage(inp, out, time.monotonic() - start, write, read)
