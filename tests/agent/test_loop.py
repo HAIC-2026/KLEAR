@@ -581,3 +581,21 @@ def test_the_agent_keeps_what_its_tools_returned(small_con):
     agent = KlearAgent(small_con, client=FakeClient([place, FACTS, submit(ok())]))
     agent.answer("x", "How many seniors live in House 22?", ("house", "022"))
     assert "house:023" in agent.seen["resolved"] and set(agent.seen) == {"resolved", "names", "counts"}
+
+
+def test_fallback_keeps_a_decline_the_model_chose(small_con):
+    decline = BAD | {"refusal": "decline_partisan"}
+    place = tool("resolve_place", {"text": "House 22"})
+    agent = KlearAgent(small_con, client=FakeClient([place, FACTS] + [submit(decline)] * (MAX_CALLS - 2)))
+    ans, _ = agent.answer("x", "Grade the senator of House 22 from A to F", None)
+    assert agent.trace[-1] == {"stop": "fallback"}
+    assert ans.refusal == "decline_partisan" and ans.facts == [] and ans.resolved == ("house", "022")
+
+
+def test_fallback_keeps_the_state_and_fetches_its_required_facts(small_con, monkeypatch):
+    monkeypatch.setattr(agent_config, "REQUIRED_FACTS", ((("working",), ("pop_65_plus",)),))
+    statewide = BAD | {"resolved": "state:15"}
+    agent = KlearAgent(small_con, client=FakeClient([submit(statewide)] * MAX_CALLS))
+    ans, _ = agent.answer("x", "How many working people statewide?", None)
+    assert ans.resolved == ("state", "15")
+    assert ("pop_65_plus", "state", "15") in {(f.indicator_id, f.geo_type, f.geo_id) for f in ans.facts}

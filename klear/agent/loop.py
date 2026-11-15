@@ -5,6 +5,7 @@ from pathlib import Path
 import anthropic
 
 from klear.agent.answer import (
+    NO_FACT_REFUSALS,
     SUBMIT_SPEC,
     build_answer,
     finish,
@@ -158,8 +159,10 @@ class KlearAgent:
     def _fallback(session: Session, context, tried: dict) -> Answer:
         districts = [g for g in session.resolved if g[0] in ("house", "senate")]
         picked = stored_district(session, tried.get("resolved"))
-        picked = picked if picked in session.resolved else None
+        picked = picked if picked in session.resolved or picked == ("state", "15") else None
         resolved = picked or context or (districts[0] if len(districts) == 1 else None)
+        if tried.get("refusal") in NO_FACT_REFUSALS:
+            return finish(session, template_answer(session, resolved, tried["refusal"]))
         programs = tried.get("programs") if isinstance(tried.get("programs"), list) else []
         programs = [p for p in programs if isinstance(p, str)] + required_programs(session)
         if resolved is not None and (needed := required_facts(session, resolved)):
