@@ -34,11 +34,19 @@ test('a street address in a chat question gets its own district, and the questio
   await page.goto('/');
   await chooseDistrict(page);
   await showTab(page, 'Ask');
-  // One line under the question box says where questions go, and links to the privacy section for the rest.
+  // A short note under the question box says that an AI provider gets the question; Privacy opens the rest.
   const note = page.locator('#chat-privacy');
-  await expect(note).toHaveText('An AI model from Anthropic answers from KLEAR’s data, so leave out personal details. Privacy');
+  await expect(note).toHaveText('An AI model answers from KLEAR’s data. Questions go to its provider, Anthropic, so leave out personal details. Privacy');
   await expect(note).toBeVisible();
-  await expect(note.getByRole('link', {name: 'Privacy'})).toHaveAttribute('href', '/data#privacy');
+  const privacy = note.getByRole('button', {name: 'Privacy'}), more = page.locator('#privacy-more');
+  await expect(privacy).toHaveAttribute('aria-expanded', 'false');
+  await expect(more).toBeHidden();
+  await privacy.click();
+  await expect(privacy).toHaveAttribute('aria-expanded', 'true');
+  await expect(more).toContainText('does not store or log questions');
+  await expect(more.getByRole('link', {name: 'More about privacy'})).toHaveAttribute('href', '/data#privacy');
+  await privacy.click();
+  await expect(more).toBeHidden();
   await page.getByLabel('Your question').fill('Which House and Senate district is 1 Test St, Kāneʻohe in?');
   await page.getByRole('button', {name: 'Ask KLEAR'}).click();
   // The status line names the district the answer is about, the address's, not the one chosen before.

@@ -63,7 +63,12 @@ test('skip link, search, ask, and read the answer with the keyboard', async ({pa
   await expect(table).toHaveAttribute('open', '');
   await expect(table.getByRole('table')).toBeVisible();
 
-  // A suggested question can be asked from the keyboard too.
+  // A suggested question can be asked from the keyboard too. After an answer they fold to one row, and More questions
+  // opens the rest.
+  const more = page.getByRole('button', {name: 'More questions'});
+  await more.focus();
+  await page.keyboard.press('Enter');
+  await expect(more).toHaveAttribute('aria-expanded', 'true');
   await page.getByRole('button', {name: /^Kūpuna\s*: How many kūpuna/}).focus();
   await page.keyboard.press('Enter');
   await expect(page.locator('#log article')).toHaveCount(2);
@@ -71,6 +76,24 @@ test('skip link, search, ask, and read the answer with the keyboard', async ({pa
 });
 
 // One column: the profile and the chat are two tabs. The arrow keys move between them, and Tab moves into the one shown.
+// Beside the profile, Wider is a toggle button in the chat's bar: Enter and Space press it, and it says whether it is on.
+test('Wider widens the chat from the keyboard and reports its state', async ({page}) => {
+  await page.goto('/district/house-22');
+  await expect(page.locator('#profile-live')).toHaveText(`Profile for ${DISTRICT} loaded.`);
+  const wider = page.getByRole('button', {name: 'Wider'}), chat = page.locator('#chat');
+  await page.getByRole('button', {name: 'Change district'}).focus();
+  await page.keyboard.press('Shift+Tab');
+  await expect(wider).toBeFocused();
+  await expect(wider).toHaveAttribute('aria-pressed', 'false');
+  await page.keyboard.press('Enter');
+  await expect(wider).toHaveAttribute('aria-pressed', 'true');
+  await expect(chat).toHaveClass(/\bwide\b/);
+  await expect(wider).toBeFocused();
+  await page.keyboard.press('Space');
+  await expect(wider).toHaveAttribute('aria-pressed', 'false');
+  await expect(chat).not.toHaveClass(/\bwide\b/);
+});
+
 test.describe('one column', () => {
   test.use({viewport: {width: 900, height: 800}});
   test('Profile and Ask are tabs that the arrow keys switch', async ({page}) => {

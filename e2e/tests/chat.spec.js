@@ -190,6 +190,38 @@ test('the examples include ones picked from the district profile, and they go wh
   await expect(page.locator('#log .followups')).toHaveCount(0);
 });
 
+test('after the first answer the suggested questions fold to one row, and More questions shows the rest', async ({page}) => {
+  await page.goto('/');
+  await chooseDistrict(page);
+  await showTab(page, 'Ask');
+  const suggest = page.getByRole('group', {name: 'Suggested questions'}), more = suggest.getByRole('button', {name: 'More questions'});
+  const questions = suggest.locator('#examples button');
+  const total = await questions.count();
+  const shown = () => suggest.locator('#examples button:visible');
+  const rows = () => shown().evaluateAll(all => new Set(all.map(b => Math.round(b.getBoundingClientRect().top))).size);
+  // Before the first question every suggestion shows.
+  await expect(shown()).toHaveCount(total);
+  await expect(more).toBeHidden();
+
+  await ask(page);
+  await expect(more).toBeVisible();
+  await expect(more).toHaveAttribute('aria-expanded', 'false');
+  expect(await shown().count()).toBeLessThan(total);
+  expect(await rows()).toBe(1);
+  // More questions sits at the end of that row.
+  const last = await shown().last().boundingBox(), button = await more.boundingBox();
+  expect(Math.abs(button.y - last.y)).toBeLessThan(4);
+
+  await more.click();
+  await expect(more).toHaveAttribute('aria-expanded', 'true');
+  await expect(shown()).toHaveCount(total);
+  // A new answer folds them again.
+  await shown().first().click();
+  await expect(page.locator('#log article')).toHaveCount(2);
+  await expect(more).toHaveAttribute('aria-expanded', 'false');
+  expect(await rows()).toBe(1);
+});
+
 test('a slow question shows the seconds, can be cancelled, and Retry asks it again', async ({page}) => {
   await page.goto('/');
   await chooseDistrict(page);
