@@ -149,8 +149,8 @@ html[data-page=home] .share-bar{display:none!important}
 /* Find: a band across the top with the page's title and lede over a faint drawing of the islands, and a button down to
    the search and the map. About a third of the screen, so the map and search show under it. */
 .hero{position:relative;overflow:hidden;min-height:min(34vh,22rem);display:flex;align-items:center;background:linear-gradient(120deg,var(--house-soft) 0%,#eef6f7 45%,#fff 100%);border-bottom:1px solid var(--line)}
-.hero-art{position:absolute;top:8%;right:2%;height:84%;width:min(58%,52rem);pointer-events:none}
-.hero-art path{fill:rgb(29 85 99 / .13);stroke:#fff;stroke-width:1.2px;vector-effect:non-scaling-stroke;stroke-linejoin:round}
+.hero-art{position:absolute;top:-2%;right:3%;height:104%;width:min(60%,54rem);pointer-events:none}
+.hero-art path{fill:rgb(29 85 99 / .16);stroke:#fff;stroke-width:1.2px;vector-effect:non-scaling-stroke;stroke-linejoin:round}
 .hero-inner{position:relative;width:100%;padding-top:var(--s-6);padding-bottom:var(--s-6)}
 .hero h1{max-width:18ch;margin:0 0 var(--s-3);font-size:var(--fs-hero);line-height:1.05;letter-spacing:-.025em}
 .hero .lede{max-width:40rem;margin:0 0 var(--s-5);color:var(--ink);font-size:var(--fs-md)}
