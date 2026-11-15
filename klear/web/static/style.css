@@ -146,10 +146,14 @@ a[href],button,input,select,textarea,summary,[tabindex]{scroll-margin-top:calc(v
 
 /* Sections and the blocks every page shares. Each home section has the same padding and a title on one scale; cards
    share one border, radius and corner; buttons share one look. White and gray alternate down the home page. */
-.map-section,.chat-section,.example,.counts{padding:var(--section-y) 0}
-.map-section,.example{background:var(--bg)}
+.map-section,.chat-section,.compare-section,.counts{padding:var(--section-y) 0}
+.map-section,.compare-section{background:var(--bg)}
 .chat-section,.counts{background:var(--surface)}
 .section-title{font-size:var(--fs-h2);margin:0 0 var(--head-gap)}
+/* A section title with a link to more of the same on another page, at its right. */
+.section-title-row{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:var(--s-2) var(--s-5);margin:0 0 var(--head-gap)}
+.section-title-row .section-title{margin:0}
+.section-more{font-weight:600}
 .section-head{max-width:var(--measure);margin:0 0 var(--head-gap)}
 .section-head h2{margin:0 0 var(--s-3)}
 .section-head p{margin:0;color:var(--muted);font-size:var(--fs-lead);line-height:1.6}
@@ -282,9 +286,9 @@ body:not(.district-page) .chat-aside .examples button{padding:8px 14px;border-co
    district's name and where it is, then its profile: four headline figures, links to each section, the share buttons
    and the sections, with big figures, plain labels, and comparisons written as sentences. On wide screens the chat
    sits beside the profile, as tall as the window, and stays in view while the profile scrolls; below 1200 px the two
-   take turns behind tabs (see the end of this block). The page ends with the profile: the home page's map, example
-   and counts give way, and a small map beside the district's name shows where it is. */
-.district-page .band,.district-page #chat-title,.district-page .chat-aside,.district-page #district-map,.district-page #example,.district-page .counts{display:none}
+   take turns behind tabs (see the end of this block). The page ends with the profile: the home page's map, compare
+   tool and counts give way, and a small map beside the district's name shows where it is. */
+.district-page .band,.district-page #chat-title,.district-page .chat-aside,.district-page #district-map,.district-page #compare,.district-page .counts{display:none}
 .district-page .chat-section{padding:var(--district-top) 0 var(--section-y)}
 .district-page .chat-section>.wrap{max-width:1440px}
 .district-head{min-width:0;display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:var(--s-5);align-items:start;scroll-margin-top:calc(var(--stick) + var(--district-top))}
@@ -649,13 +653,6 @@ article .elsewhere{font-size:var(--fs-sm)}
 .legend-source{margin:0;color:var(--muted)}
 .pick-value{display:block;margin-top:6px;font-size:var(--fs-sm);line-height:1.45;color:var(--ink)}
 .map-table tbody tr:first-child th{font-weight:400}.map-table td.note{color:var(--muted)}
-
-/* The home page's worked example: the top of one district's page, built from its live profile. */
-.example-card{padding:var(--card-pad)}
-.example-name{font-size:var(--fs-xl);line-height:1.25;margin:var(--s-1) 0}
-.example-card .profile-stats{margin:var(--s-5) 0 0}
-.example-sub{margin:var(--s-6) 0 0;font-size:var(--fs-md)}
-.example-actions{margin:var(--s-5) 0 0}
 
 /* The home page's last strip: the store's counts in one row, and the way to the data and methods. */
 .counts{padding:var(--s-5) 0}

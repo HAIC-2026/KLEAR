@@ -28,7 +28,7 @@ test('each district has its own address, which Back, Forward and a pasted link f
   await expect(page.locator('#district-title')).toHaveText(DISTRICT);
   await expect(page.locator('#profile-live')).toHaveText(`Profile for ${DISTRICT} loaded.`);
 
-  // Back to the home page: its band, heading, starter questions and example return in place of the district's page,
+  // Back to the home page: its band, heading, starter questions and compare tool return in place of the district's page,
   // and the district's suggestions leave the chat.
   await page.goBack();
   await expect(page).toHaveURL(/:\d+\/$/);
@@ -38,13 +38,13 @@ test('each district has its own address, which Back, Forward and a pasted link f
   await expect(page.locator('#profile')).toBeHidden();
   await expect(page.locator('#starters').getByRole('button', {name: 'How many kūpuna live in Kāneʻohe?'})).toBeVisible();
   await expect(page.locator('#suggest')).toBeHidden();
-  await expect(page.locator('#example')).toBeVisible();
+  await expect(page.locator('#compare')).toBeVisible();
   await expect(page).toHaveTitle('KLEAR: Hawaiʻi legislative district data');
 
   await page.goForward();
   await expect(page.locator('#district-title')).toHaveText(DISTRICT);
   await expect(page.locator('#starter')).toBeHidden();
-  await expect(page.locator('#example')).toBeHidden();
+  await expect(page.locator('#compare')).toBeHidden();
 
   // A pasted link opens the same district in a new tab, at the top of its page, with its name as the page heading.
   const pasted = await context.newPage();

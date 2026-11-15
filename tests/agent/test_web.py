@@ -269,8 +269,7 @@ def test_about_serves_store_facts_and_sources(endpoint):
     body = json.loads(data)
     assert status == 200 and headers["Cache-Control"] == "no-store"
     assert body["facts"][0] == "2 House and 1 Senate districts"
-    # The worked example on the landing page: House 49, or here the House district with the most figures.
-    assert body["example"] == "house:022" and [s["publisher"] for s in body["sources"]] == [
+    assert "example" not in body and [s["publisher"] for s in body["sources"]] == [
         "Census",
         "HUD",
         "LRB",

@@ -10,9 +10,17 @@ test.beforeEach(async ({context, page}) => {
 });
 
 test('landing page', async ({page}, testInfo) => {
-  await expect(page.locator('#example .profile-stats')).toBeVisible();
   await expect(page.locator('#facts')).toBeVisible();
   await expectAccessible(page, testInfo, 'landing page');
+});
+
+test('landing page comparing two districts', async ({page}, testInfo) => {
+  for (const query of ['House 22', 'House 23']) {
+    await page.locator('#cmp-place').fill(query);
+    await page.locator('#compare').getByRole('button', {name: 'Add'}).click();
+  }
+  await expect(page.locator('#compare .cmp-table')).toBeVisible();
+  await expectAccessible(page, testInfo, 'landing page compare');
 });
 
 test('data and methods page, with its sources, methods, glossary and checks', async ({page}, testInfo) => {

@@ -1869,8 +1869,7 @@ function renderAnswer(answer, name) {
   return article;
 }
 
-// The home page's sources summary, three lines of counts from the data store, and its worked example: one district's
-// headline figures and first three programs, read live, with a link to its page. Without a store both stay hidden.
+// The home page's last strip: three lines of counts from the data store. Without a store it stays hidden.
 async function loadAbout() {
   let data;
   try { data = await api('/api/about'); } catch { return; }
@@ -1880,27 +1879,9 @@ async function loadAbout() {
     $('facts').replaceChildren(...lines.map(line => node('li', `${line}.`)));
     $('facts').hidden = false;
   }
-  if (data.example) loadExample(data.example);
 }
 loadAbout();
 
-const EXAMPLE_PROGRAMS = 3;
-async function loadExample(geo) {
-  let p;
-  try { p = await api('/api/profile?district=' + encodeURIComponent(geo)); } catch { return; }
-  const card = $('example-card'), name = node('h3', p.district, 'example-name'), parts = [node('p', 'District profile', 'small-label'), name];
-  if (p.where) parts.push(node('p', p.where, 'district-where'));
-  if ((p.places || []).length) parts.push(node('p', `Includes ${placesList(p)}.`, 'district-meta'));
-  parts.push(headlineStats(p.headline || []));
-  const matched = programsOf(p), shown = matched ? (matched.programs.length ? matched.programs : matched.others) : [];
-  if (shown.length) parts.push(node('h4', 'Programs to explore', 'example-sub'), programGrid(shown.slice(0, EXAMPLE_PROGRAMS)));
-  const open = node('a', `Open ${p.district}’s full page`, 'button example-open');
-  open.href = districtPath(p.geo);
-  parts.push(node('p', '', 'example-actions'));
-  parts.at(-1).append(open);
-  card.replaceChildren(...parts);
-  $('example').hidden = false;
-}
 // Programs named in an answer; a district lookup marks which ones its figures point to.
 function answerPrograms(programs, sources, groups) {
   const details = node('details', '', 'answer-programs');

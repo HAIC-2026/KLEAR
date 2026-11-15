@@ -1,29 +1,41 @@
-// The home page gives each screen one job: the search, the question box, the map, one worked example drawn from a real
-// district's profile, then a short sources summary. A visitor sees real figures without typing anything.
+// The home page holds the first three steps of the flow, one section each: find a district (the search, then the map),
+// ask about a place, and compare districts side by side. Then the store's counts.
 import {test, expect} from '@playwright/test';
 import {DISTRICT, offline} from './helpers.js';
 
 test.beforeEach(async ({context}) => offline(context));
 
-test('the home page shows a real district’s figures and programs without any typing', async ({page}) => {
+test('the home page finds, asks and compares, in that order', async ({page}) => {
   await page.goto('/');
-  const example = page.locator('#example');
-  await expect(example).toBeVisible();
-  // The test store has no House 49, so the example is the House district it holds the most figures for.
-  await expect(example.getByRole('heading', {name: DISTRICT})).toBeVisible();
-  const profile = await (await page.request.get('/api/profile?district=house:022')).json();
-  const figures = example.locator('.profile-stats > div');
-  await expect(figures).toHaveCount(profile.headline.length);
-  for (const [i, h] of profile.headline.entries()) {
-    await expect(figures.nth(i).locator('dt')).toHaveText(h.label);
-    await expect(figures.nth(i).locator('.num')).toHaveText(h.value);
-    if (h.reading) await expect(figures.nth(i).locator('.profile-reading')).toHaveText(h.reading);
+  const titles = await page.locator('main h2.section-title').allTextContents();
+  expect(titles).toEqual(['Or pick it on the map', 'Ask about a place', 'Compare districts']);
+  await expect(page.locator('#find-place')).toBeVisible();
+  await expect(page.locator('#map .district').first()).toBeAttached();
+  await expect(page.getByLabel('Your question')).toBeVisible();
+  await expect(page.locator('#cmp-place')).toBeVisible();
+  await expect(page.locator('#compare').getByRole('link', {name: 'Rankings and outreach'})).toHaveAttribute('href', '/compare?view=rankings');
+});
+
+test('two districts compared on the home page sit side by side, and the address stays the home page', async ({page}) => {
+  await page.goto('/');
+  const compare = page.locator('#compare');
+  await expect(compare.locator('.cmp-empty')).toBeVisible();
+  for (const query of ['House 22', 'House 23']) {
+    await page.locator('#cmp-place').fill(query);
+    await compare.getByRole('button', {name: 'Add'}).click();
   }
-  const shown = profile.programs.programs.length ? profile.programs.programs : profile.programs.others;
-  await expect(example.locator('.program-name > span:first-child')).toHaveText(shown.slice(0, 3).map(p => p.name));
-  await example.getByRole('link', {name: `Open ${DISTRICT}’s full page`}).click();
-  await expect(page).toHaveURL(/\/district\/house-22$/);
-  await expect(page.locator('#profile-live')).toHaveText(`Profile for ${DISTRICT} loaded.`);
+  await expect(page.locator('#cmp-place')).toHaveValue('');
+  await expect(compare.locator('.cmp-chip a')).toHaveText([DISTRICT, 'House District 23']);
+  const table = compare.locator('.cmp-table');
+  await expect(table.locator('thead th')).toHaveText(['Measure', /^House District 22/, /^House District 23/, 'Hawaiʻi']);
+  // Each figure keeps its margin of error.
+  const poverty = table.getByRole('row', {name: /People below the poverty level/});
+  await expect(poverty.locator('td').first()).toContainText('12.3%');
+  await expect(poverty.locator('td').first()).toContainText('± 2.1 points');
+  await expect(page).toHaveURL(/:\d+\/$/);
+  // Removing one leaves the other.
+  await compare.getByRole('button', {name: 'Remove House District 23'}).click();
+  await expect(compare.locator('.cmp-chip')).toHaveCount(1);
 });
 
 test('the home page ends with the store’s counts and a link to the data and methods', async ({page}) => {
@@ -37,16 +49,16 @@ test('the home page ends with the store’s counts and a link to the data and me
   await expect(page.locator('#source-table tbody tr').first()).toBeVisible();
 });
 
-test('one district search shows at a time, and the home page is short', async ({page, isMobile}) => {
+test('one district search finds a district, a district page has none, and the home page is short', async ({page, isMobile}) => {
   await page.goto('/');
-  await expect(page.locator('#example')).toBeVisible();
-  const searches = page.getByRole('combobox', {name: 'Town, ZIP code, street address or district'});
-  await expect(searches).toHaveCount(1);
+  const find = page.getByRole('combobox', {name: 'Town, ZIP code, street address or district', exact: true});
+  await expect(find).toHaveCount(1);
   await expect(page.locator('#find-place')).toBeVisible();
   await page.goto('/district/house-22');
-  await expect(searches).toHaveCount(0);
+  await expect(find).toHaveCount(0);
+  await expect(page.locator('#compare')).toBeHidden();
   test.skip(isMobile, 'the height limit is for a 1280 px wide screen');
   await page.goto('/');
-  await expect(page.locator('#example')).toBeVisible();
+  await expect(page.locator('#facts')).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollHeight)).toBeLessThan(3500);
 });

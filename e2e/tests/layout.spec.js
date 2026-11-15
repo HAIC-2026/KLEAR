@@ -173,7 +173,7 @@ test.describe('a district at 1440 by 900', () => {
   });
 });
 
-// A district's page ends where the district ends: its profile, then the footer. The home page's map, example and counts
+// A district's page ends where the district ends: its profile, then the footer. The home page's map, compare tool and counts
 // are left out, a small map beside the name shows where it is, and the page stays under 7,000 px at 1280 wide with the
 // default groups open.
 test.describe('a district at 1280 wide', () => {
@@ -182,7 +182,7 @@ test.describe('a district at 1280 wide', () => {
   test('ends with the profile, with a small map of the district by its name', async ({page}) => {
     await page.goto('/district/house-22');
     await expect(page.locator('#profile-live')).toHaveText(`Profile for ${DISTRICT} loaded.`);
-    for (const id of ['district-map', 'example', 'sources']) await expect(page.locator(`#${id}`), id).toBeHidden();
+    for (const id of ['district-map', 'compare', 'sources']) await expect(page.locator(`#${id}`), id).toBeHidden();
     await expect(page.locator('#locator svg')).toBeVisible();
     await expect(page.locator('#locator path.here')).toHaveCount(1);
     expect(await page.evaluate(() => document.documentElement.scrollHeight)).toBeLessThan(7000);

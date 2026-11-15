@@ -1,13 +1,16 @@
-// The compare page: three tabs. Districts side by side reads up to three districts' profiles and sets their figures in
-// one table, by the profile's groups, with Hawaiʻi as a whole beside them. Rankings and map colors every district by
-// one measure (map.js). Outreach groups districts by who meets a program's income test (outreach.js). The tab and the
-// districts live in the address, so a link, Back and refresh keep them.
+// Districts side by side: up to three districts' profiles set in one table, by the profile's groups, with Hawaiʻi as a
+// whole beside them. It runs on the home page's Compare section and on the compare page, which adds two more tabs:
+// Rankings and map colors every district by one measure (map.js), and Outreach groups districts by who meets a
+// program's income test (outreach.js). On the compare page the tab and the districts live in the address, so a link,
+// Back and refresh keep them; the home page's address stays its own.
 (() => {
   const VIEWS = ['districts', 'rankings', 'outreach'], MOST = 3, STATE = 'state:15';
-  const tabs = VIEWS.map(v => $(`tab-${v}`)), params = new URLSearchParams(location.search);
+  const onPage = Boolean($('tab-districts'));
+  const tabs = onPage ? VIEWS.map(v => $(`tab-${v}`)) : [], params = new URLSearchParams(onPage ? location.search : '');
 
   // Put the page's choices in the address without adding a history entry for each one.
   function setParams(changes) {
+    if (!onPage) return;
     const url = new URL(location.href);
     for (const [k, v] of Object.entries(changes)) { if (v) url.searchParams.set(k, v); else url.searchParams.delete(k); }
     try { history.replaceState(null, '', url.pathname + url.search); } catch { /* history unavailable */ }
@@ -35,7 +38,7 @@
       showView(VIEWS[(to + VIEWS.length) % VIEWS.length], true);
     });
   });
-  showView(VIEWS.includes(params.get('view')) ? params.get('view') : 'districts');
+  if (onPage) showView(VIEWS.includes(params.get('view')) ? params.get('view') : 'districts');
 
   // Districts side by side.
   const chosen = [], profiles = new Map();
@@ -49,6 +52,7 @@
 
   function add(geo, name) {
     resetFind();
+    if (!typed) $('cmp-place').value = '';
     if (chosen.some(c => c.geo === geo)) { $('cmp-status').textContent = `${name} is already in the table.`; return; }
     if (chosen.length >= MOST) { $('cmp-status').textContent = `Up to ${MOST} districts at once. Remove one to add ${name}.`; return; }
     chosen.push({geo, name});
@@ -165,6 +169,12 @@
   }
 
   const resetFind = lookupForm($('cmp-find'), $('cmp-place'), $('cmp-status'), $('cmp-matches'), add);
+  // The box empties once its district is added, unless the reader has started typing the next one meanwhile.
+  let typed = false;
+  $('cmp-place').addEventListener('input', () => { typed = true; });
+  $('cmp-place').addEventListener('keydown', e => { if (e.key === 'Enter') typed = false; });
+  $('cmp-find').addEventListener('submit', () => { typed = false; });
+  $('cmp-place-list').addEventListener('click', () => { typed = false; });
   for (const geo of (params.get('d') || '').split(',').map(normal).filter(g => g && GEO.test(g)).slice(0, MOST)) {
     if (!chosen.some(c => c.geo === geo)) chosen.push({geo, name: districtName(geo)});
   }
