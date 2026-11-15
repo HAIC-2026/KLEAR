@@ -922,6 +922,8 @@ def test_a_comparison_names_the_place_a_few_words_on():
     assert direction_claims("{geo:house:022} is higher than the rate in {geo:county:15003}.") == [
         (("house", "022"), "higher", ("county", "15003"))
     ]
+
+
 def test_places_and_numbers_the_tools_returned_are_allowed(eval_store):
     a = _ans(
         [
