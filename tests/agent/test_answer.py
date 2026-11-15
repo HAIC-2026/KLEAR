@@ -798,3 +798,33 @@ def test_a_source_shown_without_its_year_gets_a_note_with_it(s1):
     assert problems == [] and a.caveats[-1] == "{label:f1}: {vintage:f1}."
     a, problems = build_answer(s1, args())
     assert problems == [] and not any("{vintage:f1}" in c for c in a.caveats)
+
+
+def test_an_answer_with_no_district_takes_the_first_resolved_district_it_names(s1):
+    s1.run("resolve_place", {"text": "Kaneohe"})
+    block = "It is in {geo:house:023} and {geo:senate:012}. {geo:house:022} has {fact:f1} ({vintage:f1})."
+    a, problems = build_answer(s1, args(resolved=None, blocks=[block]))
+    assert problems == [] and a.resolved == ("house", "023")
+
+
+@pytest.mark.parametrize(
+    ("question", "refusal"),
+    [
+        ("How many people are homeless in House District 22?", "out_of_scope"),
+        ("What is the average salary of teachers in House District 22?", "out_of_scope"),
+        ("How many families get WIC in House District 22?", "not_available"),
+    ],
+)
+def test_a_missing_figure_on_a_topic_klear_never_holds_is_out_of_scope(s1, question, refusal):
+    s1.question = question
+    a, problems = build_answer(
+        s1, args(refusal="not_available", blocks=["KLEAR does not hold that."], facts=[])
+    )
+    assert problems == [] and a.refusal == refusal
+
+
+def test_a_question_on_working_families_below_poverty_requires_that_figure(s1):
+    from klear.agent.answer import _triggered
+
+    s1.question = "How many working families are below the poverty line statewide?"
+    assert "working_below_poverty" in _triggered(s1, config.REQUIRED_FACTS)

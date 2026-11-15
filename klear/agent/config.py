@@ -296,6 +296,12 @@ REQUIRED_FACTS = (
     (("lack", "transportation"), ("places_lack_transport",)),
     (("reliable", "transportation"), ("places_lack_transport",)),
     (("public", "housing", "units"), ("units_public_housing",)),
+    (("working", "poverty"), ("working_below_poverty",)),
+)
+# Topics KLEAR holds no figure for at all: a not_available answer about one is out_of_scope.
+OUT_OF_SCOPE = (
+    r"\b(?:homeless\w*|unsheltered|crimes?|arrests?|test scores?|proficien\w*|school (?:scores?|rankings?|ratings?)"
+    r"|salar(?:y|ies)|(?:teachers?|nurses?|police|firefighters?|county workers?)(?:'s?)? (?:pay|wages?))\b"
 )
 # Comparisons a question asks for: trigger words, then indicators the answer must also cite for the district's
 # main county and the state.
