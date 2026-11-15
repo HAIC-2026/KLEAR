@@ -184,3 +184,28 @@ def test_missing_key_exits_2_before_any_spend(store_path, fake, monkeypatch, tmp
     assert main(["seniors?", "--store", str(store_path)]) == 2
     err = capsys.readouterr().err
     assert "ANTHROPIC_API_KEY not set" in err and not prompts and fake.calls == 0 and _ledger() == []
+
+
+def test_a_ranking_with_no_resolved_district_still_prints_place_caveats(store_path, monkeypatch, capsys):
+    ranked = SUBMIT | {
+        "resolved": None,
+        "blocks": ["{geo:house:023} has {fact:f2} {label:f2}, {geo:house:022} has {fact:f1}."],
+        "facts": ["f1", "f2"],
+    }
+    rank = {"indicator": "pop_65_plus", "chamber": "house"}
+    client = FakeClient(
+        [turn(tool("rank_districts", rank), usage=USAGE), turn(tool("submit_answer", ranked), usage=USAGE)]
+    )
+    monkeypatch.setenv("ANTHROPIC_API_KEY", KEY)
+    monkeypatch.setattr(loop.anthropic, "Anthropic", lambda **kw: client)
+    asked = []
+
+    def for_places(con, places):
+        asked.extend(places)
+        return [{"title": "Maui wildfires", "geo": "house:023", "text": "Lahaina burned."}]
+
+    monkeypatch.setattr("klear.agent.__main__.caveats.for_places", for_places)
+    _answer(monkeypatch, "y")
+    assert main(["Which districts have the most seniors?", "--store", str(store_path)]) == 0
+    assert set(asked) == {("house", "022"), ("house", "023")}
+    assert "Maui wildfires (house:023): Lahaina burned." in capsys.readouterr().out

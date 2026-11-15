@@ -6,7 +6,7 @@ KLEAR answers questions about Hawaiʻi's 51 House and 25 Senate legislative dist
 
 ## For judges
 
-- Team: [team name as registered with HAIC]
+- Team: KLEAR. Members: Kanta Saito (KantaS12), Andrew He (andrewhe6), Raine S. Mendoza (rainemendoza), Lukas Moroz (Lukas-Moroz), Elijah Saloma (elijah-saloma).
 - The quickest way to try KLEAR is the live site above: no setup, keys or download. Until the finals demo it asks for a password.
 - Security and privacy: [docs/SECURITY-PRIVACY.md](docs/SECURITY-PRIVACY.md). How the numbers are checked: [docs/VALIDATION.md](docs/VALIDATION.md).
 

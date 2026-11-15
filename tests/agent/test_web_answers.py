@@ -263,3 +263,60 @@ def test_basic_profile_adds_the_largest_industries(real_con):
     answer = ask(real_con, "Give me a socioeconomic profile of House District 22.", ("house", "022"))
     shown = {f.indicator_id for f in answer["fact_refs"]}
     assert len(shown & set(INDUSTRIES)) == 3 and "pct_bachelors_plus" in shown
+
+
+def test_basic_county_total_against_the_state_reads_as_the_county_share(real_con):
+    answer = basic(real_con, "Compare labor force in House District 22 with Hawaiʻi", ("house", "022"))
+    tile = next(t for t in answer["tiles"] if t["label"] == "Labor force (county-level)")
+    assert tile["geography"] == "Honolulu County" and tile["share"].endswith("% of the Hawaiʻi total")
+    assert [p["geography"] for p in tile["places"]] == ["Hawaiʻi"]
+
+
+def test_basic_profile_shows_the_county_figures_and_cites_only_what_it_shows(real_con):
+    answer = basic(real_con, "Give me a profile of House District 22", ("house", "022"))
+    county = [t["label"] for t in answer["tiles"] if t["geography"] == "Honolulu County"]
+    assert county and all("(county-level)" in label for label in county)
+    assert answer["tiles"][0]["label"] == "Total population"
+    assert answer["verified"]["sources"] == len(answer["sources"])
+    assert {"Local Area Unemployment Statistics, monthly county and state estimates (county-level)"} <= {
+        s["name"] for s in answer["sources"]
+    }
+    # the modeled figures shown in the table of more figures get the modeled-estimate caveat
+    modeled = [m for m in answer["more"] if m["label"].startswith("Adults facing")]
+    assert modeled and "modeled estimates" in answer["caveats"][0]
+
+
+def test_basic_mixed_district_and_county_question_shows_both(real_con):
+    answer = basic(real_con, "What is unemployment like here?", ("house", "022"))
+    places = {t["geography"] for t in answer["tiles"]}
+    assert places == {"", "Honolulu County"}
+    assert answer["verified"]["sources"] == len(answer["sources"]) == 2
+
+
+@pytest.mark.parametrize(
+    ("question", "district", "places"),
+    [
+        (
+            "Compare unemployment in House District 22 with the state",
+            ("house", "022"),
+            "District, county and state",
+        ),
+        (
+            "Compare labor force in House District 22 with Hawaiʻi",
+            ("house", "022"),
+            "District, county and state",
+        ),
+        ("Compare poverty with the state", ("county", "15003"), "County and state"),
+        ("Compare poverty with the state", ("house", "022"), "District and state"),
+    ],
+)
+def test_side_by_side_line_names_the_places_shown(real_con, question, district, places):
+    text = ask(real_con, question, district)["text"]
+    assert f"\n\n{places} figures are shown side by side." in text
+
+
+def test_side_by_side_line_for_county_figures_alone(small_con):
+    add_county_context(small_con)
+    text = ask(small_con, "Compare unemployment with the state", ("house", "022"))["text"]
+    assert "District and state figures" not in text
+    assert "County and state figures are shown side by side." in text
