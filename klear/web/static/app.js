@@ -3,8 +3,9 @@ const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 const uncertaintyLabels = {ok: '90% margin of error shown above', controlled: 'Fixed to official totals; no sampling margin of error', range: 'Estimated range shown above', open_ended: 'Open-ended published value', not_computable: 'Margin of error unavailable; treat as uncertain', not_applicable: 'No margin of error applies', unavailable: 'Uncertainty information unavailable'};
 // Suggested questions beside a district's profile, written out in full.
 const examples = ['Give me a socioeconomic profile of this district.', 'How many kūpuna live in this district?', 'What does the data say about housing needs in this district?', 'How does poverty here compare with the state?', 'What support programs could residents of this district explore?'];
-// A suggestion that asks about every district.
+// A suggestion that asks about every district; beside a Senate district it asks about the Senate's.
 const statewideExample = 'Which House districts have the highest share of kūpuna?';
+const statewideFor = chamber => (chamber === 'senate' ? statewideExample.replace('House', 'Senate') : statewideExample);
 // Starter questions on the Find page and in the agent's panel there, by topic. Each names its place or asks about the
 // whole state, so none needs a district chosen first. All but Kāneʻohe lie in one House district; Kāneʻohe spans
 // three, so its answer lists them to choose.
@@ -506,7 +507,9 @@ $('home-question').addEventListener('keydown', e => {
 for (const question of [...examples, statewideExample]) {
   const b = says('button', question);
   b.type = 'button';
-  b.onclick = () => askAgain(question);
+  b.dataset.question = question;
+  if (question === statewideExample) b.classList.add('statewide');
+  b.onclick = () => askAgain(b.dataset.question);
   $('examples').append(b);
 }
 
@@ -1187,7 +1190,9 @@ function renderProfile(p) {
   glance.setAttribute('aria-labelledby', title.id);
   title.append(sectionNumber(1), node('span', 'At a glance', 'sec-title'));
   head.append(title);
-  glance.append(head, headlineStats(p.headline));
+  const stats = headlineStats(p.headline);
+  glance.append(head, stats);
+  if (stats.querySelector('.glance-strip')) glance.append(glanceKey(p));
   if (p.caveats && p.caveats.length) glance.append(placeNotes(p.caveats, 'profile-notes'));
   out.push(glance);
   const sections = profileSections(p);
@@ -1228,9 +1233,50 @@ function headlineStats(headline) {
       if (state && state.value) how.append(node('span', `Hawaiʻi: ${state.value}`, 'reading-state'));
       s.append(how);
     } else if (h.unit === 'count' && state && isNumber(h.num) && state.num > 0) s.append(node('dd', `${shareOf(h.num / state.num)} of Hawaiʻi’s total`, 'profile-reading'));
+    const strip = glanceStrip(h);
+    if (strip) s.append(strip);
     stats.append(s);
   }
   return stats;
+}
+
+// Under a rate or an amount at a glance, a strip that sets the district, its county and the state on one line: the
+// district's margin of error as a band in its chamber's color with a dot at its figure, the county a tick and the state
+// a diamond, so the marks differ in shape as well as color. The words above it say the same, so screen readers skip it.
+function glanceStrip(h) {
+  const marks = ['county', 'state'].map(kind => [kind, (h.against || []).find(a => String(a.geo || '').startsWith(`${kind}:`))]).filter(([, a]) => a && isNumber(a.num));
+  if (h.unit === 'count' || !isNumber(h.num) || !marks.length) return null;
+  const low = isNumber(h.low) ? h.low : h.num, high = isNumber(h.high) ? h.high : h.num;
+  const lo = Math.min(low, ...marks.map(([, a]) => a.num)), hi = Math.max(high, ...marks.map(([, a]) => a.num));
+  if (!(hi > lo)) return null;
+  const pad = (hi - lo) * 0.15, min = lo - pad, span = hi - lo + 2 * pad, at = v => `${(((v - min) / span) * 100).toFixed(2)}%`;
+  const dd = node('dd', '', 'glance-strip'), band = node('span', '', 'gs-band'), here = node('span', '', 'gs-here');
+  dd.setAttribute('aria-hidden', 'true');
+  band.style.left = at(low);
+  band.style.width = `${(((high - low) / span) * 100).toFixed(2)}%`;
+  here.style.left = at(h.num);
+  dd.append(band);
+  for (const [kind, a] of marks) {
+    const mark = node('span', '', `gs-${kind}`);
+    mark.style.left = at(a.num);
+    dd.append(mark);
+  }
+  dd.append(here);
+  return dd;
+}
+
+// What the strips' marks stand for, once under the headline figures.
+function glanceKey(p) {
+  const against = p.headline.flatMap(h => h.against || []), place = kind => (against.find(a => String(a.geo || '').startsWith(`${kind}:`)) || {}).place;
+  const key = node('p', '', 'glance-key');
+  key.setAttribute('aria-hidden', 'true');
+  for (const [mark, text] of [['here', `${p.district || 'This district'}, with its margin of error`], ['county', place('county')], ['state', place('state')]]) {
+    if (!text) continue;
+    const item = node('span', '');
+    item.append(node('i', '', `gk-${mark}`), text);
+    key.append(item);
+  }
+  return key;
 }
 // A share to one decimal place below 10%, else whole numbers: 1.9%, 23%.
 const shareOf = x => `${x < 0.1 ? (Math.round(x * 1000) / 10).toFixed(1) : Math.round(x * 100)}%`;
@@ -2216,6 +2262,11 @@ function timesAbove(r, a) {
 function districtExamples(p) {
   counties.set(p.geo, p.county);
   for (const b of $('examples').querySelectorAll('.local')) b.remove();
+  const statewide = $('examples').querySelector('.statewide'), across = statewideFor(String(p.geo || '').split(':')[0]);
+  if (statewide && statewide.dataset.question !== across) {
+    statewide.replaceChildren(...says('span', across).childNodes);
+    statewide.dataset.question = across;
+  }
   const rows = new Map(p.sections.flatMap(s => s.rows).map(r => [r.id, r]));
   let best = null;
   for (const [id, label, what] of STANDOUTS) {
@@ -2560,14 +2611,18 @@ function answerText(answer, name, asked) {
   return out.join('\n');
 }
 
-// The home page's last strip: three lines of counts from the data store. Without a store it stays hidden.
+// The home page's last strip: the data store's counts, each number set large over its label. Without a store it stays
+// hidden.
 async function loadAbout() {
   let data;
   try { data = await api('/api/about'); } catch { return; }
-  const facts = data.facts || [];
-  if (facts.length) {
-    const lines = facts.length > 3 ? [facts[0], facts[1], facts.slice(2).join('; ')] : facts;
-    $('facts').replaceChildren(...lines.map(line => node('li', `${line}.`)));
+  const stats = data.stats || [];
+  if (stats.length) {
+    $('facts').replaceChildren(...stats.map(s => {
+      const li = node('li', '');
+      li.append(node('strong', s.value, 'stat-num'), ' ', node('span', s.label, 'stat-label'));
+      return li;
+    }));
     $('facts').hidden = false;
   }
 }

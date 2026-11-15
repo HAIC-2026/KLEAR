@@ -11,8 +11,17 @@ DISTRICTS = {"house", "senate"}
 COMPARED = {"county", "state"}
 
 
+def _word(count: int, word: str, plural: str = "") -> str:
+    return word if count == 1 else plural or word + "s"
+
+
 def _n(count: int, word: str, plural: str = "") -> str:
-    return f"{count:,} {word if count == 1 else plural or word + 's'}"
+    return f"{count:,} {_word(count, word, plural)}"
+
+
+def _stat(count: int, label: str) -> dict:
+    """One of the home page's counts, its number set large over its label."""
+    return {"value": f"{count:,}", "label": label}
 
 
 def _loads(value, empty):
@@ -35,20 +44,21 @@ def _report(validation: Path, built_at: str) -> dict:
     return {c["name"]: c for c in data.get("checks", []) if isinstance(c, dict) and "name" in c}
 
 
-def _status(checks: dict, skipped: list) -> str:
-    """Like '16 checks passed, 2 waiting on HUD files'."""
+def _status_parts(checks: dict, skipped: list) -> list[tuple[int, str]]:
+    """Each count in the check results with its label, like (16, 'checks passed'), (2, 'waiting on HUD files'), which
+    the facts line joins as '16 checks passed, 2 waiting on HUD files'."""
     passed = sum(1 for result in checks.values() if result == "pass")
-    parts = [_n(passed, "check") + " passed"]
+    parts = [(passed, _word(passed, "check") + " passed")]
     if failed := len(checks) - passed:
-        parts.append(f"{failed:,} failed")
+        parts.append((failed, "failed"))
     if skipped:
         publishers = {MANUAL.get(s.get("name")) if isinstance(s, dict) else None for s in skipped}
         manual = all(isinstance(s, dict) and s.get("manual") for s in skipped)
         if manual and len(publishers) == 1 and None not in publishers:
-            parts.append(f"{len(skipped):,} waiting on {publishers.pop()} files")
+            parts.append((len(skipped), f"waiting on {publishers.pop()} files"))
         else:
-            parts.append(f"{len(skipped):,} skipped")
-    return ", ".join(parts)
+            parts.append((len(skipped), "skipped"))
+    return parts
 
 
 def geography(tiers: set[str], geo_types: set[str], checks: bool) -> str:
@@ -116,7 +126,7 @@ def _crosscheck(report: dict) -> str | None:
 
 
 def about(con, validation: Path) -> dict:
-    """Facts line, source list, and DBEDT cross-check for the landing page."""
+    """Facts line, the same counts one by one, source list, and DBEDT cross-check for the landing page."""
     counts = dict(
         con.execute(
             "SELECT geo_type, count(*) FROM geography WHERE geo_type IN ('house', 'senate') GROUP BY geo_type"
@@ -137,14 +147,28 @@ def about(con, validation: Path) -> dict:
         f"{house} House and {senate} Senate districts",
         f"{_n(measures, 'measure')} from {_n(used, 'public source')}",
     ]
+    stats = [
+        _stat(house, _word(house, "House district")),
+        _stat(senate, _word(senate, "Senate district")),
+        _stat(measures, _word(measures, "measure")),
+        _stat(used, _word(used, "public source")),
+    ]
     crosscheck = None
     build = con.execute("SELECT built_at, checks, skipped_steps FROM build_info").fetchone()
     if build:
         report = _report(validation, build[0])
         fidelity = report.get("source_fidelity")
         if fidelity and "n_compared" in fidelity:
-            mismatches = _n(fidelity.get("n_mismatch", 0), "mismatch", "mismatches")
-            facts.append(f"{_n(fidelity['n_compared'], 'DBEDT value')} cross-checked, {mismatches}")
-        facts.append(_status(_loads(build[1], {}), _loads(build[2], [])))
+            compared, mismatched = fidelity["n_compared"], fidelity.get("n_mismatch", 0)
+            facts.append(
+                f"{_n(compared, 'DBEDT value')} cross-checked, {_n(mismatched, 'mismatch', 'mismatches')}"
+            )
+            stats += [
+                _stat(compared, _word(compared, "DBEDT value") + " cross-checked"),
+                _stat(mismatched, _word(mismatched, "mismatch", "mismatches")),
+            ]
+        parts = _status_parts(_loads(build[1], {}), _loads(build[2], []))
+        facts.append(", ".join(f"{count:,} {label}" for count, label in parts))
+        stats += [_stat(count, label) for count, label in parts]
         crosscheck = _crosscheck(report)
-    return {"facts": facts, "sources": sources, "crosscheck": crosscheck}
+    return {"facts": facts, "stats": stats, "sources": sources, "crosscheck": crosscheck}

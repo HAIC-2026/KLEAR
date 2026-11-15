@@ -35,7 +35,7 @@ test('every page has the same four tabs and marks the one you are on', async ({p
       continue;
     }
     await expect(current).toHaveText(CURRENT[address]);
-    // Sighted readers see it too: the tab is bold, with a thick white bar under it.
+    // Sighted readers see it too: the tab is bold, with a thick gold bar under it.
     expect(await current.evaluate(el => {
       const s = getComputedStyle(el);
       return Number(s.fontWeight) >= 700 && s.boxShadow.includes('-4px');

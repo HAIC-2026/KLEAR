@@ -288,9 +288,11 @@ def test_the_map_lists_each_measure_by_its_short_label():
 
 def test_shading_uses_classes_never_style_attributes():
     script = (web.STATIC / "map.js").read_text(encoding="utf-8")
-    # Only custom properties, which the style sheet reads: the label size and where the hover label sits.
+    # Only custom properties, which the style sheet reads: the label size, where the hover label sits, and the length
+    # of each bar in the ranking and of its whisker.
     assert not re.search(
-        r"\.style\.(?!setProperty\('--(label|tip-x|tip-y)')|setAttribute\('style'|cssText", script
+        r"\.style\.(?!setProperty\('--(label|tip-x|tip-y|bar-w|whisker-x|whisker-w)')|setAttribute\('style'|cssText",
+        script,
     )
     css = (web.STATIC / "style.css").read_text(encoding="utf-8")
     for q in range(1, 6):

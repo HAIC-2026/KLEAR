@@ -73,11 +73,20 @@
     seatLinks(seats, (geo, name) => set(slot, geo, name, true));
   }
 
+  // A and B: a gold badge on each district's card and over its column of figures, so two districts of one chamber,
+  // the same color, are easy to tell apart. Their names say which is which to screen readers.
+  function slotBadge(slot) {
+    const b = node('span', slot.toUpperCase(), 'cmp-badge');
+    b.setAttribute('aria-hidden', 'true');
+    return b;
+  }
+
   // A column with a district: its chamber and number, where it is, its legislator and a small map, with buttons to
   // change or remove it. Its name opens its page.
   function card(slot, p) {
     const box = node('div', '', `cmp-card ${p.geo.split(':')[0]}`), head = node('div', '', 'cmp-card-head');
     const h = node('h2', '', 'cmp-name'), a = node('a', '');
+    h.append(slotBadge(slot));
     const m = /^(House|Senate) District (\d+)$/.exec(p.district);
     if (m) a.append(node('span', `${m[1]} District`, 'mast-chamber'), ' ', node('span', m[2], 'mast-number'));
     else a.textContent = p.district;
@@ -151,7 +160,7 @@
         loaded[s] = list[i];
         if (fresh || !colOf[s].querySelector('.cmp-card')) card(s, list[i]);
       });
-      result.replaceChildren(...table(slots.map(s => loaded[s])));
+      result.replaceChildren(...table(slots.map(s => loaded[s]), slots));
       announce();
     } catch (err) {
       if (mine === seq) result.replaceChildren(node('p', `The figures could not load. ${err.message}`, 'status'));
@@ -199,7 +208,7 @@
   // Every measure either district has, in the profile's group and row order, as one table per group: each measure is
   // a row group, its name and Hawaiʻi's figure across the top, then each district's figure in its own column, then
   // whether they differ and by how much. The groups open and shut like the profile's sections, numbered from At a glance.
-  function table(list) {
+  function table(list, slots) {
     const names = list.map(p => p.district), byId = list.map(p => new Map([...p.headline, ...p.sections.flatMap(s => s.rows)].map(r => [r.id, r])));
     const groups = [['glance', 'At a glance', [...new Set(list.flatMap(p => p.headline.map(r => r.id)))]]];
     for (const [key, title, sectionNames] of PROFILE_GROUPS) {
@@ -212,7 +221,11 @@
     // The districts' names over their columns stay in view while the rows scroll under them.
     const heads = node('div', '', 'cmp-sticky');
     heads.setAttribute('aria-hidden', 'true');
-    for (const p of list) heads.append(node('span', p.district, `cmp-sticky-name ${p.geo.split(':')[0]}`));
+    list.forEach((p, i) => {
+      const name = node('span', '', `cmp-sticky-name ${p.geo.split(':')[0]}`);
+      name.append(slotBadge(slots[i]), p.district);
+      heads.append(name);
+    });
     out.push(heads);
     const saved = openedSections();
     groups.forEach(([key, title, ids], i) => {

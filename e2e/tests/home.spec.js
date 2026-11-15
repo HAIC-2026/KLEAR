@@ -180,9 +180,12 @@ test('the old Ask page opens the Find page with the panel open, and asks a quest
 
 test('the Find page ends with the store’s counts and a link to the data and methods', async ({page}) => {
   await page.goto('/');
-  const lines = page.locator('#facts li');
-  await expect(lines).toHaveCount(2);  // the test store has no build record, so only the two counts
-  await expect(lines.first()).toHaveText('2 House and 1 Senate districts.');
+  const counts = page.locator('#facts li');
+  // The test store has no build record, so only the districts, measures and sources, each number over its label.
+  await expect(counts).toHaveCount(4);
+  await expect(counts.nth(0)).toHaveText('2 House districts');
+  await expect(counts.nth(1)).toHaveText('1 Senate district');
+  await expect(counts.nth(0).locator('.stat-num')).toHaveText('2');
   await expect(page.locator('#source-table')).toHaveCount(0);
   await page.getByRole('link', {name: 'Sources, methods and checks'}).click();
   await expect(page).toHaveURL(/\/data$/);

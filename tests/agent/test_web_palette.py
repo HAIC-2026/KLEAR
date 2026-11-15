@@ -99,6 +99,12 @@ TEXT = [
     ("house", "house-tint"), ("senate", "senate-tint"),
     ("up", "white"), ("down", "white"), ("up", "subtle"), ("down", "subtle"),  # higher and lower in a comparison
     ("white", "band-end"), ("on-dark", "band-end"), ("on-dark", "house"),  # the band's title and lede
+    ("on-dark", "house-dark"), ("on-dark-muted", "house-dark"),  # the header bar, a step darker than the band
+    ("ink", "gold"), ("ink", "gold-hover"),  # the main buttons, and under the mouse
+    ("ink", "gold-soft"), ("muted", "gold-soft"), ("house-dark", "gold-soft"), ("house", "gold-soft"),  # Ask panel
+    # A district's own tinted column, the outreach note and the agent's question chips, in either chamber's color
+    ("senate-dark", "senate-soft"), ("house", "house-soft"), ("senate", "senate-soft"),
+    ("house-dark", "house-soft-hover"), ("senate-dark", "senate-soft-hover"),
 ]  # fmt: skip
 
 # Shapes and boundaries people need to see: 3:1 (WCAG 1.4.11).
@@ -115,6 +121,8 @@ SHAPES = [
     ("ink", "house-land"), ("ink", "senate-land"), ("ink", "house-hover"), ("ink", "senate-hover"),
     ("ink", "house-zip"), ("ink", "senate-zip"), ("ink", "map-dim"), ("ink", "map-sea"),
     ("house", "house-hover"), ("senate", "senate-hover"),  # a district under the mouse against a picked one
+    ("gold-edge", "white"), ("gold-edge", "page"),  # the edge of a gold button, on a panel and on the page
+    ("gold", "house-dark"),  # the current tab's bar under the header's tabs
 ]  # fmt: skip
 
 # Colors that mean different things side by side, which must stay apart with each deficiency.
@@ -124,6 +132,9 @@ DISTINCT = [
     ("house-zip", "map-dim"), ("senate-zip", "map-dim"),
     ("house", "house-land"), ("senate", "senate-land"),
     ("house", "house-hover"), ("senate", "senate-hover"),
+    # Gold marks what to press and where you are, never higher or lower, so it stays apart from both comparison
+    # colors, and from both chambers.
+    ("gold", "up"), ("gold", "down"), ("gold", "house"), ("gold", "senate"),
 ]  # fmt: skip
 
 # A district under the mouse also changes fill. Its outline is the main cue, so the fill change needs only to be

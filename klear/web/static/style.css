@@ -24,10 +24,17 @@
   --house:#1d5563;--house-dark:#143f4a;--house-soft:#d6e7eb;--house-soft-hover:#c3dde3;--house-land:#a8cfd9;--house-hover:#6aa6b6;--house-zip:#4f8a99;
   --senate:#5b3f8f;--senate-dark:#432d70;--senate-soft:#e6e0f3;--senate-soft-hover:#d8cfec;--senate-land:#cfc4e6;--senate-hover:#a994d2;--senate-zip:#8a74b8;
 
-  /* The accent follows the chamber the chat is asking about; it is House teal everywhere else. The letterhead, the bar
-     across the top of every page, is always House teal. */
+  /* The accent follows the chamber of the district on screen or the chat is asking about; it is House teal everywhere
+     else. The letterhead, the bar across the top of every page, is always the dark House teal, a step darker than the
+     band under it. */
   --accent:var(--house);--accent-dark:var(--house-dark);--accent-soft:var(--house-soft);--accent-soft-hover:var(--house-soft-hover);
-  --chamber:var(--house);--letterhead:var(--house);
+  --chamber:var(--house);--letterhead:var(--house-dark);
+
+  /* ʻIlima gold, the second accent: what to press and where you are. It fills the main buttons (ink text on it,
+     8.7:1, with an edge 5.2:1 on white), marks the current tab and the rule over each page's title, and edges the
+     home page's Ask panel. It is never a text color, since dark gold text would sit too close to the red of "below"
+     for people with deuteranopia. */
+  --gold:#f2b33d;--gold-hover:#e5a023;--gold-edge:#946200;--gold-soft:#fdf3dc;--gold-line:#e6c27a;
 
   /* Map, charts, errors. District borders use the chamber color, 3:1 or more against the land and the sea.
      Comparison bars are 3:1 or more against the answer bubble and differ from both chamber colors in lightness.
@@ -104,12 +111,16 @@ h3{font-size:var(--fs-lg);line-height:1.3;margin:0 0 8px}
 a.ext::after{content:"";display:inline-block;width:.5em;height:.5em;margin-left:.35em;vertical-align:.12em;border-top:.13em solid currentColor;border-right:.13em solid currentColor;background:linear-gradient(to bottom right,transparent 42%,currentColor 42%,currentColor 58%,transparent 58%)}
 
 /* Header: the same on every page (tests/agent/test_web_pages.py checks this): the wordmark, which leads home, and four
-   tabs: Districts (home, the same as the wordmark), Compare, Rankings, and Data & methods. A solid bar in House teal
-   on every page, a Senate district's too, with white text; the tab you are on is bold with a thick white bar under
-   it. When the screen is tall enough it stays at the top as the page scrolls: all of it on wide screens, and only
-   its row of tabs on phones. --stick is how much of it stays, so whatever the page scrolls to stops below it. */
-.site-header{position:relative;z-index:30;height:var(--header-h);padding:0 var(--gutter);display:flex;align-items:center;justify-content:space-between;gap:var(--s-5);background:var(--letterhead);color:#fff;border-bottom:1px solid rgb(255 255 255 / .14)}
-body[data-chamber=senate]{--chamber:var(--senate)}
+   tabs: Districts (home, the same as the wordmark), Compare, Rankings, and Data & methods. A solid bar in dark House
+   teal on every page, a Senate district's too, with white text; the tab you are on is bold with a thick gold bar
+   under it. When the screen is tall enough it stays at the top as the page scrolls: all of it on wide screens, and
+   only its row of tabs on phones. --stick is how much of it stays, so whatever the page scrolls to stops below it. */
+.site-header{position:relative;z-index:30;height:var(--header-h);padding:0 var(--gutter);display:flex;align-items:center;justify-content:space-between;gap:var(--s-5);background:var(--letterhead);color:#fff}
+:root{--chamber-land:var(--house-land)}
+body[data-chamber=senate]{--chamber:var(--senate);--chamber-land:var(--senate-land)}
+/* A Senate district's page is purple throughout under the teal header: its links, the tinted district column, the
+   outreach note, the buttons that open and explain, and the focus outline. */
+html[data-page=district] body[data-chamber=senate] .stage{--accent:var(--senate);--accent-dark:var(--senate-dark);--accent-soft:var(--senate-soft);--accent-soft-hover:var(--senate-soft-hover)}
 .site-header :focus-visible{outline-color:#fff}
 .brand{display:inline-flex;align-items:center;gap:10px;color:#fff;text-decoration:none;white-space:nowrap;border-radius:var(--r-sm)}
 .brand-logo{display:block;flex:none;width:38px;height:38px;padding:3px;border-radius:var(--r-ctl);background:#fff}
@@ -121,8 +132,9 @@ body[data-chamber=senate]{--chamber:var(--senate)}
 /* Block, not flex, so the space before a label's longer part stays. As tall as the bar, so the current tab's white
    bar sits on its bottom edge. */
 .nav-links a{display:block;height:100%;padding:20px 14px;line-height:24px;color:var(--on-dark);text-decoration:none;white-space:nowrap}
-/* The page you are on: bold and white, with a thick white bar under it. Screen readers hear "current page". */
-.nav-links a[aria-current=page]{color:#fff;font-weight:800;box-shadow:inset 0 -4px 0 #fff}
+/* The page you are on: bold and white, with a thick gold bar under it (6.1:1 on the bar). Screen readers hear
+   "current page". */
+.nav-links a[aria-current=page]{color:#fff;font-weight:800;box-shadow:inset 0 -4px 0 var(--gold)}
 footer a[aria-current=page]{font-weight:700;text-decoration-thickness:3px}
 @media(min-height:560px){
   :root{--stick:var(--header-h)}
@@ -159,9 +171,11 @@ html[data-page=home] .share-bar{display:none!important}
    enough that what the page is for shows under it. */
 .hero{position:relative;overflow:hidden;background:linear-gradient(115deg,var(--house) 0%,var(--house) 35%,var(--band-end) 100%);color:#fff}
 /* The drawing of the islands, in white, faint over the teal. */
-.hero-art{position:absolute;top:-2%;right:3%;height:104%;width:min(60%,54rem);object-fit:contain;object-position:right center;pointer-events:none;filter:brightness(0) invert(1);opacity:.3}
+.hero-art{position:absolute;top:-2%;right:3%;height:104%;width:min(60%,54rem);object-fit:contain;object-position:right center;pointer-events:none;filter:brightness(0) invert(1);opacity:.4}
 .hero-inner{position:relative;padding-top:var(--s-6);padding-bottom:var(--s-6)}
 .hero h1{max-width:18ch;margin:0 0 var(--s-3);font-size:var(--fs-hero);line-height:1.05;letter-spacing:-.025em;color:#fff}
+/* A short gold rule over the title. */
+.hero h1::before{content:"";display:block;width:56px;height:5px;margin:0 0 var(--s-4);border-radius:3px;background:var(--gold)}
 .hero h1:focus{outline:none}.hero h1:focus-visible{outline:3px solid var(--accent);outline-offset:3px}
 .hero .lede{max-width:40rem;margin:0 0 var(--s-5);color:var(--on-dark);font-size:var(--fs-md)}
 .hero a{color:#fff}.hero :focus-visible{outline-color:#fff}
@@ -223,7 +237,10 @@ html:not([data-page=home]) .map-more{display:none}
 
 /* The question box under Find: it asks in the agent's panel. Starter questions by topic, in columns. */
 .ask-teaser{padding:0 0 var(--section-y)}
-.ask-teaser .ask-inner{padding:var(--card-pad)}
+/* A warm panel with a gold edge, so asking stands apart from finding. Text and links on it are 8:1 or more. */
+.ask-teaser .ask-inner{padding:var(--card-pad);background:var(--gold-soft);border-color:var(--gold-line);border-left:6px solid var(--gold)}
+.ask-teaser .topic-title{border-bottom-color:var(--gold-line)}
+.ask-teaser .topic li+li .starter{border-top-color:var(--gold-line)}
 .ask-teaser h2{margin:0 0 var(--s-3)}
 .home-ask{max-width:52rem}
 .home-ask label{font-size:var(--fs-base);font-weight:400;color:var(--muted)}
@@ -252,7 +269,9 @@ a[href],button,input,select,textarea,summary,[tabindex]{scroll-margin-top:calc(v
 .section-head h2{margin:0 0 var(--s-3)}
 .section-head p{margin:0;color:var(--muted);font-size:var(--fs-lead);line-height:1.6}
 .card{background:#fff;border:1px solid var(--line);border-radius:var(--r-card);box-shadow:var(--shadow-sm);min-width:0}
-.button{display:inline-flex;align-items:center;justify-content:center;gap:var(--s-2);min-height:var(--control-h);padding:0 18px;background:var(--accent);color:#fff;border:1px solid var(--accent);border-radius:var(--r-ctl);font-weight:600;text-decoration:none;white-space:nowrap}
+/* The main buttons, the ones that find, ask and print, are gold with ink text on every page, so what to press stands
+   apart from the teal of links and figures. */
+.button{display:inline-flex;align-items:center;justify-content:center;gap:var(--s-2);min-height:var(--control-h);padding:0 18px;background:var(--gold);color:var(--ink);border:1px solid var(--gold-edge);border-radius:var(--r-ctl);font-weight:700;text-decoration:none;white-space:nowrap}
 .button:disabled{opacity:.45;cursor:not-allowed}
 /* Rankings, Data and the statement: the band, then the page's content. */
 .page{padding:0 0 var(--s-8);background:transparent}
@@ -276,7 +295,7 @@ textarea{padding:11px 14px;line-height:24px}
 input::placeholder,textarea::placeholder{color:var(--placeholder)}
 input:focus,textarea:focus,select:focus{border-color:var(--accent)}
 input:focus-visible,textarea:focus-visible,select:focus-visible{outline-offset:1px}
-.inputrow button,.question-row button,.map-go{flex:none;min-height:var(--control-h);padding:0 18px;background:var(--accent);color:#fff;border:1px solid var(--accent);border-radius:var(--r-ctl);font-weight:600}
+.inputrow button,.question-row button{flex:none;min-height:var(--control-h);padding:0 18px;background:var(--gold);color:var(--ink);border:1px solid var(--gold-edge);border-radius:var(--r-ctl);font-weight:700}
 .help{font-size:var(--fs-sm);color:var(--muted);margin:12px 0 0}
 .help+.help{margin-top:4px}
 .status{font-size:var(--fs-sm);font-weight:600;color:var(--accent);min-height:1.5em}
@@ -387,6 +406,13 @@ summary{font-weight:600;color:var(--accent);cursor:pointer}
 .examples{display:grid;gap:0}
 .examples button{border:0;border-top:1px solid var(--line);border-radius:0;background:none;text-align:left;padding:8px 0;color:var(--accent-dark);font-size:var(--fs-sm);font-weight:600;line-height:1.4;text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:3px;text-wrap:pretty}
 .examples .off{display:none}
+/* In the agent's panel, the questions to try and the next questions under an answer are chips: each a tinted button in
+   the chamber's color, its dark text 6:1 or more on the tint, darker under the mouse. */
+.chat-card :is(.examples button,.chat-starters .starter),#log .followups .followup{width:fit-content;max-width:100%;padding:7px 12px;border:1px solid var(--accent-soft-hover);border-radius:var(--r-ctl);background:var(--accent-soft);color:var(--accent-dark);text-decoration:none}
+.chat-card .examples,#log .followups{display:flex;flex-direction:column;align-items:flex-start;gap:var(--s-2)}
+.chat-card .examples{margin-top:var(--s-1)}
+.chat-card .chat-starters .topic li+li{margin-top:var(--s-2)}
+.chat-card .chat-starters .topic-title{margin-bottom:var(--s-2)}
 /* A district's page: the bar with the way back to the search and on to Compare, and the share actions; the map, zoomed
    to the district, in the left third beside its name and where it is; its profile under them across two thirds; the
    agent in the right third. The profile is numbered as a printed brief is: 1 At a glance, with four headline figures
@@ -438,8 +464,9 @@ details.profile-member-about{margin:0;padding:0;border:0;font-size:var(--fs-xs);
    headline figures, parted by thin rules. Each figure reads label, figure, margin, then how it compares. */
 .profile-glance{margin:var(--s-4) 0 0;scroll-margin-top:calc(var(--stick) + 12px)}
 .glance-head{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:var(--s-1) var(--s-5);padding-bottom:6px;border-bottom:2px solid var(--ink)}
-.glance-title{display:flex;align-items:baseline;margin:0;font-size:var(--fs-lg);font-weight:750;letter-spacing:-.01em}
-.sec-num{flex:none;min-width:1.1em;margin-right:10px;font-family:var(--display);font-stretch:75%;font-size:1.6em;font-weight:800;line-height:.8;color:var(--chamber);font-variant-numeric:lining-nums}
+.glance-title{display:flex;align-items:center;margin:0;font-size:var(--fs-lg);font-weight:750;letter-spacing:-.01em}
+/* Each section's number in a round badge of the chamber's color, white on it (8:1 or more). */
+.sec-num{flex:none;display:inline-grid;place-items:center;width:1.8em;height:1.8em;margin-right:12px;border-radius:50%;background:var(--chamber);color:#fff;font-family:var(--display);font-stretch:87%;font-size:.9em;font-weight:800;line-height:1;font-variant-numeric:lining-nums}
 .profile-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0;margin:0}
 .profile-stats>div{display:flex;flex-direction:column;min-width:0;padding:10px var(--s-4) var(--s-3);border-left:1px solid var(--line)}
 .profile-stats>div:first-child{padding-left:0;border-left:0}
@@ -450,6 +477,25 @@ details.profile-member-about{margin:0;padding:0;border:0;font-size:var(--fs-xs);
 .profile-stats .profile-reading{margin-top:6px;font-size:var(--fs-xs);line-height:1.4}
 .reading-mark{display:inline-block;width:1em;text-indent:0;text-align:center;color:inherit}
 .reading-state{display:block;color:var(--muted)}
+/* The strip under a headline figure (see glanceStrip in app.js), at the foot of its column so the four line up: a gray
+   line, the district's margin of error as a pale band edged in the chamber's color, its figure a dot in that color, the
+   county a tick and the state a diamond in ink, each edged in white where they cross. */
+.profile-stats .glance-strip{position:relative;height:22px;margin:auto 6px 0;padding:0}
+.profile-stats>div:has(.glance-strip)>.profile-reading{margin-bottom:var(--s-3)}
+.glance-strip::before{content:"";position:absolute;top:50%;left:-6px;right:-6px;height:2px;margin-top:-1px;background:var(--line)}
+.glance-strip>span,.glance-key i{position:absolute;top:50%}
+.gs-band{height:10px;margin-top:-5px;border:1px solid var(--chamber);border-radius:5px;background:var(--chamber-land)}
+.gs-here{width:12px;height:12px;margin:-6px 0 0 -6px;border-radius:50%;background:var(--chamber);box-shadow:0 0 0 2px #fff}
+.gs-county{width:3px;height:18px;margin:-9px 0 0 -1.5px;border-radius:1px;background:var(--ink);box-shadow:0 0 0 1px #fff}
+.gs-state{width:9px;height:9px;margin:-4.5px 0 0 -4.5px;background:var(--ink);transform:rotate(45deg);box-shadow:0 0 0 1.5px #fff}
+/* What the marks stand for, once under the four figures. */
+.glance-key{display:flex;flex-wrap:wrap;gap:var(--s-1) var(--s-5);margin:var(--s-2) 0 0;padding:var(--s-2) 0 0;border-top:1px solid var(--line);font-size:var(--fs-xs);line-height:1.5;color:var(--muted)}
+.glance-key span{display:inline-flex;align-items:center;gap:8px}
+.glance-key i{position:relative;top:auto;flex:none;display:inline-block}
+.gk-here{width:26px;height:10px;border:1px solid var(--chamber);border-radius:5px;background:var(--chamber-land)}
+.gk-here::after{content:"";position:absolute;top:50%;left:50%;width:10px;height:10px;margin:-5px 0 0 -5px;border-radius:50%;background:var(--chamber);box-shadow:0 0 0 2px #fff}
+.gk-county{width:3px;height:14px;border-radius:1px;background:var(--ink)}
+.gk-state{width:8px;height:8px;margin:0 1px;background:var(--ink);transform:rotate(45deg)}
 /* Links to every section, numbered as the sections are. The title leads the line. */
 .profile-jumps{display:flex;flex-wrap:wrap;align-items:baseline;gap:0 18px;margin:0;padding:var(--s-2) 0;border-top:1px solid var(--ink);border-bottom:1px solid var(--line)}
 /* The numbers say what the line is, so its title is kept for screen readers. */
@@ -457,7 +503,8 @@ details.profile-member-about{margin:0;padding:0;border:0;font-size:var(--fs-xs);
 .profile-jumps ol{display:flex;flex:1 1 24rem;flex-wrap:wrap;gap:0 18px;margin:0;padding:0;list-style:none}
 .profile-jumps a{display:inline-flex;align-items:baseline;padding:4px 0;font-size:var(--fs-sm);font-weight:600;text-decoration:none}
 .profile-jumps a span:last-child{text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:3px}
-.profile-jumps .sec-num{margin-right:5px;font-size:1.25em}
+.profile-jumps .sec-num{margin-right:7px;font-size:var(--fs-xs)}
+.profile-jumps a{align-items:center}
 .profile-back a{display:inline-block;padding:4px 0;font-size:var(--fs-sm);font-weight:600}
 /* The row that closes the profile: where to read about the data, and the way to another district. */
 .profile-end{display:flex;flex-wrap:wrap;align-items:baseline;gap:0 18px;margin:var(--block-gap) 0 0;padding-top:8px;border-top:2px solid var(--ink)}
@@ -466,7 +513,7 @@ details.profile-member-about{margin:0;padding:0;border:0;font-size:var(--fs-xs);
 .profile-end a{display:inline-block;padding:10px 0;font-size:var(--fs-sm);font-weight:600}
 /* Each numbered section opens and shuts under its own ink rule, with a plus that turns to a minus when open. */
 .profile .profile-section{margin:0;padding:0;border-top:0;scroll-margin-top:calc(var(--stick) + 12px)}
-.profile-section>summary{display:flex;align-items:baseline;padding:var(--s-3) 0 6px;border-bottom:2px solid var(--ink);font-size:var(--fs-lg);font-weight:750;letter-spacing:-.01em;color:var(--ink);list-style:none}
+.profile-section>summary{display:flex;align-items:center;padding:var(--s-3) 0 6px;border-bottom:2px solid var(--ink);font-size:var(--fs-lg);font-weight:750;letter-spacing:-.01em;color:var(--ink);list-style:none}
 .profile-section>summary::-webkit-details-marker{display:none}
 .profile-section>summary::after{content:"+";margin-left:auto;padding-left:var(--s-3);font-family:var(--display);font-size:1.2em;font-weight:600;line-height:1;color:var(--accent)}
 .profile-section[open]>summary::after{content:"−"}
@@ -603,11 +650,12 @@ html.chat-open .chat-dock #messages{flex:1 1 0px;min-height:80px;overflow-y:auto
 html.chat-open .chat-min{display:grid}
 /* The panel floats over the page, so it alone among the panels casts a shadow. */
 html.chat-open .chat-card{box-shadow:var(--shadow-lg)}
-.chat-fab{position:fixed;z-index:45;right:max(var(--s-4),env(safe-area-inset-right));bottom:max(var(--s-4),env(safe-area-inset-bottom));display:inline-flex;align-items:center;gap:10px;min-height:56px;padding:0 22px 0 18px;border:0;border-radius:var(--r-pill);background:var(--accent);color:#fff;font-size:var(--fs-base);font-weight:700;box-shadow:var(--shadow-lg)}
-body[data-chamber=senate] .chat-fab{background:var(--senate)}
+.chat-fab{position:fixed;z-index:45;right:max(var(--s-4),env(safe-area-inset-right));bottom:max(var(--s-4),env(safe-area-inset-bottom));display:inline-flex;align-items:center;gap:10px;min-height:56px;padding:0 22px 0 18px;border:1px solid var(--gold-edge);border-radius:var(--r-pill);background:var(--gold);color:var(--ink);font-size:var(--fs-base);font-weight:700;box-shadow:var(--shadow-lg)}
 .chat-fab .icon{width:22px;height:22px}
 .chat-fab:focus-visible{outline-offset:3px}
-.fab-new{padding:2px 8px;border-radius:var(--r-pill);background:#fff;color:var(--house-dark);font-size:var(--fs-xs);font-weight:700}
+.fab-new{padding:2px 8px;border-radius:var(--r-pill);background:var(--ink);color:#fff;font-size:var(--fs-xs);font-weight:700}
+/* Where the round button floats over the page, whatever the keyboard moves to scrolls clear of it. */
+html.chat-floats{scroll-padding-bottom:calc(56px + var(--s-4) * 2)}
 /* Phones: the panel covers the screen, under its own title bar with the button that minimizes it. */
 @media(max-width:640px){
   html.chat-open .chat-dock{inset:0;width:auto;height:auto;z-index:60}
@@ -819,8 +867,8 @@ article .elsewhere{font-size:var(--fs-sm)}
    a white line edged in ink, a ZIP code's districts a dashed ink line on white, and the district under the mouse a thin
    ink line on white. */
 .shade-row{margin-bottom:16px}.shade-row select{max-width:26rem}.shade-row .status{margin:8px 0 0}.shade-row .status:empty{margin:0;min-height:0}
-#map .district,.map-legend{--q1:var(--house-q1);--q2:var(--house-q2);--q3:var(--house-q3);--q4:var(--house-q4);--q5:var(--house-q5)}
-#map [data-geo^="senate:"],.map-legend[data-ramp=senate]{--q1:var(--senate-q1);--q2:var(--senate-q2);--q3:var(--senate-q3);--q4:var(--senate-q4);--q5:var(--senate-q5)}
+#map .district,.map-legend,.rank-table{--q1:var(--house-q1);--q2:var(--house-q2);--q3:var(--house-q3);--q4:var(--house-q4);--q5:var(--house-q5)}
+#map [data-geo^="senate:"],.map-legend[data-ramp=senate],.rank-table[data-ramp=senate]{--q1:var(--senate-q1);--q2:var(--senate-q2);--q3:var(--senate-q3);--q4:var(--senate-q4);--q5:var(--senate-q5)}
 #map.shaded .district{stroke:var(--ink);forced-color-adjust:none}#map.shaded .district:is(.q4,.q5){stroke:#fff}
 #map.shaded .district.q1{fill:var(--q1)}#map.shaded .district.q2{fill:var(--q2)}#map.shaded .district.q3{fill:var(--q3)}#map.shaded .district.q4{fill:var(--q4)}#map.shaded .district.q5{fill:var(--q5)}#map.shaded .district.none{fill:var(--map-dim)}
 #map .marks{pointer-events:none}#map .marks path{stroke:none}#map .marks .unreliable{fill:url(#map-stripes)}#map .marks .unreliable.on-dark{fill:url(#map-stripes-light)}#map .marks .none{fill:url(#map-dots)}
@@ -845,8 +893,11 @@ article .elsewhere{font-size:var(--fs-sm)}
 /* The Find page's last strip: the store's counts in one row, and the way to the data and methods. */
 .counts{padding:var(--s-5) 0;border-top:1px solid var(--line)}
 .counts-inner{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:var(--s-3) var(--s-6)}
-.facts-list{display:flex;flex-wrap:wrap;gap:var(--s-2) var(--s-5);margin:0;padding:0;list-style:none;font-size:var(--fs-sm);color:var(--muted)}
-.facts-list li{margin:0}
+/* Each count's number large in Archivo and teal, its label under it. */
+.facts-list{display:flex;flex-wrap:wrap;gap:var(--s-4) var(--s-6);margin:0;padding:0;list-style:none;font-size:var(--fs-sm);color:var(--muted)}
+.facts-list li{display:grid;margin:0;line-height:1.3}
+.stat-num{font-family:var(--display);font-stretch:87%;font-size:var(--fs-num);font-weight:800;line-height:1.1;letter-spacing:-.01em;color:var(--house);font-variant-numeric:lining-nums tabular-nums}
+.stat-label{max-width:9rem}
 .counts-link{font-weight:600}
 
 /* Tables and lists the pages share */
@@ -901,6 +952,11 @@ details.fold[open]>summary{margin-bottom:var(--s-2)}
 .cmp-name a{display:block;color:inherit;text-decoration:none;border-radius:var(--r-sm)}
 .cmp-name a:hover .mast-number{text-decoration:underline;text-decoration-thickness:3px;text-underline-offset:6px}
 .cmp-name .mast-number{font-size:clamp(52px,4.4vw,72px)}
+/* A and B, gold with ink letters, before each district's name on its card and over its column. */
+.cmp-badge{flex:none;display:inline-grid;place-items:center;width:28px;height:28px;border:1px solid var(--gold-edge);border-radius:var(--r-sm);background:var(--gold);color:var(--ink);font-family:var(--display);font-size:var(--fs-sm);font-weight:800;line-height:1}
+.cmp-name{display:flex;align-items:flex-start;gap:var(--s-3)}
+.cmp-sticky-name{display:inline-flex;align-items:center;gap:var(--s-2)}
+.cmp-sticky .cmp-badge{width:22px;height:22px;font-size:var(--fs-xs)}
 .cmp-card-actions{display:flex;gap:var(--s-2)}
 .cmp-map{margin:var(--s-3) 0;border:1px solid var(--line);border-radius:var(--r-sm);overflow:hidden;background:var(--map-sea);aspect-ratio:3/2}
 .locator-map{display:block;width:100%;height:100%}
@@ -997,6 +1053,16 @@ details.fold[open]>summary{margin-bottom:var(--s-2)}
 .unreliable-mark{display:inline-grid;place-items:center;width:18px;height:18px;margin-left:2px;border-radius:50%;background:var(--error-ink);color:#fff;font-size:12px;font-weight:800;line-height:1;vertical-align:1px;cursor:help}
 .rank-key{margin:var(--s-2) 0 0;font-size:var(--fs-xs);color:var(--muted)}
 .rank-table tr.picked>:first-child{box-shadow:inset 4px 0 0 var(--accent)}
+/* Under each figure in the ranking, a bar from zero in the district's map shade, edged in ink so the lightest shows on
+   white, with the margin of error as an ink whisker edged in white. Every row shares one scale. */
+/* The estimate's column takes the room the table has to spare, so its bars are long enough to compare. */
+.rank-table thead th:nth-child(3){width:36%}
+.rank-bar{position:relative;display:block;width:100%;min-width:3rem;height:12px;margin-top:6px}
+.rank-fill{position:absolute;top:1px;left:0;width:var(--bar-w,0);height:10px;border:1px solid var(--ink);border-radius:2px;forced-color-adjust:none}
+.rank-fill.q1{background:var(--q1)}.rank-fill.q2{background:var(--q2)}.rank-fill.q3{background:var(--q3)}.rank-fill.q4{background:var(--q4)}.rank-fill.q5{background:var(--q5)}
+.rank-whisker{position:absolute;top:5px;left:var(--whisker-x,0);width:var(--whisker-w,0);height:2px;background:var(--ink);box-shadow:0 0 0 1px #fff}
+.rank-whisker::before,.rank-whisker::after{content:"";position:absolute;top:-3px;width:2px;height:8px;background:var(--ink);box-shadow:0 0 0 1px #fff}
+.rank-whisker::before{left:0}.rank-whisker::after{right:0}
 .rank-table tr.picked .rank-num{color:var(--accent-dark)}
 #map-table th[scope=row]{white-space:nowrap}
 .page-body>.page-tabs:first-child{margin-top:0}
@@ -1115,14 +1181,16 @@ footer a{color:var(--accent-dark)}
 @media(hover:hover){
 .textbutton:not(:disabled):hover{text-decoration:underline;text-decoration-thickness:2px}
 .nav-links a:not([aria-current]):hover{color:#fff;box-shadow:inset 0 -4px 0 rgb(255 255 255 / .45)}
-.inputrow button:not(:disabled):hover,.question-row button:not(:disabled,[aria-disabled=true]):hover,.button:not(:disabled):hover{background:var(--accent-dark);border-color:var(--accent-dark)}
+.inputrow button:not(:disabled):hover,.question-row button:not(:disabled,[aria-disabled=true]):hover,.button:not(.secondary,:disabled):hover,.chat-fab:hover{background:var(--gold-hover)}
+.button.secondary:not(:disabled):hover{background:var(--surface)}
 .page-tabs [role=tab][aria-selected=false]:hover{color:var(--ink);border-bottom-color:var(--line)}.cmp-remove:hover{background:#fff}.data-nav a:not([aria-current]):hover{background:var(--subtle)}
 .match.house:hover{background:var(--house-soft-hover)}.match.senate:hover{background:var(--senate-soft-hover)}
 .more-questions:hover,.examples button:not(:disabled,[aria-disabled=true]):hover,.topic .starter:hover,.followup:not([aria-disabled=true]):hover{text-decoration-thickness:2px}
+.chat-card :is(.examples button,.chat-starters .starter):not([aria-disabled=true]):hover,#log .followups .followup:not([aria-disabled=true]):hover{background:var(--accent-soft-hover);border-color:var(--accent)}
 .island-tabs button[aria-pressed=false]:hover,.zoom-buttons button:hover,.seat-nums a:hover{background:var(--accent-soft)}
 .seat-chamber.senate .seat-nums a:hover{background:var(--senate-soft)}
 .switch-offer .followup:not([aria-disabled=true]):hover,.pending .cancel:hover{background:var(--accent-soft)}.retry:not([aria-disabled=true]):hover{background:var(--error-bg)}
-.share-bar .action:hover,.bar-link:hover{background:var(--accent-soft)}.chamber-switch button[aria-pressed=false]:hover{background:var(--surface)}.chat-min:hover{background:var(--surface)}.chat-fab:hover{filter:brightness(.92)}
+.share-bar .action:hover,.bar-link:hover{background:var(--accent-soft)}.chamber-switch button[aria-pressed=false]:hover{background:var(--surface)}.chat-min:hover{background:var(--surface)}
 .segmented [data-chamber=house][aria-pressed=false]:hover{background:var(--house-soft)}.segmented [data-chamber=senate][aria-pressed=false]:hover{background:var(--senate-soft)}
 }
 /* Touch screens: larger targets for controls and for links that stand alone in lists. */

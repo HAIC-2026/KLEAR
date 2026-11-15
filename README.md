@@ -417,10 +417,16 @@ copy answer_cache.json along with klear.duckdb.
 
 ### Pages
 
-The header is a solid bar in House teal on every page with the KLEAR
+The header is a solid bar in dark House teal on every page with the KLEAR
 wordmark and four tabs: Districts (home, the same as the wordmark), Compare, Rankings, and Data &
-methods. The tab you are on is bold with a thick white bar under it; Districts is current on Find and
+methods. The tab you are on is bold with a thick gold bar under it; Districts is current on Find and
 on every district's page.
+
+The site has two accents. The chamber's color, House teal or Senate purple, marks links, figures and
+section numbers; a Senate district's page is purple throughout under the teal header. ʻIlima gold
+marks what to press and where you are: the main buttons (Find district, Ask KLEAR, Print) with ink
+text, the current tab, the rule over each page's title, the home page's Ask panel and Compare's A and
+B. Gold is never a text color, so it cannot be mistaken for the red of "below".
 
 - `/`, Find: a band with the page's title over a faint drawing of the islands, then the map beside
   the search. A House or Senate switch at the top of the map's card picks the chamber for the map and
@@ -432,7 +438,7 @@ on every district's page.
   district numbers on it, and its tabs zoom to each island and to urban Honolulu. A click on a
   district, a number or a match zooms the map to the district, then the page turns into the
   district's page, the map moving to its top left corner. A question box with starters by topic asks in the agent's panel,
-  and the store's counts close the page. On a phone the search comes before the map. A link under the
+  and the store's counts close the page, each number set large over its label. On a phone the search comes before the map. A link under the
   map leads to Rankings, where the map is colored by a measure.
 - `/district/house-49` and the like: the way back to the search ("Search another district", which
   returns to the whole map) and on to Compare ("Compare another district"), with print, link and
@@ -440,22 +446,24 @@ on every district's page.
   profile in panels. Section 1, At a glance, holds four headline figures, each saying how far above
   or below the county and the state it is, as a percentage of their figures ("16% above county"),
   green above and red below, marked ▲ or ▼ for a difference beyond the margins of error and ≈ for
-  none. The rest of the profile is
-  numbered by group: People, Income and work, Programs and help, Housing, Health and Reference, each
+  none. Under each rate or amount a strip sets the district's figure and margin of error beside the
+  county (a tick) and the state (a diamond) on one line. The rest of the profile is
+  numbered by group, each number in a round badge: People, Income and work, Programs and help, Housing, Health and Reference, each
   table ending in the same comparison. Each figure keeps its margin of error or range and any
   caution. From 1200 px the agent sits in the right third, as tall as the window, with its questions
-  to try written out in full. Narrower, it is a round "Ask KLEAR" button that opens the agent over
+  to try written out in full as chips. Narrower, it is a round "Ask KLEAR" button that opens the agent over
   the page (the whole screen on a phone) and minimizes back to it, keeping the conversation.
 - `/compare`: the first district in the left third and the second in the middle, each a search and
   every district by number until one is chosen (a House or Senate switch sits in the bar above them
-  meanwhile), then its name, a small map zoomed to it and its legislator. Under them the two
+  meanwhile), then its name with a gold A or B, a small map zoomed to it and its legislator. Under them the two
   districts' figures run row by row: each measure's name and Hawaiʻi's figure across both columns,
   and each district's figure under its name with how far above or below the other it is ("▲ 56%
   above House 13"), marked ≈ when their margins of error overlap. The agent sits in the right third
   and suggests questions that compare the two. `/compare?d=house:022,house:023` opens a comparison.
 - `/rankings` has two tabs, each with its own address: rankings, with the map colored by a measure
   beside the district ranking, and outreach. The ranking numbers every district, 1 for the highest
-  figure, and runs highest or lowest first, by district number or by island. A click on the map
+  figure, and runs highest or lowest first, by district number or by island. Each figure has a bar
+  from zero in its district's map shade, with its margin of error as a whisker. A click on the map
   picks a district and marks it in the ranking; a second click opens it, as does its name in the
   ranking.
 - `/data` holds the sources, the methods for estimated figures, the glossary, the latest build's

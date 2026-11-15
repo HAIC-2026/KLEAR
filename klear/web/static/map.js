@@ -659,6 +659,27 @@
     const how = order ? order.value : 'high';
     says(document.getElementById('map-table-caption'), `${shading.title}, ${ORDERS[how]}`);
     const all = ordered(), rankOf = ranks(), columns = 4;
+    // Each figure gets a bar in its map shade, from zero, with its margin of error as a whisker; the same scale for
+    // every row. The figure beside it says the same, so screen readers skip the bar.
+    table.dataset.ramp = chamber;
+    const known = all.filter(f => f.status !== MISSING && Number.isFinite(f.number));
+    const ends = known.flatMap(f => [f.number, f.low, f.high]).filter(Number.isFinite);
+    const floor = Math.min(0, ...ends), top = Math.max(...ends), across = top - floor;
+    const at = v => `${(((v - floor) / across) * 100).toFixed(2)}%`;
+    function figureBar(f) {
+      if (!(across > 0) || f.status === MISSING || !Number.isFinite(f.number)) return null;
+      const bar = html('span', '', 'rank-bar'), fill = html('span', '', `rank-fill q${f.shade || 1}`);
+      bar.setAttribute('aria-hidden', 'true');
+      fill.style.setProperty('--bar-w', at(f.number));
+      bar.append(fill);
+      if (Number.isFinite(f.low) && Number.isFinite(f.high) && f.high > f.low) {
+        const whisker = html('span', '', 'rank-whisker');
+        whisker.style.setProperty('--whisker-x', at(f.low));
+        whisker.style.setProperty('--whisker-w', `${(((f.high - f.low) / across) * 100).toFixed(2)}%`);
+        bar.append(whisker);
+      }
+      return bar;
+    }
     // A red mark beside an unreliable estimate, explained under the table when there is one.
     document.getElementById('map-table-key').hidden = !all.some(f => f.status === 'unreliable');
     const rowOf = new Map(data.chambers[chamber].map(r => [r.geo, r]));
@@ -692,6 +713,8 @@
           mark.title = f.caution || 'Unreliable estimate';
           figure.append(' ', mark);
         }
+        const bar = figureBar(f);
+        if (bar) figure.append(bar);
         const rank = html('td', rankOf.has(f.geo) ? String(rankOf.get(f.geo)) : '–', 'rank-num');
         if (!rankOf.has(f.geo)) rank.append(html('span', 'no rank', 'visually-hidden'));
         tr.append(rank, th, figure, html('td', missing ? '' : f.spread || 'None published'));

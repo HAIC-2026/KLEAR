@@ -156,7 +156,7 @@ test.describe('a district at 1440 by 900', () => {
     await expect(page.locator('#profile-live')).toHaveText(`Profile for ${DISTRICT} loaded.`);
     await expect(page.getByRole('heading', {level: 1, name: DISTRICT})).toBeInViewport({ratio: 1});
     await expect(page.locator('#district-map')).toBeInViewport({ratio: 1});
-    expect(await onScreen(page, '.profile-stats dd:not(.profile-reading)')).toBe(4);
+    expect(await onScreen(page, '.profile-stats dd:not(.profile-reading, .glance-strip)')).toBe(4);
     // The chat takes the right third of the page.
     const chat = await page.locator('#chat').boundingBox(), profile = await page.locator('#profile').boundingBox();
     expect(chat.x).toBeGreaterThan(profile.x + profile.width);
