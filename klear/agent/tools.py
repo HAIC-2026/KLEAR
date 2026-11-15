@@ -1117,7 +1117,7 @@ class Session:
             ],
         }
 
-    def _programs_for(self, geos) -> tuple[Program, ...]:
+    def programs_for(self, geos) -> tuple[Program, ...]:
         """Statewide entries plus programs in any county with residents in these districts."""
         counties = set()
         for kind, code in geos:
@@ -1142,7 +1142,7 @@ class Session:
             if geo[0] not in ("house", "senate") or self._name(*geo) is None:
                 raise ToolError("district must be a stored House or Senate district")
             geos = {geo}
-        for p in self._programs_for(geos):
+        for p in self.programs_for(geos):
             entry = self._program_entry(p)
             names = " ".join(f"{r['rule_id'].replace('_', ' ')} {r['program']}" for r in entry["rules"])
             if query and not query & _tokens(
@@ -1201,7 +1201,7 @@ class Session:
         if geo[0] not in ("house", "senate") or self._name(*geo) is None:
             raise ToolError("district must be a stored House or Senate district, for example house:022")
         self.resolved.add(geo)
-        programs = self._programs_for([geo])
+        programs = self.programs_for([geo])
         needs = list(dict.fromkeys(n for p in programs for n in p.needs))
         self._prefetch(
             list(dict.fromkeys(i for n in needs for i in NEEDS[n].indicators)), [geo, ("state", "15")]

@@ -232,6 +232,51 @@ test('the printout drops programs from the end until it fits on one page', async
   await page.emulateMedia({media: null});
 });
 
+// Print from the share buttons on screen, as a reader does, with the print dialog stood in for by its beforeprint event.
+async function printFromScreen(page) {
+  await page.emulateMedia({media: 'screen'});
+  await page.evaluate(() => { window.print = () => window.dispatchEvent(new Event('beforeprint')); });
+  await page.getByRole('group', {name: 'Share this profile'}).getByRole('button', {name: 'Print or save as PDF'}).click();
+  await page.emulateMedia({media: 'print'});
+  const sheet = page.locator('#print-sheet');
+  await expect(sheet).toBeVisible();
+  return sheet;
+}
+
+test('a summary printed from the screen keeps its full size when it fits, and a long one still fits one page', async ({page}, testInfo) => {
+  await page.goto('/district/house-22');
+  await expect(page.locator('#profile-live')).toHaveText(`Profile for ${DISTRICT} loaded.`);
+  let sheet = await printFromScreen(page);
+  // The short fixture district prints all five of its programs at the full type size, unscaled.
+  await expect(sheet.locator('.sheet-programs li')).toHaveCount(5);
+  expect(await sheet.evaluate(s => s.style.zoom)).toBe('');
+  expect(parseFloat(await sheet.evaluate(s => getComputedStyle(s).fontSize))).toBeCloseTo((9.5 * 4) / 3, 2);
+  // One US Letter page. Only desktop Chromium makes PDFs, and only a PDF lays the sheet out at the page's width.
+  if (testInfo.project.name === 'desktop') {
+    const pdf = await page.pdf({preferCSSPageSize: true});
+    expect(pdf.toString('latin1').match(/\/Type\s*\/Page[^s]/g)).toHaveLength(1);
+  }
+
+  // Long caveats and program text: the summary lists fewer programs or scales down, and still prints on one page.
+  await editProfile(page, p => {
+    for (const g of [...p.programs.programs, ...p.programs.others]) g.description = `${g.description} `.repeat(12).trim();
+    p.caveats = Array.from({length: 6}, (_, i) => ({id: `long-${i}`, title: `Note ${i + 1}`, text: 'A long note about these figures. '.repeat(8).trim(), sources: []}));
+  });
+  await page.emulateMedia({media: 'screen'});
+  await page.goto('/district/house-22');
+  await expect(page.locator('#profile-live')).toHaveText(`Profile for ${DISTRICT} loaded.`);
+  sheet = await printFromScreen(page);
+  const count = await sheet.locator('.sheet-programs li').count();
+  const zoom = await sheet.evaluate(s => s.style.zoom);
+  expect(count < 5 || zoom !== '').toBe(true);
+  expect(count).toBeGreaterThanOrEqual(3);
+  if (testInfo.project.name === 'desktop') {
+    const pdf = await page.pdf({preferCSSPageSize: true});
+    expect(pdf.toString('latin1').match(/\/Type\s*\/Page[^s]/g)).toHaveLength(1);
+  }
+  await page.emulateMedia({media: null});
+});
+
 test('the profile and its printout cope with missing or unexpected fields', async ({page}) => {
   // Without programs, a build date, the Commission's report or comparison sources, the summary still prints every
   // figure it has.
