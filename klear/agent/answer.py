@@ -75,6 +75,7 @@ WEB = re.compile(
     re.IGNORECASE,
 )
 STATEWIDE = re.compile(config.STATEWIDE, re.IGNORECASE)
+OUT_OF_SCOPE = re.compile(config.OUT_OF_SCOPE, re.IGNORECASE)
 YEAR = re.compile(r"(?<!\d)(?:19|20)\d{2}(?!\d)")
 # A release year in a vintage, which is not a year the data describe.
 RELEASE = re.compile(r"(?:19|20)\d{2}\s+release", re.IGNORECASE)
@@ -414,8 +415,12 @@ def finish(session, answer: Answer) -> Answer:
     # A statewide comparison with figures for another place keeps that place, not the state.
     if STATEWIDE.search(session.question) and (state_only or (resolved is None and not answer.facts)):
         resolved = ("state", "15")
+    if resolved is None and refusal == "none":
+        resolved = _first_district(session, blocks)
+    if refusal == "not_available" and OUT_OF_SCOPE.search(session.question):
+        refusal = "out_of_scope"
     if refusal not in ("none", "not_available"):
-        return replace(answer, blocks=blocks, caveats=caveats, resolved=resolved)
+        return replace(answer, blocks=blocks, caveats=caveats, resolved=resolved, refusal=refusal)
     caveats += listing_caveats([*blocks, *caveats])
     names = known_programs()
     ids = list(dict.fromkeys(f.indicator_id for f in answer.facts))
@@ -460,6 +465,15 @@ def _dated(facts, texts: list[str]) -> list[str]:
         if f.source_id not in dated:
             first.setdefault(f.source_id, f)
     return [f"{{label:{f.ref}}}: {{vintage:{f.ref}}}." for f in first.values()]
+
+
+def _first_district(session, texts: list[str]) -> tuple[str, str] | None:
+    """The first House or Senate district the texts name with a geo marker that a tool resolved."""
+    for kind, ref in MARKER.findall(" ".join(texts)):
+        geo = geo_key(ref) if kind == "geo" else None
+        if geo and geo[0] in config.CHAMBER_TYPES and geo in session.resolved:
+            return geo
+    return None
 
 
 def listing_caveats(texts: list[str]) -> list[str]:
