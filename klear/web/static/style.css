@@ -74,7 +74,8 @@
   font-family:var(--sans);color:var(--ink);background:var(--bg);font-synthesis:none;line-height:1.55
 }
 *{box-sizing:border-box}
-html{scroll-behavior:smooth}
+/* No smooth scrolling for the whole page: the band's button asks for it itself, and every other jump lands at once. */
+html{scroll-behavior:auto}
 body{margin:0;background:var(--page);font-size:var(--fs-base);overflow-wrap:break-word}
 a{color:var(--accent);text-underline-offset:3px}
 button,input,textarea,select{font:inherit}
