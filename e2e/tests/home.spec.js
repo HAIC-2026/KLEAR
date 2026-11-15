@@ -26,21 +26,21 @@ test('the home page shows a real district’s figures and programs without any t
   await expect(page.locator('#profile-live')).toHaveText(`Profile for ${DISTRICT} loaded.`);
 });
 
-test('the home page ends with three lines of counts and a link to every source', async ({page}) => {
+test('the home page ends with the store’s counts and a link to the data and methods', async ({page}) => {
   await page.goto('/');
   const lines = page.locator('#facts li');
   await expect(lines).toHaveCount(2);  // the test store has no build record, so only the two counts
   await expect(lines.first()).toHaveText('2 House and 1 Senate districts.');
   await expect(page.locator('#source-table')).toHaveCount(0);
-  await page.getByRole('link', {name: /^Every source/}).click();
-  await expect(page).toHaveURL(/\/sources\.html$/);
+  await page.getByRole('link', {name: 'Sources, methods and checks'}).click();
+  await expect(page).toHaveURL(/\/data$/);
   await expect(page.locator('#source-table tbody tr').first()).toBeVisible();
 });
 
 test('one district search shows at a time, and the home page is short', async ({page, isMobile}) => {
   await page.goto('/');
   await expect(page.locator('#example')).toBeVisible();
-  const searches = page.getByRole('combobox', {name: 'District, place, ZIP code, or street address'});
+  const searches = page.getByRole('combobox', {name: 'Town, ZIP code, street address or district'});
   await expect(searches).toHaveCount(1);
   await expect(page.locator('#find-place')).toBeVisible();
   await page.goto('/district/house-22');

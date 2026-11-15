@@ -258,7 +258,7 @@ test('Ctrl+Enter sends the question, and Enter alone starts a new line', async (
   await chooseDistrict(page);
   await showTab(page, 'Ask');
   const box = page.getByLabel('Your question');
-  await expect(box).toHaveAccessibleDescription(/^Press (Ctrl|⌘)\+Enter to send\.$/);
+  await expect(box).toHaveAccessibleDescription(/^(Ctrl|⌘)\+Enter sends\.$/);
   await box.fill('How many kūpuna');
   await box.press('Enter');
   await box.pressSequentially('live here?');
@@ -290,10 +290,10 @@ test('an answer with no data points to datatrove.ai, and an answer with figures 
   await expect(found.getByRole('link', {name: /datatrove/})).toHaveCount(0);
 });
 
-test('the sources page and About name datatrove.ai as a site that leaves KLEAR', async ({page}) => {
-  for (const [address, section] of [['/sources.html', 'main'], ['/', '#about']]) {
+test('every page’s footer names datatrove.ai as a site that leaves KLEAR', async ({page}) => {
+  for (const address of ['/', '/compare', '/data']) {
     await page.goto(address);
-    const link = page.locator(`${section} a[href="https://datatrove.ai/"]`);
+    const link = page.getByRole('contentinfo').locator('a[href="https://datatrove.ai/"]');
     await expect(link).toHaveText('datatrove.ai (external site)');
     await expect(link).toHaveClass('ext');
   }

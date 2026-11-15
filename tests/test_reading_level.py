@@ -32,7 +32,7 @@ def test_measure_definitions():
     assert not hard, hard
 
 
-@pytest.mark.parametrize("page", ["glossary.html", "index.html", "checks.html", "outreach.html"])
+@pytest.mark.parametrize("page", ["index.html", "compare.html", "data.html"])
 def test_page_prose(page):
     blocks = [
         b for b in page_text((STATIC / page).read_text(encoding="utf-8")) if len(b.split()) >= PROSE_WORDS

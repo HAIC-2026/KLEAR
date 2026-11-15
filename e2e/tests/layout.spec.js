@@ -173,16 +173,18 @@ test.describe('a district at 1440 by 900', () => {
   });
 });
 
-// A district's page ends where the district ends: its profile, then the map, then the footer. The home page's How it
-// works, Sources and About are left out, and the page stays under 7,000 px at 1280 wide with the default sections open.
+// A district's page ends where the district ends: its profile, then the footer. The home page's map, example and counts
+// are left out, a small map beside the name shows where it is, and the page stays under 7,000 px at 1280 wide with the
+// default groups open.
 test.describe('a district at 1280 wide', () => {
   test.skip(({isMobile}) => isMobile, 'a laptop screen');
   test.use({viewport: {width: 1280, height: 800}});
-  test('ends with the map', async ({page}) => {
+  test('ends with the profile, with a small map of the district by its name', async ({page}) => {
     await page.goto('/district/house-22');
     await expect(page.locator('#profile-live')).toHaveText(`Profile for ${DISTRICT} loaded.`);
-    for (const id of ['how', 'sources', 'about']) await expect(page.locator(`#${id}`), id).toBeHidden();
-    await expect(page.locator('#district-map')).toBeVisible();
+    for (const id of ['district-map', 'example', 'sources']) await expect(page.locator(`#${id}`), id).toBeHidden();
+    await expect(page.locator('#locator svg')).toBeVisible();
+    await expect(page.locator('#locator path.here')).toHaveCount(1);
     expect(await page.evaluate(() => document.documentElement.scrollHeight)).toBeLessThan(7000);
   });
 });

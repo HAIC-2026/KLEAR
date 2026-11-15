@@ -8,7 +8,7 @@ test('search, choose, read the profile, ask, open a source, and come back', asyn
   await page.goto('/');
 
   // Search: a town that spans districts lists them, with each share in the button's spoken name.
-  await page.getByLabel('District, place, ZIP code, or street address').first().fill('Kāneʻohe');
+  await page.getByLabel('Town, ZIP code, street address or district').first().fill('Kāneʻohe');
   await page.getByRole('button', {name: 'Find district'}).first().click();
   await expect(page.locator('#find-status')).toContainText('Choose a district.');
   const matches = page.locator('#find-matches');
@@ -31,11 +31,12 @@ test('search, choose, read the profile, ask, open a source, and come back', asyn
   const headline = profile.locator('.profile-stats div').first();
   await expect(headline.locator('dd').first()).toHaveText('12.3% ± 2.1 points');
   await expect(headline.locator('dt')).toHaveText('People below the poverty level');
-  // Under the label, how the figure stands against the county and the state.
+  // How the figure stands against the county and the state, for screen readers: the strips show it on screen.
   await expect(headline.locator('dd.profile-reading')).toHaveText('Higher than the county only');
-  // A link at the top leads to each section, and opens it.
+  await expect(headline.locator('dd.profile-reading')).toHaveClass(/visually-hidden/);
+  // A link at the top leads to each group of sections, and opens it.
   const jumps = profile.getByRole('navigation', {name: 'In this profile'});
-  await expect(jumps.getByRole('link')).toHaveText(['People', 'Income', 'Programs to explore here', 'Programs in use', 'Who may qualify', 'Help sites', 'County-level figures', 'Reapportionment plan']);
+  await expect(jumps.getByRole('link')).toHaveText(['People', 'Income and work', 'Programs and help', 'Reference']);
   await jumps.getByRole('link', {name: 'People'}).click();
   // The row's label, not its "What this means" button, which names the label to screen readers.
   await expect(profile.locator('.profile-label', {hasText: 'Kūpuna (65 and over)'})).toBeVisible();
@@ -72,7 +73,7 @@ test('search, choose, read the profile, ask, open a source, and come back', asyn
   await expect(kupuna.locator('.chip.caution')).toHaveText('Use with caution. The margin of error is large compared with the estimate.');
   const eitc = answer.locator('.tile').filter({hasText: 'Tax returns claiming the EITC'});
   await expect(eitc.locator('.method')).toContainText('How estimated: apportioned to the district from ZIP code or census tract data');
-  await expect(eitc.locator('.method a')).toHaveAttribute('href', /\/methods\.html#irs_soi_zip_2023$/);
+  await expect(eitc.locator('.method a')).toHaveAttribute('href', /\/data#irs_soi_zip_2023$/);
   await expect(answer.locator('.source-line')).toContainText('Use with caution marks an estimate with a large margin of error.');
   const note = answer.locator('.answer-notes .place-note');
   await expect(note.locator('.place-note-text')).toContainText('Kalawao County. Kalawao County (Kalaupapa) is very small');
@@ -98,8 +99,9 @@ test('search, choose, read the profile, ask, open a source, and come back', asyn
 });
 
 // Every figure can be checked: an ACS figure links to its own table for the district on data.census.gov, and one
-// KLEAR moved to districts from ZIP codes links to the methods page, which opens in a new tab like any source.
-test('figures link to their table on data.census.gov or to the methods page', async ({page}) => {
+// KLEAR moved to districts from ZIP codes links to its section of the data and methods page, which opens in a new tab
+// like any source.
+test('figures link to their table on data.census.gov or to the methods section', async ({page}) => {
   await page.goto('/');
   await chooseDistrict(page);
   await openAll(page);
@@ -111,14 +113,14 @@ test('figures link to their table on data.census.gov or to the methods page', as
   const [tab] = await Promise.all([page.waitForEvent('popup'), methods.click()]);
   await tab.waitForLoadState();
   const opened = new URL(tab.url());
-  expect(opened.origin + opened.pathname + opened.hash).toBe(new URL('/methods.html#irs_soi_zip_2023', page.url()).href);
+  expect(opened.origin + opened.pathname + opened.hash).toBe(new URL('/data#irs_soi_zip_2023', page.url()).href);
   await expect(tab.getByRole('heading', {name: 'Tax returns and the earned income tax credit'})).toBeVisible();
   await tab.close();
 });
 
 test('a failed question is announced and waits in the box to retry', async ({page}) => {
   await page.goto('/');
-  await page.getByLabel('District, place, ZIP code, or street address').first().fill('House 22');
+  await page.getByLabel('Town, ZIP code, street address or district').first().fill('House 22');
   await page.getByRole('button', {name: 'Find district'}).first().click();
   await expect(page.locator('#district-title')).toHaveText(DISTRICT);
   await page.route('**/api/chat', route => route.fulfill({status: 503, contentType: 'application/json', body: '{"error": "KLEAR could not answer. Please try again."}'}));
@@ -133,7 +135,7 @@ test('a failed question is announced and waits in the box to retry', async ({pag
 
 test('focus stays put when the reader has moved on before the answer arrives', async ({page}) => {
   await page.goto('/');
-  await page.getByLabel('District, place, ZIP code, or street address').first().fill('House 22');
+  await page.getByLabel('Town, ZIP code, street address or district').first().fill('House 22');
   await page.getByRole('button', {name: 'Find district'}).first().click();
   await expect(page.locator('#district-title')).toHaveText(DISTRICT);
   let release;
@@ -142,10 +144,12 @@ test('focus stays put when the reader has moved on before the answer arrives', a
   await showTab(page, 'Ask');
   await page.getByLabel('Your question').fill('How does poverty here compare?');
   await page.getByRole('button', {name: 'Ask KLEAR'}).click();
-  await page.getByLabel('Highlight a ZIP code').focus();
+  // The reader moves on to the chat's own district search while the answer loads.
+  await page.getByRole('button', {name: 'Change district'}).click();
+  await expect(page.locator('#place')).toBeFocused();
   release();
   await expect(page.locator('#chat-live')).toContainText(`Answer ready for ${DISTRICT}.`);
-  await expect(page.getByLabel('Highlight a ZIP code')).toBeFocused();
+  await expect(page.locator('#place')).toBeFocused();
 });
 
 test('a district chosen while an answer loads shows its profile at once', async ({page}) => {
@@ -173,19 +177,19 @@ test('a district chosen while an answer loads shows its profile at once', async 
   await expect(page.locator('#profile .profile-status')).toHaveCount(0);
 });
 
-// Every section is one click from the top of the profile and ends with a link back up. On wide screens the first
-// sections start open. Sections the reader opens or closes stay that way for the next profile in the same tab.
+// Every group is one click from the top of the profile and ends with a link back up. On wide screens the first three
+// groups start open. Groups the reader opens or closes stay that way for the next profile in the same tab.
 test('each section is one click from the top, links back up, and stays as the reader left it', async ({page}) => {
   await page.goto('/district/house-22');
   await expect(page.locator('#profile-live')).toHaveText(`Profile for ${DISTRICT} loaded.`);
   const wide = page.viewportSize().width >= 1200, profile = page.locator('#profile');
-  await expect(profile.locator('details.profile-section[open] > summary')).toHaveText(wide ? ['People', 'Income', 'Programs to explore here'] : []);
+  await expect(profile.locator('details.profile-section[open] > summary')).toHaveText(wide ? ['People', 'Income and work', 'Programs and help'] : []);
 
-  const section = profile.locator('#profile-help-sites');
+  const section = profile.locator('#profile-reference');
   await expect(section).not.toHaveAttribute('open');
-  await profile.getByRole('navigation', {name: 'In this profile'}).getByRole('link', {name: 'Help sites'}).click();
+  await profile.getByRole('navigation', {name: 'In this profile'}).getByRole('link', {name: 'Reference'}).click();
   await expect(section).toHaveAttribute('open', '');
-  await expect(page).toHaveURL(/\/district\/house-22#profile-help-sites$/);
+  await expect(page).toHaveURL(/\/district\/house-22#profile-reference$/);
   await expect(section.locator(':scope > summary')).toBeInViewport();
   await section.getByRole('link', {name: 'Back to top of profile'}).click();
   await expect(page.getByRole('heading', {level: 1})).toBeInViewport();
@@ -193,16 +197,17 @@ test('each section is one click from the top, links back up, and stays as the re
   await page.goBack();
   await expect(page.getByRole('heading', {level: 1})).toHaveText(DISTRICT);
 
-  // Fold Income the other way from how it started; the next district's profile keeps that, and leaves People as it was.
-  const income = profile.locator('#profile-income'), wasOpen = await income.evaluate(d => d.open);
+  // Fold Income and work the other way from how it started; the next district's profile keeps that, and leaves People
+  // as it was.
+  const income = profile.locator('#profile-income-work'), wasOpen = await income.evaluate(d => d.open);
   await income.locator(':scope > summary').click();
   await page.goto('/district/house-23');
   await expect(page.locator('#profile-live')).toHaveText('Profile for House District 23 loaded.');
-  await expect(profile.locator('#profile-income')).toHaveJSProperty('open', !wasOpen);
+  await expect(profile.locator('#profile-income-work')).toHaveJSProperty('open', !wasOpen);
   await expect(profile.locator('#profile-people')).toHaveJSProperty('open', wide);
 
   // A link to a section opens the profile at that section.
-  await page.goto('/district/house-22#profile-programs-in-use');
-  await expect(profile.locator('#profile-programs-in-use')).toHaveAttribute('open', '');
-  await expect(profile.locator('#profile-programs-in-use > summary')).toBeInViewport();
+  await page.goto('/district/house-22#profile-reference');
+  await expect(profile.locator('#profile-reference')).toHaveAttribute('open', '');
+  await expect(profile.locator('#profile-reference > summary')).toBeInViewport();
 });

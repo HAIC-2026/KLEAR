@@ -15,20 +15,17 @@ test('landing page', async ({page}, testInfo) => {
   await expectAccessible(page, testInfo, 'landing page');
 });
 
-test('sources page', async ({page}, testInfo) => {
-  await page.goto('/sources.html');
+test('data and methods page, with its sources, methods, glossary and checks', async ({page}, testInfo) => {
+  await page.goto('/data');
+  await expect(page.getByRole('heading', {level: 1})).toHaveText('Data and methods');
   await expect(page.locator('#source-wrap')).toBeVisible();
-  await expectAccessible(page, testInfo, 'sources page');
-});
-
-test('methods page', async ({page}, testInfo) => {
-  await page.goto('/methods.html');
-  await expect(page.getByRole('heading', {level: 1})).toHaveText('How KLEAR estimates district figures');
-  await expectAccessible(page, testInfo, 'methods page');
+  await expect(page.locator('#build')).not.toContainText('Loading the latest build');
+  await openAll(page);
+  await expectAccessible(page, testInfo, 'data and methods page');
 });
 
 test('district search results', async ({page}, testInfo) => {
-  await page.getByLabel('District, place, ZIP code, or street address').first().fill('Kāneʻohe');
+  await page.getByLabel('Town, ZIP code, street address or district').first().fill('Kāneʻohe');
   await page.getByRole('button', {name: 'Find district'}).first().click();
   await expect(page.locator('#find-matches .match')).toHaveCount(3);
   await expectAccessible(page, testInfo, 'search results');
@@ -105,37 +102,36 @@ test('answers with next questions, then a non-JSON error with Retry', async ({pa
   await expectAccessible(page, testInfo, 'answers with next questions and a retry');
 });
 
-test('map with a ZIP code and a picked district', async ({page}, testInfo) => {
+test('map with a searched ZIP code and a picked district', async ({page}, testInfo) => {
   const map = page.locator('#district-map');
-  await map.scrollIntoViewIfNeeded();
   await expect(page.locator('#map .district').first()).toBeAttached();
-  await map.getByLabel('Highlight a ZIP code').fill('96744');
-  await map.getByRole('button', {name: 'Show on map'}).click();
+  await page.getByLabel('Town, ZIP code, street address or district').first().fill('96744');
+  await page.getByRole('button', {name: 'Find district'}).first().click();
   await expect(page.locator('#zip-status')).not.toBeEmpty();
+  await map.scrollIntoViewIfNeeded();
   await map.getByLabel('Or choose from a list').selectOption({label: 'House District 22'});
   await expect(page.locator('#pick-name')).toHaveText('House District 22');
   await expectAccessible(page, testInfo, 'map');
 });
 
-test('outreach page with every group open', async ({page}, testInfo) => {
-  await page.goto('/outreach.html');
-  await expect(page.getByRole('heading', {level: 1})).toHaveText('Where outreach could help most');
-  await expect(page.locator('#result')).toBeVisible();
+test('compare page: districts side by side', async ({page}, testInfo) => {
+  await page.goto('/compare?d=house:022,house:023');
+  await expect(page.getByRole('heading', {level: 1})).toHaveText('Compare districts');
+  await expect(page.locator('.cmp-table')).toBeVisible();
+  await expectAccessible(page, testInfo, 'compare districts');
+});
+
+test('compare page: outreach with every group open', async ({page}, testInfo) => {
+  await page.goto('/compare?view=outreach');
+  await expect(page.locator('#out-result')).toBeVisible();
   await openAll(page);
-  await expectAccessible(page, testInfo, 'outreach page');
+  await expectAccessible(page, testInfo, 'outreach');
 });
 
-test('glossary page', async ({page}, testInfo) => {
-  await page.goto('/glossary.html');
-  await expect(page.getByRole('heading', {level: 1})).toHaveText('Glossary');
-  await expectAccessible(page, testInfo, 'glossary page');
-});
-
-test('map colored by a measure, with a picked district and its table open', async ({page}, testInfo) => {
+test('compare page: map colored by a measure, with a picked district and its table', async ({page}, testInfo) => {
+  await page.goto('/compare?view=rankings');
   const map = page.locator('#district-map');
-  await map.scrollIntoViewIfNeeded();
   await expect(page.locator('#map .district').first()).toBeAttached();
-  await map.getByLabel('Color the map by').selectOption({label: 'People below the poverty level'});
   await expect(page.locator('#map-legend')).toBeVisible();
   await map.getByLabel('Or choose from a list').selectOption({label: 'House District 22'});
   await expect(page.locator('#pick-value')).toContainText('12.3%');
@@ -147,22 +143,8 @@ test('map colored by a measure, with a picked district and its table open', asyn
   await expectAccessible(page, testInfo, 'shaded Senate map');
 });
 
-test('checks page', async ({page}, testInfo) => {
-  await page.goto('/checks.html');
-  await expect(page.getByRole('heading', {level: 1})).toHaveText('How we check KLEAR');
-  await expect(page.locator('#build')).not.toContainText('Loading the latest build');
-  await expectAccessible(page, testInfo, 'checks page');
-});
-
 test('accessibility statement page', async ({page}, testInfo) => {
   await page.goto('/accessibility.html');
   await expect(page.getByRole('heading', {level: 1})).toHaveText('KLEAR accessibility statement');
   await expectAccessible(page, testInfo, 'accessibility statement');
-});
-
-test('header menu open', async ({page}, testInfo) => {
-  await page.goto('/methods.html');
-  await page.getByRole('navigation', {name: 'Main navigation'}).locator('summary').click();
-  await expect(page.getByRole('navigation', {name: 'Main navigation'}).getByRole('link', {name: 'Glossary'})).toBeVisible();
-  await expectAccessible(page, testInfo, 'header menu');
 });

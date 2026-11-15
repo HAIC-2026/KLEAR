@@ -144,10 +144,14 @@ def test_profile_rows_carry_the_official_label_and_universe(real_con):
 
 @pytest.mark.parametrize("term", GLOSSARY_TERMS)
 def test_glossary_explains_each_term(term):
-    html = (web.STATIC / "glossary.html").read_text(encoding="utf-8")
+    html = (web.STATIC / "data.html").read_text(encoding="utf-8")
     assert re.search(rf'<div id="{term}"><dt>[^<]+', html), term
 
 
-def test_glossary_is_served_and_linked_from_the_landing_page():
-    assert "/glossary.html" in web.PUBLIC
-    assert 'href="/glossary.html"' in (web.STATIC / "index.html").read_text(encoding="utf-8")
+def test_glossary_is_served_and_linked_from_the_landing_page_and_each_figure():
+    # The glossary is a section of the data and methods page, which every page's header links to; each figure's
+    # "What this means" links straight to the section.
+    assert "/data" in web.PUBLIC
+    assert 'id="glossary"' in (web.STATIC / "data.html").read_text(encoding="utf-8")
+    assert 'href="/data"' in (web.STATIC / "index.html").read_text(encoding="utf-8")
+    assert "'/data#glossary'" in (web.STATIC / "app.js").read_text(encoding="utf-8")

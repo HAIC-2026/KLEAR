@@ -1,4 +1,3 @@
-const $ = id => document.getElementById(id);
 let district = null, asked = null, busy = false, queued = null;
 const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 const uncertaintyLabels = {ok: '90% margin of error shown above', controlled: 'Fixed to official totals; no sampling margin of error', range: 'Estimated range shown above', open_ended: 'Open-ended published value', not_computable: 'Margin of error unavailable; treat as uncertain', not_applicable: 'No margin of error applies', unavailable: 'Uncertainty information unavailable'};
@@ -10,63 +9,6 @@ const statewideExample = ['Which House districts have the highest share of kūpu
 // chosen first. All but Kāneʻohe lie in one House district; Kāneʻohe spans three, so its answer lists them to choose.
 const homeStarters = ['How many kūpuna live in Kāneʻohe?', 'How does poverty in Pāhoa compare with the state?', 'What does the data say about housing costs in Kīhei?', 'What support programs could families in Waiʻanae explore?', statewideExample[0]];
 const refusalLabels = {decline_partisan: 'Partisan request declined', decline_individual: 'Personal request declined', not_available: 'Data not available', out_of_scope: 'Outside KLEAR’s scope'};
-function node(tag, text, className) { const n = document.createElement(tag); n.textContent = text; if (className) n.className = className; return n; }
-// Hawaiian words for groups of people, marked so screen readers can pronounce them. Place names are left as they are.
-const HAWAIIAN = /(?<![\p{L}\p{M}])(kūpuna|keiki|ʻohana)(?![\p{L}\p{M}])/giu;
-function says(tag, text, className) {
-  const n = node(tag, '', className);
-  let at = 0;
-  for (const m of text.matchAll(HAWAIIAN)) {
-    const word = node('span', m[0]);
-    word.lang = 'haw';
-    n.append(text.slice(at, m.index), word);
-    at = m.index + m[0].length;
-  }
-  n.append(text.slice(at));
-  return n;
-}
-const hidden = text => node('span', text, 'visually-hidden');
-// A chip that flags an unreliable estimate. Its spoken name gives the reason.
-function cautionChip(why) {
-  const chip = node('span', 'Use with caution', 'chip caution');
-  if (why) chip.append(hidden(`. ${why}`));
-  return chip;
-}
-// A caution chip with its reason written out beside it.
-function cautionLine(why) {
-  const p = node('p', '', 'profile-caution');
-  p.append(cautionChip(''), ` ${why}`);
-  return p;
-}
-// How an apportioned or modeled figure was estimated, linked to its source's section on the methods page.
-function methodLine(m) {
-  const line = node('p', 'How estimated: ', 'method');
-  line.append(link(m.text, m.url));
-  return line;
-}
-// Notes for districts and counties with a known caveat, such as the Maui wildfires, each with its sources.
-function placeNotes(notes, className) {
-  const box = node('div', '', `place-notes ${className}`);
-  for (const c of notes) {
-    const note = node('div', '', 'place-note'), text = node('p', '', 'place-note-text');
-    text.append(says('b', `${c.title}.`), ' ', says('span', c.text));
-    const list = node('ul', '', 'place-note-sources');
-    for (const s of c.sources) { const li = document.createElement('li'); li.append(link(s.name, s.url)); list.append(li); }
-    list.setAttribute('aria-label', c.sources.length > 1 ? `Sources for ${c.title}` : `Source for ${c.title}`);
-    note.append(text, list);
-    box.append(note);
-  }
-  return box;
-}
-async function api(url, options) {
-  let r, data = null;
-  try { r = await fetch(url, options); } catch { throw new Error('KLEAR could not be reached. Check your connection and try again.'); }
-  try { data = await r.json(); } catch { /* not JSON */ }
-  if (r.ok && data) return data;
-  if (data && typeof data.error === 'string') throw new Error(data.error);
-  throw new Error(r.ok ? 'KLEAR sent a reply it could not read. Please try again.' : `KLEAR ran into a server problem (error ${r.status}). Please try again.`);
-}
-
 // Bring the chat card into view, or its question box when the card is taller than the screen. A card already on
 // screen, such as the one that stays beside a district's profile on wide screens, stays where it is.
 function showChat() {
@@ -124,8 +66,6 @@ function reveal(message) {
 // Each district has its own address, like /district/house-22, so a link, Back, Forward and refresh all keep it.
 const BASE_TITLE = document.title;
 const SEATS = {house: 51, senate: 25};
-function districtPath(geo) { const [chamber, id] = geo.split(':'); return `/district/${chamber}-${Number(id)}`; }
-function districtName(geo) { const [chamber, id] = geo.split(':'); return `${chamber === 'house' ? 'House' : 'Senate'} District ${Number(id)}`; }
 // Change the address bar, adding a history entry unless replacing. A page the browser will not let change its
 // address, such as one opened from a file, keeps working without it.
 function setAddress(path, replace) {
@@ -189,6 +129,13 @@ $('view-tabs').addEventListener('keydown', e => {
 ONE_COLUMN.addEventListener('change', () => {
   if (ONE_COLUMN.matches && $('chat-card').contains(document.activeElement)) shownTab = 'ask';
   applyTabs();
+});
+// The header's Ask link leads to the question box: on a district's page it opens the Ask tab first.
+for (const a of document.querySelectorAll('.site-header a[href="#chat"]')) a.addEventListener('click', e => {
+  e.preventDefault();
+  if (document.body.classList.contains('district-page')) showTab('ask');
+  showChat();
+  $('question').focus({preventScroll: true});
 });
 // On wide screens the profile comes first, so a link at the top skips past it to the question box.
 $('skip-ask').onclick = e => { e.preventDefault(); showTab('ask'); $('question').focus(); };
@@ -296,221 +243,6 @@ window.addEventListener('popstate', () => {
   else clearDistrict();
 });
 
-const share = s => s < 0.01 ? '<1%' : `${Math.round(s * 100)}%`;
-// A place with more districts than this in one chamber shows a summary first, with its full list folded.
-const MANY = 8;
-// What kind of area a result is, when its name alone does not say.
-const kindNotes = {
-  neighborhood: 'Honolulu neighborhood board area',
-  division: 'Census county division',
-  island: 'Whole island',
-  county: 'Whole county',
-  address: 'Address as matched by the U.S. Census Bureau',
-};
-
-// One group of district buttons per matched place, area, ZIP code or address, largest first.
-function matchGroups(matches) {
-  const groups = [];
-  for (const m of matches) {
-    const rows = [m, ...(m.overlaps || [])].filter(g => /^(house|senate):/.test(g.geo || ''));
-    if (!rows.length) continue;
-    const county = (m.overlaps || []).find(g => /^county:/.test(g.geo || ''));
-    const place = m.kind === 'zcta' ? `ZIP code ${m.geo.split(':')[1]}` : m.name;
-    // Name the island, or the county when the store has no islands. An island, county or address names itself.
-    const where = ['island', 'county', 'address'].includes(m.kind) ? '' : m.island || (county && county.name);
-    const rank = g => (g.geo.startsWith('senate:') ? 1000 : 0) - Math.round((g.share ?? 1) * 100);
-    rows.sort((a, b) => rank(a) - rank(b) || a.geo.localeCompare(b.geo));
-    const title = m.kind === 'district' ? '' : [place, where].filter(Boolean).join(', ');
-    groups.push({place, kind: m.kind, title, note: kindNotes[m.kind] || '', pop: m.pop2020 || 0, rows});
-  }
-  return groups.sort((a, b) => b.pop - a.pop);
-}
-
-const chamberNames = {house: 'House districts', senate: 'Senate districts'};
-
-// A line that points a reader who is unsure of their district to the map.
-function mapNudge(lead) {
-  const line = node('p', `${lead} `, 'map-nudge'), link = node('a', 'Find it on the map');
-  link.href = '#district-map';
-  line.append(link, '.');
-  return line;
-}
-
-// A link that moves to the map with a place's districts highlighted and its shares listed.
-function mapLink(g, text) {
-  const link = node('a', text), pairs = c => g.rows.filter(r => r.geo.startsWith(`${c}:`)).map(r => [r.geo, r.share ?? 1]);
-  link.href = '#district-map';
-  link.onclick = () => document.dispatchEvent(new CustomEvent('klear:area', {detail: {label: g.place, house: pairs('house'), senate: pairs('senate')}}));
-  return link;
-}
-
-// Each place's districts in a House column and a Senate column, largest share first. A place with many districts
-// leads with how many it spans and where to narrow it down, and keeps the full list in a disclosure.
-function showMatches(groups, box, pick) {
-  for (const g of groups) {
-    const wrap = node('div', '', 'match-group'), cols = node('div', '', 'chamber-cols');
-    if (g.title) wrap.append(node('p', g.title, 'match-title'));
-    if (g.note) wrap.append(node('p', g.note, 'match-note'));
-    const counts = {};
-    for (const chamber of ['house', 'senate']) {
-      const rows = g.rows.filter(r => r.geo.startsWith(`${chamber}:`));
-      counts[chamber] = rows.length;
-      if (!rows.length) continue;
-      const col = node('div', '', 'chamber-col'), chips = node('div', '', 'chips');
-      col.setAttribute('role', 'group');
-      col.setAttribute('aria-label', g.title ? `${chamberNames[chamber]} for ${g.place}` : chamberNames[chamber]);
-      col.append(node('p', chamberNames[chamber], `chamber-title ${chamber}`));
-      for (const r of rows) {
-        const b = node('button', '', `match ${chamber}`);
-        b.type = 'button';
-        const label = r.name.replace(' District', '');
-        // The spoken name is the visible text with the rest of the sentence hidden after it.
-        b.append(node('span', label));
-        if (r.share != null) b.append(' ', node('span', share(r.share), 'share'), hidden(` of ${g.place} residents`));
-        b.onclick = () => pick(r.geo, r.name);
-        chips.append(b);
-      }
-      col.append(chips);
-      cols.append(col);
-    }
-    if (counts.house > MANY || counts.senate > MANY) {
-      const spans = [['house', 'House'], ['senate', 'Senate']].filter(([c]) => counts[c]).map(([c, word]) => `${counts[c]} ${word}`);
-      const summary = node('p', `${g.place} spans ${spans.join(' and ')} districts. Search for a neighborhood, town or ZIP code in it, or `, 'match-summary');
-      summary.append(mapLink(g, 'see its districts on the map'), '.');
-      const all = node('details', '', 'match-all'), label = node('summary', `All ${g.rows.length} districts`);
-      all.append(label, cols);
-      wrap.append(summary, all);
-    } else {
-      wrap.append(cols);
-    }
-    box.append(wrap);
-  }
-  box.append(mapNudge('Still not sure which is yours?'));
-}
-
-// Suggestions under a search box as an ARIA 1.2 combobox. The list follows typing, the arrow keys move through it
-// while focus stays in the box, Enter or a click picks one, and Escape closes it. Suggestions come from names in the
-// store only, so nothing typed goes to another service. Returns a function that closes the list.
-const SUGGEST_MIN = 2, SUGGEST_WAIT = 150;
-function suggestBox(input, list, live, onPick) {
-  // stale: the text changed since the list was filled, so the keys must not act on its old options
-  let items = [], active = -1, seq = 0, timer = 0, stale = false;
-  const close = () => {
-    seq++;
-    clearTimeout(timer);
-    items = [];
-    active = -1;
-    list.hidden = true;
-    list.replaceChildren();
-    input.setAttribute('aria-expanded', 'false');
-    input.removeAttribute('aria-activedescendant');
-  };
-  const mark = i => {
-    active = i;
-    [...list.children].forEach((li, j) => li.setAttribute('aria-selected', String(j === i)));
-    input.setAttribute('aria-activedescendant', list.children[i].id);
-    list.children[i].scrollIntoView({block: 'nearest'});
-  };
-  const pick = i => {
-    const s = items[i];
-    input.value = s.label;
-    close();
-    live.textContent = '';
-    onPick(s.query);
-  };
-  const show = found => {
-    items = found;
-    active = -1;
-    stale = false;
-    list.replaceChildren(...found.map((s, i) => {
-      const li = node('li', '');
-      li.id = `${list.id}-${i}`;
-      li.setAttribute('role', 'option');
-      li.setAttribute('aria-selected', 'false');
-      li.append(node('span', s.label, 'suggestion-label'), ' ', node('span', s.detail, 'suggestion-detail'));
-      // Keep focus in the box, so a tap or click picks without the box losing focus and closing the list first.
-      li.addEventListener('pointerdown', e => e.preventDefault());
-      li.addEventListener('click', () => pick(i));
-      return li;
-    }));
-    list.hidden = !found.length;
-    input.setAttribute('aria-expanded', String(Boolean(found.length)));
-    input.removeAttribute('aria-activedescendant');
-    live.textContent = found.length ? `${found.length} suggestion${found.length === 1 ? '' : 's'}. Use the up and down arrows to choose.` : '';
-  };
-  const load = async () => {
-    const text = input.value.trim(), mine = ++seq;
-    if (text.length < SUGGEST_MIN) { close(); live.textContent = ''; return; }
-    try {
-      const r = await fetch('/api/suggest?q=' + encodeURIComponent(text));
-      const data = r.ok ? await r.json() : null;
-      if (mine === seq && document.activeElement === input) show((data && data.suggestions) || []);
-    } catch {
-      if (mine === seq) close();
-    }
-  };
-  input.addEventListener('input', () => {
-    stale = true;
-    active = -1;
-    [...list.children].forEach(li => li.setAttribute('aria-selected', 'false'));
-    input.removeAttribute('aria-activedescendant');
-    clearTimeout(timer);
-    timer = setTimeout(load, SUGGEST_WAIT);
-  });
-  input.addEventListener('keydown', e => {
-    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-      e.preventDefault();
-      // A closed or outdated list loads the suggestions for the text as it is now, without waiting.
-      if (list.hidden || stale) { clearTimeout(timer); load(); return; }
-      const n = items.length, down = e.key === 'ArrowDown';
-      mark(down ? (active + 1) % n : (active <= 0 ? n - 1 : active - 1));
-    } else if (e.key === 'Enter' && !list.hidden && !stale && active >= 0) {
-      e.preventDefault();
-      pick(active);
-    } else if (e.key === 'Escape' && !list.hidden) {
-      e.preventDefault();
-      close();
-    }
-  });
-  input.addEventListener('blur', close);
-  return close;
-}
-
-// Wire a district search form: matching districts appear as buttons under it, and a single match is picked at once.
-// A picked suggestion searches at once for exactly what it names. Returns a function that clears the form's results
-// and drops any search still loading.
-function lookupForm(form, input, status, box, pick) {
-  let seq = 0;
-  const search = async query => {
-    const mine = ++seq, button = form.querySelector('button[type=submit]');
-    button.disabled = true;
-    box.replaceChildren();
-    status.textContent = 'Finding matching districts…';
-    try {
-      const data = await api('/api/resolve?q=' + encodeURIComponent(query));
-      if (mine !== seq) return;
-      const groups = matchGroups(data.matches || []);
-      const found = new Map(groups.flatMap(g => g.rows.map(r => [r.geo, r.name])));
-      if (found.size === 1) { const [[geo, name]] = found; status.textContent = ''; pick(geo, name); return; }
-      if (!found.size) {
-        status.textContent = data.note || 'No matching districts. Try House 22, a town or neighborhood, a ZIP code, or a street address.';
-        box.append(mapNudge('Not sure which district is yours?'));
-        return;
-      }
-      if (groups.every(g => g.kind === 'address')) status.textContent = 'Choose the House or Senate district to ask about.';
-      else status.textContent = groups.some(g => g.title) ? 'Choose a district. The percent beside each one is the share of that area’s residents who live in it.' : 'Choose a district:';
-      showMatches(groups, box, pick);
-    } catch (err) {
-      if (mine === seq) status.textContent = err.message;
-    } finally {
-      button.disabled = false;
-    }
-  };
-  const closeList = suggestBox(input, $(`${input.id}-list`), $(`${input.id}-count`), search);
-  form.onsubmit = e => { e.preventDefault(); closeList(); search(input.value); };
-  return () => { seq++; closeList(); box.replaceChildren(); status.textContent = ''; };
-}
-
 $('change').onclick = () => {
   const open = $('lookup').hidden;
   // Reopening the search drops a switch queued while an answer loads.
@@ -520,7 +252,11 @@ $('change').onclick = () => {
 };
 const resetLookup = lookupForm($('lookup'), $('place'), $('lookup-status'), $('matches'), choose);
 // The search at the top of the home page opens the district's page at its profile.
-const resetFind = lookupForm($('find'), $('find-place'), $('find-status'), $('find-matches'), (geo, name) => { resetFind(); choose(geo, name, false, true, 'profile'); });
+// Its matches also light up on the map below it: the largest place found, with each district's share of its residents.
+const resetFind = lookupForm($('find'), $('find-place'), $('find-status'), $('find-matches'), (geo, name) => { resetFind(); choose(geo, name, false, true, 'profile'); }, groups => {
+  const g = groups[0], pairs = c => g.rows.filter(r => r.geo.startsWith(`${c}:`)).map(r => [r.geo, r.share ?? 1]);
+  document.dispatchEvent(new CustomEvent('klear:area', {detail: {label: g.place, house: pairs('house'), senate: pairs('senate')}}));
+});
 // The home page's starters show their full question and ask it at once.
 for (const question of homeStarters) {
   const b = says('button', question);
@@ -577,6 +313,7 @@ async function loadProfile(geo, name) {
 // districts of the other chamber it overlaps.
 function districtHead(name, p) {
   $('district-name').textContent = name;
+  if (!p) { $('locator').hidden = true; $('locator').replaceChildren(); }
   const about = $('district-about'), member = $('district-member');
   about.replaceChildren();
   member.replaceChildren();
@@ -584,8 +321,34 @@ function districtHead(name, p) {
   // The legislator sits beside the district's name, or under it on a narrow screen.
   if ((p.members || []).length) member.append(profileMembers(p.members));
   if (p.where) about.append(node('p', p.where, 'district-where'));
+  locatorMap(p.geo, p.district);
   const meta = [p.places.length ? `Includes ${placesList(p)}.` : '', p.overlaps.length ? `Overlaps ${overlapsList(p)}.` : ''];
   if (meta.some(Boolean)) about.append(node('p', meta.filter(Boolean).join(' '), 'district-meta'));
+}
+
+// A small map of the district on its island, beside its name: the chamber's districts in a light fill and this one
+// in the chamber's color. The district's name and island are in the text beside it, so screen readers skip it.
+let shapes = null;
+function locatorMap(geo) {
+  const box = $('locator');
+  shapes ||= fetch('/districts.json').then(r => (r.ok ? r.json() : null)).catch(() => null);
+  shapes.then(data => {
+    if (!data || profileGeo !== geo) return;
+    const rows = data.chambers[geo.split(':')[0]] || [], row = rows.find(r => r.geo === geo), group = row && data.groups[row.group];
+    if (!group) return;
+    const ns = 'http://www.w3.org/2000/svg', svg = document.createElementNS(ns, 'svg'), [x, y, w, h] = group.box, pad = Math.max(w, h) * 0.06;
+    svg.setAttribute('viewBox', `${x - pad} ${y - pad} ${w + 2 * pad} ${h + 2 * pad}`);
+    svg.setAttribute('aria-hidden', 'true');
+    svg.setAttribute('focusable', 'false');
+    for (const r of [...rows.filter(r => r.geo !== geo), row]) {
+      const path = document.createElementNS(ns, 'path');
+      path.setAttribute('d', r.d);
+      path.setAttribute('class', r.geo === geo ? 'here' : '');
+      svg.append(path);
+    }
+    box.replaceChildren(svg);
+    box.hidden = false;
+  });
 }
 
 // What a short label stands for, one tap away: a plain definition, then the official label and who the figure
@@ -602,7 +365,7 @@ function meaningParts(label, m) {
   if (terms.children.length) parts.push(terms);
   // A new tab, so a chat in progress stays where it is.
   const more = node('p', '', 'meaning-more'), a = node('a', 'Glossary of terms');
-  a.href = '/glossary.html'; a.target = '_blank';
+  a.href = '/data#glossary'; a.target = '_blank';
   a.append(hidden(' (opens in a new tab)'));
   more.append(a);
   parts.push(more);
@@ -615,29 +378,6 @@ function meaning(label, m) {
   summary.append(hidden(`: ${label}`));
   box.append(summary, ...parts);
   return box;
-}
-
-// A place's figure in its own cell of a profile table: the estimate, then its margin of error or range under it.
-// Each cell names its place for phones, where the cells stack and the column headings are out of sight.
-function figureCell(f, place, home) {
-  const td = node('td', '', `profile-figure${home ? ' home' : ''}`);
-  td.setAttribute('role', 'cell');
-  const where = node('span', place, 'profile-place');
-  where.setAttribute('aria-hidden', 'true');
-  td.append(where);
-  if (!f) { td.append(node('span', 'No figure', 'none')); return td; }
-  if (f.missing) { td.classList.add('missing'); td.append(node('span', 'No figure', 'none'), node('span', f.missing, 'moe')); return td; }
-  // The "about" of an estimated value goes on its own line, and a range takes two, low then high, so the column stays
-  // as narrow as one that holds a count and its margin of error.
-  const [, about, number] = /^(about )?(.*)$/.exec(f.plain || f.value);
-  if (about) td.append(node('span', 'about', 'moe'));
-  td.append(node('span', number, 'num'));
-  const range = /^(range .+?) (to .+)$/.exec(f.spread || '');
-  if (range) td.append(node('span', range[1], 'moe'), node('span', range[2], 'moe'));
-  else if (f.spread) td.append(node('span', f.spread, 'moe'));
-  if (f.aside) td.append(node('span', f.aside, 'profile-aside'));
-  if (!home && f.caution) td.append(cautionChip(f.caution));
-  return td;
 }
 
 // The top of a strip's scale: a round number just past the largest value it holds. A rate never runs past 100%.
@@ -708,7 +448,7 @@ function profileRow(r, home, cols, compares) {
     const how = node('td', '', 'profile-how'), strip = rangeStrip(r, home, cols);
     how.setAttribute('role', 'cell');
     if (strip) how.append(strip);
-    if (r.reading) how.append(node('span', r.reading, 'profile-reading'));
+    if (r.reading) how.append(node('span', r.reading, 'profile-reading visually-hidden'));
     row.append(how);
   }
   const notes = [];
@@ -931,16 +671,14 @@ const SHEET_PROGRAMS = 6, SHEET_MIN_PROGRAMS = 3;
 // little room for how the printer breaks the page.
 const SHEET_HEIGHT = 930;
 
-// The district's programs in need groups: those whose figure sits above the state's, then the others, closed.
-function profilePrograms(pr) {
-  const content = [node('p', pr.intro, 'program-intro'), ...programList([...pr.programs, ...pr.others], pr.groups, pr.others_title, 'h2')];
-  content.push(node('p', pr.note, 'program-note'));
-  if ((pr.sources || []).length) content.push(profileSources(pr.sources));
-  const d = profileSection('programs', pr.title, content);
-  d.classList.add('profile-programs');
-  return d;
+// The district's programs in need groups: those whose figure sits above the state's, then the others, closed. One
+// line under them says that a district's figures cannot decide anyone's eligibility.
+function programsPart(pr) {
+  const content = programList([...pr.programs, ...pr.others], pr.groups, pr.others_title, 'h3');
+  if (pr.note) content.push(node('p', pr.note, 'program-note'));
+  if ((pr.sources || []).length) content.push(foldedSources(pr.sources));
+  return {title: 'Programs to explore', content};
 }
-
 // Which profile sections the reader opened or closed in this tab, so the next profile opens the same ones.
 const OPENED = 'klear-open';
 function openedSections() {
@@ -956,46 +694,66 @@ function rememberOpen(key, open) {
   try { sessionStorage.setItem(OPENED, JSON.stringify(saved)); } catch { /* blocked or full */ }
 }
 
-// One section of the profile: a disclosure that the jump links at the top can open, ending with a link back up.
-function profileSection(key, title, content) {
+// One group of the profile: a disclosure that the jump links at the top can open, holding one or more parts, each
+// with its own heading when the group has more than one.
+function profileSection(key, title, parts) {
   const d = node('details', '', 'profile-section'), summary = node('summary', title);
   d.id = `profile-${key}`;
   d.dataset.key = key;
   // The click comes before the disclosure changes, so the new state is the opposite of the current one.
   summary.addEventListener('click', () => rememberOpen(key, !d.open));
+  d.append(summary);
+  for (const part of parts) {
+    const box = node('div', '', 'profile-part');
+    if (parts.length > 1) box.append(says('h2', part.title, 'profile-part-title'));
+    box.append(...part.content);
+    d.append(box);
+  }
   const back = node('p', '', 'profile-back'), up = node('a', 'Back to top of profile');
   up.href = '#district-head';
   back.append(up);
-  d.append(summary, ...content, back);
+  d.append(back);
   return d;
 }
-
-function dataSection(sec) {
+// One section of the store's figures as a part of a group: what it covers when that is not the district itself, how
+// its figures were estimated, its table, and its sources folded shut. Eligibility notes are left to the programs'
+// one line, so a group says it once.
+function dataPart(sec) {
   const rows = profileTable(sec), content = [];
   if (sec.scope) content.push(node('p', sec.scope, 'profile-scope'));
-  if (sec.intro) content.push(node('p', sec.intro, 'profile-caveat lead'));
-  if (sec.caveat) content.push(node('p', sec.caveat, 'profile-caveat lead'));
+  if (sec.caveat && sec.title !== 'Who may qualify') content.push(node('p', sec.caveat, 'profile-caveat lead'));
   if (sec.method) content.push(methodLine(sec.method));
-  content.push(rows, profileSources(sec.sources, sec.compared));
-  const d = profileSection(sec.title.toLowerCase().replace(/[^a-z0-9]+/g, '-'), sec.title, content);
-  // A shut section reports no sizes, so its table is fitted as it opens.
-  d.addEventListener('toggle', () => { if (d.open) fitTable(rows); });
-  return d;
+  content.push(rows, foldedSources(sec.sources, sec.compared));
+  return {title: sec.title, content, rows};
 }
 
-// The sections in reading order: who lives here and what they earn, then the programs to explore, then the rest.
-// On wide screens these first three open unless the reader closed them earlier in this tab.
-const LEAD_SECTIONS = 2, OPEN_FIRST = 3;
+// A section's sources, shut until opened, with how many there are. Row numbers in the table point into this list.
+function foldedSources(sources, compared = []) {
+  const box = node('details', '', 'sources-fold'), count = sources.length + compared.length;
+  box.append(node('summary', `Sources (${count})`), profileSources(sources, compared));
+  return box;
+}
+// On wide screens the profile's first three groups open, unless the reader closed them earlier in this tab.
+const OPEN_FIRST = 3;
 function profileSections(p) {
-  const data = p.sections.filter(s => s.rows.length).map(dataSection);
-  const programs = programsOf(p) ? [profilePrograms(p.programs)] : [];
-  const plan = p.plan ? [profilePlan(p.plan)] : [];
-  const out = [...data.slice(0, LEAD_SECTIONS), ...programs, ...data.slice(LEAD_SECTIONS), ...plan];
+  const parts = new Map(p.sections.filter(s => s.rows.length).map(s => [s.title, dataPart(s)]));
+  if (programsOf(p)) parts.set('@programs', programsPart(p.programs));
+  if (p.plan) parts.set('@plan', planPart(p.plan));
+  const groups = PROFILE_GROUPS.map(([key, title, names]) => [key, title, names.filter(n => parts.has(n)).map(n => parts.get(n))]);
+  // A section the groups do not name still shows, in a group of its own at the end.
+  const named = new Set(PROFILE_GROUPS.flatMap(([, , names]) => names));
+  for (const [title, part] of parts) if (!named.has(title)) groups.push([title.toLowerCase().replace(/[^a-z0-9]+/g, '-'), title, [part]]);
+  const out = groups.filter(([, , list]) => list.length).map(([key, title, list]) => {
+    const d = profileSection(key, title, list);
+    // A shut group reports no sizes, so its tables are fitted as it opens.
+    d.addEventListener('toggle', () => { if (d.open) for (const part of list) if (part.rows) fitTable(part.rows); });
+    if (key === 'programs') d.classList.add('profile-programs');
+    return d;
+  });
   const saved = openedSections();
   out.forEach((d, i) => { d.open = typeof saved[d.dataset.key] === 'boolean' ? saved[d.dataset.key] : !ONE_COLUMN.matches && i < OPEN_FIRST; });
   return out;
 }
-
 // Links to every section, so each is one click from the top. A link opens its section before the page moves to it.
 function profileJumps(sections) {
   const nav = node('nav', '', 'profile-jumps'), title = node('p', 'In this profile', 'profile-jumps-title'), list = node('ul', '');
@@ -1020,9 +778,8 @@ function placesList(p) {
 const overlapsList = p => p.overlaps.map(o => `${o.name} (${o.share})`).join(', ');
 
 // The district's official area description and the permanent residents the Reapportionment Commission drew it on,
-// each with the report page it comes from, then how that count differs from the ACS total, and the report. It is a
-// section of its own, after the figures, since the description can run long.
-function profilePlan(plan) {
+// each with the report page it comes from, then how that count differs from the ACS total, and the report.
+function planPart(plan) {
   const box = node('div', '', 'profile-plan');
   const line = (label, text, cite) => {
     const l = node('p', '');
@@ -1037,28 +794,8 @@ function profilePlan(plan) {
   const source = node('p', 'Source: ', 'profile-plan-note');
   source.append(link(plan.source.name, plan.source.url), `, ${plan.source.year}`);
   box.append(source);
-  return profileSection('plan', 'Reapportionment plan', [box]);
+  return {title: 'Reapportionment plan', content: [box]};
 }
-
-// Line icons for the share controls, on a 24-unit grid in the text color. Screen readers skip them.
-const ICONS = {
-  print: 'M7 9V3h10v6M7 17H5a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2M7 14h10v7H7z',
-  link: 'M9 7H7a5 5 0 0 0 0 10h2M15 7h2a5 5 0 0 1 0 10h-2M8 12h8',
-  download: 'M12 4v11M7 10l5 5 5-5M5 20h14',
-  check: 'M5 12.5l4.5 4.5L19 7.5',
-  info: 'M12 11v6M12 7.5v.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z',
-};
-function icon(name) {
-  const ns = 'http://www.w3.org/2000/svg', svg = document.createElementNS(ns, 'svg'), path = document.createElementNS(ns, 'path');
-  svg.setAttribute('viewBox', '0 0 24 24');
-  svg.setAttribute('aria-hidden', 'true');
-  svg.setAttribute('focusable', 'false');
-  svg.setAttribute('class', 'icon');
-  path.setAttribute('d', ICONS[name]);
-  svg.append(path);
-  return svg;
-}
-
 // Copy a link to the district. Without the clipboard API, as on a page served over plain HTTP, copy through a
 // selection, and failing that show the address to copy by hand.
 async function copyLink(url, status) {
@@ -1097,13 +834,15 @@ function profileActions(p) {
     return c;
   };
   const print = control('button', 'Print or save as PDF', 'print'), copy = control('button', 'Copy link', 'link');
-  const csv = control('a', 'Download data (CSV)', 'download');
+  const csv = control('a', 'Download data (CSV)', 'download'), compare = control('a', 'Compare', 'compare');
+  compare.append(hidden(' with other districts'));
+  compare.href = `/compare?d=${encodeURIComponent(p.geo)}`;
   print.onclick = () => window.print();
   csv.href = '/api/profile.csv?district=' + encodeURIComponent(p.geo);
   csv.download = '';
   const actions = node('div', '', 'profile-actions'), status = node('p', '', 'profile-share-status');
   copy.onclick = () => copyLink(location.origin + districtPath(p.geo), status);
-  actions.append(print, copy, csv);
+  actions.append(print, copy, csv, compare);
   box.append(actions, status);
   return box;
 }
@@ -1129,7 +868,7 @@ function profileOutreach(o) {
   } else {
     box.append(node('p', o.none));
   }
-  const foot = node('p', [o.more, o.note].filter(Boolean).join(' '), 'profile-outreach-more');
+  const foot = node('p', o.more || '', 'profile-outreach-more');
   if (!o.items.length) { foot.append(' '); foot.append(link(o.link.text, o.link.url)); }
   box.append(foot);
   return box;
@@ -1191,8 +930,8 @@ function headlineStats(headline) {
     if (h.spread) value.append(' ', node('span', h.spread, 'moe'));
     if (h.caution) value.append(' ', cautionChip(h.caution));
     s.append(says('dt', h.label), value);
-    // How the figure stands against the county and the state. The CSS shows it under the label. A total has none.
-    if (h.reading) s.append(node('dd', h.reading, 'profile-reading'));
+    // How the figure stands against the county and the state, for screen readers. A total has none.
+    if (h.reading) s.append(node('dd', h.reading, 'profile-reading visually-hidden'));
     stats.append(s);
   }
   return stats;
@@ -1204,7 +943,7 @@ function profileEnd() {
   const nav = node('nav', '', 'profile-end'), title = node('p', 'More from KLEAR', 'profile-end-title'), list = node('ul', '');
   title.id = 'profile-end-title';
   nav.setAttribute('aria-labelledby', title.id);
-  for (const [text, href] of [['Sources and methods', '/sources.html'], ['How we check KLEAR', '/checks.html'], ['Find another district', '/#find']]) {
+  for (const [text, href] of [['Compare districts', '/compare'], ['Sources and methods', '/data'], ['Find another district', '/#find']]) {
     const li = document.createElement('li'), a = node('a', text);
     a.href = href;
     li.append(a);
@@ -1500,9 +1239,11 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 });
 
+let sentUnfocused = false;
 $('question-form').onsubmit = async e => {
   e.preventDefault();
   if (busy) return;
+  sentUnfocused = !document.activeElement || document.activeElement === document.body;
   const question = $('question').value.trim();
   if (!question) return;
   // The card stays compact until the first question, then grows to hold the conversation.
@@ -1599,7 +1340,9 @@ function readerPlace() {
   const focus = document.activeElement;
   const elsewhere = !$('lookup').hidden || Boolean(focus && focus !== $('question') && focus.matches('input, select, textarea'));
   const idle = !focus || focus === document.body;
-  const inChat = !elsewhere && ($('chat-card').contains(focus) || $('starters').contains(focus) || (idle && onScreen($('question-form'))));
+  // Safari does not focus a button it taps, so a question sent that way leaves focus on the page: it still counts as
+  // sent from the chat, even when the reply has pushed the question box off the screen.
+  const inChat = !elsewhere && ($('chat-card').contains(focus) || $('starters').contains(focus) || (idle && (sentUnfocused || onScreen($('question-form')))));
   return {elsewhere, inChat};
 }
 
@@ -1610,7 +1353,7 @@ $('question').addEventListener('input', () => { if (!busy) $('chat-live').textCo
 $('question').addEventListener('keydown', e => {
   if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && !e.isComposing) { e.preventDefault(); $('question-form').requestSubmit(); }
 });
-if (/Mac|iPhone|iPad/.test((navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform)) $('send-hint').textContent = 'Press ⌘+Enter to send.';
+if (/Mac|iPhone|iPad/.test((navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform)) $('send-hint').textContent = '⌘+Enter sends.';
 
 // Ask again with a question already written out: a follow-up, a district example, or a retry.
 function askAgain(question) {
@@ -1907,22 +1650,6 @@ function elsewhereLine(e) {
   return p;
 }
 
-// A link that opens in a new tab and says so, or plain text when the address is not a web page.
-// A path such as /methods.html is a page on this site, so it has no arrow for leaving the site.
-function link(text, href) {
-  if (!href) return node('span', text);
-  try {
-    const url = new URL(href, location.href);
-    if (['http:', 'https:'].includes(url.protocol)) {
-      const a = node('a', text, url.origin === location.origin ? '' : 'ext');
-      a.href = url.href; a.target = '_blank'; a.rel = 'noopener noreferrer';
-      a.append(hidden(' (opens in a new tab)'));
-      return a;
-    }
-  } catch {}
-  return node('span', text);
-}
-
 // Where a source's figures can be checked: each ACS table for the place on data.census.gov, or the methods page
 // for figures KLEAR moved to districts or CDC modeled. On a line of its own under the source.
 function sourceLinks(links) {
@@ -2166,13 +1893,8 @@ async function loadExample(geo) {
   if ((p.places || []).length) parts.push(node('p', `Includes ${placesList(p)}.`, 'district-meta'));
   parts.push(headlineStats(p.headline || []));
   const matched = programsOf(p), shown = matched ? (matched.programs.length ? matched.programs : matched.others) : [];
-  if (shown.length) {
-    const why = matched.programs.length ? `Listed first because ${p.district}’s need figures sit above the state’s.` : '';
-    parts.push(node('h4', 'Programs to explore', 'example-sub'));
-    if (why) parts.push(node('p', why, 'example-why'));
-    parts.push(programGrid(shown.slice(0, EXAMPLE_PROGRAMS)));
-  }
-  const open = node('a', `Open ${p.district}’s full page`, 'example-open');
+  if (shown.length) parts.push(node('h4', 'Programs to explore', 'example-sub'), programGrid(shown.slice(0, EXAMPLE_PROGRAMS)));
+  const open = node('a', `Open ${p.district}’s full page`, 'button example-open');
   open.href = districtPath(p.geo);
   parts.push(node('p', '', 'example-actions'));
   parts.at(-1).append(open);

@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#ffffff">
+  <meta name="description" content="The public sources behind every KLEAR figure, how KLEAR estimates district figures, what its terms mean, how each data build is checked, and where your questions go.">
+  <title>Data and methods – KLEAR</title>
+  <link rel="icon" href="/favicon.ico?v=2" sizes="32x32">
+  <link rel="icon" href="/favicon.svg?v=2" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=2">
+  <link rel="preload" href="/fonts/public-sans.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/style.css">
+  <script src="/nav.js" defer></script>
+  <script src="/data.js" defer></script>
+  <script src="/checks.js" defer></script>
+</head>
+<body class="data-page">
+  <a class="skip" href="#main">Skip to content</a>
+  <header class="site-header">
+    <a class="brand" href="/"><img class="brand-logo" src="/logo.svg" width="36" height="36" alt=""><span class="brand-text"><strong>KLEAR</strong><span class="brand-sub">Hawaiʻi district data</span></span></a>
+    <nav aria-label="Main navigation">
+      <ul class="nav-links">
+        <li><a href="/#find">Find<span class="nav-long"> a district</span></a></li>
+        <li><a href="/#chat">Ask</a></li>
+        <li><a href="/compare">Compare</a></li>
+        <li><a href="/data" aria-current="page">Data<span class="nav-long"> &amp; methods</span></a></li>
+      </ul>
+    </nav>
+  </header>
+  <main id="main" class="page">
+    <div class="wrap">
+      <p class="crumb"><a href="/">KLEAR</a> <span aria-hidden="true">/</span> <span aria-current="page">Data and methods</span></p>
+      <h1>Data and methods</h1>
+      <p class="lede">Where every figure comes from, how KLEAR estimates the ones not published for districts, what its terms mean, and how each build is checked.</p>
+      <div class="data-layout">
+        <nav class="data-nav" aria-label="On this page">
+          <ul>
+            <li><a href="#sources">Sources</a></li>
+            <li><a href="#methods">Methods</a></li>
+            <li><a href="#glossary">Glossary</a></li>
+            <li><a href="#checks">Checks</a></li>
+            <li><a href="#privacy">Privacy</a></li>
+          </ul>
+        </nav>
+        <div class="data-body">
+          <section class="data-section" id="sources" aria-labelledby="sources-title">
+            <h2 id="sources-title">Sources</h2>
+            <p>Every figure comes from one of these public sources. The Geography column says whether a source publishes figures for each district, KLEAR estimates them for districts, or the source covers only counties.</p>
+            <p class="facts" id="facts" hidden></p>
+            <div class="table-scroll" id="source-wrap" hidden><table id="source-table"><caption class="visually-hidden">Public sources in the KLEAR data store</caption><thead><tr><th scope="col">Source</th><th scope="col">Publisher</th><th scope="col">Years</th><th scope="col">Geography</th></tr></thead><tbody></tbody></table></div>
+            <p id="sources-missing" class="muted">The source list appears here once the data store is built.</p>
+            <ul class="notes">
+              <li id="crosscheck" hidden></li>
+              <li>Figures published only for counties, such as unemployment and state tax credit claims, are labeled county-level and never shown as a district’s figure.</li>
+              <li>A figure estimated for a district from ZIP code or census tract data, or modeled by CDC PLACES, is shown as a range. <a href="#methods">How the ranges are built</a>.</li>
+              <li>Missing data stays missing. KLEAR does not fill gaps with guesses.</li>
+            </ul>
+            <h3>Terms of use</h3>
+            <p>Most of this data comes from U.S. government agencies and is free for anyone to use. Each source’s terms are linked in the <a class="ext" href="https://github.com/HAIC-2026/KLEAR#services-and-data-klear-depends-on">KLEAR project notes<span class="visually-hidden"> (external site)</span></a>. This product uses the Census Bureau Data API but is not endorsed or certified by the Census Bureau.</p>
+          </section>
+
+          <section class="data-section" id="methods" aria-labelledby="methods-title">
+            <h2 id="methods-title">Methods</h2>
+            <p>Most figures come straight from the Census Bureau’s American Community Survey, which publishes them for every House and Senate district. Other sources publish figures for ZIP codes or census tracts, whose lines do not follow district lines. KLEAR moves those figures to districts and shows each one with a range, such as “about 4,200 (range 3,100 to 5,600)”.</p>
+          <section id="residents" aria-labelledby="residents-title">
+            <h3 id="residents-title">Where residents live</h3>
+            <p>Every method below starts from the 2020 Census count of residents on each census block, and the 2022 House and Senate district each block lies in. Together they show how a ZIP code’s or tract’s residents are split among districts. The block counts come from the <a class="ext" href="https://www.census.gov/programs-surveys/decennial-census/about/rdo/summary-files.html">2020 Census Redistricting Data<span class="visually-hidden"> (external site)</span></a>.</p>
+          </section>
+
+          <section id="apportioned" aria-labelledby="apportioned-title">
+            <h3 id="apportioned-title">Counts from ZIP codes and census tracts</h3>
+            <ul class="method-terms">
+              <li><strong>Estimate.</strong> Each ZIP code’s or tract’s count is split among the districts it overlaps, by where its 2020 residents live. A tract with 30 percent of its residents in a district gives that district 30 percent of its count.</li>
+              <li><strong>Low end.</strong> Counts only the ZIP codes or tracts that lie wholly inside the district.</li>
+              <li><strong>High end.</strong> Counts every ZIP code or tract that touches the district in full, plus the most that any withheld area touching it could hide.</li>
+            </ul>
+            <p>Unless a note below says otherwise, the true district count lies inside the range.</p>
+
+            <section id="irs_soi_zip_2023" aria-labelledby="irs-title">
+              <h4 id="irs-title">Tax returns and the earned income tax credit</h4>
+              <p>The IRS publishes returns and EITC claims for tax year 2023 by ZIP code. Returns it lists under ZIP code 99999 have no known location. KLEAR shares them among districts by 2020 population, and the high end includes only the district’s population share of them. The district’s true share of those returns can fall outside the range.</p>
+              <p>Source: <a class="ext" href="https://www.irs.gov/statistics/soi-tax-stats-individual-income-tax-statistics-2023-zip-code-data-soi">IRS Statistics of Income ZIP code data, tax year 2023<span class="visually-hidden"> (external site)</span></a></p>
+            </section>
+
+            <section id="cms_oep_2026" aria-labelledby="cms-title">
+              <h4 id="cms-title">Health insurance marketplace enrollment</h4>
+              <p>CMS publishes 2026 open enrollment plan selections by ZIP code and by county, and withholds small ZIP code counts. The difference between a county’s total and its published ZIP codes is placed in that county’s withheld ZIP codes, and counted in full in the high end of every district they touch. Where that remainder lives is assumed, not published.</p>
+              <p>Source: <a class="ext" href="https://www.cms.gov/data-research/statistics-trends-reports/marketplace-products/2026-marketplace-open-enrollment-period-public-use-files">CMS 2026 marketplace open enrollment public use files<span class="visually-hidden"> (external site)</span></a></p>
+            </section>
+
+            <section id="hud_hcv_tract" aria-labelledby="hcv-title">
+              <h4 id="hcv-title">Housing choice vouchers</h4>
+              <p>HUD publishes voucher holders by census tract and leaves out tracts with 10 or fewer. Each tract left out that touches a district adds 10 to the high end and nothing to the estimate or the low end.</p>
+              <p>Source: <a class="ext" href="https://hudgis-hud.opendata.arcgis.com/datasets/HUD::housing-choice-vouchers-by-tract">HUD Housing Choice Vouchers by Tract<span class="visually-hidden"> (external site)</span></a></p>
+            </section>
+
+            <section id="hud_chas_2018_2022" aria-labelledby="chas-title">
+              <h4 id="chas-title">Housing cost burden</h4>
+              <p>HUD’s Comprehensive Housing Affordability Strategy (CHAS) tables count households by census tract, from 2018-2022 American Community Survey responses. KLEAR moves them to districts as described above.</p>
+              <p>Source: <a class="ext" href="https://www.huduser.gov/portal/datasets/cp.html">HUD CHAS data<span class="visually-hidden"> (external site)</span></a></p>
+            </section>
+          </section>
+
+          <section id="modeled" aria-labelledby="modeled-title">
+            <h3 id="modeled-title">Modeled health and social needs</h3>
+            <section id="cdc_places_2025" aria-labelledby="places-title">
+              <h4 id="places-title">CDC PLACES</h4>
+              <p>CDC PLACES models the share of adults with each need, such as food insecurity, for every census tract, with a 95 percent confidence interval. These are model results, not survey counts for the tract.</p>
+              <ul class="method-terms">
+                <li><strong>Estimate.</strong> The average of the tract estimates, weighting each tract by the number of its adults who live in the district.</li>
+                <li><strong>Range.</strong> The tracts’ lower and upper confidence limits, averaged with the same weights. This treats the tracts’ errors as if they all move together, so the range is wider than a formal confidence interval.</li>
+                <li><strong>Tracts CDC does not publish</strong> count as 0 percent at the low end and 100 percent at the high end, and are left out of the estimate.</li>
+              </ul>
+              <p>Source: <a class="ext" href="https://data.cdc.gov/500-Cities-Places/PLACES-Local-Data-for-Better-Health-Census-Tract-D/cwsq-ngmh">CDC PLACES: Local Data for Better Health, census tract data<span class="visually-hidden"> (external site)</span></a></p>
+            </section>
+
+            <section id="cdc_places_2025_county" aria-labelledby="places-county-title">
+              <h4 id="places-county-title">CDC PLACES for counties and the state</h4>
+              <p>A district’s PLACES figures are shown next to its county’s and the state’s. County figures are CDC’s own county estimates from the same release, with their 95 percent confidence intervals. CDC publishes no state figure for these needs, so KLEAR derives one: the average of the five county estimates, weighting each county by its adults. Its range averages the county confidence limits the same way, so it is wider than a formal confidence interval.</p>
+              <p>Source: <a class="ext" href="https://data.cdc.gov/500-Cities-Places/PLACES-Local-Data-for-Better-Health-County-Data-20/swc5-untb">CDC PLACES: Local Data for Better Health, county data<span class="visually-hidden"> (external site)</span></a></p>
+            </section>
+          </section>
+          </section>
+
+          <section class="data-section" id="glossary" aria-labelledby="glossary-title">
+            <h2 id="glossary-title">Glossary</h2>
+            <p>What the words KLEAR uses about its numbers mean. In a district profile, the round “i” button beside a figure’s label explains that figure.</p>
+          <h3 id="terms-numbers">How sure a number is</h3>
+          <dl class="terms">
+            <div id="estimate"><dt>Estimate</dt><dd><p>A number worked out from a sample or a model, not a full count. A survey asks some homes, not all of them. So the true number is likely close to the estimate, but not exactly the same.</p></dd></div>
+            <div id="margin-of-error"><dt>Margin of error (±)</dt><dd><p>How far a survey estimate could be from the true number. KLEAR shows the Census Bureau’s 90 percent margin of error.</p><p>Say an estimate is 1,000 ± 100. Then we can be 90 percent sure the true number is between 900 and 1,100.</p></dd></div>
+            <div id="within-margin"><dt>Within the margin of error</dt><dd><p>Two figures are this close when the gap between them is smaller than their margins of error. The gap could be due to chance, so KLEAR calls them about the same. It does not say one is higher.</p></dd></div>
+            <div id="range"><dt>Range</dt><dd><p>The low and high ends KLEAR gives for a figure it estimates for a district, such as “about 4,200 (range 3,100 to 5,600).” In most cases the true figure is inside the range. KLEAR gives a range for every apportioned or modeled estimate.</p></dd></div>
+            <div id="cv"><dt>CV (coefficient of variation)</dt><dd><p>The margin of error compared with the size of the estimate. A high CV means the estimate is shaky.</p><p>KLEAR calls an estimate unreliable when its CV is over 30 percent. That is when its margin of error is about half the estimate or more. A larger area, such as the county, gives a steadier figure.</p></dd></div>
+            <div id="median"><dt>Median</dt><dd><p>The middle value: half are above it and half are below. For income, the median is often more useful than the average, since a few very high incomes do not pull it up.</p></dd></div>
+            <div id="universe"><dt>Universe (who is counted)</dt><dd><p>The group a figure counts, or takes a percent of, such as all households or people 65 and over. Each figure’s “What this means” link shows it as “Who is counted.”</p></dd></div>
+          </dl>
+
+          <h3 id="terms-sources">Where the numbers come from</h3>
+          <dl class="terms">
+            <div id="acs-5-year"><dt>ACS 5-year</dt><dd><p>The Census Bureau’s American Community Survey asks a sample of homes about their lives each year. The 5-year data pool five years of answers, such as 2020 to 2024, so that small areas like districts have enough of them.</p><p>A 5-year figure describes that whole time, not one year.</p></dd></div>
+            <div id="vintage"><dt>Vintage</dt><dd><p>The years or date a figure describes, such as “2020-2024 ACS 5-year” or “tax year 2023.”</p><p>A “current list” is a list of places, such as health centers, that KLEAR downloads fresh each time it builds its data.</p></dd></div>
+            <div id="apportioned-estimate"><dt>Apportioned estimate</dt><dd><p>A figure KLEAR moves to a district from ZIP codes or census tracts, since their lines do not follow district lines. Each area’s count is split by where its people lived in the 2020 Census. KLEAR shows these with a range.</p></dd></div>
+            <div id="modeled-estimate"><dt>Modeled estimate</dt><dd><p>A figure worked out by a model, not counted or asked about in that place. CDC PLACES uses national survey answers and local facts, such as age and income, to estimate needs like food insecurity for each census tract. KLEAR shows these with a range.</p></dd></div>
+            <div id="census-tract"><dt>Census tract</dt><dd><p>A small area the Census Bureau uses to report data, most often home to 2,500 to 8,000 people.</p></dd></div>
+          </dl>
+
+          <h3 id="terms-income">Income and programs</h3>
+          <dl class="terms">
+            <div id="poverty-line"><dt>Poverty line (poverty level)</dt><dd><p>The income line the Census Bureau uses to count people in poverty. It depends on the size of the family and the ages of its members. It is the same in every state.</p><p>“200% of poverty” means an income below twice that line.</p></dd></div>
+            <div id="poverty-guideline"><dt>Poverty guideline</dt><dd><p>A simpler poverty line that the federal government uses to decide who can get some programs. Hawaiʻi has its own guidelines. They are higher than the mainland’s because it costs more to live here.</p><p>Census figures use the national poverty line, which is lower. So counts near a program’s limit may run low.</p></dd></div>
+            <div id="area-median-income"><dt>Area median income (AMI)</dt><dd><p>The middle family income in an area, set by HUD each year. Half of families earn more and half earn less. Housing programs set income limits as a share of it, such as 80 percent. HUD’s CHAS data calls it HAMFI.</p></dd></div>
+            <div id="household"><dt>Household and householder</dt><dd><p>A household is everyone who lives in one home, related or not. The householder is the person whose name the home is owned or rented in.</p></dd></div>
+            <div id="kupuna-keiki"><dt><span lang="haw">Kūpuna</span> and <span lang="haw">keiki</span></dt><dd><p>Hawaiian words KLEAR uses for older people and children. Here, <span lang="haw">kūpuna</span> means people 65 and over and <span lang="haw">keiki</span> means children under 18, unless a label gives another age.</p></dd></div>
+            <div id="race-alone"><dt>Race “alone” and “with other races”</dt><dd><p>On Census forms, people can choose one race or more. “Alone” counts people who chose only that race. “Alone or with other races” counts everyone who chose it, so one person can be counted in more than one group.</p></dd></div>
+          </dl>
+
+          <h3 id="terms-work">Work and school</h3>
+          <dl class="terms">
+            <div id="labor-force"><dt>Labor force</dt><dd><p>People 16 and over who have a job or are looking for one. People who are retired, in school or at home and not looking for work are not in it.</p></dd></div>
+            <div id="unemployment-rate"><dt>Unemployment rate</dt><dd><p>The share of the labor force that has no job and is looking for one. People who are not looking for work do not count.</p></dd></div>
+            <div id="industry-occupation"><dt>Industry and occupation</dt><dd><p>Industry is the kind of business a person works for, such as a hotel or a school. Occupation is the kind of work the person does there, such as cook or teacher.</p><p>The Census Bureau counts workers where they live. So a district’s figures show the jobs of the people who live there, wherever the job is.</p></dd></div>
+            <div id="educational-attainment"><dt>Educational attainment</dt><dd><p>The most schooling a person has finished. KLEAR shows it for adults 25 and over, such as the share with a high school diploma or a four-year college degree.</p></dd></div>
+          </dl>
+          </section>
+
+          <section class="data-section" id="checks" aria-labelledby="checks-title">
+            <h2 id="checks-title">How we check KLEAR</h2>
+            <p>KLEAR rebuilds every number from public sources with one command, and each build checks its own work. A build that fails a required check never replaces the data the site serves. These are the results of the build the site is serving.</p>
+            <div class="card build-card" id="build" aria-live="polite">
+              <p class="build-status" id="build-status">Loading the latest build…</p>
+            </div>
+            <section class="check-part" id="cks-list" aria-labelledby="cks-list-title" hidden>
+              <h3 id="cks-list-title">Data checks</h3>
+              <p>A required check stops the build when it fails. A reported check shows numbers that need judgment but does not stop it.</p>
+              <details class="fold"><summary>Every check and its result</summary><div class="table-scroll"><table id="check-table" class="stack"><caption class="visually-hidden">Data checks in the latest build</caption><thead><tr><th scope="col">Check</th><th scope="col">Type</th><th scope="col">Result</th><th scope="col">What it found</th></tr></thead><tbody></tbody></table></div></details>
+            </section>
+            <section class="check-part" id="cks-populations" aria-labelledby="cks-populations-title" hidden>
+              <h3 id="cks-populations-title">Do the districts add up?</h3>
+              <p>KLEAR places every 2020 census block in one House and one Senate district, so each district’s population should match the Census Bureau’s count for it. The Reapportionment Commission drew the districts on a base that counts permanent residents only, so its numbers differ on purpose.</p>
+              <ul class="key-list" id="population-notes"></ul>
+              <div id="population-table"></div>
+            </section>
+            <section class="check-part" id="cks-accuracy" aria-labelledby="cks-accuracy-title" hidden>
+              <h3 id="cks-accuracy-title">How close are estimated district numbers?</h3>
+              <p>KLEAR moves tract and ZIP code figures into districts by where people live. To test that, it does the same with six counts the Census Bureau also publishes for each district, and compares the two.</p>
+              <details class="fold"><summary>Estimated and published counts compared</summary><div id="accuracy-table"></div></details>
+            </section>
+            <section class="check-part" id="cks-answers" aria-labelledby="cks-answers-title" hidden>
+              <h3 id="cks-answers-title">Are the assistant’s answers right?</h3>
+              <p>The assistant is scored on a public practice set, scored again against each new build, and on a held-out set kept private so it cannot be used for tuning. Only the held-out totals are published.</p>
+              <div id="answer-tables" class="answer-tables"></div>
+              <ul class="key-list" id="answer-notes"></ul>
+            </section>
+            <section class="check-part" id="cks-what" aria-labelledby="cks-what-title" hidden>
+              <h3 id="cks-what-title">What each check does</h3>
+              <div id="check-details" class="check-details"></div>
+            </section>
+            <section class="check-part" id="cks-limits" aria-labelledby="cks-limits-title" hidden>
+              <h3 id="cks-limits-title">Known limits</h3>
+              <ul class="limit-list" id="limit-list"></ul>
+              <p>Every finding is in the <a class="ext" href="https://github.com/HAIC-2026/KLEAR/blob/main/docs/VALIDATION.md">validation report<span class="visually-hidden"> (external site)</span></a>.</p>
+            </section>
+          </section>
+
+          <section class="data-section" id="privacy" aria-labelledby="privacy-title">
+            <h2 id="privacy-title">Privacy</h2>
+            <ul class="notes">
+              <li>KLEAR shows public, aggregated figures about communities, never about a person. It declines personal and partisan requests.</li>
+              <li>Questions you ask, with your last two in the same tab, go to Anthropic’s AI model to be answered from KLEAR’s data. Leave out names and other personal details.</li>
+              <li>A street address goes to the U.S. Census Bureau only to find its district. KLEAR’s server does not store or log addresses or questions. Your conversation stays in this browser tab until you close it.</li>
+              <li>The site uses no cookies, analytics or third-party scripts.</li>
+            </ul>
+          </section>
+        </div>
+      </div>
+    </div>
+  </main>
+  <footer>
+    <div class="wrap">
+      <div class="footer-inner">
+        <div class="footer-about" id="about">
+          <div class="footer-brand"><img src="/favicon.svg" width="40" height="40" alt=""><p class="footer-name"><strong>KLEAR</strong><span>Hawaiʻi district data</span></p></div>
+          <p>Made for HAIC 2026. Challenge champion: DBEDT Research and Economic Analysis Division. Not an official State of Hawaiʻi product. For Hawaiʻi data beyond districts, try <a class="ext" href="https://datatrove.ai/">datatrove.ai<span class="visually-hidden"> (external site)</span></a>, a HAIC 2026 sponsor.</p>
+          <p class="footer-team">Team: <a class="ext" href="https://github.com/KantaS12">Kanta Saito<span class="visually-hidden"> on GitHub (external site)</span></a>, <a class="ext" href="https://github.com/andrewhe6">Andrew He<span class="visually-hidden"> on GitHub (external site)</span></a>, <a class="ext" href="https://github.com/rainemendoza">Raine S. Mendoza<span class="visually-hidden"> on GitHub (external site)</span></a>, <a class="ext" href="https://github.com/Lukas-Moroz">Lukas Moroz<span class="visually-hidden"> on GitHub (external site)</span></a>, <a class="ext" href="https://github.com/elijah-saloma">Elijah Saloma<span class="visually-hidden"> on GitHub (external site)</span></a>.</p>
+        </div>
+        <div class="footer-col">
+          <h2 class="footer-title">Reports</h2>
+          <ul>
+            <li><a href="/data" aria-current="page">Data &amp; methods</a></li>
+            <li><a class="ext" href="https://github.com/HAIC-2026/KLEAR/blob/main/docs/VALIDATION.md">Validation report<span class="visually-hidden"> (external site)</span></a></li>
+            <li><a href="/accessibility.html">Accessibility statement</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h2 class="footer-title">Questions or corrections</h2>
+          <p><a class="ext" href="https://github.com/HAIC-2026/KLEAR/issues">Open a GitHub issue<span class="visually-hidden"> (external site)</span></a></p>
+        </div>
+      </div>
+    </div>
+  </footer>
+</body>
+</html>
