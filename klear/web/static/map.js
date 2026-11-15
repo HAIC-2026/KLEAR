@@ -472,7 +472,9 @@
     let x = e.clientX - r.left + 14, y = e.clientY - r.top + 14;
     if (x + w > r.width - 4) x = e.clientX - r.left - w - 14;
     if (y + h > r.height - 4) y = e.clientY - r.top - h - 14;
-    tip.style.transform = `translate(${Math.max(4, x)}px, ${Math.max(4, y)}px)`;
+    // Custom properties the style sheet turns into a position, so no style is written here.
+    tip.style.setProperty('--tip-x', `${Math.max(4, x)}px`);
+    tip.style.setProperty('--tip-y', `${Math.max(4, y)}px`);
   }
   function hideTip() { if (tip) { tip.hidden = true; delete tip.dataset.geo; } }
 
