@@ -569,16 +569,20 @@ def _direction(g: Golden, a: Answer, low: str) -> Outcome:
     problems = []
     if not any(_has(low, w) for w in DIRECTION_WORDS[g.direction]):
         problems.append(f"no {g.direction} wording ({', '.join(DIRECTION_WORDS[g.direction])})")
-    both = [
-        _plain(t)
-        for t in re.split(r"[.!?;\n]+", text)
-        if len(pair) == 2 and all(f"{{geo:{p[0]}:{p[1]}}}" in t for p in pair)
-    ] or [low]
-    if g.direction != "within_margin" and (
-        found := sorted({w for w in DIRECTION_WORDS[FLIP[g.direction]] for t in both if _has(t, w)})
-    ):
+    if g.direction != "within_margin" and (found := _opposite_words(text, pair, g.direction)):
         problems.append(f"says {', '.join(found)} but expected {g.direction}")
     return _verdict("direction", problems)
+
+
+def _opposite_words(text: str, pair: list, direction: str) -> list[str]:
+    """Words saying the other direction, read from the marker text so labels never count, in the sentences that
+    name both asked places, or in every sentence when the question names no pair."""
+    marks = [f"{{geo:{t}:{i}}}" for t, i in pair]
+    sentences = re.split(r"[.!?;\n]+", text)
+    if len(marks) == 2:
+        sentences = [s for s in sentences if all(m in s for m in marks)]
+    words = DIRECTION_WORDS[FLIP[direction]]
+    return sorted({w for s in sentences for w in words if _has(_plain(MARKER.sub(" ", s)), w)})
 
 
 def score(g: Golden, a: Answer, con, programs: dict[str, str] | None = None, seen=None) -> list[Outcome]:
