@@ -336,6 +336,29 @@ def _joined(parts: list[str], word: str = "and") -> str:
     return parts[0] if len(parts) == 1 else f"{', '.join(parts[:-1])} {word} {parts[-1]}"
 
 
+# How a kind of place reads when an answer lists the kinds it shows.
+KINDS = {"house": "district", "senate": "district", "county": "county", "state": "state"}
+
+
+def _kinds(facts: list[dict]) -> str:
+    """The kinds of place among get_facts entries, like 'District, county and state'."""
+    kinds = list(dict.fromkeys(KINDS.get(f["geo"].split(":")[0], "place") for f in facts))
+    order = [*KINDS.values(), "place"]
+    kinds.sort(key=order.index)
+    return _joined(kinds).capitalize() if len(kinds) > 1 else ""
+
+
+def modeled_caveat(names) -> str:
+    """The caveat for figures that are CDC PLACES modeled estimates, named by their labels."""
+    names = list(dict.fromkeys(names))
+    one = len(names) == 1
+    return (
+        f"The {'figure' if one else 'figures'} for {_joined([in_sentence(n) for n in names])} "
+        f"{'is a modeled estimate' if one else 'are modeled estimates'} from CDC PLACES survey answers, "
+        "not a direct count."
+    )
+
+
 def _comparison(session, fact: dict, others: list[dict], unit: str) -> str:
     """How a district fact relates to each other place, like 'higher than Honolulu County (19.6%)'."""
     ways: dict[str, list[str]] = {}
@@ -818,9 +841,8 @@ def _answer(con, question, district, earlier=()):
         + f". Source: {c['source']}, {c['year']}."
         for c, f in zip(facts, found, strict=True)
     )
-    if len(geos) > 1:
-        places = "District, county and state" if len(geos) == 3 else "District and " + geos[1].split(":")[0]
-        text += f"\n\n{places} figures are shown side by side. Consider their margins of error before drawing a conclusion."
+    if kinds := _kinds(found):
+        text += f"\n\n{kinds} figures are shown side by side. Consider their margins of error before drawing a conclusion."
     refs = [session.facts[f["ref"]] for f in found]
     notes = []
     labels = dict(con.execute("SELECT indicator_id, label FROM indicator").fetchall())
@@ -833,17 +855,8 @@ def _answer(con, question, district, earlier=()):
         notes.append(
             f"Figures for {years} are not published for {shown} yet. These are the latest available, for {vintages}."
         )
-    caveats = []
-    if modeled:
-        names = list(
-            dict.fromkeys(c["label"] for c, f in zip(facts, found, strict=True) if f["ref"] in modeled)
-        )
-        one = len(names) == 1
-        caveats.append(
-            f"The {'figure' if one else 'figures'} for {_joined([in_sentence(n) for n in names])} "
-            f"{'is a modeled estimate' if one else 'are modeled estimates'} from CDC PLACES survey answers, "
-            "not a direct count."
-        )
+    modeled_names = {f["ref"]: c["label"] for c, f in zip(facts, found, strict=True) if f["ref"] in modeled}
+    caveats = [modeled_caveat(modeled_names.values())] if modeled_names else []
     programs = program_rows(tied_programs(dict.fromkeys(r.indicator_id for r in refs), []))
     if programs:
         notes.append(
@@ -857,4 +870,5 @@ def _answer(con, question, district, earlier=()):
         "fact_refs": refs,
         "notes": notes,
         "caveats": caveats,
+        "modeled": modeled_names,
     }
