@@ -935,3 +935,38 @@ def test_places_and_numbers_the_tools_returned_are_allowed(eval_store):
     assert bare.passed is False and "senate 012" in bare.detail and "'710'" in bare.detail
     seen = {"resolved": ["senate:012"], "names": ["710 Main St"], "counts": []}
     assert _by(score(_gold(), a, eval_store, seen=seen))["fidelity"].passed is True
+
+
+def test_a_comparison_with_its_places_after_it_is_a_claim():
+    assert direction_claims("Rent is higher in {geo:senate:006} than in {geo:senate:005}.") == [
+        (("senate", "006"), "higher", ("senate", "005"))
+    ]
+
+
+def test_direction_reads_the_asked_pair_and_not_other_places(eval_store):
+    pair = [("x", "senate", "006"), ("x", "senate", "005")]
+    text = (
+        "Rent is higher in {geo:senate:006} than in {geo:senate:005}. "
+        "{geo:senate:005} is lower than the county and the state, so it is the lower of the two."
+    )
+    assert _ok(_ans([text]), eval_store, direction="higher", facts=pair)["direction"].passed is True
+    wrong = "Rent in {geo:senate:006} is lower than rent in {geo:senate:005}, by the survey."
+    assert _ok(_ans([wrong]), eval_store, direction="higher", facts=pair)["direction"].passed is False
+
+
+def test_direction_counts_only_sentences_about_the_asked_measure(eval_store):
+    county = FactRef("f2", "pop_65_plus", "county", "15003", "acs", 5000.0, None, None, 50.0, "2020-2024")
+    other = FactRef("f3", "pop_under_18", "county", "15003", "acs", 900.0, None, None, 50.0, "2020-2024")
+    text = (
+        "{geo:house:022} has {fact:f1}. That is lower than {geo:county:15003}, at {fact:f2}. "
+        "For keiki, {geo:house:022} is within the margin of error of {geo:county:15003}, at {fact:f3}."
+    )
+    pair = [("pop_65_plus", "house", "022"), ("pop_65_plus", "county", "15003")]
+    got = _ok(_ans([text], [_ref(), county, other]), eval_store, direction="lower", facts=pair)
+    assert got["direction"].passed is True, got["direction"].detail
+
+
+def test_pidgin_within_da_margin_counts_as_within_margin():
+    assert direction_claims(
+        "{geo:house:015} is higher than {geo:county:15007}, within da margin of error."
+    ) == [(("house", "015"), "within_margin", ("county", "15007"))]

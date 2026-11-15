@@ -51,6 +51,7 @@ DIRECTION_WORDS = {
     "lower": ("lower", "less", "fewer", "smaller", "below"),
     "within_margin": (
         "within the margin",
+        "within da margin",
         "not significant",
         "not statistically significant",
         "overlap",
@@ -81,12 +82,17 @@ CLAIM_TOKEN = re.compile(
     re.IGNORECASE,
 )
 PHRASE_DIRECTION = {p: d for d, ps in COMPARE_PHRASES.items() for p in ps}
+# A comparison written with its places after it, as in "higher in {geo:A} than in {geo:B}".
+PLACED = re.compile(
+    r"\b(higher|lower|greater|larger|bigger|smaller|more|less)\s+in\s+(\{geo:\w+:\w+\})\s+than\s+(?:in\s+)?",
+    re.IGNORECASE,
+)
 # Most words between a comparison and the place it compares with, as in "higher than the rate in {geo}".
 OBJECT_WORDS = 6
 MARGIN_WORD = re.compile(r"\bmargins?\b", re.IGNORECASE)
 # A sentence that also says the gap is within the margin of error makes no higher or lower claim.
 HEDGE = re.compile(
-    r"(?<!not )(?<!outside )within the margin|not (?:statistically )?significant", re.IGNORECASE
+    r"(?<!not )(?<!outside )within (?:the|da) margin|not (?:statistically )?significant", re.IGNORECASE
 )
 BLOCK_COLUMN = {"house": "house", "senate": "senate", "zcta": "zcta", "tract": "tract"}
 HTML_SPAN = re.compile(r"<!--.*?(?:-->|$)|<\s*[!/?a-z][^>]*(?:>|$)", re.IGNORECASE | re.DOTALL)
@@ -511,9 +517,11 @@ def _sourcing(a: Answer) -> Outcome:
     return _verdict("sourcing", [f"no vintage shown for source {s}" for s in sorted(shown - dated)])
 
 
-def direction_claims(text: str) -> list[tuple[tuple[str, str], str, tuple[str, str]]]:
-    """(subject geo, direction, object geo) claims in marker text; a sentence with no subject takes the last topic."""
-    claims, topic = [], None
+def direction_claims(text: str, by_sentence: bool = False) -> list[tuple]:
+    """(subject geo, direction, object geo) claims in marker text, each with its sentence when by_sentence; a
+    sentence with no subject takes the last topic."""
+    text = PLACED.sub(r"\2 is \1 than ", text)
+    claims, where, topic = [], [], None
     for sentence in re.split(r"[.!?;\n]+", text):
         subject = pending = first = None
         start = len(claims)
@@ -532,18 +540,28 @@ def direction_claims(text: str) -> list[tuple[tuple[str, str], str, tuple[str, s
                 first = first or subject
         if HEDGE.search(sentence):
             claims[start:] = [(s, "within_margin", o) for s, _, o in claims[start:]]
+        where += [sentence] * (len(claims) - start)
         topic = first or topic
-    return claims
+    return [(*c, w) for c, w in zip(claims, where, strict=True)] if by_sentence else claims
+
+
+def _about(sentence: str, indicator: str, by_ref: dict) -> bool:
+    """Whether a sentence is about the measure: it cites a figure of it, or no figure at all."""
+    refs = [r for k, r in MARKER.findall(sentence) if k == "fact" and r in by_ref]
+    return not refs or any(by_ref[r].indicator_id == indicator for r in refs)
 
 
 def _direction(g: Golden, a: Answer, low: str) -> Outcome:
     if g.direction is None:
         return Outcome("direction", None, "no expected direction")
     pair = [(t, i) for _, t, i in g.facts[:2]]
+    indicator = g.facts[0][0] if g.facts else None
+    by_ref = {f.ref: f for f in a.facts}
+    text = "\n".join([*a.blocks, *a.caveats])
     said = [
         d if (s, o) == tuple(pair) else FLIP[d]
-        for s, d, o in direction_claims("\n".join([*a.blocks, *a.caveats]))
-        if len(pair) == 2 and {s, o} == set(pair) and s != o
+        for s, d, o, sentence in direction_claims(text, by_sentence=True)
+        if len(pair) == 2 and {s, o} == set(pair) and s != o and _about(sentence, indicator, by_ref)
     ]
     if said:
         wrong = sorted({d for d in said if d != g.direction})
@@ -551,8 +569,13 @@ def _direction(g: Golden, a: Answer, low: str) -> Outcome:
     problems = []
     if not any(_has(low, w) for w in DIRECTION_WORDS[g.direction]):
         problems.append(f"no {g.direction} wording ({', '.join(DIRECTION_WORDS[g.direction])})")
+    both = [
+        _plain(t)
+        for t in re.split(r"[.!?;\n]+", text)
+        if len(pair) == 2 and all(f"{{geo:{p[0]}:{p[1]}}}" in t for p in pair)
+    ] or [low]
     if g.direction != "within_margin" and (
-        found := [w for w in DIRECTION_WORDS[FLIP[g.direction]] if _has(low, w)]
+        found := sorted({w for w in DIRECTION_WORDS[FLIP[g.direction]] for t in both if _has(t, w)})
     ):
         problems.append(f"says {', '.join(found)} but expected {g.direction}")
     return _verdict("direction", problems)
