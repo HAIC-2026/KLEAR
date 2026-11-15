@@ -139,6 +139,61 @@ for (const a of document.querySelectorAll('.site-header a[href="#chat"]')) a.add
 });
 // On wide screens the profile comes first, so a link at the top skips past it to the question box.
 $('skip-ask').onclick = e => { e.preventDefault(); showTab('ask'); $('question').focus(); };
+
+// At 1200 px and up, Wider gives the chat most of the row and narrows the profile to its headline figures and section
+// links (the CSS does the layout). The choice holds for the tab. The answer at the top of the chat stays in place.
+const SAVED_WIDE = 'klear-wide';
+let wideChat = false;
+try { wideChat = sessionStorage.getItem(SAVED_WIDE) === '1'; } catch { /* blocked */ }
+function setWide(on) {
+  const pane = $('messages'), top = pane.getBoundingClientRect().top;
+  const anchor = [...$('log').children].find(el => el.getBoundingClientRect().bottom > top), was = anchor && anchor.getBoundingClientRect().top;
+  wideChat = on;
+  $('chat').classList.toggle('wide', on);
+  $('wide').setAttribute('aria-pressed', String(on));
+  try { sessionStorage.setItem(SAVED_WIDE, on ? '1' : '0'); } catch { /* blocked */ }
+  if (anchor && pane.scrollHeight > pane.clientHeight) pane.scrollTop += anchor.getBoundingClientRect().top - was;
+  if (!on) fitTables();
+}
+$('wide').onclick = () => setWide(!wideChat);
+$('chat').classList.toggle('wide', wideChat);
+$('wide').setAttribute('aria-pressed', String(wideChat));
+
+// The note under the question box says where questions go; Privacy opens the rest.
+$('privacy-toggle').onclick = () => {
+  const open = $('privacy-more').hidden;
+  $('privacy-more').hidden = !open;
+  $('privacy-toggle').setAttribute('aria-expanded', String(open));
+};
+
+// After the first answer the suggested questions fold to the one row that fits, with More questions at its end for
+// the rest. A new answer folds them again.
+let suggestOpen = false, suggestWidth = 0;
+function foldSuggestions() {
+  const box = $('suggest'), more = $('more-questions'), buttons = [...$('examples').children];
+  const fold = Boolean($('log').querySelector('article')) && !suggestOpen;
+  box.classList.toggle('folded', fold);
+  for (const b of buttons) b.hidden = false;
+  more.hidden = !fold && !suggestOpen;
+  more.setAttribute('aria-expanded', String(suggestOpen));
+  if (!fold || !box.offsetWidth) return;
+  // Hide the last question shown until the rest and More questions share the first row.
+  const shown = buttons.slice();
+  while (shown.length > 1 && shown.at(-1).offsetTop > shown[0].offsetTop) shown.pop().hidden = true;
+  if (shown.length === buttons.length) more.hidden = true;
+  // Focus on a question that just folded away moves to More questions.
+  if (buttons.some(b => b.hidden && b === document.activeElement)) more.focus();
+}
+$('more-questions').onclick = () => {
+  suggestOpen = !suggestOpen;
+  foldSuggestions();
+};
+// The row holds a different number of questions as the chat changes width, or when it first shows behind a tab.
+new ResizeObserver(() => {
+  const width = $('suggest').offsetWidth;
+  if (width !== suggestWidth) { suggestWidth = width; foldSuggestions(); }
+}).observe($('suggest'));
+
 districtView(Boolean(routeGeo()));
 
 // After a reader picks a district, the top of its page: focus on its name when they found it with the search at the
@@ -754,7 +809,8 @@ function profileSections(p) {
   out.forEach((d, i) => { d.open = typeof saved[d.dataset.key] === 'boolean' ? saved[d.dataset.key] : !ONE_COLUMN.matches && i < OPEN_FIRST; });
   return out;
 }
-// Links to every section, so each is one click from the top. A link opens its section before the page moves to it.
+// Links to every section, so each is one click from the top. A link opens its section before the page moves to it, and
+// with the chat wide, first gives the profile its room back, since the narrow profile shows no sections.
 function profileJumps(sections) {
   const nav = node('nav', '', 'profile-jumps'), title = node('p', 'In this profile', 'profile-jumps-title'), list = node('ul', '');
   title.id = 'jumps-title';
@@ -762,7 +818,10 @@ function profileJumps(sections) {
   for (const d of sections) {
     const li = document.createElement('li'), a = node('a', d.querySelector('summary').textContent);
     a.href = `#${d.id}`;
-    a.onclick = () => { if (!d.open) { d.open = true; rememberOpen(d.dataset.key, true); } };
+    a.onclick = () => {
+      if (wideChat && !ONE_COLUMN.matches) setWide(false);
+      if (!d.open) { d.open = true; rememberOpen(d.dataset.key, true); }
+    };
     li.append(a);
     list.append(li);
   }
@@ -1214,6 +1273,7 @@ function restoreChat() {
   }
   saveChat();
   if (!sent) return;
+  foldSuggestions();
   asked = last;
   $('chat-card').classList.add('started');
   if (logScrolls()) $('messages').scrollTop = sent.offsetTop - 16;
@@ -1289,6 +1349,8 @@ $('question-form').onsubmit = async e => {
     next = about.geo ? followUpGroup(followUps(question, answer, about.name, counties.get(about.geo)), about) : null;
     if (next && !adopt) reply.append(next);
     pending.replaceWith(reply);
+    suggestOpen = false;
+    foldSuggestions();
     saved.answer = answer;
     const shown = answerPlace(answer, name);
     done = [shown ? `Answer ready for ${shown}.` : 'Answer ready.', answer.verified && answer.verified.text].filter(Boolean).join(' ');
@@ -1583,6 +1645,7 @@ function districtExamples(p) {
     b.onclick = () => askAgain(question);
     return b;
   }));
+  foldSuggestions();
 }
 
 // Next questions, retries and district examples name a district, so they go when the chat switches to another.

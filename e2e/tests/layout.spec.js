@@ -189,6 +189,62 @@ test.describe('a district at 1280 wide', () => {
   });
 });
 
+// Wider gives a laptop's chat most of the row: the profile keeps its headline figures and section links, tiles go four
+// across, and each chart sits beside what it says. A profile answer then needs at most two pane-heights of scrolling past
+// its first screen to reach its sources. The choice holds for the tab, and a section link gives the profile its room back.
+test.describe('a district at 1280 by 800 with the chat wider', () => {
+  test.skip(({isMobile}) => isMobile, 'a laptop screen');
+  test.use({viewport: {width: 1280, height: 800}});
+  test('the answer has room, and the profile keeps its figures and links', async ({page}) => {
+    await page.goto('/district/house-22');
+    await expect(page.locator('#profile-live')).toHaveText(`Profile for ${DISTRICT} loaded.`);
+    const wider = page.getByRole('button', {name: 'Wider'});
+    await expect(wider).toHaveAttribute('aria-pressed', 'false');
+    const narrow = (await page.locator('#chat-card').boundingBox()).width;
+    // The note under the question box is two lines at most.
+    const note = page.locator('#chat-privacy');
+    const lines = await note.evaluate(p => Math.round(p.getBoundingClientRect().height / parseFloat(getComputedStyle(p).lineHeight)));
+    expect(lines).toBeLessThanOrEqual(2);
+
+    await wider.click();
+    await expect(wider).toHaveAttribute('aria-pressed', 'true');
+    const row = (await page.locator('.chat-layout').boundingBox()).width, wide = (await page.locator('#chat-card').boundingBox()).width;
+    expect(wide).toBeGreaterThan(narrow);
+    expect(wide / row).toBeGreaterThan(0.55);
+    await expect(page.locator('#profile .profile-stats')).toBeVisible();
+    await expect(page.locator('#profile .profile-jumps')).toBeVisible();
+    await expect(page.locator('#profile .profile-section').first()).toBeHidden();
+
+    const answer = await ask(page, 'Give me a socioeconomic profile of this district.');
+    // Tiles four across, and the chart's bars beside its heading and reading.
+    const tops = await answer.locator('.tile').evaluateAll(all => all.slice(0, 4).map(t => Math.round(t.getBoundingClientRect().top)));
+    expect(tops).toHaveLength(4);
+    expect(new Set(tops).size).toBe(1);
+    const chart = answer.locator('.chart').first();
+    const head = await chart.locator('.chart-head').boundingBox(), bars = await chart.locator('.chart-bars').boundingBox();
+    expect(bars.x).toBeGreaterThan(head.x + head.width);
+    expect(bars.y).toBeLessThan(head.y + head.height);
+    // From the answer's top to the end of its sources, at most two pane-heights past the first screen.
+    const pane = await page.locator('#messages').evaluate(m => m.clientHeight);
+    const top = (await answer.boundingBox()).y;
+    const sources = await answer.locator('details').filter({has: page.locator('summary', {hasText: /^Sources$/})}).boundingBox();
+    expect(sources.y + sources.height - top - pane).toBeLessThanOrEqual(2 * pane);
+
+    // The choice holds for the tab.
+    await page.reload();
+    await expect(page.locator('#profile-live')).toHaveText(`Profile for ${DISTRICT} loaded.`);
+    await expect(wider).toHaveAttribute('aria-pressed', 'true');
+    // A section link gives the profile its room back and goes to the section, open.
+    const link = page.locator('.profile-jumps a').first();
+    const section = page.locator((await link.getAttribute('href')));
+    await link.click();
+    await expect(wider).toHaveAttribute('aria-pressed', 'false');
+    await expect(section).toHaveAttribute('open', '');
+    await expect(section.locator(':scope > summary')).toBeInViewport();
+    expect((await page.locator('#chat-card').boundingBox()).width).toBeCloseTo(narrow, 0);
+  });
+});
+
 // On a phone, Profile and Ask are each one tap from the top of a district's page.
 test.describe('a district at 390 by 844', () => {
   test.use({viewport: {width: 390, height: 844}});
@@ -200,6 +256,9 @@ test.describe('a district at 390 by 844', () => {
     await expect(page.locator('#profile .profile-stats')).toBeInViewport();
     await tabs.getByRole('tab', {name: 'Ask'}).click();
     await expect(page.getByLabel('Your question')).toBeInViewport();
+    // Wider is for laptops: on a phone the chat already has the whole width.
+    await expect(page.getByRole('button', {name: 'Change district'})).toBeVisible();
+    await expect(page.getByRole('button', {name: 'Wider'})).toBeHidden();
     await tabs.getByRole('tab', {name: 'Profile'}).click();
     await expect(page.locator('#profile .profile-stats')).toBeInViewport();
     // The district's page starts at its heading; the map follows the profile.
