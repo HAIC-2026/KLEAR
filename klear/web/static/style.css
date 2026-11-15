@@ -600,7 +600,7 @@ article .elsewhere{font-size:var(--fs-sm)}
 .island-tabs{display:flex;flex-wrap:wrap;gap:6px}.island-tabs button{border:1px solid var(--line);background:#fff;color:var(--ink);border-radius:var(--r-ctl);padding:6px 10px;font-size:var(--fs-xs);font-weight:600}.island-tabs button[aria-pressed=true]{background:var(--house-soft);border-color:var(--house);color:var(--house-dark)}
 .map-frame{position:relative;overflow:hidden;background:var(--map-sea);border:1px solid var(--line);border-radius:var(--r-ctl);aspect-ratio:3/2}
 /* Wide screens: a flatter frame, which fits the island chain and keeps the map section short. */
-@media(min-width:1024px){.map-frame{aspect-ratio:16/9}}
+@media(min-width:1024px){.map-frame{aspect-ratio:14/5}}
 #map{display:block;width:100%;height:100%;--label:12px;touch-action:pan-y;user-select:none;-webkit-user-select:none}#map.free{touch-action:none;cursor:grab}#map.free:active{cursor:grabbing}
 #map .district,#map .label{--land:var(--house-land);--hover:var(--house-hover);--zip:var(--house-zip);--pick:var(--house);--pick-dark:var(--house-dark)}#map [data-geo^="senate:"]{--land:var(--senate-land);--hover:var(--senate-hover);--zip:var(--senate-zip);--pick:var(--senate);--pick-dark:var(--senate-dark)}
 #map .district{fill:var(--land);stroke:var(--pick);stroke-width:1px;stroke-linejoin:round;vector-effect:non-scaling-stroke;cursor:pointer;transition:fill .15s}
@@ -694,7 +694,7 @@ td:last-child{white-space:nowrap}
 
 /* About, and the full source table on the sources page */
 .about h3{margin:0}
-.about .team{margin-top:12px}
+.about .team{display:grid;grid-template-columns:repeat(auto-fill,minmax(16rem,1fr));gap:4px 24px;margin-top:12px;padding-left:0;list-style:none}
 .about .team-block+h3{margin-top:var(--block-gap)}
 .about .partner{margin:12px 0 0;max-width:var(--measure)}
 
