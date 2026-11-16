@@ -1,13 +1,13 @@
 # KLEAR
 
-Live site: https://klear-1036571590730.us-west1.run.app/ (no setup needed; it asks for a password until the finals demo)
+Live site: https://klear-1036571590730.us-west1.run.app/ (no setup needed)
 
 KLEAR answers questions about Hawaiʻi's 51 House and 25 Senate legislative districts for the HAIC 2026 Know Your District challenge. A data pipeline builds a district-level fact base from Census, ACS, federal and state sources into DuckDB, with every fact tied to a source. Program eligibility rules live in YAML files. An agent built on Claude answers questions using only the store, and an eval checks its answers against a set of test questions.
 
 ## For judges
 
 - Team: KLEAR. Members: Kanta Saito (KantaS12), Andrew He (andrewhe6), Raine S. Mendoza (rainemendoza), Lukas Moroz (Lukas-Moroz), Elijah Saloma (elijah-saloma).
-- The quickest way to try KLEAR is the live site above: no setup, keys or download. Until the finals demo it asks for a password.
+- The quickest way to try KLEAR is the live site above: no setup, keys or download.
 - Security and privacy: [docs/SECURITY-PRIVACY.md](docs/SECURITY-PRIVACY.md). How the numbers are checked: [docs/VALIDATION.md](docs/VALIDATION.md).
 
 One-minute tour:
@@ -18,20 +18,20 @@ One-minute tour:
 4. Press Compare another district to set a second district beside the first, row by row, and print the comparison. Open Rankings, then its Outreach tab, to see which districts have the most people who meet a program's income test.
 5. Open Data & methods, then Checks, to see every check the last data build ran.
 
-Results, from the data build of November 12, 2026 HST and the tests run on it:
+Results, from the data build of November 13, 2026 HST that the live site serves, and the tests run on it on November 15:
 
 | What | Result |
 | --- | --- |
 | Districts covered | 76 of 76 (51 House, 25 Senate) |
-| Data checks in the build ([docs/VALIDATION.md](docs/VALIDATION.md)) | 23 of 23 pass |
+| Data checks in the build ([docs/VALIDATION.md](docs/VALIDATION.md)) | 27 of 27 pass |
 | DBEDT workbook values compared with the Census Data API | 177,776 values, 0 mismatches |
-| Stored figures compared with DBEDT's district profiles | 3,854 figures, 0 differ |
+| Stored figures compared with DBEDT's district profiles | 5,494 figures, 0 differ |
 | Program rule values checked against official pages | 260 values in 15 rule files, 0 mismatches |
-| Programs in the catalog (data/programs) | 12 state and federal programs |
-| Scripted replay of the 59 practice questions (saved model replies, no API calls) | 59 of 59 pass |
-| Recorded live run on the practice set (Claude Haiku 5.5, rescored on this build) | 48 of 50 scored answers correct, every number from the store |
-| Python tests (pytest) | 2,080 passed, 0 failed (61 tests that call live servers run separately) |
-| Browser tests at desktop and phone sizes (Playwright), including 26 axe accessibility scans for WCAG 2.2 A and AA | 138 passed, 0 failed (10 desktop-only checks skipped at phone size) |
+| Programs in the catalog (data/programs) | 21 state, county and federal programs |
+| Scripted replay of the 77 practice questions (saved model replies, no API calls) | 77 of 77 pass, every number from the store |
+| Live runs with Claude Haiku 5.5 on two private 50-question test sets and a 100-question held-out set the fixes were never tuned on (November 14 and 15) | 48 of 50, 45 of 50 and 87 of 100 pass every check; in all 200 answers every number matches the store |
+| Python tests (pytest) | 2,493 passed, 0 failed, 1 skipped (74 tests that call live servers run separately) |
+| Browser tests at desktop and phone sizes (Playwright, Chromium), including axe accessibility scans for WCAG 2.2 A and AA | 261 passed, 0 failed (17 desktop-only checks skipped at phone size) |
 
 To run KLEAR on your own computer instead, you first build the data store from public sources. That needs Python 3.12 or later, [uv](https://docs.astral.sh/uv/getting-started/installation/), internet access and a free Census API key ([sign up here](https://api.census.gov/data/key_signup.html)) saved in a .env file as in [Local keys](#local-keys). No paid key is needed.
 
