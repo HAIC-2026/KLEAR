@@ -51,10 +51,18 @@ test('each district has its own address, which Back, Forward and a pasted link f
   if (!isMobile) await expect(pasted.locator('#profile .profile-stats')).toBeInViewport();
   expect(await pasted.evaluate(() => scrollY)).toBe(0);
 
-  // A link to a district that does not exist lands on the page with no district and says why.
-  await pasted.goto('/district/house-99');
+  // A bad district link returns 404 and lands on Find with the chamber still in sync.
+  await pasted.goto('/');
+  const senate = pasted.locator('#chamber-switch').getByRole('button', {name: 'Senate'});
+  await senate.click();
+  const missing = await pasted.goto('/district/house-99');
+  expect(missing.status()).toBe(404);
   await expect(pasted).toHaveURL(/:\d+\/$/);
   await expect(pasted.locator('#find-status')).toContainText('51 House and 25 Senate districts');
+  await expect(senate).toHaveAttribute('aria-pressed', 'true');
+  await expect(pasted.locator('#seat-index .seat-chamber.senate')).toBeVisible();
+  await expect(pasted.locator('#seat-index .seat-chamber.house')).toBeHidden();
+  await expect(pasted.locator('#map .frame-caption').first()).toHaveText(/Senate$/);
 });
 
 test('a refresh keeps the district and its answers', async ({page}) => {

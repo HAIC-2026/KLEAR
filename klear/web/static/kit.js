@@ -163,13 +163,12 @@ function matchGroups(matches) {
     const rows = [m, ...(m.overlaps || [])].filter(g => /^(house|senate):/.test(g.geo || ''));
     if (!rows.length) continue;
     const county = (m.overlaps || []).find(g => /^county:/.test(g.geo || ''));
-    // A district found by its legislator's name says who holds it.
-    const place = m.kind === 'zcta' ? `ZIP code ${m.geo.split(':')[1]}` : m.member || m.name;
+    const place = m.kind === 'zcta' ? `ZIP code ${m.geo.split(':')[1]}` : m.name;
     // Name the island, or the county when the store has no islands. An island, county or address names itself.
     const where = ['island', 'county', 'address', 'district'].includes(m.kind) ? '' : m.island || (county && county.name);
     const rank = g => (g.geo.startsWith('senate:') ? 1000 : 0) - Math.round((g.share ?? 1) * 100);
     rows.sort((a, b) => rank(a) - rank(b) || a.geo.localeCompare(b.geo));
-    const title = m.kind === 'district' && !m.member ? '' : [place, where].filter(Boolean).join(', ');
+    const title = m.kind === 'district' ? '' : [place, where].filter(Boolean).join(', ');
     groups.push({place, kind: m.kind, title, note: kindNotes[m.kind] || '', pop: m.pop2020 || 0, rows});
   }
   return groups.sort((a, b) => b.pop - a.pop);
@@ -215,7 +214,12 @@ function showMatches(groups, box, pick, onMap) {
         b.type = 'button';
         const label = r.name.replace(' District', '');
         // The spoken name is the visible text with the rest of the sentence hidden after it.
-        b.append(node('span', label));
+        const district = node('span', label);
+        if (r.member) {
+          const name = r.member.replace(/\bRepresentative /g, 'Rep. ').replace(/\bSenator /g, 'Sen. ');
+          district.append(' ', node('span', name, 'match-member'));
+        }
+        b.append(district);
         if (r.share != null) b.append(' ', node('span', share(r.share), 'share'), hidden(` of ${g.place} residents`));
         b.onclick = () => pick(r.geo, r.name);
         chips.append(b);
@@ -326,39 +330,49 @@ function suggestBox(input, list, live, onPick) {
 }
 
 // Wire a district search form: matching districts appear as buttons under it, and a single match is picked at once.
-// A picked suggestion searches at once for exactly what it names. onMatches, when given, hears the places found, so
-// the map can show them. Returns a function that clears the form's results and drops any search still loading.
+// A picked suggestion searches at once for exactly what it names. onMatches, when given, updates the map, with an
+// empty list clearing the last result. Returns a function that clears the form and drops any search still loading.
 function lookupForm(form, input, status, box, pick, onMatches) {
   let seq = 0;
+  const say = (text, error = false) => {
+    status.classList.toggle('is-error', error);
+    status.textContent = text;
+  };
   const search = async query => {
     const mine = ++seq, button = form.querySelector('button[type=submit]');
     button.disabled = true;
     box.replaceChildren();
-    status.textContent = 'Finding matching districts…';
+    say('Finding matching districts…');
     try {
       const data = await api('/api/resolve?q=' + encodeURIComponent(query));
       if (mine !== seq) return;
       const groups = matchGroups(data.matches || []);
       const found = new Map(groups.flatMap(g => g.rows.map(r => [r.geo, r.name])));
-      if (found.size === 1) { const [[geo, name]] = found; status.textContent = ''; pick(geo, name); return; }
+      if (found.size === 1) { const [[geo, name]] = found; say(''); pick(geo, name); return; }
       if (!found.size) {
-        status.textContent = data.note || 'No matching districts. Try House 22, a town or neighborhood, a ZIP code, or a street address.';
-        if (onMatches) box.append(mapNudge('Not sure which district is yours?'));
+        say(data.note || 'No matching districts. Try House 22, a town or neighborhood, a ZIP code, or a street address.', true);
+        if (onMatches) {
+          onMatches([]);
+          box.append(mapNudge('Not sure which district is yours?'));
+        }
         return;
       }
-      if (groups.every(g => g.kind === 'address')) status.textContent = 'Choose the House or Senate district.';
-      else status.textContent = groups.some(g => g.title) ? 'Choose a district. Each percent is its share of the area’s residents.' : 'Choose a district:';
+      if (groups.every(g => g.kind === 'address')) say('Choose the House or Senate district.');
+      else say(groups.some(g => g.rows.some(r => r.share != null)) ? 'Choose a district. Each percent is its share of the area’s residents.' : 'Choose a district:');
       showMatches(groups, box, pick, Boolean(onMatches));
       if (onMatches) onMatches(groups);
     } catch (err) {
-      if (mine === seq) status.textContent = err.message;
+      if (mine === seq) {
+        say(err.message, true);
+        onMatches?.([]);
+      }
     } finally {
       button.disabled = false;
     }
   };
   const closeList = suggestBox(input, $(`${input.id}-list`), $(`${input.id}-count`), search);
   form.onsubmit = e => { e.preventDefault(); closeList(); search(input.value); };
-  return () => { seq++; closeList(); box.replaceChildren(); status.textContent = ''; };
+  return () => { seq++; closeList(); box.replaceChildren(); say(''); };
 }
 
 // A place's figure in its own cell of a profile table: the estimate, then its margin of error or range under it.

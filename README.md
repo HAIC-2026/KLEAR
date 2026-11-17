@@ -51,7 +51,7 @@ The build takes several minutes the first time. Two HUD files must be downloaded
 2. Code checks every answer before it is shown (build_answer in klear/agent/answer.py, answer_problems in klear/eval/scorers.py): one of five answer types (an answer, a declined personal request, a declined partisan request, data not available, or out of scope), no number outside a marker, every cited fact used, only the places the question is about, every figure the question type requires, and comparison words that match the numbers. A failing answer goes back to the model with the problems. If it still fails after 6 calls, code writes a plain answer from the facts already looked up.
 3. Each figure on the page shows its survey years, its margin of error or range and a link to its source, and an estimate whose margin of error is large is marked unreliable (klear/web/display.py).
 4. Basic mode needs no model. With --basic-only, without an Anthropic key, or once the daily cap is reached, a keyword lookup answers from the same store with the same layout (klear/web/answers.py).
-5. Answers to the five suggested questions on a district's page can be prepared ahead with python -m klear.web.prewarm. They pass the same checks, and the site uses one only for the same question, district, store build and model, and says it was prepared ahead.
+5. Answers to the first five suggested questions on a district's page can be prepared ahead with python -m klear.web.prewarm. They pass the same checks, and the site uses one only for the same question, district, store build and model, and says it was prepared ahead.
 6. Every data build checks the store before the site uses it (docs/VALIDATION.md): DBEDT's ACS workbooks against the Census Data API cell by cell, stored figures against DBEDT, program rule values against quotes on official pages, and sums and ranges against their parts. If a gated check fails, the previous store is kept.
 
 ```mermaid
@@ -149,9 +149,9 @@ No `source`, environment export, or `--env-file` option is needed. Restart the w
 - The ACS figures cover survey years 2020 to 2024, so most of the responses behind them predate the August 2023 Maui wildfires.
 - Figures moved to districts from ZIP codes (IRS and CMS) are wide ranges, too wide to rank districts by.
 - Income-eligible counts, such as people under 138 percent of poverty, meet the income test only. KLEAR does not decide anyone's eligibility.
-- No DBEDT, Department of Taxation or BLS figures yet (issue #31). DBEDT's ACS workbooks are used only to check the Census figures.
-- The program catalog has 12 state and federal programs and no county programs.
-- Each question stands alone. The chat shows earlier messages but does not send them with a new question.
+- DBEDT's ACS workbooks are used to check Census figures. BLS unemployment and Hawaiʻi Department of Taxation credits are available for counties and the state only.
+- The program catalog covers 21 state, county and federal programs. It is not a complete list of available programs.
+- Each new chat question carries up to two earlier questions from the current browser tab.
 - The free fallback lookup, used without an AI key or when the daily cap is reached, matches keywords. It answers fewer kinds of questions than the assistant.
 - No person has tested the site with a screen reader yet (see [docs/ACCESSIBILITY.md](docs/ACCESSIBILITY.md)).
 - English only.
@@ -163,7 +163,7 @@ Two outside services can be called while the site runs. Both are optional.
 
 | Service | Publisher | What KLEAR sends and why | Terms |
 | --- | --- | --- | --- |
-| Anthropic API, model claude-haiku-5-5 | Anthropic | The question and the public figures the assistant looks up, to write the answer. Used only when ANTHROPIC_API_KEY is set; --basic-only or no key uses the free lookup instead. | [Commercial Terms](https://www.anthropic.com/legal/commercial-terms), [Usage Policy](https://www.anthropic.com/legal/aup), [Privacy Policy](https://www.anthropic.com/legal/privacy) |
+| Anthropic API, model claude-haiku-5-5 | Anthropic | The question, up to two earlier questions from the same tab, and the public figures the assistant looks up, to write the answer. Used only when ANTHROPIC_API_KEY is set; --basic-only or no key uses the free lookup instead. | [Commercial Terms](https://www.anthropic.com/legal/commercial-terms), [Usage Policy](https://www.anthropic.com/legal/aup), [Privacy Policy](https://www.anthropic.com/legal/privacy) |
 | Census Geocoder | U.S. Census Bureau | A street address typed in search or chat, to find its 2020 Census block. --no-address-lookup turns it off. | [Policies and notices](https://www.census.gov/about/policies.html), [privacy policy](https://www.census.gov/about/policies/privacy.html) |
 
 The data build (python -m klear.etl build) downloads everything else. It runs ahead of time, not when someone uses the site. The store holds facts from these 11 sources:
@@ -407,7 +407,7 @@ The rankings page's Outreach tab (/rankings?view=outreach; old links to /outreac
 
 ### Prepared answers to the district starter questions
 
-The five suggested questions on a district's page ask the same thing for every district, so their answers can be prepared once after each
+The first five suggested questions on a district's page ask the same thing for every district, so their answers can be prepared once after each
 data build and shown at once instead of after several seconds. With ANTHROPIC_API_KEY set, run:
 
     uv run python -m klear.web.prewarm

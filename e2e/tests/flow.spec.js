@@ -16,7 +16,7 @@ test('search, choose, read the profile, ask, open a source, and come back', asyn
 
   // Choose: the map zooms to the district, then its own page opens at the top, its name the page heading, which takes
   // focus. The chat asks about it.
-  await matches.getByRole('button', {name: 'House 22 75% of Kāneʻohe residents'}).click();
+  await matches.getByRole('button', {name: /^House 22\b.*75% of Kāneʻohe residents$/}).click();
   await expect(page.locator('#district-title')).toHaveText(DISTRICT);
   const title = page.getByRole('heading', {level: 1});
   await expect(title).toHaveText(DISTRICT);

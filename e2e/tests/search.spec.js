@@ -15,7 +15,8 @@ test('a neighborhood names its island, says what kind of area it is, and shows e
   const matches = await search(page, 'Waikiki');
   await expect(matches.locator('.match-title')).toHaveText('Waikīkī, Oʻahu');
   await expect(matches.locator('.match-note')).toHaveText('Honolulu neighborhood board area');
-  await expect(matches.getByRole('button', {name: 'House 22 100% of Waikīkī residents'})).toBeVisible();
+  const district = matches.getByRole('button', {name: 'House 22 Rep. Leilani M. Kaʻai 100% of Waikīkī residents'});
+  await expect(district.locator('.match-member')).toHaveText('Rep. Leilani M. Kaʻai');
 });
 
 test('a street address lists its districts, and the page says where the address goes', async ({page}) => {
@@ -24,7 +25,7 @@ test('a street address lists its districts, and the page says where the address 
   const matches = await search(page, '1 Test St');
   await expect(page.locator('#find-status')).toHaveText('Choose the House or Senate district.');
   await expect(matches.locator('.match-title')).toHaveText('1 Test St, Kāneʻohe, HI 96744');
-  await expect(matches.getByRole('button')).toHaveText(['House 23', 'Senate 12']);
+  await expect(matches.getByRole('button')).toHaveText(['House 23 Rep. Kawika Palakiko', 'Senate 12 Sen. Noelani Kaʻai']);
   await expect(page.locator('#find .privacy')).toBeVisible();
   await matches.getByRole('button', {name: 'House 23'}).click();
   await expect(page.locator('#district-title')).toHaveText('House District 23');
@@ -67,6 +68,23 @@ test('a district number out of range says how many there are', async ({page}) =>
   await page.goto('/');
   await search(page, 'House 52');
   await expect(page.locator('#find-status')).toHaveText(/^Hawaiʻi has \d+ House districts, numbered 1 to \d+\.$/);
+});
+
+test('an unmatched search clears the map and uses the error colors', async ({page}) => {
+  await page.goto('/');
+  await search(page, 'Waikiki');
+  const hit = page.locator('#map .district:not(.copy).zip-hit');
+  await expect(hit).not.toHaveCount(0);
+  await search(page, 'zzzzzz');
+  const status = page.locator('#find-status');
+  await expect(status).toHaveText(/^No matching districts\./);
+  await expect(status).toHaveCSS('color', 'rgb(138, 47, 34)');
+  await expect(status).toHaveCSS('background-color', 'rgb(251, 238, 234)');
+  await expect(hit).toHaveCount(0);
+  await expect(page.locator('#zip-status')).toBeEmpty();
+  await search(page, 'Waikiki');
+  await expect(status).not.toHaveClass(/\bis-error\b/);
+  await expect(hit).not.toHaveCount(0);
 });
 
 // The fixture store has no place this large, so the search reply is the one an island with many districts gets.

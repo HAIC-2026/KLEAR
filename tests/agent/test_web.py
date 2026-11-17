@@ -76,7 +76,8 @@ def chat(port, question, district="house:022"):
 def test_lookup_and_private_files(endpoint):
     status, data = request(endpoint, "GET", "/api/resolve?q=House%2022")
     assert status == 200
-    assert json.loads(data)["matches"][0]["geo"] == "house:022"
+    district = json.loads(data)["matches"][0]
+    assert district["geo"] == "house:022" and district["member"] == "Representative Leilani M. Kaʻai"
     # A legislator's name finds the district they hold, saying who holds it.
     status, data = request(endpoint, "GET", "/api/resolve?q=Rep.%20Palakiko")
     assert status == 200 and json.loads(data)["matches"] == [
@@ -379,11 +380,17 @@ def test_prepared_profiles_match_the_response_bytes_and_store_build(small_con, t
 
 
 def test_district_addresses_serve_the_page(endpoint):
-    # Any district address serves the page, which checks the number itself; nothing else under /district/ does.
-    for path in ["/district/house-22", "/district/senate-1", "/district/house-07", "/district/house-99"]:
+    for path in ["/district/house-22", "/district/senate-1", "/district/house-07"]:
         status, body, headers = get(endpoint, path)
         assert status == 200 and b'id="print-sheet"' in body, path
         assert headers["Cache-Control"] == "no-cache" and headers["Content-Type"] == "text/html", path
+    # Out-of-range seats still get the Find page, which explains the bad link.
+    home = get(endpoint, "/")[1]
+    for path in ["/district/house-99", "/district/house-0", "/district/senate-26"]:
+        status, body, headers = get(endpoint, path)
+        assert status == 404 and body == home, path
+        assert headers["Cache-Control"] == "no-store", path
+        assert headers["Content-Type"].startswith("text/html"), path
     for path in ["/district/county-3", "/district/house-022", "/district/house-22/", "/district/house-22/x"]:
         assert get(endpoint, path)[0] == 404, path
 
