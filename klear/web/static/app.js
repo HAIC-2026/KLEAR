@@ -324,6 +324,7 @@ function clearDistrict() {
   districtHead('', null);
   $('chat-status').textContent = '';
   $('profile').hidden = true;
+  profileJumpResize.disconnect();
   $('profile').replaceChildren();
   $('profile-live').textContent = '';
   dropDistrictActions();
@@ -545,6 +546,7 @@ async function loadProfile(geo, name) {
   $('starter').hidden = true;
   panel.hidden = false;
   districtHead(name, null);
+  profileJumpResize.disconnect();
   panel.replaceChildren(profileLoading());
   try {
     const data = await profileOf(geo);
@@ -553,13 +555,19 @@ async function loadProfile(geo, name) {
     districtHead(data.district, data);
     panel.replaceChildren(...renderProfile(data));
     fitTables();
+    profileJumpResize.observe(panel);
+    profileJumpResize.observe(panel.querySelector('.profile-jumps'));
+    updateProfileJumps();
     districtExamples(data);
     shareBar();
     refreshSheet();
     live.textContent = `Profile for ${data.district} loaded.`;
     // An address that names a section, such as one opened from a bookmark, opens it.
     const target = location.hash.length > 1 && document.getElementById(location.hash.slice(1));
-    if (target && target.matches('#profile details')) { target.open = true; target.scrollIntoView(); }
+    if (target && target.matches('#profile > :is(.profile-glance,.profile-section)')) {
+      if (target.matches('details')) target.open = true;
+      target.scrollIntoView();
+    }
   } catch (err) {
     if (seq !== profileSeq) return;
     profileGeo = null;
@@ -1016,23 +1024,60 @@ function profileSections(p) {
   out.forEach((d, i) => { d.open = typeof saved[d.dataset.key] === 'boolean' ? saved[d.dataset.key] : !FLOAT.matches && i < OPEN_FIRST; });
   return out;
 }
-// Links to every section, numbered as the sections are, so each is one click from the top. A link opens its section
-// before the page moves to it.
+// The numbered links open their section before the browser follows the anchor.
 function profileJumps(sections) {
-  const nav = node('nav', '', 'profile-jumps'), title = node('p', 'In this profile', 'profile-jumps-title'), list = node('ol', '');
-  title.id = 'jumps-title';
-  nav.setAttribute('aria-labelledby', title.id);
+  const nav = node('nav', '', 'profile-jumps'), list = node('ol', '');
+  nav.setAttribute('aria-label', 'In this profile');
   for (const d of sections) {
     const li = document.createElement('li'), a = node('a', '');
-    a.append(sectionNumber(d.querySelector('.sec-num').textContent), node('span', d.dataset.title, 'sec-title'));
+    a.append(sectionNumber(d.querySelector('.sec-num').textContent), node('span', d.querySelector('.sec-title').textContent, 'sec-title'));
     a.href = `#${d.id}`;
-    a.onclick = () => { if (!d.open) { d.open = true; rememberOpen(d.dataset.key, true); } };
+    a.onclick = e => {
+      if (plainClick(e) && d.matches('details') && !d.open) {
+        d.open = true;
+        rememberOpen(d.dataset.key, true);
+      }
+    };
     li.append(a);
     list.append(li);
   }
-  nav.append(title, list);
+  nav.append(list);
   return nav;
 }
+
+// Follow the heading just below the header and links. At the foot of the page a short section may not be able to
+// scroll that high, so keep a visible jump target current there, or mark the last section when reading down.
+function updateProfileJumps() {
+  if (view() !== 'district') return;
+  const panel = $('profile'), nav = panel.querySelector('.profile-jumps');
+  const bar = nav?.getBoundingClientRect();
+  if (!bar?.height) return;
+  const height = `${bar.height}px`;
+  if (panel.style.getPropertyValue('--profile-jumps-h') !== height) panel.style.setProperty('--profile-jumps-h', height);
+  const edge = Math.max(0, document.querySelector('.site-header').getBoundingClientRect().bottom, bar.bottom);
+  const line = Math.min(edge + 16, innerHeight), links = [...nav.querySelectorAll('a')];
+  let current = null, visibleTarget = null;
+  for (const a of links) {
+    const top = $(a.hash.slice(1)).getBoundingClientRect().top;
+    if (top <= line) current = a;
+    if (top >= edge && top < innerHeight && a.hash === location.hash) visibleTarget = a;
+  }
+  const page = document.scrollingElement;
+  if (page.scrollTop > 0 && page.scrollTop + page.clientHeight >= page.scrollHeight - 1) current = visibleTarget || links.at(-1);
+  const previous = nav.querySelector('[aria-current]');
+  if (current !== previous) {
+    previous?.removeAttribute('aria-current');
+    current?.setAttribute('aria-current', 'location');
+  }
+}
+let jumpFrame = 0;
+function scheduleProfileJumps() {
+  if (!jumpFrame) jumpFrame = requestAnimationFrame(() => { jumpFrame = 0; updateProfileJumps(); });
+}
+const profileJumpResize = new ResizeObserver(scheduleProfileJumps);
+window.addEventListener('scroll', scheduleProfileJumps, {passive: true});
+window.addEventListener('resize', scheduleProfileJumps);
+window.addEventListener('hashchange', scheduleProfileJumps);
 
 // The largest places in a district and the other chamber's districts it overlaps, with their shares of its residents.
 function placesList(p) {
@@ -1180,10 +1225,8 @@ function memberLinks(members) {
 }
 
 function renderProfile(p) {
-  // Under the district's name: section 1, At a glance, with its headline figures, each saying how it compares, and
-  // any notes on its figures such as the Maui wildfires. Then links to every section, the outreach groups this
-  // district leads, if any, and the sections. The share actions sit in the bar over the page.
-  const out = [];
+  // Under the district's name: the section links, At a glance, any outreach groups this district leads, and the
+  // remaining sections. The share actions sit in the bar over the page.
   tableFit.disconnect();  // the tables of the profile shown before
   const glance = node('section', '', 'profile-glance'), head = node('div', '', 'glance-head'), title = node('h2', '', 'glance-title');
   glance.id = 'profile-glance';
@@ -1196,9 +1239,8 @@ function renderProfile(p) {
   if (stats.querySelector('.glance-strip')) glance.append(glanceKey(p));
   if (stats.querySelector('.compare-line')) glance.append(compareKey());
   if (p.caveats && p.caveats.length) glance.append(placeNotes(p.caveats, 'profile-notes'));
-  out.push(glance);
   const sections = profileSections(p);
-  out.push(profileJumps(sections));
+  const out = [profileJumps([glance, ...sections]), glance];
   // The outreach groups this district leads come just before the sections. A district that leads none says so at the
   // end of its programs, with the way to the outreach page.
   if (p.outreach && Array.isArray(p.outreach.items)) {
@@ -2328,17 +2370,30 @@ function explainedCard(f) {
   return card;
 }
 
+const answerSentences = typeof Intl.Segmenter === 'function' ? new Intl.Segmenter('en', {granularity: 'sentence'}) : null;
+function answerLine(tag, text, opening) {
+  const className = tag === 'p' ? 'lead' : undefined;
+  if (!opening) return says(tag, text, className);
+  const first = (answerSentences?.segment(text).containing(0)?.segment ?? text.match(/^.*?[.!?](?=\s|$)/s)?.[0] ?? text).trimEnd();
+  const line = node(tag, '', className);
+  line.append(says('strong', first, 'answer-opening'), ...says('span', text.slice(first.length)).childNodes);
+  return line;
+}
+
 function basicAnswer(answer, name) {
   const article = document.createElement('article');
   article.append(heading(answer, name));
+  let opening = true;
   for (const p of answer.text.split('\n\n')) {
+    if (!p.trim()) continue;
     const lines = p.split('\n'), items = lines.slice(1).map(l => l.match(/^\s*[*-]\s+(.*)/));
     if (lines.length > 1 && items.every(Boolean)) {
-      article.append(says('p', lines[0]));
+      article.append(answerLine('p', lines[0], opening));
       const list = node('ul', '', 'lead-list');
       list.append(...items.map(m => says('li', m[1])));
       article.append(list);
-    } else article.append(says('p', p));
+    } else article.append(answerLine('p', p, opening));
+    opening = false;
   }
   if ((answer.members || []).length) article.append(memberLinks(answer.members));
   if (answer.elsewhere) article.append(elsewhereLine(answer.elsewhere));
@@ -2530,12 +2585,18 @@ function renderAnswer(answer, name) {
   const article = document.createElement('article');
   article.className = 'answer';
   article.append(heading(answer, name));
-  let list = null;
+  let list = null, opening = true;
   for (const line of answer.lead.flatMap(p => p.split('\n'))) {
     const item = line.match(/^\s*[*-]\s+(.*)/);
-    if (!item) { list = null; if (line.trim()) article.append(says('p', line, 'lead')); continue; }
-    if (!list) article.append(list = node('ul', '', 'lead-list'));
-    list.append(says('li', item[1]));
+    if (item) {
+      if (!list) article.append(list = node('ul', '', 'lead-list'));
+      list.append(answerLine('li', item[1], opening));
+    } else {
+      list = null;
+      if (!line.trim()) continue;
+      article.append(answerLine('p', line, opening));
+    }
+    opening = false;
   }
   if (answer.tiles.length) {
     const grid = node('div', '', 'tiles');

@@ -371,14 +371,14 @@ function figureCell(f, place, home) {
   td.append(where);
   if (!f) { td.append(node('span', 'No figure', 'none')); return td; }
   if (f.missing) { td.classList.add('missing'); td.append(node('span', 'No figure', 'none'), node('span', f.missing, 'moe')); return td; }
-  // The "about" of an estimated value goes on its own line, and a range takes two, low then high, so the column stays
-  // as narrow as one that holds a count and its margin of error.
-  const [, about, number] = /^(about )?(.*)$/.exec(f.plain || f.value);
-  if (about) td.append(node('span', 'about', 'moe'));
-  td.append(node('span', number, 'num'));
-  const range = /^(range .+?) (to .+)$/.exec(f.spread || '');
-  if (range) td.append(node('span', range[1], 'moe'), node('span', range[2], 'moe'));
-  else if (f.spread) td.append(node('span', f.spread, 'moe'));
+  const text = f.plain || f.value, value = node('span', text, 'num');
+  if (text.startsWith('about ')) value.replaceChildren(node('span', 'about', 'estimate-about'), ` ${text.slice(6)}`);
+  td.append(value);
+  if (f.spread) {
+    const range = f.spread.startsWith('range '), spread = node('span', range ? f.spread.slice(6) : f.spread, 'moe');
+    if (range) spread.prepend(hidden('range '));
+    td.append(spread);
+  }
   if (f.aside) td.append(node('span', f.aside, 'profile-aside'));
   if (!home && f.caution) td.append(cautionChip(f.caution));
   return td;

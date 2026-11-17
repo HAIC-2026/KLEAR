@@ -24,7 +24,7 @@ test('search, choose, read the profile, ask, open a source, and come back', asyn
   await expect(page.locator('#find-col')).toBeHidden();
   expect(await page.evaluate(() => scrollY)).toBe(0);
 
-  // Profile: announced in one short line. It starts with the headline figures and their margins.
+  // Profile: announced in one short line, with section links above the headline figures and their margins.
   await expect(page.locator('#profile-live')).toHaveText(`Profile for ${DISTRICT} loaded.`);
   await expect(page.locator('#district-about')).toContainText('Honolulu County');
   const profile = page.locator('#profile');
@@ -38,8 +38,8 @@ test('search, choose, read the profile, ask, open a source, and come back', asyn
   // A numbered link at the top leads to each group of sections, and opens it. At a glance is section 1.
   await expect(profile.getByRole('heading', {level: 2, name: 'At a glance'})).toBeVisible();
   const jumps = profile.getByRole('navigation', {name: 'In this profile'});
-  await expect(jumps.locator('.sec-title')).toHaveText(['People', 'Income and work', 'Programs and help', 'Reference']);
-  await expect(jumps.locator('.sec-num')).toHaveText(['2', '3', '4', '5']);
+  await expect(jumps.locator('.sec-title')).toHaveText(['At a glance', 'People', 'Income and work', 'Programs and help', 'Reference']);
+  await expect(jumps.locator('.sec-num')).toHaveText(['1', '2', '3', '4', '5']);
   await jumps.getByRole('link', {name: 'People'}).click();
   // The row's label, not its "What this means" button, which names the label to screen readers.
   await expect(profile.locator('.profile-label', {hasText: 'Kūpuna (65 and over)'})).toBeVisible();
