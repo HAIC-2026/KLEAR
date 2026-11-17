@@ -186,11 +186,6 @@ html[data-page=home] .share-bar{display:none!important}
    narrower card on the right. */
 html[data-page=home] .stage{grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);grid-template-areas:"map find"}
 html[data-page=home] .stage-bar{display:none}
-/* The map's card and the search's card are as tall as each other. */
-html[data-page=home] :is(.stage-map,.stage-find){align-self:stretch}
-/* The map grows to fill its card, the link to Rankings under it. */
-html[data-page=home] .stage-map{display:flex;flex-direction:column}
-html[data-page=home] .stage-map .map-frame{flex:1 0 auto}
 .stage-map{grid-area:map}
 .stage-find{grid-area:find}
 .panel,.stage-find,.map-card{background:#fff;border:1px solid var(--line);border-radius:var(--r-card);box-shadow:var(--shadow-sm)}
@@ -825,9 +820,27 @@ article .elsewhere{font-size:var(--fs-sm)}
 .map-controls{display:flex;flex-wrap:wrap;gap:var(--s-3);justify-content:space-between;align-items:center;margin-bottom:var(--s-3)}
 .segmented{display:inline-flex;border:1px solid var(--control);border-radius:var(--r-ctl);overflow:hidden}.segmented button{border:0;background:transparent;padding:8px 16px;font-size:var(--fs-sm);font-weight:600}.segmented [data-chamber=house]{color:var(--house)}.segmented [data-chamber=senate]{color:var(--senate)}.segmented [data-chamber=house][aria-pressed=true]{background:var(--house);color:#fff}.segmented [data-chamber=senate][aria-pressed=true]{background:var(--senate);color:#fff}
 .island-tabs{display:flex;flex-wrap:wrap;gap:6px}.island-tabs button{border:1px solid var(--line);background:#fff;color:var(--ink);border-radius:var(--r-ctl);padding:6px 10px;font-size:var(--fs-xs);font-weight:600}.island-tabs button[aria-pressed=true]{background:var(--house-soft);border-color:var(--house);color:var(--house-dark)}
-.map-frame{position:relative;overflow:hidden;background:var(--map-sea);border:1px solid var(--line);border-radius:var(--r-sm);aspect-ratio:3/2}
+.map-frame{position:relative;overflow:hidden;width:100%;background:var(--map-sea);border:1px solid var(--line);border-radius:var(--r-sm);aspect-ratio:3/2}
+@media screen and (min-width:1024px){
+  /* Allow for the title band, page and card padding, and the controls above the map.
+     Keep a usable map on shorter screens where the reader will need to scroll. */
+  :is(.hero-find,.rankings-page .hero-inner){padding-block:var(--s-4)}
+  :is(.hero-find,.rankings-page .hero-inner) .lede{max-width:56rem}
+  html[data-page=home] .stage-map{--map-chrome:20rem}
+  .rankings-page .map-card{--map-chrome:25.5rem}
+  .rankings-page .page-body{padding-top:var(--s-3)}
+  .rankings-page .page-tabs{margin-bottom:var(--s-3)}
+  .rankings-page .page-tabs [role=tab]{padding-block:var(--s-2)}
+  .rank-controls .shade-row{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;column-gap:var(--s-2)}
+  .rank-controls .shade-row label{margin:0}
+  #shade-status{grid-column:1/-1}
+  :is(html[data-page=home],.rankings-page) .map-frame{max-height:max(12rem,calc(100svh - var(--header-h) - var(--map-chrome)))}
+}
+@media(max-width:640px){
+  :is(html[data-page=home],.rankings-page) .map-card{padding:var(--s-2)}
+}
 .map-frame .zoom-buttons{position:absolute;z-index:2;top:8px;right:8px}
-#map{display:block;width:100%;height:100%;--label:12px;touch-action:pan-y;user-select:none;-webkit-user-select:none}#map.free{touch-action:none;cursor:grab}#map.free:active{cursor:grabbing}
+#map{position:absolute;inset:0;display:block;width:100%;height:100%;--label:12px;touch-action:pan-y;user-select:none;-webkit-user-select:none}#map.free{touch-action:none;cursor:grab}#map.free:active{cursor:grabbing}
 #map .district,#map .label{--land:var(--house-land);--hover:var(--house-hover);--zip:var(--house-zip);--pick:var(--house);--pick-dark:var(--house-dark)}#map [data-geo^="senate:"]{--land:var(--senate-land);--hover:var(--senate-hover);--zip:var(--senate-zip);--pick:var(--senate);--pick-dark:var(--senate-dark)}
 #map .district{fill:var(--land);stroke:var(--pick);stroke-width:1px;stroke-linejoin:round;vector-effect:non-scaling-stroke;cursor:pointer;transition:fill .15s}
 #map,.map-card button{-webkit-tap-highlight-color:transparent}#map .district,#map .district:focus{outline:none}#map .district:focus-visible{fill:var(--hover);outline:none}@media(hover:hover){#map .district:hover{fill:var(--hover)}}
@@ -835,18 +848,22 @@ article .elsewhere{font-size:var(--fs-sm)}
 #map .focus-ring path{fill:none;stroke-linejoin:round;vector-effect:non-scaling-stroke;pointer-events:none}#map .hover-line{stroke:var(--ink);stroke-width:2.5px}#map .ring-halo{stroke:#fff;stroke-width:7px}#map .ring-line{stroke:var(--ink);stroke-width:3px}
 #map .labels{pointer-events:none;display:none}#map.zoomed .labels{display:inline}
 #map .label{font-family:var(--sans);font-size:var(--label);font-weight:700;fill:var(--ink);text-anchor:middle;dominant-baseline:central;opacity:.8;paint-order:stroke;stroke:#fff;stroke-width:calc(var(--label) / 4);stroke-linejoin:round}
-#map .label.picked{fill:#fff;stroke:var(--pick-dark);opacity:1}#map .label.crowded{display:none}
-/* Zoom: two buttons in the row of map controls, so they never cover a district. */
+#map .label.picked{fill:#fff;stroke:var(--pick-dark);opacity:1}#map .label.crowded{visibility:hidden}
+/* Zoom: two buttons in the map's top right corner. */
 .zoom-buttons{display:flex;border:1px solid var(--control);border-radius:var(--r-ctl);background:#fff}.zoom-buttons button{width:34px;height:34px;border:0;background:transparent;color:var(--ink);font-size:var(--fs-lg);line-height:1}.zoom-buttons button+button{border-left:1px solid var(--line)}
 .map-controls{align-items:center}.map-controls .island-tabs{flex:1 1 auto;justify-content:flex-start}
 /* On Find the House or Senate switch leads the map's card, the island tabs beside it at the right. */
 .map-controls .chamber-switch+.island-tabs{justify-content:flex-end}
-.map-controls .chamber-switch button{min-width:6.5rem;min-height:36px;padding:4px 16px}
-/* Each island group's caption beside it, on a map wide enough to hold them. */
-#map .frame-captions{pointer-events:none}
-#map .frame-caption{font-family:var(--sans);font-size:var(--label);font-weight:600;fill:var(--muted)}
-#map .frame-caption.below{dominant-baseline:hanging}
-#map.narrow .frame-caption{display:none}
+.map-controls .chamber-switch button{min-width:5.5rem;min-height:36px;padding:4px 16px}
+/* At statewide zoom, each island caption is also a button. */
+#map:not(.statewide) .frame-captions{display:none}
+#map .frame-caption{cursor:pointer}
+#map .frame-caption rect{fill:#fff;stroke:var(--control)}
+#map .frame-caption text{font:600 12px var(--sans);fill:var(--ink);dominant-baseline:central;pointer-events:none}
+#map .frame-caption:hover rect{fill:var(--accent-soft)}
+#map .frame-caption:focus-visible{outline:none}
+#map .frame-caption:focus-visible rect{stroke:var(--accent);stroke-width:3px}
+.map-island-hint{margin:var(--s-2) 0 0;font-size:var(--fs-sm);color:var(--muted)}
 .map-hint{position:absolute;left:12px;right:12px;bottom:12px;width:fit-content;margin:0 auto;padding:8px 14px;background:var(--ink);color:#fff;font-size:var(--fs-xs);font-weight:600;border-radius:var(--r-ctl);text-align:center;text-wrap:balance;pointer-events:none}
 .map-loading{position:absolute;inset:0;display:grid;place-items:center;margin:0;color:var(--muted);font-size:var(--fs-sm);font-weight:600;background:linear-gradient(90deg,var(--map-sea) 25%,var(--subtle) 50%,var(--map-sea) 75%);background-size:200% 100%;animation:shimmer 1.6s ease-in-out infinite}
 .map-loading.failed{padding:var(--s-4);text-align:center;background:var(--map-sea);animation:none}
@@ -1457,6 +1474,6 @@ details.tier[open] summary{margin-bottom:6px}
 .skeleton-line{display:grid;grid-template-columns:2.5rem minmax(0,9rem) 4.5rem 6rem;gap:var(--s-4);align-items:center;padding:12px 0}
 .skeleton-line .skeleton-bar{width:100%;margin:0}
 #map.waiting .district{fill:var(--map-dim);stroke:#fff;animation:waiting 1.6s ease-in-out infinite}
-#map.waiting .labels{display:none}
+#map.waiting .labels{visibility:hidden}
 @keyframes waiting{50%{opacity:.55}}
 @media(prefers-reduced-motion:reduce){#map.waiting .district{animation:none}}

@@ -45,9 +45,9 @@ test('chamber colors, charts, and the map under simulated color blindness', asyn
   await page.goto('/');
   await expect(page.locator('#map .district:not(.copy)').first()).toBeAttached();
   await page.getByRole('group', {name: 'Show House or Senate districts'}).getByRole('button', {name: 'Senate'}).click();
-  // The zoom buttons sit in the map's corner, just before it in the Tab order.
+  // Tab from the zoom controls past the four island captions to a district.
   await page.locator('#zoom-out').focus();
-  await page.keyboard.press('Tab');
+  for (let i = 0; i < 5; i++) await page.keyboard.press('Tab');
   await page.keyboard.press('ArrowRight');
   await expect(page.locator('#map .ring-line')).toHaveAttribute('d', /\S/);
   // A different district under the mouse, to compare the hover outline and fill with the focus ring.

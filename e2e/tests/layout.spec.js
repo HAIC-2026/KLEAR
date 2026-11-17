@@ -24,6 +24,19 @@ async function sidewaysScroll(page) {
   return page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
 }
 
+test('the whole Find and Rankings map is visible on load at laptop sizes', async ({page, isMobile}) => {
+  test.skip(isMobile, 'uses desktop layout');
+  for (const [width, height] of [[1366, 768], [1440, 900]]) {
+    await page.setViewportSize({width, height});
+    for (const path of ['/', '/rankings']) {
+      await page.goto(path);
+      await expect(page.getByText('Select an island to zoom in.')).toBeInViewport({ratio: 1});
+      await expect(page.locator('.map-frame'), `${path} at ${width} × ${height}`).toBeInViewport({ratio: 1});
+      await expect(page.locator('#map .district[data-geo="house:005"]')).toBeInViewport({ratio: 1});
+    }
+  }
+});
+
 // 320 px is a 1280 px window at 400% zoom (WCAG 1.4.10); 640 px is the same window at 200% (WCAG 1.4.4).
 for (const width of [320, 640]) {
   test.describe(`${width} px wide`, () => {

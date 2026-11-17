@@ -54,10 +54,15 @@ test('the House map opens colored by poverty, with its legend, the picked distri
   await expect(page.locator('#map-table tbody .unreliable-mark')).toHaveCount(0);
   await expect(page.locator('#map-table-key')).toBeHidden();
 
-  // A click on a district picks it: it keeps its shade, gets the picked outline and is marked in the ranking, and screen
+  // On the statewide map, a click on Oʻahu zooms in without picking a district.
+  await expect(page.getByText('Select an island to zoom in.')).toBeVisible();
+  await expect(page.locator('#map .label[data-geo="house:005"]')).toBeVisible();
+  await page.locator('#map .district[data-geo="house:047"]').click();
+  await expect(map.getByRole('button', {name: 'Oʻahu', exact: true})).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('#map .district.picked')).toHaveCount(0);
+  // The next click picks a district: it keeps its shade, gets the picked outline and is marked in the ranking. Screen
   // readers hear the same figures as in its profile: its own with its margin, then the state's. The fixture's two
   // ranges overlap, so that is said in words.
-  await map.getByRole('button', {name: 'Honolulu', exact: true}).click();
   await page.locator('#map .district[data-geo="house:022"]').click();
   await expect(page.locator('#map .district:not(.copy)[data-geo="house:022"]')).toHaveClass(/\bq5\b/);
   await expect(page.locator('#map .pick-line')).toHaveAttribute('d', /\S/);
