@@ -1021,7 +1021,7 @@ class Session:
             ).fetchall()
         return [(chamber, r[0]) for r in rows]
 
-    def _rank_districts(self, args: dict) -> dict:
+    def _rank_districts(self, args: dict, *, include_caveats: bool = True) -> dict:
         ind = _str(args, "indicator")
         chamber = args.get("chamber")
         if chamber not in config.CHAMBER_TYPES:
@@ -1058,8 +1058,10 @@ class Session:
             self.resolved.add(g)
             self.geos.add(g)
         note = self._note(ind)
-        ranked = [geo_key(d["geo"]) for t in tiers for d in t["districts"]]
-        notes = caveats.grouped(self.con, ranked)
+        notes = []
+        if include_caveats:
+            ranked = [geo_key(d["geo"]) for t in tiers for d in t["districts"]]
+            notes = caveats.grouped(self.con, ranked)
         return {
             "indicator_id": ind,
             "label": row[0],
@@ -1106,9 +1108,12 @@ class Session:
         tops, ranked = [], 0
         for pair, spec in config.OUTREACH_PAIRS.items():
             try:
-                tiers = self._rank_districts({"indicator": spec["indicator"], "chamber": geo[0]})["tiers"]
+                ranking = self._rank_districts(
+                    {"indicator": spec["indicator"], "chamber": geo[0]}, include_caveats=False
+                )
             except ToolError:
                 continue  # a store without this measure
+            tiers = ranking["tiers"]
             ranked += bool(tiers)
             top = tiers[0]["districts"] if tiers else []
             if mine := next((d for d in top if d["geo"] == f"{geo[0]}:{geo[1]}"), None):

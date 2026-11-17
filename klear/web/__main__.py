@@ -1,7 +1,6 @@
 """Web interface that answers district questions with the KLEAR assistant under a daily spend cap."""
 
 import argparse
-import functools
 import json
 import re
 import socket
@@ -23,7 +22,7 @@ from klear.agent.config import CHAMBER_TYPES, DEFAULT_MODEL, OUTREACH_DEFAULT, O
 from klear.agent.earlier import parse_earlier
 from klear.agent.tools import Session, ToolError
 from klear.config import ROOT, MissingSecretError, load_secret
-from klear.eval.contract import geo_display, geo_key
+from klear.eval.contract import geo_display
 from klear.members import Member, by_name, reading_name
 from klear.store.db import missing_columns
 from klear.web import display
@@ -32,6 +31,7 @@ from klear.web.assistant import DAILY_CAP, Assistant, DailyBudget, basic
 from klear.web.cache import AnswerCache
 from klear.web.checks import checks_report
 from klear.web.geocode import find_blocks, looks_like_address
+from klear.web.profile_cache import InvalidDistrict, ProfileCache, district_key, require_district
 from klear.web.shade import CHAMBERS, MEASURES, NoMeasure, map_view
 from klear.web.statement import statement_page
 
@@ -128,6 +128,10 @@ class Server(ThreadingHTTPServer):
     # whose HTTPServer enables port reuse. POSIX still permits quick restarts.
     allow_reuse_port = False
 
+    def __init__(self, server_address, RequestHandlerClass, bind_and_activate=True):
+        self.profiles = ProfileCache()
+        super().__init__(server_address, RequestHandlerClass, bind_and_activate)
+
     def server_bind(self):
         if hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
             self.allow_reuse_address = False
@@ -166,21 +170,8 @@ def outdated(store: Path) -> list[str]:
     return _schema[1]
 
 
-@functools.cache
-def _islands() -> dict[str, str]:
-    """Islands of each district, as the map lists them."""
-    data = json.loads((STATIC / "districts.json").read_text(encoding="utf-8"))
-    return {row["geo"]: row["islands"] for rows in data["chambers"].values() for row in rows}
-
-
 def _district(con, text):
-    key = geo_key(text)
-    if key is None or key[0] not in ("house", "senate") or not key[1].isdigit():
-        raise ValueError("invalid district")
-    key = (key[0], f"{int(key[1]):03}")
-    if not con.execute("SELECT 1 FROM geography WHERE geo_type=? AND geo_id=?", list(key)).fetchone():
-        raise ValueError("district not in store")
-    return key
+    return require_district(con, district_key(text))
 
 
 class Handler(SimpleHTTPRequestHandler):
@@ -222,7 +213,9 @@ class Handler(SimpleHTTPRequestHandler):
         return "public, max-age=604800" if path.startswith("/fonts/") else "no-cache"
 
     def reply(self, status, payload):
-        body = json.dumps(payload, ensure_ascii=False, allow_nan=False).encode()
+        return self.reply_json(status, json.dumps(payload, ensure_ascii=False, allow_nan=False).encode())
+
+    def reply_json(self, status, body: bytes):
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
@@ -237,9 +230,8 @@ class Handler(SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
-    def attachment(self, text: str, kind: str, filename: str):
+    def attachment(self, body: bytes, kind: str, filename: str):
         """A file the browser saves rather than shows."""
-        body = text.encode()
         self.send_response(200)
         self.send_header("Content-Type", f"{kind}; charset=utf-8")
         self.send_header("Content-Disposition", f'attachment; filename="{filename}"')
@@ -427,29 +419,12 @@ class Handler(SimpleHTTPRequestHandler):
     def profile(self, text: str, as_csv: bool = False):
         """The standard district profile, read from the store with no model call, as JSON or as a CSV file."""
         try:
-            with self.connect() as con:
-                try:
-                    geo = _district(con, text)
-                except ValueError:
-                    return self.reply(400, {"error": "Choose a valid stored House or Senate district."})
-                session = Session(con)
-                raw = json.loads(session.run("district_profile", {"district": ":".join(geo)}))
-                if "error" in raw:
-                    raise ValueError(raw["error"])
-                if as_csv:
-                    name = f"klear-{geo[0]}-district-{int(geo[1])}.csv"
-                    return self.attachment(display.profile_csv(con, raw, session), "text/csv", name)
-                matched = json.loads(session.run("district_programs", {"district": ":".join(geo)}))
-                # A program catalog that cannot be read or matched leaves the profile without programs.
-                if "error" in matched:
-                    matched = None
-                # Outreach pairs that cannot be ranked leave the profile without its outreach note.
-                try:
-                    tops = session.outreach_tops(geo)
-                except Exception:  # noqa: BLE001 - the profile stands without the note
-                    tops = None
-                islands = _islands().get(":".join(geo), "")
-                return self.reply(200, display.profile(con, raw, session, islands, matched, tops))
+            geo, body = self.server.profiles.get(self.store, text, "csv" if as_csv else "json")
+            if as_csv:
+                return self.attachment(body, "text/csv", f"klear-{geo[0]}-district-{int(geo[1])}.csv")
+            return self.reply_json(200, body)
+        except InvalidDistrict:
+            return self.reply(400, {"error": "Choose a valid stored House or Senate district."})
         except Exception:  # noqa: BLE001 - redact internal errors at the HTTP boundary
             log_failure("profile")
             return self.reply(503, {"error": "The district profile is unavailable right now."})
@@ -554,6 +529,13 @@ def _startup_gaps(store: Path) -> list[str]:
         return []
 
 
+def _warm_profiles(profiles: ProfileCache, store: Path) -> None:
+    try:
+        profiles.warm(store)
+    except Exception:  # noqa: BLE001 - profile requests can still fill the cache as needed
+        log_failure("profile warm-up")
+
+
 def main(argv: list[str] | None = None):
     parser = argparse.ArgumentParser(description="Run the KLEAR website locally.")
     parser.add_argument("--host", default="127.0.0.1")
@@ -597,7 +579,8 @@ def main(argv: list[str] | None = None):
             mode = f"assistant, ${args.daily_cap:.2f} daily cap"
         print(f"KLEAR: {url} ({mode})", flush=True)
         print(f"Data store: {store}", flush=True)
-        if gaps := _startup_gaps(store):
+        gaps = _startup_gaps(store)
+        if gaps:
             print(f"The data store was built by an older KLEAR and lacks {', '.join(gaps)}.", flush=True)
             print(f"District search and chat are off until it is rebuilt with: {REBUILD}", flush=True)
         if geocoder is not None:
@@ -610,6 +593,10 @@ def main(argv: list[str] | None = None):
             print("Build it with: uv run python -m klear.etl build", flush=True)
         elif note := prepared.summary(assistant is not None):
             print(note, flush=True)
+        if store.is_file() and not gaps:
+            if loaded := server.profiles.load(store):
+                print(f"Loaded {loaded} district profiles prepared for this data build.", flush=True)
+            threading.Thread(target=_warm_profiles, args=(server.profiles, store), daemon=True).start()
         threading.Thread(target=prepared.warm, daemon=True).start()
         if assistant is not None:
             threading.Thread(target=assistant.warm, daemon=True).start()

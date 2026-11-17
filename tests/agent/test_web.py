@@ -6,36 +6,46 @@ import json
 import os
 import queue
 import re
+import shutil
 import socket
 import subprocess
 import sys
 import threading
 from collections import defaultdict, deque
+from contextlib import contextmanager, nullcontext
 from functools import partial
 from html.parser import HTMLParser
 from http.client import HTTPConnection
 from http.server import ThreadingHTTPServer
 from urllib.parse import urlsplit
 
+import duckdb
 import pytest
 
 from klear import config
 from klear.web import __main__ as web
-from klear.web import display
+from klear.web import display, profile_cache
 from klear.web.assistant import Assistant
 from tests.eval.conftest import _home  # noqa: F401
+
+
+@contextmanager
+def _running_server(store):
+    with web.Server(("127.0.0.1", 0), partial(web.Handler, store=store)) as server:
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            yield server
+        finally:
+            server.shutdown()
+            thread.join()
 
 
 @pytest.fixture
 def endpoint(small_con, tmp_path):
     small_con.close()
-    server = web.Server(("127.0.0.1", 0), partial(web.Handler, store=tmp_path / "small.duckdb"))
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
-    thread.start()
-    yield server.server_port
-    server.shutdown()
-    server.server_close()
-    thread.join()
+    with _running_server(tmp_path / "small.duckdb") as server:
+        yield server.server_port
 
 
 def request(port, method, path, body=None, headers=None):
@@ -269,6 +279,103 @@ def test_profile_downloads_as_csv_with_raw_numbers_and_sources(endpoint):
     assert kupuna[0][7] == "count" and kupuna[0][8:11] == acs
     for bad in ["house:999", ""]:
         assert get(endpoint, "/api/profile.csv?district=" + bad)[0] == 400
+
+
+def test_profile_cache_keeps_both_bodies_until_store_replacement(endpoint, tmp_path, monkeypatch):
+    rendered = []
+    render = profile_cache.render_profile
+
+    def record(con, geo, formats):
+        rendered.extend(formats)
+        return render(con, geo, formats)
+
+    monkeypatch.setattr(profile_cache, "render_profile", record)
+    routes = ["/api/profile", "/api/profile.csv"]
+    original = []
+    for route in routes:
+        first = get(endpoint, f"{route}?district=house:022")
+        repeated = get(endpoint, f"{route}?district=house:22")
+        assert first[:2] == repeated[:2] and first[0] == 200
+        assert first[2]["Content-Length"] == repeated[2]["Content-Length"] == str(len(first[1]))
+        original.append(first[1])
+    assert rendered == ["json", "csv"]
+
+    store = tmp_path / "small.duckdb"
+    rebuilt = tmp_path / "rebuilt.duckdb"
+    stamp = store.stat()
+    shutil.copyfile(store, rebuilt)
+    with duckdb.connect(str(rebuilt)) as con:
+        con.execute(
+            "UPDATE fact SET value=1234 WHERE geo_type='house' AND geo_id='022' AND indicator_id='pop_65_plus'"
+        )
+    os.utime(rebuilt, ns=(stamp.st_atime_ns, stamp.st_mtime_ns + 1_000_000_000))
+    # POSIX permits replacing the store while another request still has the old file open.
+    old_reader = nullcontext() if os.name == "nt" else duckdb.connect(str(store), read_only=True)
+    with old_reader:
+        rebuilt.replace(store)
+        for route, old, value in zip(routes, original, (b'"value": "1,234"', b"House District 22,1234,")):
+            status, body, _ = get(endpoint, f"{route}?district=house:022")
+            assert status == 200 and body != old and value in body
+            assert get(endpoint, f"{route}?district=house:022")[1] == body
+    assert rendered == ["json", "csv", "json", "csv"]
+
+
+def test_profile_warm_up_serves_ready_and_uncached_requests_while_building(small_con, tmp_path, monkeypatch):
+    small_con.close()
+    store = tmp_path / "small.duckdb"
+    started, resume = threading.Event(), threading.Event()
+    rendered = []
+    render = profile_cache.render_profile
+
+    def pause(con, geo, formats):
+        if threading.current_thread() is warmer:
+            rendered.append((geo, formats))
+            if len(rendered) == 1:
+                started.set()
+                resume.wait()
+        return render(con, geo, formats)
+
+    monkeypatch.setattr(profile_cache, "render_profile", pause)
+    with _running_server(store) as server:
+        warmer = threading.Thread(target=server.profiles.warm, args=(store,))
+        warmer.start()
+        port = server.server_port
+        try:
+            assert started.wait(5)
+            status, body = request(port, "GET", "/api/ready")
+            assert status == 200 and json.loads(body)["ready"]
+            assert request(port, "GET", "/api/profile?district=senate:012")[0] == 200
+            assert warmer.is_alive()
+        finally:
+            resume.set()
+            warmer.join(5)
+    assert not warmer.is_alive()
+    assert rendered == [
+        (("house", "022"), ("json", "csv")),
+        (("house", "023"), ("json", "csv")),
+        (("senate", "012"), ("csv",)),
+    ]
+
+
+def test_prepared_profiles_match_the_response_bytes_and_store_build(small_con, tmp_path, monkeypatch):
+    small_con.execute("INSERT INTO build_info VALUES ('2026-11-13', 'x', 0, 'ok', '[]', '{}')")
+    small_con.close()
+    store = tmp_path / "small.duckdb"
+    fresh = profile_cache.ProfileCache()
+    expected = {kind: fresh.get(store, "house:022", kind) for kind in ("json", "csv")}
+    assert profile_cache.main(["--store", str(store)]) == 0
+
+    loaded = profile_cache.ProfileCache()
+    assert loaded.load(store) == 3
+    with monkeypatch.context() as patch:
+        patch.setattr(profile_cache, "render_profile", lambda *args: pytest.fail("Expected prepared bytes"))
+        for kind, response in expected.items():
+            assert loaded.get(store, "house:022", kind) == response
+
+    with duckdb.connect(str(store)) as con:
+        con.execute("UPDATE build_info SET built_at = '2026-11-14'")
+    assert loaded.load(store) == 0
+    assert loaded.get(store, "house:022", "json") != expected["json"]
 
 
 def test_district_addresses_serve_the_page(endpoint):
