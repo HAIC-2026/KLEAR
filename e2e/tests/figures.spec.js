@@ -1,6 +1,6 @@
 // The line under each answer that counts its figures and says each comes from a cited source.
 import {test, expect} from '@playwright/test';
-import {DISTRICT, ask, chooseDistrict, offline} from './helpers.js';
+import {DISTRICT, ask, chooseDistrict, offline, openAll} from './helpers.js';
 
 test.beforeEach(async ({context}) => offline(context));
 
@@ -46,4 +46,32 @@ test('answers with no figures and declines have no figure line', async ({page}) 
     await expect(answer.locator('.verified')).toHaveCount(0);
   }
   await expect(page.locator('#chat-live')).toHaveText(`Answer ready for ${DISTRICT}.`);
+});
+
+test('an answer emphasizes its first sentence without splitting decimal figures', async ({page}) => {
+  const first = 'Kūpuna make up 12.3% of residents.', rest = 'Here is how that compares.';
+  await page.route('**/api/chat', route => route.fulfill({json: {
+    lead: [`${first} ${rest}`], tiles: [], charts: [], caveats: [], sources: [], resolved: 'house:022',
+  }}));
+  await page.goto('/district/house-22');
+  const answer = await ask(page);
+  const lead = answer.locator('.lead');
+  await expect(lead).toHaveText(`${first} ${rest}`);
+  await expect(lead).toHaveCSS('font-size', '16px');
+  await expect(lead).toHaveCSS('line-height', '24px');
+  await expect(lead.locator('strong')).toHaveText(first);
+  await expect(lead.locator('strong')).toHaveCSS('font-weight', '600');
+  await expect(lead.locator('[lang=haw]')).toHaveText('Kūpuna');
+});
+
+test('a profile estimate has one line for its value and one for its bounds', async ({page}) => {
+  await page.goto('/district/house-22');
+  await expect(page.locator('#profile-live')).toHaveText(`Profile for ${DISTRICT} loaded.`);
+  await openAll(page);
+  const estimate = page.locator('#profile td.home').filter({hasText: 'about 1,500'});
+  await expect(estimate.locator('.num, .moe')).toHaveText(['about 1,500', 'range 1,200 to 1,800']);
+  await expect.poll(() => estimate.locator('.num, .moe').evaluateAll(lines => lines.map(line => {
+    const height = line.getBoundingClientRect().height, lineHeight = parseFloat(getComputedStyle(line).lineHeight);
+    return height > 0 && height < lineHeight + 1 && line.scrollWidth <= line.clientWidth + 1;
+  }))).toEqual([true, true]);
 });

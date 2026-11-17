@@ -58,7 +58,7 @@ for (const width of [320, 640]) {
   });
 }
 
-test('text is at least 12 px', async ({page}) => {
+test('district body text is at least 14 px', async ({page}) => {
   await fullPage(page);
   await onEachTab(page, async () => expect(await smallText(page)).toEqual([]));
 });
@@ -69,10 +69,10 @@ async function smallText(page) {
     const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
     for (let n = walker.nextNode(); n; n = walker.nextNode()) {
       const el = n.parentElement;
-      if (!n.textContent.trim() || el.closest('svg, .visually-hidden, script, style')) continue;
+      if (!n.textContent.trim() || el.closest('sup, svg, .visually-hidden, script, style')) continue;
       if (!el.getClientRects().length || getComputedStyle(el).visibility === 'hidden') continue;
       const size = parseFloat(getComputedStyle(el).fontSize);
-      if (size < 12) out.push(`${size}px: ${n.textContent.trim().slice(0, 40)}`);
+      if (size < 14) out.push(`${size}px: ${n.textContent.trim().slice(0, 40)}`);
     }
     return out;
   });
@@ -186,6 +186,31 @@ test.describe('a district at 1440 by 900', () => {
     await expect(page.getByLabel('Your question')).toBeInViewport();
     expect((await messages.boundingBox()).height).toBeGreaterThanOrEqual(600);
   });
+
+  test('the section links stay above the profile and mark the section being read', async ({page}) => {
+    await fullProfile(page);
+    await page.goto('/district/house-22');
+    const nav = page.getByRole('navigation', {name: 'In this profile'});
+    const glance = nav.getByRole('link', {name: 'At a glance'}), people = nav.getByRole('link', {name: 'People'});
+    await expect(glance).toHaveAttribute('aria-current', 'location');
+    await people.click();
+    await expect(people).toHaveAttribute('aria-current', 'location');
+    await expect(page).toHaveURL(/#profile-people$/);
+    await expect(nav).toBeInViewport({ratio: 1});
+
+    // Scrolling without clicking a link updates the marker even though the address stays on People.
+    const income = page.locator('#profile-income-work');
+    await income.evaluate(section => section.scrollIntoView());
+    await expect(nav.getByRole('link', {name: 'Income and work'})).toHaveAttribute('aria-current', 'location');
+    await expect(page).toHaveURL(/#profile-people$/);
+    const header = await page.locator('.site-header').boundingBox(), links = await nav.boundingBox();
+    expect(links.y).toBeCloseTo(header.y + header.height, 0);
+    expect((await income.boundingBox()).y).toBeGreaterThan(links.y + links.height);
+
+    await glance.click();
+    await expect(glance).toHaveAttribute('aria-current', 'location');
+    await expect(page.locator('#profile-glance h2')).toBeInViewport({ratio: 1});
+  });
 });
 
 // A district's page ends where the district ends: its profile, then the footer. The Find page's search, number list and
@@ -237,6 +262,21 @@ test.describe('a district at 1280 by 800', () => {
 // minimize button at its top puts it away again.
 test.describe('a district at 390 by 844', () => {
   test.use({viewport: {width: 390, height: 844}});
+  test('the section links scroll in one row without widening the page', async ({page}) => {
+    await page.goto('/district/house-22');
+    const nav = page.getByRole('navigation', {name: 'In this profile'}), links = nav.getByRole('link');
+    await expect(links.first()).toBeVisible();
+    const first = await links.first().boundingBox(), last = await links.last().boundingBox();
+    expect(last.y).toBeCloseTo(first.y, 0);
+    expect(last.x + last.width).toBeGreaterThan(390);
+    expect(await nav.locator('.sec-title').evaluateAll(labels => labels.every(el =>
+      el.getBoundingClientRect().height <= parseFloat(getComputedStyle(el).lineHeight) + 1))).toBe(true);
+    expect(await sidewaysScroll(page)).toBe(0);
+    await links.last().click();
+    await expect(page.locator('#profile-reference')).toHaveAttribute('open', '');
+    await expect(page.locator('#profile-reference > summary')).toBeInViewport({ratio: 1});
+  });
+
   test('the agent is a button that opens over the page and minimizes back to it', async ({page, isMobile}) => {
     await page.goto('/district/house-22');
     await expect(page.locator('#profile-live')).toHaveText(`Profile for ${DISTRICT} loaded.`);
