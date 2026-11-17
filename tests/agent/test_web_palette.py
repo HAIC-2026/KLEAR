@@ -81,7 +81,7 @@ def difference(a: str, b: str, vision: str | None = None) -> float:
     return math.dist(seen(a), seen(b))
 
 
-# Text and its background: 4.5:1 (WCAG 1.4.3).
+# Text and its background: 4.5:1 (WCAG 1.4.3). Comparison marks use ink for clear gaps and muted for no clear difference.
 TEXT = [
     ("ink", "bg"), ("ink", "surface"), ("ink", "subtle"), ("ink", "page"),
     ("muted", "bg"), ("muted", "surface"), ("muted", "subtle"), ("muted", "page"),
@@ -97,7 +97,6 @@ TEXT = [
     ("on-dark", "house"), ("on-dark", "senate"), ("on-dark-muted", "house"), ("on-dark-muted", "senate"),  # the header bar
     ("ink", "house-tint"), ("ink", "senate-tint"), ("muted", "house-tint"), ("muted", "senate-tint"),  # the agent's title
     ("house", "house-tint"), ("senate", "senate-tint"),
-    ("up", "white"), ("down", "white"), ("up", "subtle"), ("down", "subtle"),  # higher and lower in a comparison
     ("white", "band-end"), ("on-dark", "band-end"), ("on-dark", "house"),  # the band's title and lede
     ("on-dark", "house-dark"), ("on-dark-muted", "house-dark"),  # the header bar, a step darker than the band
     ("ink", "gold"), ("ink", "gold-hover"),  # the main buttons, and under the mouse
@@ -132,9 +131,7 @@ DISTINCT = [
     ("house-zip", "map-dim"), ("senate-zip", "map-dim"),
     ("house", "house-land"), ("senate", "senate-land"),
     ("house", "house-hover"), ("senate", "senate-hover"),
-    # Gold marks what to press and where you are, never higher or lower, so it stays apart from both comparison
-    # colors, and from both chambers.
-    ("gold", "up"), ("gold", "down"), ("gold", "house"), ("gold", "senate"),
+    ("gold", "house"), ("gold", "senate"),  # gold actions and selections against both chamber accents
 ]  # fmt: skip
 
 # A district under the mouse also changes fill. Its outline is the main cue, so the fill change needs only to be

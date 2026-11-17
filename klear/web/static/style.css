@@ -32,8 +32,7 @@
 
   /* ʻIlima gold, the second accent: what to press and where you are. It fills the main buttons (ink text on it,
      8.7:1, with an edge 5.2:1 on white), marks the current tab and the rule over each page's title, and edges the
-     home page's Ask panel. It is never a text color, since dark gold text would sit too close to the red of "below"
-     for people with deuteranopia. */
+     home page's Ask panel. */
   --gold:#f2b33d;--gold-hover:#e5a023;--gold-edge:#946200;--gold-soft:#fdf3dc;--gold-line:#e6c27a;
 
   /* Map, charts, errors. District borders use the chamber color, 3:1 or more against the land and the sea.
@@ -64,9 +63,6 @@
   --shadow-sm:none;--shadow-md:none;
   --shadow-lg:0 10px 28px rgb(23 35 38 / .2),0 2px 6px rgb(23 35 38 / .1);
 
-  /* How a figure compares: green when it is higher than the place it is set against, red when lower. The marks (up,
-     down, or about-equal inside the margins of error) say the same without color. Each is 4.5:1 or more on white. */
-  --up:#1f6b3a;--down:#a3372b;
   /* The light tint behind the agent's title, by chamber. */
   --house-tint:#eef5f7;--senate-tint:#f3f0f9;
 
@@ -554,13 +550,10 @@ details.sources-fold{margin:0;padding:var(--s-1) 0 var(--s-3);border-top:0;font-
 .info[aria-expanded=true]{background:var(--accent-soft);color:var(--accent-dark)}
 .info:focus-visible{outline-offset:0}
 .profile-table .profile-how{width:11rem;min-width:9rem;padding-left:var(--s-4);padding-right:0;white-space:normal}
-/* How a figure compares: a line for each place, its mark, then how far above or below that place's figure it is. A
-   difference inside the margins of error is gray. */
+/* Clear gaps use ink in either direction; a reading inside the margins of error uses muted text. */
 .compare-line{display:block;padding-left:1em;text-indent:-1em;font-size:var(--fs-xs);line-height:1.45;color:var(--ink);font-variant-numeric:tabular-nums}
-.compare-line.up{color:var(--up)}.compare-line.down{color:var(--down)}
-/* A clear difference is bold; one inside the margins of error keeps its color, lighter in weight, after its ≈ mark. */
 .compare-line:is(.higher,.lower){font-weight:700}
-.compare-line.within_margin:not(.up,.down){color:var(--muted)}
+.compare-line.within_margin{color:var(--muted)}
 .compare-line+.compare-line{margin-top:2px}
 /* Under a measure, as wide as the table: the notes on its figure, then what its label means once that is opened. */
 .profile-table .profile-more td{padding:0 0 12px;border-top:0;white-space:normal}
@@ -569,6 +562,7 @@ details.sources-fold{margin:0;padding:var(--s-1) 0 var(--s-3);border-top:0;font-
 .profile-more p+.meaning{margin-top:8px}
 .profile-more .meaning>:first-child{margin-top:0}
 .profile-key{margin:0;padding:8px 0 6px;border-top:1px solid var(--line);font-size:var(--fs-xs);line-height:1.5;color:var(--muted)}
+.glance-key+.profile-key{border-top:0}
 /* A table too wide for its box stacks (the page adds the class): each measure becomes a block with its label on top,
    the places side by side under it, each named, and the comparison last. The column headings stay for screen readers. */
 .stacked .profile-table thead{display:block;position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
@@ -989,6 +983,7 @@ details.fold[open]>summary{margin-bottom:var(--s-2)}
 /* Each district's figures in its chamber's color. */
 .cmp-table .cmp-figure.house .num{color:var(--house-dark)}.cmp-table .cmp-figure.senate .num{color:var(--senate-dark)}
 .cmp-table .cmp-figure .compare-line{margin-top:4px}
+.cmp-table .cmp-shared{padding-bottom:var(--s-2);text-align:center}
 /* While a column is choosing, the House or Senate switch sits in the bar, centered between the way home and the share
    actions. On a phone it takes a row of its own under them. */
 @media(min-width:641px){
@@ -1271,6 +1266,7 @@ ol.sheet-list{padding-left:12pt;list-style:decimal}
 .print-sheet .sheet-figures thead{display:table-header-group}
 .print-sheet .sheet-sub{margin:6pt 0 2pt;font-size:var(--pt-sm);font-weight:700}
 .print-sheet .sheet-figures .words{padding:2pt 0 2pt 6pt;font-size:var(--pt-xs);white-space:normal}
+.print-sheet .sheet-figures .words .compare-line{font-size:inherit}
 .print-sheet .sheet-figures th.words{font-weight:700;color:var(--muted)}
 .print-sheet .sheet-scope{margin:0 0 2pt}
 .print-sheet .sheet-plan-box{margin-top:6pt}

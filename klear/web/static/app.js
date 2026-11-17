@@ -632,54 +632,55 @@ function meaning(label, m) {
 
 const isNumber = v => typeof v === 'number' && Number.isFinite(v);
 
-// How far one figure is above or below another, as a percentage of the other: "16% above", "<1% below", "the same
-// as". Null when there is no number to measure from.
-function percentApart(mine, theirs) {
-  if (!isNumber(mine) || !isNumber(theirs) || theirs === 0) return null;
-  const p = (mine - theirs) / Math.abs(theirs) * 100, size = Math.abs(p), side = p > 0 ? 'above' : 'below';
-  if (!p) return 'the same as';
-  return size < 1 ? `<1% ${side}` : `${Math.round(size)}% ${side}`;
+// A gap between rates is in percentage points. Other gaps are relative to the reference figure, unless it is zero.
+function comparisonGap(mine, theirs) {
+  const size = Math.abs(mine.num - theirs.num);
+  if (!size) return '';
+  if (mine.unit === 'percent') return `${size < 0.05 ? '<0.1' : size.toFixed(1)} points`;
+  if (!theirs.num) return '';
+  const percent = size / Math.abs(theirs.num) * 100;
+  return percent < 1 ? '<1%' : `${Math.round(percent)}%`;
 }
 // What a place is called in a comparison line: the county or the state, or its name.
 const placeWord = a => ({county: 'county', state: 'state'})[String(a.geo || '').split(':')[0]] || a.place;
-// The mark before a comparison: up or down for a difference beyond the margins of error, about-equal for none.
 const MARKS = {higher: '▲', lower: '▼', within_margin: '≈'};
-// Which way one figure lies from another, for its color: 'up' for higher, 'down' for lower, '' for the same.
-const sideOf = (mine, theirs) => (mine > theirs ? 'up' : mine < theirs ? 'down' : '');
-// How a rate or an amount compares with each place beside it, a line apiece: "▲ 16% above county", green above and red
-// below. A difference inside the margins of error is marked about-equal and set lighter, and screen readers hear that it
-// is no clear difference. Empty for a total, which is not compared.
-function compareLines(r, tag = 'span') {
-  const lines = [];
-  for (const a of r.against || []) {
-    const apart = !a.missing && a.direction && percentApart(r.num, a.num);
-    if (!apart) continue;
-    const line = node(tag, '', `compare-line ${a.direction} ${sideOf(r.num, a.num)}`.trim()), mark = node('span', MARKS[a.direction] || '', 'reading-mark');
-    mark.setAttribute('aria-hidden', 'true');
-    line.append(mark, ' ', `${apart} ${placeWord(a)}`);
-    if (a.direction === 'within_margin') line.append(hidden(', no clear difference'));
-    lines.push(line);
-  }
-  return lines;
+const NO_CLEAR_DIFFERENCE = 'No clear difference';
+const PROFILE_COMPARISON_KEY = '▲ higher or ▼ lower beyond the margins of error; ≈ no clear difference. Rate gaps are in percentage points. Percent gaps use the county or state figure as the baseline.';
+const PAIR_COMPARISON_KEY = '▲ higher beyond the margins of error; ≈ no clear difference. Rate gaps are in percentage points. Percent gaps use the lower figure as the baseline.';
+
+// The words carry the meaning for screen readers; the mark is a visual cue.
+function comparisonLine(direction, words) {
+  const line = node('span', '', `compare-line ${direction}`), mark = node('span', MARKS[direction], 'reading-mark');
+  mark.setAttribute('aria-hidden', 'true');
+  line.append(mark, ' ', words);
+  return line;
 }
 
-// How two districts' figures differ, in words: "16% higher in House District 22", or "No clear difference (2% apart)"
-// when their margins of error overlap. The percentage is of the lower figure. '' when either has no figure to test.
-function pairWords(a, b, names) {
+function comparisonTo(mine, theirs, direction, place) {
+  if (direction === 'within_margin') return comparisonLine(direction, `${NO_CLEAR_DIFFERENCE} (${place})`);
+  const gap = comparisonGap(mine, theirs), side = direction === 'higher' ? 'Above' : 'Below';
+  return comparisonLine(direction, gap ? `${gap} ${side.toLowerCase()} ${place}` : `${side} ${place}`);
+}
+
+// One line per reference place with a tested direction. Totals have no direction against the county or state.
+function compareLines(r) {
+  return (r.against || []).filter(a => !a.missing && MARKS[a.direction] && isNumber(r.num) && isNumber(a.num))
+    .map(a => comparisonTo(r, a, a.direction, placeWord(a)));
+}
+
+// In print both districts share a Difference column, so name the higher district there.
+function pairSheetLine(a, b, names) {
   const d = pairDifference(a, b);
-  if (!d) return '';
-  const [hi, lo] = a.num >= b.num ? [a.num, b.num] : [b.num, a.num], size = lo > 0 ? (hi - lo) / lo * 100 : 0;
-  const pct = !size ? '' : size < 1 ? '<1%' : `${Math.round(size)}%`;
-  if (d === 'same') return pct ? `No clear difference (${pct} apart)` : 'No clear difference';
-  const name = names[d === 'a' ? 0 : 1];
-  return pct ? `${pct} higher in ${name}` : `Higher in ${name}`;
+  if (!d) return null;
+  if (d === 'same') return comparisonLine('within_margin', NO_CLEAR_DIFFERENCE);
+  const [higher, lower, name] = d === 'a' ? [a, b, names[0]] : [b, a, names[1]];
+  const gap = comparisonGap(higher, lower);
+  return comparisonLine('higher', gap ? `${gap} higher in ${name}` : `Higher in ${name}`);
 }
 
 // What the marks in a section's comparisons stand for, under its table.
 function compareKey() {
-  const key = node('p', '', 'profile-key');
-  key.append('▲ higher or ▼ lower beyond the margins of error, ≈ no clear difference. Each percentage is of the county’s or the state’s figure.');
-  return key;
+  return node('p', PROFILE_COMPARISON_KEY, 'profile-key');
 }
 
 // One measure as a table row: its label, then the home place's figure and each other place's in its own column, then
@@ -1193,6 +1194,7 @@ function renderProfile(p) {
   const stats = headlineStats(p.headline);
   glance.append(head, stats);
   if (stats.querySelector('.glance-strip')) glance.append(glanceKey(p));
+  if (stats.querySelector('.compare-line')) glance.append(compareKey());
   if (p.caveats && p.caveats.length) glance.append(placeNotes(p.caveats, 'profile-notes'));
   out.push(glance);
   const sections = profileSections(p);
@@ -1215,8 +1217,8 @@ function outreachNone(o) {
   return line;
 }
 
-// A district's headline figures with their margins, as the top of its profile shows them. Under each, how far above or
-// below the county and the state it is, with the state's figure, or for a count, its share of the state's.
+// A district's headline figures with their margins. Under each, how it compares with the county and state, or for a
+// total, its share of the state's.
 function headlineStats(headline) {
   const stats = node('dl', '', 'profile-stats');
   // Each term comes before its value, as a description list needs; the CSS shows the value on top.
@@ -1500,7 +1502,7 @@ const againstOf = (r, kind) => (r.against || []).find(a => !a.missing && String(
 
 // A printed table of figures: a column pair (estimate, then margin) for each place, an optional column of words, and
 // the sources each row cites. groups is a list of [title, rows], each row {label, figs, words}, with one figure (or
-// null) per column.
+// null) per place and a list of comparison lines.
 function sheetTable(columns, groups, cite, wordsTitle) {
   const table = node('table', '', 'sheet-figures'), headRow = table.createTHead().insertRow(), measure = node('th', 'Measure');
   measure.scope = 'col';
@@ -1543,14 +1545,19 @@ function sheetTable(columns, groups, cite, wordsTitle) {
         cited.push(cite(f.source));
         tr.append(value, node('td', f.spread || '', `moe ${kind}`));
       });
-      if (wordsTitle) tr.append(node('td', r.words || '', 'words'));
+      if (wordsTitle) {
+        const words = node('td', '', 'words');
+        words.append(...r.words);
+        tr.append(words);
+      }
       tr.append(node('td', [...new Set(cited.filter(Boolean))].sort((a, b) => a - b).join(', '), 'src'));
     }
   }
   const notes = ['± is the 90% margin of error. Where two figures’ margins overlap, the difference may not be real.'];
   if (ranged) notes.push('A range gives the low and high bounds of an estimate.');
   if (unreliable) notes.push('† The margin of error is large; use with care.');
-  if (wordsTitle === 'How it compares') notes.push(`${wordsTitle}: ▲ higher or ▼ lower beyond the margins of error, ≈ no clear difference, each percentage of the county’s or the state’s figure.`);
+  if (wordsTitle === 'How it compares') notes.push(PROFILE_COMPARISON_KEY);
+  if (wordsTitle === 'Difference') notes.push(PAIR_COMPARISON_KEY);
   return [table, node('p', notes.join(' '), 'sheet-note')];
 }
 
@@ -1562,7 +1569,7 @@ function districtSheet(p, choice) {
   const columns = [{kind: 'home', name: p.district, get: r => r}];
   if (choice.places && county) columns.push({kind: 'county', name: county, get: r => againstOf(r, 'county')});
   if (choice.places) columns.push({kind: 'state', name: 'Hawaiʻi', get: r => againstOf(r, 'state')});
-  const rowsOf = rows => rows.map(r => ({label: r.label, figs: columns.map(c => c.get(r)), words: compareLines(r).map(l => l.textContent).join('; ')}));
+  const rowsOf = rows => rows.map(r => ({label: r.label, figs: columns.map(c => c.get(r)), words: compareLines(r)}));
   const lines = [];
   if (p.where) lines.push(node('p', p.where, 'sheet-where'));
   lines.push(...memberLines(p));
@@ -1666,8 +1673,8 @@ function compareSheet(list, choice) {
     const mine = byId.map(m => m.get(id) || null), first = mine.find(Boolean);
     const figs = mine.slice();
     if (choice.places) figs.push(mine.map(r => r && againstOf(r, 'state')).find(Boolean) || null);
-    const words = list.length === 2 ? pairWords(mine[0], mine[1], names) : '';
-    return {label: first.label, figs, words};
+    const line = list.length === 2 ? pairSheetLine(mine[0], mine[1], names) : null;
+    return {label: first.label, figs, words: line ? [line] : []};
   });
   const idsOf = rows => rows.map(r => r.id);
   const union = lists => [...new Set(lists.flat())];

@@ -1,38 +1,32 @@
-// The profile's tables: each measure with the district, its county and the state side by side. A rate or an amount
-// also says how far above or below each place it is, as a percentage of that place's figure, after a mark that points
-// up, down or level. What a label means opens from a button beside it.
+// The figures and comparison marks on profiles and Compare.
 import {test, expect} from '@playwright/test';
 import {DISTRICT, offline} from './helpers.js';
 
-test.beforeEach(async ({context, page}) => {
-  await offline(context);
+test.beforeEach(async ({context}) => offline(context));
+
+async function openProfile(page) {
   await page.goto('/district/house-22');
   await expect(page.locator('#profile-live')).toHaveText(`Profile for ${DISTRICT} loaded.`);
   await page.locator('#profile details.profile-section').evaluateAll(all => all.forEach(d => { d.open = true; }));
-});
+}
 
 const measure = (table, label) => table.locator('.profile-row').filter({hasText: label});
 
 test('a rate shows the district, county and state on one row, and how far apart they are', async ({page}) => {
+  await openProfile(page);
   const table = page.getByRole('table', {name: `Income: ${DISTRICT}, Honolulu County, Hawaiʻi`});
   await expect(table.getByRole('columnheader')).toHaveText(['Measure', DISTRICT, 'Honolulu County', 'Hawaiʻi', 'How it compares']);
   const row = measure(table, 'People below the poverty level');
   await expect(row.getByRole('rowheader')).toContainText('People below the poverty level');
-  // The fixture's district range, 10.2% to 14.4%, clears the county's and touches the state's, so only the county
-  // differs. The marks come from those tested ranges; the percentages from the estimates, 12.3% against 8.9% and 9.8%.
-  await expect(row.getByRole('cell')).toHaveText([/12\.3%\s*± 2\.1 points$/, /8\.9%\s*± 0\.5 points$/, /9\.8%\s*± 0\.4 points$/, /^▲ 38% above county\s*≈ 26% above state, no clear difference$/]);
+  // Only the county's range clears the district's. Its gap is 12.3% minus 8.9%, in points.
+  await expect(row.getByRole('cell')).toHaveText([/12\.3%\s*± 2\.1 points$/, /8\.9%\s*± 0\.5 points$/, /9\.8%\s*± 0\.4 points$/, /^▲ 3\.4 points above county\s*≈ No clear difference \(state\)$/]);
   const lines = row.locator('.compare-line');
-  await expect(lines).toHaveCount(2);
-  await expect(lines.nth(0)).toHaveClass(/\bhigher\b/);
-  await expect(lines.nth(1)).toHaveClass(/\bwithin_margin\b/);
-  // The marks are for sighted readers; screen readers hear the words, and that the second is no clear difference.
-  await expect(lines.nth(1).locator('.reading-mark')).toHaveAttribute('aria-hidden', 'true');
-  await expect(lines.nth(1).locator('.visually-hidden')).toHaveText(', no clear difference');
-  // The key under the table says what the marks and the percentages mean.
-  await expect(page.locator('#profile-income-work .profile-key').first()).toHaveText('▲ higher or ▼ lower beyond the margins of error, ≈ no clear difference. Each percentage is of the county’s or the state’s figure.');
+  for (const line of await lines.all()) await expect(line.locator('.reading-mark')).toHaveAttribute('aria-hidden', 'true');
+  await expect(table.locator('..').locator('.profile-key')).toHaveText(/≈ no clear difference\. Rate gaps are in percentage points\./);
 });
 
 test('a total sits beside the county and state totals, with no comparison and no share sentence', async ({page}) => {
+  await openProfile(page);
   const table = page.getByRole('table', {name: /^People:/});
   const row = measure(table, 'Kūpuna (65 and over)');
   // Median age in the same table is compared, so the last column is there and this row leaves it empty.
@@ -43,6 +37,7 @@ test('a total sits beside the county and state totals, with no comparison and no
 });
 
 test('a place with no figure keeps its column and says why', async ({page}) => {
+  await openProfile(page);
   const table = page.getByRole('table', {name: /^Help sites:/});
   // Nothing in this section is compared, so it has no last column.
   await expect(table.getByRole('columnheader')).toHaveText(['Measure', DISTRICT, 'Honolulu County', 'Hawaiʻi']);
@@ -50,10 +45,11 @@ test('a place with no figure keeps its column and says why', async ({page}) => {
     /2$/, /No figure\s*not published for county geographies$/, /No figure\s*not published for state geographies$/]);
   // County-level figures are the county's own, set against the state alone.
   const county = page.getByRole('table', {name: 'County-level figures: Honolulu County, Hawaiʻi'});
-  await expect(measure(county, 'Unemployment rate').getByRole('cell')).toHaveText([/3\.0%$/, /3\.2%$/, /^▼ 6% below state$/]);
+  await expect(measure(county, 'Unemployment rate').getByRole('cell')).toHaveText([/3\.0%$/, /3\.2%$/, /^▼ 0\.2 points below state$/]);
 });
 
 test('the button beside a label opens what it means, by mouse or keyboard', async ({page}) => {
+  await openProfile(page);
   const row = page.locator('#profile .profile-row').filter({hasText: 'Median age'});
   const button = row.getByRole('button', {name: 'What this means: Median age'});
   await expect(button).toHaveAttribute('aria-expanded', 'false');
@@ -77,6 +73,7 @@ test('the button beside a label opens what it means, by mouse or keyboard', asyn
 });
 
 test('a table that fits shows columns, one that does not stacks, and the page never scrolls sideways', async ({page}) => {
+  await openProfile(page);
   const wide = page.viewportSize().width >= 1200;
   const box = page.locator('#profile-income-work .profile-rows').first();
   await expect(box).toHaveClass(wide ? 'profile-rows' : 'profile-rows stacked');
@@ -93,4 +90,35 @@ test('a table that fits shows columns, one that does not stacks, and the page ne
     await box.evaluate(el => { el.style.width = ''; });
     await expect(box).toHaveClass('profile-rows');
   }
+});
+
+const pairMeasure = (page, section, label) => page.getByRole('table', {name: new RegExp(`^${section}: .*side by side$`)})
+  .locator('tbody').filter({hasText: label});
+
+test('Compare shows a rate or count gap once, under the higher figure', async ({page}) => {
+  await page.goto('/compare?d=house:023,house:022');
+  const rate = pairMeasure(page, 'At a glance', 'People below the poverty level');
+  await expect(rate.locator('.num')).toHaveText(['7.9%', '12.3%']);
+  await expect(rate.locator('.compare-line')).toHaveText(['▲ 4.4 points above House 23']);
+  await expect(rate.locator('.cmp-figure').nth(1)).toContainText('▲ 4.4 points above House 23');
+  const count = pairMeasure(page, 'People', 'Kūpuna (65 and over)');
+  await expect(count.locator('.num')).toHaveText(['100', '1,000']);
+  await expect(count.locator('.compare-line')).toHaveText(['▲ 900% above House 23']);
+  await expect(page.locator('.cmp-table + .profile-key').first()).toContainText('Percent gaps use the lower figure as the baseline.');
+});
+
+test('Compare shows one reading and no gap when rates overlap', async ({page}) => {
+  // Widen House 23's range so it overlaps House 22's while the estimates still differ by 4.4 points.
+  await page.route(url => url.pathname === '/api/profile' && url.searchParams.get('district') === 'house:023', async route => {
+    const response = await route.fetch(), profile = await response.json();
+    for (const r of [...profile.headline, ...profile.sections.flatMap(s => s.rows)]) {
+      if (r.id === 'pct_people_poverty') Object.assign(r, {low: 5.4, high: 10.4, spread: '± 2.5 points'});
+    }
+    await route.fulfill({response, json: profile});
+  });
+  await page.goto('/compare?d=house:022,house:023');
+  const rate = pairMeasure(page, 'At a glance', 'People below the poverty level');
+  await expect(rate.locator('.num')).toHaveText(['12.3%', '7.9%']);
+  await expect(rate.locator('.compare-line')).toHaveText(['≈ No clear difference']);
+  await expect(rate.getByRole('cell', {name: 'No clear difference', exact: true})).toHaveAttribute('colspan', '2');
 });
