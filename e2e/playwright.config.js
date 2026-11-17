@@ -2,7 +2,8 @@
 // with a scripted stand-in for the model, so the tests need no network, data build or API key (see serve.py).
 import {defineConfig, devices} from '@playwright/test';
 
-const PORT = 8765;
+// KLEAR_E2E_PORT lets two checkouts run their browser tests at once without sharing (and reusing) one server.
+const PORT = Number(process.env.KLEAR_E2E_PORT) || 8765;
 
 export default defineConfig({
   testDir: './tests',
