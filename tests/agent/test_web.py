@@ -12,7 +12,7 @@ import subprocess
 import sys
 import threading
 from collections import defaultdict, deque
-from contextlib import nullcontext
+from contextlib import contextmanager, nullcontext
 from functools import partial
 from html.parser import HTMLParser
 from http.client import HTTPConnection
@@ -29,21 +29,23 @@ from klear.web.assistant import Assistant
 from tests.eval.conftest import _home  # noqa: F401
 
 
+@contextmanager
+def _running_server(store):
+    with web.Server(("127.0.0.1", 0), partial(web.Handler, store=store)) as server:
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            yield server
+        finally:
+            server.shutdown()
+            thread.join()
+
+
 @pytest.fixture
-def running_server(small_con, tmp_path):
+def endpoint(small_con, tmp_path):
     small_con.close()
-    server = web.Server(("127.0.0.1", 0), partial(web.Handler, store=tmp_path / "small.duckdb"))
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
-    thread.start()
-    yield server
-    server.shutdown()
-    server.server_close()
-    thread.join()
-
-
-@pytest.fixture
-def endpoint(running_server):
-    return running_server.server_port
+    with _running_server(tmp_path / "small.duckdb") as server:
+        yield server.server_port
 
 
 def request(port, method, path, body=None, headers=None):
@@ -318,9 +320,8 @@ def test_profile_cache_keeps_both_bodies_until_store_replacement(endpoint, tmp_p
     assert rendered == ["json", "csv", "json", "csv"]
 
 
-def test_profile_warm_up_serves_ready_and_uncached_requests_while_building(
-    running_server, tmp_path, monkeypatch
-):
+def test_profile_warm_up_serves_ready_and_uncached_requests_while_building(small_con, tmp_path, monkeypatch):
+    small_con.close()
     store = tmp_path / "small.duckdb"
     started, resume = threading.Event(), threading.Event()
     rendered = []
@@ -335,18 +336,19 @@ def test_profile_warm_up_serves_ready_and_uncached_requests_while_building(
         return render(con, geo, formats)
 
     monkeypatch.setattr(profile_cache, "render_profile", pause)
-    warmer = threading.Thread(target=running_server.profiles.warm, args=(store,))
-    warmer.start()
-    port = running_server.server_port
-    try:
-        assert started.wait(5)
-        status, body = request(port, "GET", "/api/ready")
-        assert status == 200 and json.loads(body)["ready"]
-        assert request(port, "GET", "/api/profile?district=senate:012")[0] == 200
-        assert warmer.is_alive()
-    finally:
-        resume.set()
-        warmer.join(5)
+    with _running_server(store) as server:
+        warmer = threading.Thread(target=server.profiles.warm, args=(store,))
+        warmer.start()
+        port = server.server_port
+        try:
+            assert started.wait(5)
+            status, body = request(port, "GET", "/api/ready")
+            assert status == 200 and json.loads(body)["ready"]
+            assert request(port, "GET", "/api/profile?district=senate:012")[0] == 200
+            assert warmer.is_alive()
+        finally:
+            resume.set()
+            warmer.join(5)
     assert not warmer.is_alive()
     assert rendered == [
         (("house", "022"), ("json", "csv")),
