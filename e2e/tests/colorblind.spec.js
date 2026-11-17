@@ -2,11 +2,26 @@
 // Chromium simulates each deficiency; the pictures are saved with the test results for people to review.
 // tests/agent/test_web_palette.py checks the same colors by number.
 import {test, expect} from '@playwright/test';
-import {ask, chooseDistrict, offline} from './helpers.js';
+import {DISTRICT, ask, chooseDistrict, offline, openAll} from './helpers.js';
 
 const VISION = ['none', 'protanopia', 'deuteranopia', 'tritanopia', 'achromatopsia'];
 
 test.skip(({browserName, isMobile}) => browserName !== 'chromium' || isMobile, 'vision simulation needs desktop Chromium');
+
+test('comparison marks use neutral text in both directions', async ({context, page}, testInfo) => {
+  await offline(context);
+  await page.goto('/district/house-22');
+  await expect(page.locator('#profile-live')).toHaveText(`Profile for ${DISTRICT} loaded.`);
+  await openAll(page);
+  const glance = page.locator('#profile-glance');
+  const ink = await page.locator('body').evaluate(el => getComputedStyle(el).color);
+  const muted = await glance.locator('.profile-key').evaluate(el => getComputedStyle(el).color);
+  expect(ink).not.toBe(muted);
+  await expect(glance.getByText('▲ 3.4 points above county', {exact: true})).toHaveCSS('color', ink);
+  await expect(page.getByText('▼ 0.2 points below state', {exact: true})).toHaveCSS('color', ink);
+  await expect(glance.getByText('≈ No clear difference (state)', {exact: true})).toHaveCSS('color', muted);
+  await shooter(await context.newCDPSession(page), testInfo)('at-a-glance', glance);
+});
 
 test('chamber colors, charts, and the map under simulated color blindness', async ({context, page}, testInfo) => {
   // Twenty screenshots take longer than the default limit on a busy machine.

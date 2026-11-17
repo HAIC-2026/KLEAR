@@ -192,8 +192,7 @@
     }
   }
 
-  // One district's figure under its name: the estimate, its margin of error or range, a caution when it is shaky, and
-  // how far above or below the other district's figure it is.
+  // One district's figure under its name, with a comparison line only under the higher figure if they differ.
   function figure(f, place, versus, chamber) {
     const td = node('td', '', `cmp-figure ${chamber}`);
     td.append(node('span', place, 'cmp-place'));
@@ -216,7 +215,7 @@
       if (ids.length) groups.push([key, title, ids]);
     }
     const out = [node('p', list.length === 2
-      ? 'Each figure shows its 90% margin of error or range, and under it how far above or below the other district’s it is: ▲ higher or ▼ lower beyond the margins of error, ≈ no clear difference.'
+      ? 'Each figure shows its 90% margin of error or range. When there’s a clear difference, the gap appears under the higher figure.'
       : 'Choose a second district to set its figures beside these.', 'cmp-note')];
     // The districts' names over their columns stay in view while the rows scroll under them.
     const heads = node('div', '', 'cmp-sticky');
@@ -248,29 +247,23 @@
         if (state && (state.plain || state.value)) label.append(' ', node('span', `Hawaiʻi: ${state.plain || state.value}`, 'cmp-state'));
         top.append(label);
         const values = body.insertRow(), diff = list.length === 2 ? pairDifference(rows[0], rows[1]) : null;
-        values.className = 'cmp-values';
-        values.append(...rows.map((r, j) => figure(r, names[j], diff && pairLine(r, rows[1 - j], diff, j ? 'b' : 'a', names[1 - j]), list[j].geo.split(':')[0])));
-        if (diff) values.classList.add(`higher-${diff}`);
+        values.append(...rows.map((r, j) => {
+          const versus = diff === SLOTS[j] ? comparisonTo(r, rows[1 - j], 'higher', names[1 - j].replace(' District', '')) : null;
+          return figure(r, names[j], versus, list[j].geo.split(':')[0]);
+        }));
+        if (diff === 'same') {
+          const shared = body.insertRow().insertCell();
+          shared.colSpan = list.length;
+          shared.className = 'cmp-shared';
+          shared.append(comparisonLine('within_margin', NO_CLEAR_DIFFERENCE));
+        }
       }
       d.append(summary, t);
+      if (list.length === 2) d.append(node('p', PAIR_COMPARISON_KEY, 'profile-key'));
       d.open = typeof saved[d.dataset.key] === 'boolean' ? saved[d.dataset.key] : i < 3;
       out.push(d);
     });
     return out;
-  }
-
-  // Under a district's figure, how far above or below the other district's it is, as a percentage of the other's: "▲ 56%
-  // above House 23", green above and red below. About-equal, and set lighter, when their margins of error overlap;
-  // screen readers hear that it is no clear difference.
-  function pairLine(mine, theirs, diff, slot, other) {
-    const apart = percentApart(mine.num, theirs.num);
-    if (!apart) return null;
-    const kind = diff === 'same' ? 'within_margin' : diff === slot ? 'higher' : 'lower';
-    const line = node('span', '', `compare-line ${kind} ${sideOf(mine.num, theirs.num)}`.trim()), mark = node('span', MARKS[kind], 'reading-mark');
-    mark.setAttribute('aria-hidden', 'true');
-    line.append(mark, ' ', `${apart} ${other.replace(' District', '')}`);
-    if (kind === 'within_margin') line.append(hidden(', no clear difference'));
-    return line;
   }
 
   // The districts the address names: up to two, House or Senate.

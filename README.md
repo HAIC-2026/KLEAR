@@ -436,7 +436,7 @@ The site has two accents. The chamber's color, House teal or Senate purple, mark
 section numbers; a Senate district's page is purple throughout under the teal header. ʻIlima gold
 marks what to press and where you are: the main buttons (Find district, Ask KLEAR, Print) with ink
 text, the current tab, the rule over each page's title, the home page's Ask panel and Compare's A and
-B. Gold is never a text color, so it cannot be mistaken for the red of "below".
+B.
 
 - `/`, Find: a band with the page's title over a faint drawing of the islands, then the map beside
   the search. A House or Senate switch at the top of the map's card picks the chamber for the map and
@@ -453,10 +453,11 @@ B. Gold is never a text color, so it cannot be mistaken for the red of "below".
 - `/district/house-49` and the like: the way back to the search ("Search another district", which
   returns to the whole map) and on to Compare ("Compare another district"), with print, link and
   download actions; the map zoomed to the district beside its number, set large in its chamber's color, where it is and its legislator; then the
-  profile in panels. Section 1, At a glance, holds four headline figures, each saying how far above
-  or below the county and the state it is, as a percentage of their figures ("16% above county"),
-  green above and red below, marked ▲ or ▼ for a difference beyond the margins of error and ≈ for
-  none. Under each rate or amount a strip sets the district's figure and margin of error beside the
+  profile in panels. Section 1, At a glance, holds four headline figures. ▲ and ▼ mark higher or
+  lower figures beyond the margins of error, both in ink. Rate gaps use percentage points
+  ("▲ 2.9 points above county"); other gaps use percentages of the reference figure. When the
+  margins overlap, the reading says "≈ No clear difference" in muted text and names the reference place.
+  Under each rate or amount a strip sets the district's figure and margin of error beside the
   county (a tick) and the state (a diamond) on one line. The rest of the profile is
   numbered by group, each number in a round badge: People, Income and work, Programs and help, Housing, Health and Reference, each
   table ending in the same comparison. Each figure keeps its margin of error or range and any
@@ -467,8 +468,9 @@ B. Gold is never a text color, so it cannot be mistaken for the red of "below".
   every district by number until one is chosen (a House or Senate switch sits in the bar above them
   meanwhile), then its name with a gold A or B, a small map zoomed to it and its legislator. Under them the two
   districts' figures run row by row: each measure's name and Hawaiʻi's figure across both columns,
-  and each district's figure under its name with how far above or below the other it is ("▲ 56%
-  above House 13"), marked ≈ when their margins of error overlap. The agent sits in the right third
+  and each district's figure under its name. A clear gap appears once under the higher figure, in
+  percentage points for rates and as a percentage of the lower figure for other measures. When the
+  margins overlap, one line across both columns says "≈ No clear difference". The agent sits in the right third
   and suggests questions that compare the two. `/compare?d=house:022,house:023` opens a comparison.
 - `/rankings` has two tabs, each with its own address: rankings, with the map colored by a measure
   beside the district ranking, and outreach. The ranking numbers every district, 1 for the highest
@@ -662,9 +664,8 @@ members, their families and students, so it differs from the ACS total populatio
 summary carries both too.
 Each figure shows its margin of error or range, is compared with the county that holds most
 of the district's population and with the state, flags an unreliable estimate, and is cited
-under its section. Rates are compared in plain sentences ("about 40 percent higher than the
-rate in Maui County: 9.2%", or "about the same as" when the gap is inside the margins of
-error), and totals show the district's share of the county and state total. A county or state
+under its section. The profile tables show clear rate gaps in percentage points and say "≈ No clear
+difference" when the margins overlap. Totals sit beside the county and state totals. A county or state
 value that KLEAR derived is marked, for example "(average of the CDC county estimates)", and a
 place with no value says why, for example "No figure for Kalawao County: CMS publishes no rows for
 Kalawao County".
