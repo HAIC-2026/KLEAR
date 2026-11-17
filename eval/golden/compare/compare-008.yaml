@@ -1,0 +1,14 @@
+id: compare-008
+category: compare
+question: Is broadband access worse on Molokaʻi than in urban Honolulu?
+ideal: Says the broadband subscription share is lower in the House district covering Molokaʻi than in
+  Honolulu County. Explains that these Hawaiʻi geographies are stand-ins and that the measure counts
+  subscriptions, with margins of error, rather than network availability.
+district: [house, "013"]
+facts:
+  - [pct_broadband, house, "013"]
+  - [pct_broadband, county, "15003"]
+allowed_geos: [[county, "15003"]]
+must_say: ["2020-2024", subscription]
+direction: lower
+refusal: none

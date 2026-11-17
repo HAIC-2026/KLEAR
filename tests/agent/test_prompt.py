@@ -46,8 +46,7 @@ WRITING = (
     "never restate them",
     "measure of the same program at that place",
     "names a group with a Hawaiian word (kūpuna, keiki, ʻohana)",
-    "In an answer with facts, put it alongside the {label:fN} marker",
-    "in a decline, which has no label markers, write it in plain text",
+    "spelled with ʻokina and kahakō, even when declining",
 )
 WORKFLOW = (
     "kūpuna on fixed incomes",

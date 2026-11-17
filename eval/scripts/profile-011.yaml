@@ -1,0 +1,28 @@
+# Give a short briefing from child-care-relevant measures, rather than a general People profile.
+- - type: tool_use
+    name: resolve_place
+    input:
+      text: Senate District 12
+  - type: tool_use
+    name: search_indicators
+    input:
+      words: [keiki, child care]
+- - type: tool_use
+    name: get_facts
+    input:
+      indicator_ids: [pop_under_5, pct_children_poverty]
+      geos: ["senate:012"]
+- - type: tool_use
+    name: submit_answer
+    input:
+      resolved: senate:012
+      refusal: none
+      blocks:
+        - "For the child care hearing, focus on how many young keiki live in {geo:senate:012} and
+          how many children live in families with low incomes."
+        - "There are about {fact:f1} young keiki ({label:f1}, {vintage:f1}).
+          The share of keiki living below the poverty line is {fact:f2} ({vintage:f2})."
+      facts: [f1, f2]
+      programs: []
+      caveats:
+        - "These figures do not measure child care slots, waitlists or eligibility for a specific program."

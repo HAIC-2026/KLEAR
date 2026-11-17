@@ -183,7 +183,8 @@ def test_golden_county_facts_are_district_parent_county():
         if g.district is None and not any(t in ("house", "senate") for _, t, _ in g.facts):
             continue
         for _, geo_type, geo_id in g.facts:
-            if geo_type == "county":
+            # A county named as its own comparison may be outside the district.
+            if geo_type == "county" and (geo_type, geo_id) not in g.allowed_geos:
                 assert g.district in parent, (g.id, g.district)
                 assert geo_id == parent[g.district], (g.id, geo_id, parent[g.district])
 

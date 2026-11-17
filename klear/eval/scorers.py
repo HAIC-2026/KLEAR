@@ -59,7 +59,13 @@ DIRECTION_WORDS = {
         "overlapping",
     ),
 }
-FLIP = {"higher": "lower", "lower": "higher", "within_margin": "within_margin"}
+FLIP = {
+    "higher": "lower",
+    "lower": "higher",
+    "within_margin": "within_margin",
+    "not_higher": "not_lower",
+    "not_lower": "not_higher",
+}
 # Phrases that state a direction from the place before them to the place after them.
 COMPARE_PHRASES = {
     "higher": (
@@ -74,6 +80,9 @@ COMPARE_PHRASES = {
     ),
     "lower": ("lower than", "less than", "fewer than", "smaller than", "younger than", "below"),
     "within_margin": ("within the margin of error of", "within the margin of"),
+    "not_lower": ("not lower than",),
+    "not_higher": ("not higher than",),
+    "not_worse": ("not worse than", "no worse than"),
 }
 CLAIM_TOKEN = re.compile(
     r"\{geo:(\w+):(\w+)\}|(?<!\w)("
@@ -84,7 +93,8 @@ CLAIM_TOKEN = re.compile(
 PHRASE_DIRECTION = {p: d for d, ps in COMPARE_PHRASES.items() for p in ps}
 # A comparison written with its places after it, as in "higher in {geo:A} than in {geo:B}".
 PLACED = re.compile(
-    r"\b(higher|lower|greater|larger|bigger|smaller|more|less)\s+in\s+(\{geo:\w+:\w+\})\s+than\s+(?:in\s+)?",
+    r"\b(not higher|not lower|not worse|no worse|higher|lower|greater|larger|bigger|smaller|more|less)"
+    r"\s+(?:in|on|at|for)\s+(\{geo:\w+:\w+\})\s+than\s+(?:(?:in|on|at|for)\s+)?",
     re.IGNORECASE,
 )
 # Most words between a comparison and the place it compares with, as in "higher than the rate in {geo}".
@@ -539,7 +549,9 @@ def direction_claims(text: str, by_sentence: bool = False) -> list[tuple]:
                 subject = (m.group(1), m.group(2))
                 first = first or subject
         if HEDGE.search(sentence):
-            claims[start:] = [(s, "within_margin", o) for s, _, o in claims[start:]]
+            claims[start:] = [
+                (s, "within_margin" if d in ("higher", "lower") else d, o) for s, d, o in claims[start:]
+            ]
         where += [sentence] * (len(claims) - start)
         topic = first or topic
     return [(*c, w) for c, w in zip(claims, where, strict=True)] if by_sentence else claims
@@ -561,10 +573,19 @@ def _direction(g: Golden, a: Answer, low: str) -> Outcome:
     said = [
         d if (s, o) == tuple(pair) else FLIP[d]
         for s, d, o, sentence in direction_claims(text, by_sentence=True)
-        if len(pair) == 2 and {s, o} == set(pair) and s != o and _about(sentence, indicator, by_ref)
+        if d in FLIP
+        and len(pair) == 2
+        and {s, o} == set(pair)
+        and s != o
+        and _about(sentence, indicator, by_ref)
     ]
     if said:
-        wrong = sorted({d for d in said if d != g.direction})
+        compatible = {
+            "higher": {"higher", "not_lower"},
+            "lower": {"lower", "not_higher"},
+            "within_margin": {"within_margin", "not_lower", "not_higher"},
+        }
+        wrong = sorted(set(said) - compatible[g.direction])
         return _verdict("direction", [f"says {', '.join(wrong)} but expected {g.direction}"] if wrong else [])
     problems = []
     if not any(_has(low, w) for w in DIRECTION_WORDS[g.direction]):

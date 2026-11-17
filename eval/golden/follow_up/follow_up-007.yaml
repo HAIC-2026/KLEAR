@@ -1,0 +1,16 @@
+id: follow_up-007
+category: follow_up
+question: How does that compare with House District 51?
+ideal: Keeps the rent burden measure from the earlier answer about housing help in Hawaiʻi. Gives both
+  districts' shares with their margins of error and says the gap is within the margin of error.
+context: [house, "022"]
+earlier:
+  - question: What programs could help renters who are struggling here, and how many households might qualify?
+    district: [house, "022"]
+    indicators: [pct_rent_burden_35_plus]
+facts:
+  - [pct_rent_burden_35_plus, house, "051"]
+  - [pct_rent_burden_35_plus, house, "022"]
+must_say: ["2020-2024"]
+direction: within_margin
+refusal: none

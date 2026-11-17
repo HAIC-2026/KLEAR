@@ -289,7 +289,9 @@ class ScriptedAgent:
         if not path.is_file():
             raise MissingRecording(f"no script for {golden_id} at {path}")
         client = ScriptClient(load_script(path), path)
-        out = KlearAgent(self.con, client=client).answer(golden_id, question, context, earlier)
+        agent = KlearAgent(self.con, client=client)
+        out = agent.answer(golden_id, question, context, earlier)
+        self.trace = agent.trace
         if client.turns:
             raise RecordingError(f"script {path} has {len(client.turns)} unused turns after the answer")
         return out

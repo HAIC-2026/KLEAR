@@ -237,7 +237,7 @@ class KlearAgent:
             try:
                 resp = self.client.messages.create(**req, max_tokens=MAX_TOKENS)
             except (anthropic.RateLimitError, anthropic.OverloadedError) as e:
-                self.trace.append({"error": type(e).__name__})
+                self.trace.append({"turn": used, "error": type(e).__name__})
                 if strikes == len(RETRY_DELAYS_S):
                     raise
                 self._sleep(RETRY_DELAYS_S[strikes])
@@ -245,15 +245,21 @@ class KlearAgent:
                 continue
             strikes = 0
             _count(totals, resp.usage)
-            step = {"stop": resp.stop_reason, "calls": [_call_record(b) for b in resp.content or []]}
+            step = {
+                "turn": used,
+                "stop": resp.stop_reason,
+                "calls": [_call_record(b) for b in resp.content or []],
+            }
             self.trace.append(step)
             if resp.stop_reason == "refusal":
                 break
             if not resp.content:
+                step["problems"] = ["The model returned no content."]
                 continue
             messages.append({"role": "assistant", "content": resp.content})
             uses = [b for b in resp.content if b.type == "tool_use"]
             if resp.stop_reason == "max_tokens" or not uses:
+                step["problems"] = [CUT if resp.stop_reason == "max_tokens" else NUDGE]
                 reply = [_result(b.id, CUT, True) for b in uses]
                 messages.append({"role": "user", "content": [*reply, *_text(NUDGE)]})
                 continue

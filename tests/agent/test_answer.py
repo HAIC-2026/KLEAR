@@ -449,6 +449,73 @@ def test_direction_against_the_facts_is_checked(small):
     ]
 
 
+@pytest.mark.parametrize(
+    ("claim", "rejected"),
+    [
+        ("Their ranges do not overlap.", True),
+        ("The ranges for {geo:house:022} and {geo:house:051} do not overlap.", True),
+        ("The gap is clear at the margins of error shown.", True),
+        ("The lead is clear.", True),
+        ("There is no clear gap.", False),
+        ("The figures do not show a clear gap.", False),
+        ("We cannot say the gap is clear.", False),
+    ],
+)
+def test_range_claim_uses_the_measure_just_compared(session, claim, rejected):
+    session.run("resolve_place", {"text": "House District 51"})
+    rent_burden, median_rent = "pct_rent_burden_35_plus", "median_gross_rent"
+    session.run(
+        "get_facts", {"indicator_ids": [rent_burden, median_rent], "geos": ["house:022", "house:051"]}
+    )
+
+    def figures(indicator):
+        return " and ".join(
+            f"{{fact:{f.ref}}} in {{geo:house:{f.geo_id}}}"
+            for f in session.facts.values()
+            if f.indicator_id == indicator
+        )
+
+    # Rent burden overlaps; median rent for the same places does not.
+    blocks = [
+        f"The rent burden shares are {figures(rent_burden)}. {claim}",
+        f"Median rent is {figures(median_rent)}. The ranges do not overlap.",
+    ]
+    answer, problems = build_answer(session, args(blocks=blocks, facts=list(session.facts)))
+    if rejected:
+        assert answer is None and len(problems) == 1 and "margins of error overlap" in problems[0]
+    else:
+        assert answer and problems == []
+
+
+@pytest.mark.parametrize(
+    ("claim", "rejected"),
+    [
+        ("Broadband is not worse on Molokaʻi than in urban Honolulu.", True),
+        ("Broadband on Molokai is no worse than in urban Honolulu.", True),
+        ("{geo:house:013} is not lower than {geo:county:15003}.", True),
+        ("{fact:f5} is not higher than {fact:f1}.", True),
+        ("{geo:house:013} is not higher than {geo:county:15003}.", False),
+        ("Broadband in urban Honolulu is no worse than on Molokaʻi.", False),
+    ],
+)
+def test_negated_claims_use_the_right_direction(session, claim, rejected):
+    session.run("resolve_place", {"text": "Molokaʻi"})
+    session.run("resolve_place", {"text": "Urban Honolulu"})
+    session.run("compare", {"indicator_id": "pct_broadband", "geo": "house:013", "against": ["county:15003"]})
+    blocks = [
+        claim,
+        (
+            "The subscription shares are {fact:f1} in {geo:house:013} and {fact:f5} in {geo:county:15003} "
+            "({vintage:f1})."
+        ),
+    ]
+    answer, problems = build_answer(session, args(resolved="house:013", blocks=blocks, facts=["f1", "f5"]))
+    if rejected:
+        assert answer is None and len(problems) == 1 and "the text says" in problems[0]
+    else:
+        assert answer and problems == []
+
+
 @pytest.mark.parametrize(("question", "text", "bad"), [
     ("How many kupuna live in House 22?", GOOD, True),
     ("How many kupuna live in House 22?", GOOD + " These are kūpuna.", False),

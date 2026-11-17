@@ -1,0 +1,12 @@
+id: profile-011
+category: profile
+question: What should a legislator know about keiki in this district before a hearing on child care?
+ideal: Leads with what matters for child care in the selected Hawaiʻi Senate district. Gives the count of
+  young keiki and the child poverty rate, and explains that they do not measure available child care slots.
+context: [senate, "012"]
+district: [senate, "012"]
+facts:
+  - [pop_under_5, senate, "012"]
+  - [pct_children_poverty, senate, "012"]
+must_say: ["2020-2024", keiki, slots]
+refusal: none

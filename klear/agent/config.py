@@ -281,6 +281,34 @@ FIXED_INCOME_COMPARED = (
     "pct_hh_ssi",
 )
 FIXED_INCOME_PROGRAMS = ("ssi_federal_2026", "kupuna_care", "snap_fy2027", "medquest_2026")
+# Measures of each named group, in the order to prefer when a fallback has room for only a few.
+GROUP_INDICATORS = {
+    "kūpuna": (
+        "pop_65_plus",
+        "pct_65_plus",
+        "median_household_income_65_plus",
+        "pct_65_plus_poverty",
+        "kupuna_under_100pct_poverty",
+        "kupuna_under_200pct_poverty",
+        "householders_65_plus_alone",
+    ),
+    "keiki": (
+        "pop_under_5",
+        "pop_under_18",
+        "pct_children_poverty",
+        "pct_hh_with_children",
+        "grandparents_responsible",
+        "pct_uninsured_under_19",
+    ),
+    "ʻohana": (
+        "pct_hh_with_children",
+        "pct_families_poverty",
+        "grandparents_responsible",
+        "total_households",
+        "avg_household_size",
+        "median_household_income",
+    ),
+}
 # Facts a question asks for by name: trigger words, then indicators the answer must cite for its district.
 REQUIRED_FACTS = (
     (("profile",), PROFILE_INDICATORS),

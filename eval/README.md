@@ -15,7 +15,7 @@ Ask one question: uv run python -m klear.agent "question" [--district house:NNN]
 
 Before choosing a model or running the demo, read the compare and demo answers yourself. The automatic checks cannot judge meaning.
 
-Live runs save every answer and its cost under eval/recordings/<model>-<timestamp>/. After a fix to the checks, rescore a saved run for free with --mode replay --agent recorded --recording <model>-<timestamp>. The JSON report also keeps each structured answer.
+Live runs save every answer and its cost under eval/recordings/<model>-<timestamp>/. The recording's trace lists each model turn and its rejection reasons in `problems`, followed by a stop reason such as `fallback` when the agent had to write a figure list. For the child care question, use `--only profile-011` to record that case alone. After a fix to the checks, rescore a saved run for free with --mode replay --agent recorded --recording <model>-<timestamp>. The JSON report also keeps each structured answer.
 
 Each data build rescores the newest recording in eval/recordings against the store it writes and puts the results in docs/VALIDATION.md and on the website. The held-out questions are not in this repository. Their published totals are in eval/heldout_summary.yaml. Update that file when a new held-out run is published, then rebuild.
 
