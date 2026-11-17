@@ -204,6 +204,7 @@ class Session:
         self.con, self.geocoder = con, geocoder
         self.facts: dict[str, FactRef] = {}
         self.places: set[str] = set()
+        self.place_geos: dict[str, set[tuple[str, str]]] = {}
         self.geos: set[tuple[str, str]] = set()
         self.resolved: set[tuple[str, str]] = set()
         # districts whose listed member a tool returned, which {member:TYPE:ID} may name
@@ -508,6 +509,10 @@ class Session:
                 ("place_overlap", "place_id") if n.kind == "place" else ("area_overlap", "area_id")
             )
             overlaps = self._overlaps(table, column, n.id)
+            # Only a geography containing the whole place can stand in for its name in a comparison.
+            self.place_geos.setdefault(n.name.casefold(), set()).update(
+                geo_key(o["geo"]) for o in overlaps if o["share"] == 1
+            )
             if n.kind == "island":
                 for o in overlaps:
                     if o["geo"].startswith("county:"):

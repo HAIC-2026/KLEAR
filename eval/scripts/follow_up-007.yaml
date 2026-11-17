@@ -1,0 +1,37 @@
+# The rental shares overlap, even though their point estimates differ.
+- - type: tool_use
+    name: resolve_place
+    input:
+      text: House District 22
+  - type: tool_use
+    name: resolve_place
+    input:
+      text: House District 51
+- - type: tool_use
+    name: compare
+    input:
+      indicator_id: pct_rent_burden_35_plus
+      geo: house:051
+      against: ["house:022"]
+- - type: tool_use
+    name: submit_answer
+    input:
+      resolved: house:051
+      refusal: none
+      blocks:
+        - "The rent burden shares are {fact:f1} in {geo:house:051} and {fact:f4} in {geo:house:022} ({vintage:f1}).
+          The two ranges do not overlap, so the gap is clear at the margins of error shown."
+      facts: [f1, f4]
+      programs: []
+      caveats: []
+- - type: tool_use
+    name: submit_answer
+    input:
+      resolved: house:051
+      refusal: none
+      blocks:
+        - "On rent burden, {geo:house:051} is within the margin of error of {geo:house:022}.
+          The shares are {fact:f1} and {fact:f4}, respectively ({label:f1}, {vintage:f1})."
+      facts: [f1, f4]
+      programs: []
+      caveats: []

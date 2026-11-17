@@ -13,6 +13,7 @@ from klear.eval.contract import (
     REFUSALS,
     VERSION,
     Answer,
+    FactRef,
     geo_key,
     render,
 )
@@ -85,6 +86,8 @@ UNPUBLISHED_TEXT = (
 )
 SAYS_UNPUBLISHED = re.compile(r"\bnot (?:yet )?(?:published|available|released)\b", re.IGNORECASE)
 NO_FACTS_TEXT = "I could not retrieve any facts for that question."
+GROUP_FALLBACK_LINES = 8
+FALLBACK_GEO_ORDER = {"house": 0, "senate": 0, "county": 1, "state": 2}
 # Party, candidate and advocacy words a partisan decline must not repeat.
 PARTISAN_WORDS = (
     "democrat",
@@ -111,6 +114,29 @@ DIRECTION_TEXT = {
     "higher": "higher than",
     "lower": "lower than",
     "within_margin": "within the margin of error of",
+}
+# These claims say the intervals are separate, even when no higher/lower wording is used.
+NO_OVERLAP = re.compile(
+    r"\b(?:ranges?|intervals?|margins?(?: of error)?)(?: (?:for|of|in|around) [^,]+?)?\s+"
+    r"(?:(?:do|does|did) not|don['’]t|doesn['’]t|didn['’]t|never) overlap\b",
+    re.IGNORECASE,
+)
+CLEAR_GAP = re.compile(
+    r"\b(?:gap|lead)(?: between [^,]+?)? (?:is|was|looks|seems) (?:statistically )?clear\b"
+    r"|\b(?:there (?:is|was)|there['’]s|shows?|indicates?) a clear (?:gap|lead)\b",
+    re.IGNORECASE,
+)
+UNCERTAIN_CLAIM = re.compile(
+    r"\b(?:cannot|(?:can|could|do|does|did) not|(?:can|don|doesn|didn)['’]t|not enough|no evidence)\b",
+    re.IGNORECASE,
+)
+# "Worse" needs a measure with a clear meaning for which way is worse.
+WORSE_DIRECTION = {
+    "pct_broadband": "lower",
+    "pct_people_poverty": "higher",
+    "pct_children_poverty": "higher",
+    "pct_rent_burden_35_plus": "higher",
+    "pct_uninsured": "higher",
 }
 METHOD_TEXT = {
     "A": ", an estimate apportioned to the district",
@@ -336,7 +362,7 @@ def build_answer(session, args: dict, context=None) -> tuple[Answer | None, list
             if not program_named(text, known[p])
         ]
         problems += _missing_required(session, answer) + _measured_not_available(answer)
-        problems += _wrong_directions(answer) + _missing_group_words(session, text)
+        problems += _missing_group_words(session, text)
     return (None if problems else finish(session, answer)), problems
 
 
@@ -353,7 +379,11 @@ def _checked(session, answer: Answer, allowed: set[tuple[str, str]]) -> list[str
     problems = answer_problems(
         answer, session.con, allowed, session.question, sorted(session.names), session.counts
     )
-    return problems + _typed_places(session, [*answer.blocks, *answer.caveats], allowed)
+    return (
+        problems
+        + _typed_places(session, [*answer.blocks, *answer.caveats], allowed)
+        + _wrong_directions(session, answer)
+    )
 
 
 def spelled(text: str) -> str:
@@ -577,9 +607,24 @@ def actual_direction(a, b) -> str | None:
     return "higher" if mine[0] > theirs[1] else "lower"
 
 
-def _direction_problem(s: str, said: str, o: str, found: set) -> str | None:
-    """The fix for a higher or lower claim of s against o that the cited facts contradict, or None."""
-    if said not in ("higher", "lower") or not found or s == o:
+def _direction_problem(s: str, said: str, o: str, found: set[str]) -> str | None:
+    """The fix for a claim of s against o that the cited facts contradict, or None."""
+    if not found or s == o:
+        return None
+    if said == "separate" and found == {"within_margin"}:
+        return (
+            f"the text claims a clear gap or separate ranges for {s} and {o}, but their margins of error "
+            "overlap; say the figures are within the margin of error"
+        )
+    if said == "not_worse" and found == {"worse"}:
+        return f"the text says {s} is not worse than {o}, but the cited measure shows it is; use the direction compare returns"
+    if said in ("not_higher", "not_lower") and found == {said.removeprefix("not_")}:
+        direction = next(iter(found))
+        return (
+            f"the text says {s} is not {direction} than {o}, but the facts show it is {direction}; "
+            "use the direction compare returns"
+        )
+    if said not in ("higher", "lower"):
         return None
     if found <= {FLIP[said]}:
         return (
@@ -594,29 +639,93 @@ def _direction_problem(s: str, said: str, o: str, found: set) -> str | None:
     return None
 
 
-def _wrong_directions(answer: Answer) -> list[str]:
-    """Higher or lower claims between places or facts that the cited facts show the other way round, or as
-    within the margin of error."""
-    by_geo: dict[tuple[str, str], dict[str, object]] = {}
+def _mark_named_places(session, text: str, geos: set[tuple[str, str]]) -> str:
+    """Read a resolved place name as its representative geography, if only one was cited."""
+    names = {
+        name: next(iter(picks)) for name, gs in session.place_geos.items() if len(picks := gs & geos) == 1
+    }
+    if not names:
+        return text
+    aliases = "|".join(re.escape(n) for n in sorted(names, key=len, reverse=True))
+    pattern = re.compile(r"\{[^{}]+\}|(?<!\w)(?:" + aliases + r")(?![\w-])", re.IGNORECASE)
+
+    def mark(match: re.Match) -> str:
+        if geo := names.get(match[0].casefold()):
+            return f"{{geo:{geo[0]}:{geo[1]}}}"
+        return match[0]
+
+    return pattern.sub(mark, spelled(text))
+
+
+def _wrong_directions(session, answer: Answer) -> list[str]:
+    """Check the comparison's places and measure against the intervals used in the chart."""
+    by_geo: dict[tuple[str, str], dict[str, FactRef]] = {}
     for f in answer.facts:
         by_geo.setdefault((f.geo_type, f.geo_id), {}).setdefault(f.indicator_id, f)
+    if len(by_geo) < 2:
+        return []
     text = "\n".join([*answer.blocks, *answer.caveats])
-    out, claimed = [], set()
-    for s, said, o in direction_claims(text):
-        claimed.add((s, o))
-        mine, theirs = by_geo.get(s, {}), by_geo.get(o, {})
-        found = {actual_direction(mine[i], theirs[i]) for i in mine.keys() & theirs.keys()} - {None}
-        out.append(_direction_problem(f"{{geo:{s[0]}:{s[1]}}}", said, f"{{geo:{o[0]}:{o[1]}}}", found))
+    text = _mark_named_places(session, text, set(by_geo))
     facts = {f.ref: f for f in answer.facts}
+
+    def mentioned(sentence: str) -> list[FactRef]:
+        return [facts[r] for k, r in MARKER.findall(sentence) if k in ("label", "fact") and r in facts]
+
+    def directions(s, o, measures, said) -> set[str]:
+        mine, theirs = by_geo.get(s, {}), by_geo.get(o, {})
+        ids = mine.keys() & theirs.keys()
+        if measures:
+            ids &= measures
+        found = set()
+        for i in ids:
+            way = actual_direction(mine[i], theirs[i])
+            if not way:
+                continue
+            if said == "not_worse":
+                worse = WORSE_DIRECTION.get(i)
+                way = "worse" if way == worse else "undetermined"
+            found.add(way)
+        return found
+
+    out, claimed = [], set()
+    for s, said, o, sentence in direction_claims(text, by_sentence=True):
+        claimed.add((s, said, o))
+        found = directions(s, o, {f.indicator_id for f in mentioned(sentence)}, said)
+        out.append(_direction_problem(f"{{geo:{s[0]}:{s[1]}}}", said, f"{{geo:{o[0]}:{o[1]}}}", found))
     as_geos = FACT_AS_GEO.sub(r"{geo:fact:\1}", GEO_MARKER.sub(" ", text))
     for (_, a), said, (_, b) in direction_claims(as_geos):
         x, y = facts.get(a), facts.get(b)
         if x is None or y is None or x.indicator_id != y.indicator_id:
             continue
-        if ((x.geo_type, x.geo_id), (y.geo_type, y.geo_id)) in claimed:
+        s, o = (x.geo_type, x.geo_id), (y.geo_type, y.geo_id)
+        if s == o or (s, said, o) in claimed:
             continue
         found = {actual_direction(x, y)} - {None}
+        if said == "not_worse":
+            found = {"worse"} if WORSE_DIRECTION.get(x.indicator_id) in found else set()
         out.append(_direction_problem(f"{{fact:{a}}}", said, f"{{fact:{b}}}", found))
+
+    # A sentence like "Their ranges do not overlap" can refer to the pair just cited.
+    pair, measures = (), set()
+    for sentence in re.split(r"[.!?;\n]+", text):
+        refs = mentioned(sentence)
+        ids = {f.indicator_id for f in refs}
+        places = {(f.geo_type, f.geo_id) for f in refs} | {
+            geo_key(m[5:-1]) for m in GEO_MARKER.findall(sentence)
+        }
+        if len(places) == 2:
+            new_pair = tuple(sorted(places))
+            measures = ids or (measures if new_pair == pair else set())
+            pair = new_pair
+        elif places - set(pair) or (ids and not ids & measures):
+            pair, measures = (), set()
+        claim = NO_OVERLAP.search(sentence) or CLEAR_GAP.search(sentence)
+        if pair and claim and not UNCERTAIN_CLAIM.search(sentence[: claim.start()]):
+            s, o = pair
+            found = directions(s, o, ids or measures, "separate")
+            out.append(
+                _direction_problem(f"{{geo:{s[0]}:{s[1]}}}", "separate", f"{{geo:{o[0]}:{o[1]}}}", found)
+            )
     return list(dict.fromkeys(p for p in out if p))
 
 
@@ -792,18 +901,31 @@ def template_answer(
         return Answer(VERSION, resolved, refusal, [REFUSAL_TEXT[refusal]], [], [], [])
     allowed = allowed_geos(session, resolved, context)
     facts = [replace(f) for f in session.facts.values() if (f.geo_type, f.geo_id) in allowed]
+    groups = asked_group_words(session)
+    if groups:
+        indicators = list(dict.fromkeys(i for group in groups for i in config.GROUP_INDICATORS[group]))
+
+        def geo_order(f):
+            return FALLBACK_GEO_ORDER.get(f.geo_type, 3), (f.geo_type, f.geo_id) != resolved
+
+        # Keep the most relevant measures and their comparisons together when choosing what fits.
+        facts = [f for f in facts if f.indicator_id in indicators]
+        facts.sort(key=lambda f: (indicators.index(f.indicator_id), geo_order(f)))
+        facts = sorted(facts[: GROUP_FALLBACK_LINES - 1], key=geo_order)
     if not facts:
         return Answer(VERSION, resolved, "none", [NO_FACTS_TEXT], [], [], [])
     shown = {f.ref: f for f in facts}
     blocks = ["\n".join(_bullet(session, f) for f in facts)]
-    if groups := asked_group_words(session):
+    if groups:
         blocks.insert(0, "Figures on " + " and ".join(groups) + ":")
     compared = [
-        f"* {{geo:{shown[a].geo_type}:{shown[a].geo_id}}} is {DIRECTION_TEXT[d]} "
+        f"* {{label:{a}}}: {{geo:{shown[a].geo_type}:{shown[a].geo_id}}} is {DIRECTION_TEXT[d]} "
         f"{{geo:{shown[b].geo_type}:{shown[b].geo_id}}}"
         for a, b, d in dict.fromkeys(session.directions)
         if a in shown and b in shown and d in DIRECTION_TEXT
     ]
+    if groups:
+        compared = compared[: GROUP_FALLBACK_LINES - 1 - len(facts)]
     if compared:
         blocks.append("\n".join(compared))
     names = known_programs()

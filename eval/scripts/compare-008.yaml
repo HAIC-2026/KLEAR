@@ -1,0 +1,40 @@
+# The opener must agree with the district and county estimates later in the answer.
+- - type: tool_use
+    name: resolve_place
+    input:
+      text: Molokaʻi
+  - type: tool_use
+    name: resolve_place
+    input:
+      text: Urban Honolulu
+- - type: tool_use
+    name: compare
+    input:
+      indicator_id: pct_broadband
+      geo: house:013
+      against: ["county:15003"]
+- - type: tool_use
+    name: submit_answer
+    input:
+      resolved: house:013
+      refusal: none
+      blocks:
+        - "Broadband access on Molokaʻi is not worse than in urban Honolulu."
+        - "{geo:house:013} has a broadband subscription share of {fact:f1} ({vintage:f1}),
+          lower than {geo:county:15003} at {fact:f5}."
+      facts: [f1, f5]
+      programs: []
+      caveats: []
+- - type: tool_use
+    name: submit_answer
+    input:
+      resolved: house:013
+      refusal: none
+      blocks:
+        - "Broadband subscriptions are less common in {geo:house:013}, which covers Molokaʻi, than in
+          {geo:county:15003}, which includes urban Honolulu.
+          The shares are {fact:f1} and {fact:f5}, respectively ({vintage:f1})."
+      facts: [f1, f5]
+      programs: []
+      caveats:
+        - "These are household subscriptions. The figures do not measure where broadband service is available."

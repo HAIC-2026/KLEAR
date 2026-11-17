@@ -148,6 +148,38 @@ def test_fallback_keeps_last_district_and_programs_and_traces(small_con):
     assert agent.trace[-1] == {"stop": "fallback"} and len(agent.trace) == MAX_CALLS + 1
 
 
+def test_keiki_fallback_limits_the_figures_and_keeps_retry_reasons(real_con):
+    question = "What should a legislator know about keiki in this district before a hearing on child care?"
+    place = tool("resolve_place", {"text": "Senate District 12"})
+    facts = tool(
+        "get_facts",
+        {
+            "indicator_ids": [
+                "median_age",
+                "pop_65_plus",
+                "pop_under_5",
+                "pop_under_18",
+                "pct_children_poverty",
+                "pct_hh_with_children",
+            ],
+            "geos": ["state:15", "county:15003", "senate:012"],
+        },
+    )
+    bad = ok(resolved="senate:012", facts=["f99"], blocks=["About {fact:f99} keiki."])
+    fake = FakeClient([place, facts] + [submit(bad)] * (MAX_CALLS - 2))
+    agent = KlearAgent(real_con, client=fake)
+    answer, _ = agent.answer("profile-011", question, ("senate", "012"))
+
+    assert agent.trace[-1] == {"stop": "fallback"}
+    rejected = [(s["turn"], s["problems"]) for s in agent.trace if "problems" in s]
+    assert [n for n, _ in rejected] == list(range(3, MAX_CALLS + 1))
+    assert all("fact f99 was not returned" in reasons[0] for _, reasons in rejected)
+    assert answer.blocks[0] == "Figures on keiki:"
+    assert len("\n".join(answer.blocks).splitlines()) <= 8
+    assert {f.indicator_id for f in answer.facts} == {"pop_under_5", "pop_under_18", "pct_children_poverty"}
+    assert list(dict.fromkeys(f.geo_type for f in answer.facts)) == ["senate", "county", "state"]
+
+
 def test_fallback_fetches_facts_the_question_asks_for(small_con, monkeypatch):
     monkeypatch.setattr(agent_config, "REQUIRED_FACTS", ((("profile",), ("sites_lihtc",)),))
     place = tool("resolve_place", {"text": "House 22"})
