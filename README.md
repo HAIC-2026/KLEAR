@@ -391,6 +391,16 @@ Website spending has its own cap of 5 dollars per HST day, kept in ~/.config/kle
 
 Health checks. GET /healthz always answers 200 with {"status": "ok"} while the server runs. GET /readyz answers 200 when the store is built and current, else 503, with ready, store (ok, missing, outdated or unreadable), built (the build day), prepared_answers (prepared starter answers for this build) and assistant (on or off). Neither calls the model or shows keys, file paths or questions. Cloud Run reserves some paths that end in z, so the same checks also answer at /api/health and /api/ready.
 
+### Prepared district profiles
+
+The server builds profiles in the background at startup, House first, and holds the JSON and CSV
+responses in memory. To serve every district from memory on the first request, run this command
+after building the store and ship `data/build/profile_cache.json` beside `klear.duckdb`.
+
+    uv run python -m klear.web.profile_cache
+
+The server loads the file when its build matches the current store. The command needs no API key.
+
 ### Outreach
 
 The rankings page's Outreach tab (/rankings?view=outreach; old links to /outreach.html and /compare?view=outreach redirect there) compares districts for five pairs of a group and the programs it may qualify for, set in `OUTREACH_PAIRS` in klear/agent/config.py: households in poverty without SNAP (SNAP), uninsured people under 138% of poverty (Med-QUEST), uninsured people from 138% to 399% of poverty (Marketplace premium tax credits), kūpuna under 200% of poverty (SSI, Kūpuna Care and Medicare Savings Programs) and working families and people below poverty (Federal EITC). The reader picks a pair and House or Senate. `GET /api/outreach?pair=ID&chamber=house|senate` ranks the group's direct ACS count with the same tiers as the assistant's rank_districts tool, so districts whose ranges overlap share a group and are listed by number, never in an order the data cannot support. Each district also shows its program-use figure from `PROFILE_BESIDE` (SNAP households, SSI households, EITC returns or Marketplace enrollees with premium tax credits) for comparison only. Figures moved from ZIP codes are too wide to rank. The page opens with a sentence naming the top tier, flags unreliable estimates, and lists each program's page and phone with the income-test caveat. Each district profile has an "Outreach opportunities" note naming up to two pairs whose top tier holds the district, the smallest tier first.
