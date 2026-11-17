@@ -112,14 +112,26 @@ test.describe('the agent as a panel', () => {
 });
 
 test('the map: Tab in, arrows to move, Enter to open', async ({page}) => {
-  await expect(page.locator('#map .district:not(.copy)').first()).toBeAttached();
-  // The zoom buttons sit in the map's corner, just before it in the Tab order.
+  await expect(page.getByText('Select an island to zoom in.')).toBeVisible();
+  const captions = page.locator('#map').getByRole('button', {name: /districts, zoom in$/});
+  // After the zoom controls, all four island buttons come before the first district.
   await page.locator('#zoom-out').focus();
+  for (const island of ['Kauaʻi', 'Oʻahu', 'Maui County', 'Hawaiʻi Island']) {
+    await page.keyboard.press('Tab');
+    await expect(captions.filter({hasText: island})).toBeFocused();
+  }
   await page.keyboard.press('Tab');
   const focused = page.locator('#map .district:focus');
   await expect(focused).toHaveCount(1);
   // The focus ring is drawn over the district, above its neighbors.
   await expect(page.locator('#map .ring-line')).toHaveAttribute('d', /\S/);
+
+  // Activating the Hawaiʻi Island caption zooms and leaves focus on one of its districts.
+  await page.keyboard.press('Shift+Tab');
+  await expect(captions.last()).toBeFocused();
+  await page.keyboard.press('Space');
+  await expect(page.locator('#island-tabs').getByRole('button', {name: 'Hawaiʻi Island', exact: true})).toHaveAttribute('aria-pressed', 'true');
+  await expect(focused).toHaveAccessibleName(/^House District 1, /);
 
   await page.keyboard.press('Home');
   await expect(focused).toHaveAccessibleName(/^House District 1, /);
@@ -212,7 +224,7 @@ test('the shaded map on the rankings page: choose a measure, move between distri
 
   // Each district's name carries its figure, and Enter shows it with the state comparison over the map.
   await page.locator('#zoom-out').focus();
-  await page.keyboard.press('Tab');
+  for (let i = 0; i < 5; i++) await page.keyboard.press('Tab');
   const focused = page.locator('#map .district:focus');
   await page.keyboard.press('Home');
   await expect(focused).toHaveAccessibleName('House District 1, Hawaiʻi: no figure');

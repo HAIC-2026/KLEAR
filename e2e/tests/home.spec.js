@@ -106,17 +106,52 @@ test('a district opens with the map beside its name, and Search another district
   await expect(page.locator('#chat-panel-title')).toHaveText('Ask KLEAR');
 });
 
-test('the map shows every island where it lies, and its tabs zoom to each island and to urban Honolulu', async ({page, isMobile}) => {
+async function expectNumbersApart(page) {
+  const labels = await page.locator('#map .label:visible').evaluateAll(numbers => numbers.map(n => {
+    const {left, right, top, bottom} = n.getBoundingClientRect();
+    return {number: n.textContent, left, right, top, bottom};
+  }));
+  expect(labels.length).toBeGreaterThan(1);
+  // Include the three pixels of outline between pairs of numbers.
+  const collisions = labels.flatMap((a, i) => labels.slice(i + 1)
+    .filter(b => a.left < b.right + 3 && b.left < a.right + 3 && a.top < b.bottom + 3 && b.top < a.bottom + 3)
+    .map(b => [a.number, b.number]));
+  expect(collisions).toEqual([]);
+}
+
+test('the statewide map has island buttons and legible numbers, and zooms to urban Honolulu', async ({page}) => {
   await page.goto('/');
   await expect(page.locator('#map .district')).toHaveCount(51);
   const width = () => page.evaluate(() => document.getElementById('map').viewBox.baseVal.width);
   await expect.poll(width).toBeGreaterThan(900);
-  // Each island group's caption sits beside it, on a map wide enough to hold them.
-  const captions = page.locator('#map .frame-caption.island');
+  const hint = page.getByText('Select an island to zoom in.', {exact: true});
+  await expect(hint).toBeVisible();
+  await expectNumbersApart(page);
+  await expect(page.locator('#map .label[data-geo="house:022"]')).toBeHidden();
+  // Each island group's caption is a button beside it, including on phones.
+  const captions = page.locator('#map').getByRole('button', {name: /districts, zoom in$/});
   await expect(captions).toHaveText(['Kauaʻi · 3 House', 'Oʻahu · 34 House', 'Maui County · 6 House', 'Hawaiʻi Island · 8 House']);
-  if (!isMobile) await expect(captions.first()).toBeVisible();
-  await page.getByRole('group', {name: 'Zoom to island'}).getByRole('button', {name: 'Honolulu'}).click();
+  const tabs = page.getByRole('group', {name: 'Zoom to island'});
+  await captions.filter({hasText: 'Oʻahu'}).click();
+  await expect(tabs.getByRole('button', {name: 'Oʻahu', exact: true})).toHaveAttribute('aria-pressed', 'true');
+  await expect(hint).toBeHidden();
+  await tabs.getByRole('button', {name: 'Honolulu'}).click();
   await expect.poll(width).toBeLessThan(100);
+  await expectNumbersApart(page);
+  await tabs.getByRole('button', {name: 'All islands'}).click();
+  await expect(hint).toBeVisible();
+});
+
+test('on a phone one tap zooms to Oʻahu and the next opens a district', async ({page, isMobile}) => {
+  test.skip(!isMobile, 'uses touch input');
+  await page.goto('/');
+  await expect(page.getByText('Select an island to zoom in.')).toBeVisible();
+  await page.locator('#map .district[data-geo="house:047"]').tap();
+  await expect(page).toHaveURL(/:\d+\/$/);
+  await expect(page.locator('#island-tabs').getByRole('button', {name: 'Oʻahu', exact: true})).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('#map .district.picked')).toHaveCount(0);
+  await page.locator('#map .district[data-geo="house:022"]').tap();
+  await expect(page).toHaveURL(/\/district\/house-22$/);
 });
 
 test('each district on Compare has a small map zoomed in to it, with its number', async ({page}) => {

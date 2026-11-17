@@ -9,13 +9,14 @@
   const frameEl = svg.parentElement;
   const tabs = document.getElementById('island-tabs');
   const hint = document.getElementById('map-hint');
+  const islandHint = document.getElementById('map-island-hint');
   const zoomEl = document.querySelector('.zoom-buttons');
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const coarse = window.matchMedia('(pointer: coarse)');
-  const SNAP_SHOWN = 0.5, SNAP_FILL = 0.2, SNAP_ALL = 0.8, MIN_WIDTH = 12, DIGIT_PX = 7.6, LABEL_PX = 15;
+  const SNAP_SHOWN = 0.5, SNAP_FILL = 0.2, SNAP_ALL = 0.8, MIN_WIDTH = 12, DISTRICT_PX = 16, OVERVIEW_PAD = 8;
   let data = null, chamber = 'house', group = 'all', picked = null, view = null, goal = null, anim = 0, settleTimer = 0, hintTimer = 0;
   const pointers = new Map();
-  let gesture = null, dragged = false, area = null, waiting = null, labelInfo = [], districts = [], stop = null, fitted = null, frameSize = '';
+  let gesture = null, dragged = false, area = null, waiting = null, captions = [], districts = [], stop = null, fitted = null, frameSize = '';
   const zipStatus = document.getElementById('zip-status') || {}, zipMatches = document.getElementById('zip-matches');
   // Coloring the map by a measure: the figures for the chosen measure and chamber, by district, or null for the plain map.
   const shadeSelect = document.getElementById('map-shade'), legend = document.getElementById('map-legend'), table = document.getElementById('map-table');
@@ -26,10 +27,10 @@
   function el(tag, attrs) { const n = document.createElementNS(svgNS, tag); for (const [k, v] of Object.entries(attrs || {})) n.setAttribute(k, v); return n; }
 
   // The whole chain where it lies. The island tabs zoom the map to each island and to urban Honolulu, where a dozen
-  // House districts share a few miles; the list and the arrow keys take a district there to urban Honolulu too. Each
-  // island group's caption sits beside it on a wide map.
-  const CAPTIONS = [['kauai', 'Kauaʻi', 'below'], ['oahu', 'Oʻahu', 'above'], ['maui', 'Maui County', 'above'], ['hawaii', 'Hawaiʻi Island', 'above end']];
-  const NARROW_PX = 600;
+  // House districts share a few miles; the list and the arrow keys take a district there to urban Honolulu too.
+  const CAPTIONS = [['kauai', 'below'], ['oahu', 'above'], ['maui', 'left'], ['hawaii', 'left']];
+  const CAPTION_HEIGHT = 26;
+  const islandOf = row => row.group === 'honolulu' ? 'oahu' : row.group;
   const inBox = ([x, y], [bx, by, bw, bh]) => x >= bx && x <= bx + bw && y >= by && y <= by + bh;
   function layout(json) {
     const city = json.groups.honolulu.box, chambers = {};
@@ -54,23 +55,24 @@
   // Shades 4 and 5 are dark, so their borders and stripes are white (style.css).
   const DARK_SHADE = 4;
 
-  // Grow a box to the frame's aspect ratio so the viewBox is exactly what is visible.
-  // With clear set on a narrow frame, fit the box left of the zoom buttons when they sit over the map.
-  function fit(box, clear) {
-    const r = frameEl.getBoundingClientRect(), z = zoomEl.getBoundingClientRect();
-    const inset = clear && r.width && r.width < 480 && frameEl.contains(zoomEl) ? Math.max(0, r.right - z.left + 6) : 0;
-    const aspect = r.width && r.height ? (r.width - inset) / r.height : 1.5;
-    let [x, y, w, h] = box;
-    if (w / h < aspect) { const nw = h * aspect; x -= (nw - w) / 2; w = nw; } else { const nh = w / aspect; y -= (nh - h) / 2; h = nh; }
-    return [x, y, inset ? w * r.width / (r.width - inset) : w, h];
+  // Fit to the SVG's inner size so the same scale applies to both axes. On a narrow frame,
+  // closer views leave room at the right for the zoom controls.
+  function fit([x, y, w, h], clear = false, pad = 0) {
+    const r = svg.getBoundingClientRect();
+    const width = r.width || 300, height = r.height || 200;
+    const inset = clear && r.width && r.width < 480 ? Math.max(0, r.right - zoomEl.getBoundingClientRect().left + 6) : 0;
+    const scale = Math.min(Math.max(1, width - inset - 2 * pad) / w, Math.max(1, height - 2 * pad) / h);
+    return [x + w / 2 - (width - inset) / (2 * scale), y + h / 2 - height / (2 * scale), width / scale, height / scale];
   }
 
-  function target(name) { return fit(data.groups[name].box, name !== 'all'); }
+  function target(name) { return fit(data.groups[name].box, name !== 'all', name === 'all' ? OVERVIEW_PAD : 0); }
+
+  const scaleOf = r => Math.min(r.width / view[2], r.height / view[3]);
 
   // Keep the zoom between the closest allowed view and the whole chain, and the center over the islands,
   // with room on narrow frames to move any island left of the zoom buttons.
   function clamp(v) {
-    const all = fit(data.groups.all.box), room = fit(data.groups.all.box, true);
+    const all = target('all'), room = fit(data.groups.all.box, true, OVERVIEW_PAD);
     let [x, y, w, h] = v;
     const s = Math.min(Math.max(w, MIN_WIDTH), all[2]) / w;
     const cx = x + w / 2, cy = y + h / 2;
@@ -83,13 +85,16 @@
   function render(v) {
     view = v;
     svg.setAttribute('viewBox', view.join(' '));
-    const px = svg.getBoundingClientRect().width;
-    // Districts are numbered from the start; numbers that would overlap give way (see declutter).
-    svg.classList.toggle('zoomed', px > 0);
-    svg.classList.toggle('free', view[2] < fit(data.groups.all.box)[2] * 0.98);
-    svg.classList.toggle('narrow', px > 0 && px < NARROW_PX);
-    sizeLabels();
-    declutter();
+    const r = svg.getBoundingClientRect();
+    if (!r.width || !r.height) return;
+    const statewide = view[2] >= target('all')[2] * 0.98, scale = scaleOf(r);
+    svg.classList.add('zoomed');
+    svg.classList.toggle('statewide', statewide);
+    svg.classList.toggle('free', !statewide);
+    islandHint.hidden = !statewide;
+    if (statewide) placeCaptions(r, scale);
+    sizeLabels(scale);
+    declutter(r, scale);
     updateStop();
   }
 
@@ -106,31 +111,31 @@
     anim = requestAnimationFrame(step);
   }
 
-  function sizeLabels() {
-    const r = svg.getBoundingClientRect();
-    if (!view || !r.width) return;
-    const k = view[2] / r.width;
+  function sizeLabels(scale) {
+    const k = 1 / scale;
     svg.style.setProperty('--label', `${(12 * k).toFixed(3)}px`);
     for (const p of stripeSets) p.setAttribute('patternTransform', `scale(${k.toFixed(5)}) rotate(45)`);
     dots.setAttribute('patternTransform', `scale(${k.toFixed(5)})`);
   }
 
-  // Hide district numbers that the frame edge or zoom buttons would cut, or that would overlap one that matters more:
-  // the picked district, then ZIP hits, then larger districts. The picked number always shows.
-  function declutter() {
-    const r = svg.getBoundingClientRect(), zoomed = svg.classList.contains('zoomed');
-    if (!view || !r.width || (!zoomed && !svg.classList.contains('zip-mode'))) return;
-    const k = r.width / view[2], z = zoomEl.getBoundingClientRect();
-    const kept = [[z.left - r.left, z.top - r.top, z.width, z.height]];
-    const rank = info => (info.text.classList.contains('picked') ? 2e12 : 0) + (info.text.classList.contains('zip-hit') ? 1e12 : 0) + info.size;
-    for (const info of [...labelInfo].sort((a, b) => rank(b) - rank(a))) {
-      if (!zoomed && !info.text.classList.contains('zip-hit')) { info.text.classList.remove('crowded'); continue; }
-      // Each number keeps a few pixels clear around it, so two never touch.
-      const w = info.text.textContent.length * DIGIT_PX + 8, x = (info.x - view[0]) * k - w / 2, y = (info.y - view[1]) * k - LABEL_PX / 2 - 2;
-      const inside = x >= 0 && x + w <= r.width && y >= 0 && y + LABEL_PX <= r.height;
-      const h = LABEL_PX + 4, crowded = !info.text.classList.contains('picked') && (!inside || kept.some(([bx, by, bw, bh]) => x < bx + bw && bx < x + w && y < by + bh && by < y + h));
-      info.text.classList.toggle('crowded', crowded);
-      if (!crowded) kept.push([x, y, w, h]);
+  // Hide numbers that cannot fit at statewide zoom, would be clipped, or would overlap a button or
+  // a number that matters more: the picked district, then ZIP hits, then larger districts.
+  function declutter(r = svg.getBoundingClientRect(), scale = view && scaleOf(r)) {
+    if (!view || !scale) return;
+    const statewide = svg.classList.contains('statewide');
+    const bounds = (el, pad = 0) => {
+      const b = el.getBoundingClientRect();
+      return [b.left - pad, b.top - pad, b.width + 2 * pad, b.height + 2 * pad];
+    };
+    const kept = [bounds(zoomEl), ...(statewide ? captions.map(c => bounds(c.button)) : [])];
+    const rank = d => (d.row === picked ? 2e12 : 0) + (d.text.classList.contains('zip-hit') ? 1e12 : 0) + d.box[2] * d.box[3];
+    // Measure before changing visibility. The three extra pixels include the label's outline.
+    const labels = [...districts].sort((a, b) => rank(b) - rank(a)).map(d => [d, bounds(d.text, 3)]);
+    for (const [d, b] of labels) {
+      const [x, y, w, h] = b, inside = x >= r.left && y >= r.top && x + w <= r.right && y + h <= r.bottom;
+      const crowded = (statewide && d.box[2] * scale < DISTRICT_PX) || !inside || kept.some(other => overlap(b, other));
+      d.text.classList.toggle('crowded', crowded);
+      if (!crowded) kept.push(b);
     }
   }
 
@@ -147,7 +152,7 @@
   }
 
   // A fitted view is refit when the frame changes size; a view left by a gesture is not.
-  function zoom(name) { markTab(name); focusedGeo = null; fitted = () => target(name); animateTo(target(name)); }
+  function zoom(name) { hideTip(); markTab(name); focusedGeo = null; fitted = () => target(name); animateTo(fitted()); }
 
   function overlap(a, b) {
     const w = Math.min(a[0] + a[2], b[0] + b[2]) - Math.max(a[0], b[0]);
@@ -168,7 +173,7 @@
     // Snap back only after zooming out past the island; leave closer views and pans alone.
     const close = best && view[2] <= target(best)[2] * 1.02;
     if (best && !close && !out) return zoom(best);
-    if (!close && view[2] >= fit(data.groups.all.box)[2] * SNAP_ALL) return zoom('all');
+    if (!close && view[2] >= target('all')[2] * SNAP_ALL) return zoom('all');
     markTab(close ? best : null);
     if (!goal) render(view);
   }
@@ -297,6 +302,17 @@
     if (typeof openDistrict === 'function') openDistrict(row.geo, row.name);
   }
 
+  // A tiny target, or any target on an island where most districts are tiny, opens the island first.
+  // Keyboard activation can still pick a named district directly.
+  function islandToZoom(d) {
+    if (!svg.classList.contains('statewide')) return null;
+    const scale = scaleOf(svg.getBoundingClientRect()), island = islandOf(d.row);
+    const small = ({box: [, , w, h]}) => Math.min(w, h) * scale < DISTRICT_PX;
+    if (small(d)) return island;
+    const neighbors = districts.filter(other => islandOf(other.row) === island);
+    return neighbors.filter(small).length > neighbors.length / 2 ? island : null;
+  }
+
   // The view around one district, with room for its neighbors: the district fills about half of it.
   function around(row) {
     const d = districts.find(x => x.row === row);
@@ -346,7 +362,7 @@
     const next = districts[Math.max(0, Math.min(last, to))], r = next.path.getBoundingClientRect();
     setStop(next);
     next.path.focus({preventScroll: true});
-    if (shown(next) < 0.99 || Math.min(r.width, r.height) < 16) zoom(next.row.group);
+    if (shown(next) < 0.99 || Math.min(r.width, r.height) < DISTRICT_PX) zoom(next.row.group);
   }
 
   // The keyboard focus ring and the mouse hover outline are drawn over every district, so neighbors drawn later never
@@ -369,22 +385,23 @@
     for (const p of [hoverHalo, hoverLine]) p.setAttribute('d', path ? path.getAttribute('d') : '');
   }
 
-  // A label beside the pointer names the district under it and its island, and says what a click does. On the rankings
-  // page it also gives the district's figure. Screen readers skip it: each district's spoken name says the same.
+  // A label beside the pointer says what a click does. When a district can be picked, it also gives the
+  // district's name and, on Rankings, its figure.
   const tip = document.createElement('div');
   tip.className = 'map-tip';
   tip.setAttribute('aria-hidden', 'true');
   tip.hidden = true;
   frameEl.append(tip);
-  function showTip(row, e) {
+  function showTip(d, e) {
     if (!e || e.pointerType === 'touch') return;
-    const fig = figureOf(row), action = !shadeSelect ? 'click to open' : picked === row ? 'click again to open' : 'click to pick';
+    const {row} = d, island = islandToZoom(d), fig = figureOf(row);
+    const action = island ? 'Click to zoom in' : !shadeSelect ? 'click to open' : picked === row ? 'click again to open' : 'click to pick';
     const key = `${row.geo} ${action} ${fig ? fig.value : ''}`;
     if (tip.dataset.key !== key) {
       tip.dataset.key = key;
       const name = document.createElement('strong'), where = document.createElement('span');
-      name.textContent = fig ? `${row.name}: ${fig.value === MISSING ? 'no figure' : fig.value}` : row.name;
-      where.textContent = `${row.islands} · ${action}`;
+      name.textContent = island ? data.groups[island].label : fig ? `${row.name}: ${fig.value === MISSING ? 'no figure' : fig.value}` : row.name;
+      where.textContent = island ? action : `${row.islands} · ${action}`;
       tip.replaceChildren(name, where);
     }
     tip.hidden = false;
@@ -398,55 +415,91 @@
   }
   function hideTip() { tip.hidden = true; delete tip.dataset.key; }
 
-  // A caption beside each island group, over the districts. Screen readers skip them; each district's name says its
-  // island.
-  function drawFrames() {
-    const front = el('g', {class: 'frame-captions', 'aria-hidden': 'true'}), counts = {};
+  // The island buttons go before the districts in the Tab order. When a caption is activated
+  // with focus, hand focus into that island so the arrow keys work there immediately.
+  function drawCaptions() {
+    const layer = el('g', {class: 'frame-captions'}), counts = {};
     for (const row of data.chambers[chamber]) {
-      const g = row.group === 'honolulu' ? 'oahu' : row.group;
+      const g = islandOf(row);
       counts[g] = (counts[g] || 0) + 1;
     }
-    const word = chamber === 'house' ? 'House' : 'Senate', gap = 8;
-    for (const [g, name, where] of CAPTIONS) {
-      const [x, y, w, h] = data.groups[g].box, end = where.includes('end'), below = where.startsWith('below');
-      const text = el('text', {class: `frame-caption island ${below ? 'below' : ''}`, x: end ? x + w : x, y: below ? y + h + gap : y - gap, 'text-anchor': end ? 'end' : 'start'});
-      text.textContent = `${name} · ${counts[g] || 0} ${word}`;
-      front.append(text);
-    }
-    return front;
+    const word = chamber === 'house' ? 'House' : 'Senate';
+    captions = CAPTIONS.map(([g, side]) => {
+      const label = `${data.groups[g].label} · ${counts[g]} ${word}`;
+      const button = el('g', {class: 'frame-caption', role: 'button', tabindex: '0', 'aria-label': `${label} districts, zoom in`});
+      const rect = el('rect', {rx: 4, height: CAPTION_HEIGHT}), text = el('text', {x: 6, y: CAPTION_HEIGHT / 2});
+      text.textContent = label;
+      const activateCaption = () => {
+        zoom(g);
+        if (document.activeElement !== button) return;
+        const next = districts.find(d => islandOf(d.row) === g && shown(d) > 0.99);
+        if (next) { setStop(next); next.path.focus({preventScroll: true}); }
+      };
+      button.addEventListener('click', activateCaption);
+      button.addEventListener('keydown', e => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); activateCaption(); }
+      });
+      button.append(rect, text);
+      layer.append(button);
+      return {button, rect, text, box: data.groups[g].box, side};
+    });
+    return layer;
+  }
+
+  // Position buttons in the water beside the islands, at a constant size in screen pixels.
+  function placeCaptions(r, scale) {
+    const offsetX = (r.width - view[2] * scale) / 2, offsetY = (r.height - view[3] * scale) / 2;
+    const zoom = zoomEl.getBoundingClientRect(), gap = 6, edge = 4;
+    const widths = captions.map(({text}) => Math.ceil(text.getComputedTextLength()) + 12);
+    captions.forEach(({button, rect, box: [x, y, w, h], side}, i) => {
+      const left = offsetX + (x - view[0]) * scale, top = offsetY + (y - view[1]) * scale;
+      const width = widths[i];
+      let bx = side === 'below' ? left : side === 'above' ? left + (w * scale - width) / 2 : left - width - gap;
+      let by = side === 'below' ? top + h * scale + gap : side === 'above' ? top - CAPTION_HEIGHT - gap : top + (h * scale - CAPTION_HEIGHT) / 2 + gap;
+      by = Math.max(edge, Math.min(by, r.height - CAPTION_HEIGHT - edge));
+      const right = by < zoom.bottom - r.top + gap ? zoom.left - r.left - gap : r.width - edge;
+      bx = Math.max(edge, Math.min(bx, right - width));
+      rect.setAttribute('width', width);
+      button.setAttribute('transform', `translate(${view[0] + (bx - offsetX) / scale} ${view[1] + (by - offsetY) / scale}) scale(${1 / scale})`);
+    });
   }
 
   function draw() {
     const rows = data.chambers[chamber];
-    const shapes = el('g'), labels = el('g', {class: 'labels', 'aria-hidden': 'true'}), pairs = [];
-    const captions = drawFrames();
+    const shapes = el('g'), labels = el('g', {class: 'labels', 'aria-hidden': 'true'}), islandButtons = drawCaptions();
+    districts = [];
     for (const row of rows) {
       // WebKit does not name a button from an SVG title, so the name is set directly; the title is the hover tooltip.
       const name = `${row.name}, ${row.islands}`;
       const path = el('path', {d: row.d, class: 'district', tabindex: '-1', role: 'button', 'aria-pressed': 'false', 'aria-label': name});
       path.dataset.geo = row.geo;
       const title = el('title'); title.textContent = name; path.append(title);
-      path.addEventListener('click', () => activate(row));
       path.addEventListener('focus', () => showRing(path));
       path.addEventListener('blur', () => showRing(null));
       path.addEventListener('pointerenter', e => showHover(path, e));
       path.addEventListener('pointerleave', e => { showHover(null, e); hideTip(); });
-      path.addEventListener('pointermove', e => showTip(row, e));
       shapes.append(path);
       const text = el('text', {x: row.label[0], y: row.label[1], class: 'label'});
       text.dataset.geo = row.geo;
       text.textContent = row.name.replace(/\D+/g, '');
       labels.append(text);
-      pairs.push([path, text, row]);
+      districts.push({path, text, row});
     }
     showRing(null);
     showHover(null);
     marks = el('g', {class: 'marks', 'aria-hidden': 'true'});
-    svg.replaceChildren(defs, shapes, marks, ring, labels, captions);
+    svg.replaceChildren(defs, islandButtons, shapes, marks, ring, labels);
     stop = null;
-    districts = pairs.map(([path, , row]) => { const b = path.getBBox(); return {path, row, box: [b.x, b.y, b.width, b.height]}; });
-    for (const d of districts) d.path.addEventListener('keydown', e => onKey(e, d));
-    labelInfo = pairs.map(([, text, row], i) => ({text, x: row.label[0], y: row.label[1], size: districts[i].box[2] * districts[i].box[3]}));
+    for (const d of districts) {
+      const b = d.path.getBBox();
+      d.box = [b.x, b.y, b.width, b.height];
+      d.path.addEventListener('keydown', e => onKey(e, d));
+      d.path.addEventListener('pointermove', e => showTip(d, e));
+      d.path.addEventListener('click', e => {
+        const island = e.detail && islandToZoom(d);
+        if (island) { showHover(null); zoom(island); } else activate(d.row);
+      });
+    }
     // A district picked in this chamber stays picked when the map is drawn again.
     pick(picked && rows.includes(picked) ? picked : null);
     showArea();
@@ -629,7 +682,7 @@
   // with the district's rank, 1 for the highest figure, shared by districts with the same figure. Each district's name
   // opens its page, pointing at its row outlines it on the map, and the district picked on the map is marked.
   const order = document.getElementById('map-order'), ORDERS = {high: 'highest first', low: 'lowest first', number: 'by district number', island: 'by island'};
-  const ISLANDS = ['kauai', 'oahu', 'maui', 'hawaii'], islandOf = row => (row.group === 'honolulu' ? 'oahu' : row.group);
+  const ISLANDS = CAPTIONS.map(([g]) => g);
   const districtNumber = geo => Number(geo.split(':')[1]);
   function ordered() {
     const all = allFigures(), known = all.filter(f => f.status !== MISSING), none = all.filter(f => f.status === MISSING);
@@ -825,6 +878,7 @@
     render(next);
   }
   new ResizeObserver(() => refit()).observe(frameEl);
+  document.fonts.ready.then(() => { if (view) render(view); });
 
   // What the rest of the page asks of the map: zoom to a district before its page opens, fit the frame again in a new
   // layout, and go back to all the islands.
@@ -864,7 +918,7 @@
     if (tabs.scrollWidth > tabs.clientWidth && e.target.matches(':focus-visible')) e.target.scrollIntoView({inline: 'nearest', block: 'nearest'});
   });
   svg.addEventListener('focusin', e => {
-    if (!svg.contains(e.relatedTarget) && svg.querySelector(':focus-visible')) showHint('Use the arrow keys to move between districts', 3000);
+    if (e.target.matches('.district:focus-visible') && !e.relatedTarget?.matches('#map .district')) showHint('Use the arrow keys to move between districts', 3000);
   });
   svg.addEventListener('focusout', e => { if (!svg.contains(e.relatedTarget)) updateStop(true); });
 
