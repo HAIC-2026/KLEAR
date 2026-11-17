@@ -14,7 +14,9 @@
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const coarse = window.matchMedia('(pointer: coarse)');
   const SNAP_SHOWN = 0.5, SNAP_FILL = 0.2, SNAP_ALL = 0.8, MIN_WIDTH = 12, DISTRICT_PX = 16, OVERVIEW_PAD = 8;
-  let data = null, chamber = 'house', group = 'all', picked = null, view = null, goal = null, anim = 0, settleTimer = 0, hintTimer = 0;
+  // On Find the switch already reflects the chamber saved for this tab.
+  let chamber = document.querySelector('.chamber-switch [aria-pressed=true]')?.dataset.chamber || 'house';
+  let data = null, group = 'all', picked = null, view = null, goal = null, anim = 0, settleTimer = 0, hintTimer = 0;
   const pointers = new Map();
   let gesture = null, dragged = false, area = null, waiting = null, captions = [], districts = [], stop = null, fitted = null, frameSize = '';
   const zipStatus = document.getElementById('zip-status') || {}, zipMatches = document.getElementById('zip-matches');
@@ -823,12 +825,12 @@
   function setChamber(name) {
     chamber = name;
     document.querySelectorAll(SWITCH).forEach(x => x.setAttribute('aria-pressed', String(x.dataset.chamber === name)));
-    draw();
     document.dispatchEvent(new CustomEvent('klear:chamber', {detail: name}));
+    if (data) draw();
   }
   document.addEventListener('click', e => {
     const b = e.target.closest(SWITCH);
-    if (b && data && b.dataset.chamber !== chamber) setChamber(b.dataset.chamber);
+    if (b && b.dataset.chamber !== chamber) setChamber(b.dataset.chamber);
   });
 
   // Show the district the chat asks about, unless the map already has it picked.
@@ -860,10 +862,13 @@
   let waitingArea = null;
   function showFound(found) {
     waiting = null;
+    const wasShowingArea = Boolean(area);
     area = found;
     if (zipForm) document.getElementById('zip').value = '';
     pick(null);
+    if (!area) zipStatus.textContent = '';
     showArea();
+    if (!area && wasShowingArea) zoom('all');
   }
   document.addEventListener('klear:area', e => { if (data) showFound(e.detail); else waitingArea = e.detail; });
   // Refit when the frame itself changes size, as the page moves between its views, but not when only the window

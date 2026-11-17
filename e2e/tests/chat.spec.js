@@ -175,6 +175,8 @@ test('the examples include ones picked from the district profile, and they go wh
   await expect(local).toHaveCount(2);
   await expect(local.nth(0)).toHaveText(`Which survey years do the housing figures for ${DISTRICT} cover, given the 2023 Maui wildfires?`);
   await expect(local.nth(1)).toHaveText(`Compare poverty in ${DISTRICT} with Honolulu County and the state.`);
+  await expect(page.locator('#examples button').nth(4)).toHaveText('What support programs could residents of this district explore?');
+  await expect(page.locator('#examples button').last()).toHaveText('Which House districts have the highest share of kūpuna?');
   // In one column the questions start folded under More questions.
   const more = page.getByRole('button', {name: 'More questions'});
   if (await more.isVisible()) await more.click();
@@ -212,7 +214,7 @@ test('after the first answer the suggested questions fold to the first, and More
   // start folded, so the question box stays near the top of the Ask tab.
   const wide = page.viewportSize().width >= 1200;
   await expect(shown()).toHaveCount(wide ? total : 1);
-  await expect(shown().first()).toHaveText(/\?$|\.$/);
+  await expect(shown().first()).toHaveText('Give me a socioeconomic profile of this district.');
   if (wide) await expect(more).toBeHidden(); else await expect(more).toBeVisible();
 
   await ask(page);

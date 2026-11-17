@@ -23,7 +23,7 @@ from klear.agent.earlier import parse_earlier
 from klear.agent.tools import Session, ToolError
 from klear.config import ROOT, MissingSecretError, load_secret
 from klear.eval.contract import geo_display
-from klear.members import Member, by_name, reading_name
+from klear.members import Member, all_members, by_name, reading_name
 from klear.store.db import missing_columns
 from klear.web import display
 from klear.web.about import about
@@ -59,6 +59,7 @@ PUBLIC = (
     "/style.css",
     "/logo.svg",
     "/islands.svg",
+    "/social-preview.png",
     "/favicon.svg",
     "/favicon.ico",
     "/apple-touch-icon.png",
@@ -93,7 +94,8 @@ MOVED = {
 HEALTH = ("/healthz", "/api/health")
 READY = ("/readyz", "/api/ready")
 # A district's own address, like /district/house-22. It serves the page, which then opens that district.
-DISTRICT_PAGE = re.compile(r"/district/(?:house|senate)-[0-9]{1,2}")
+DISTRICT_PAGE = re.compile(r"/district/(house|senate)-([0-9]{1,2})")
+DISTRICT_LIMITS = {"house": 51, "senate": 25}
 BUSY = threading.BoundedSemaphore(3)
 PER_MINUTE = 6
 # Largest chat request: a question, the last two questions and their indicator ids.
@@ -110,6 +112,28 @@ def member_match(m: Member) -> dict:
         "name": geo_display(m.geo_type, m.geo_id, ""),
         "member": f"{m.title} {reading_name(m.name)}",
     }
+
+
+def add_match_members(con, matches: list[dict]) -> None:
+    """Name the members of districts found directly or through a place, ZIP code or address."""
+    rows = [
+        row
+        for match in matches
+        for row in (match, *match.get("overlaps", []))
+        if row.get("geo", "").startswith(("house:", "senate:")) and "member" not in row
+    ]
+    if not rows:
+        return
+    try:
+        members = all_members(con)
+    except duckdb.Error:  # an older store can still resolve places without a member listing
+        return
+    names = defaultdict(list)
+    for m in members:
+        names[m.geo].append(f"{m.title} {reading_name(m.name)}")
+    for row in rows:
+        if listed := names.get(row["geo"]):
+            row["member"] = " and ".join(listed)
 
 
 def log_failure(where: str) -> None:
@@ -222,9 +246,9 @@ class Handler(SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
-    def page(self, body: bytes):
-        """A page made when it is asked for, not read from a file."""
-        self.send_response(200)
+    def page(self, body: bytes, *, status=200):
+        """Send an HTML page with the given status."""
+        self.send_response(status)
         self.send_header("Content-Type", "text/html; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
@@ -304,6 +328,7 @@ class Handler(SimpleHTTPRequestHandler):
             try:
                 with self.connect() as con:
                     result = self.resolve(Session(con, self.geocoder), text)
+                    add_match_members(con, result.get("matches", []))
                 return self.reply(200, result)
             except Exception:  # noqa: BLE001 - redact internal errors at the HTTP boundary
                 log_failure("district lookup")
@@ -367,7 +392,10 @@ class Handler(SimpleHTTPRequestHandler):
         if path.path == "/api/map":
             query = parse_qs(path.query)
             return self.shading(query.get("indicator", [""])[0], query.get("chamber", [""])[0])
-        if DISTRICT_PAGE.fullmatch(path.path):
+        if match := DISTRICT_PAGE.fullmatch(path.path):
+            chamber, number = match.groups()
+            if not 1 <= int(number) <= DISTRICT_LIMITS[chamber]:
+                return self.page((STATIC / "index.html").read_bytes(), status=404)
             self.path = "/index.html"
             return super().do_GET()
         if path.path in MOVED:

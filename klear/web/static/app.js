@@ -413,7 +413,7 @@ function route(fresh) {
 // Its matches also light up on the map beside it: the largest place found, with each district's share of its residents.
 const resetFind = lookupForm($('find'), $('find-place'), $('find-status'), $('find-matches'), (geo, name) => { resetFind(); openDistrict(geo, name); }, groups => {
   const g = groups[0], pairs = c => g.rows.filter(r => r.geo.startsWith(`${c}:`)).map(r => [r.geo, r.share ?? 1]);
-  document.dispatchEvent(new CustomEvent('klear:area', {detail: {label: g.place, house: pairs('house'), senate: pairs('senate')}}));
+  document.dispatchEvent(new CustomEvent('klear:area', {detail: g ? {label: g.place, house: pairs('house'), senate: pairs('senate')} : null}));
 });
 
 // The House or Senate switch over the Find page's map and numbers. The map follows it (map.js), the numbers show the
@@ -424,10 +424,6 @@ function showSeats(name) {
   for (const b of document.querySelectorAll('.chamber-switch [data-chamber]')) b.setAttribute('aria-pressed', String(b.dataset.chamber === name));
   try { sessionStorage.setItem(SAVED_CHAMBER, name); } catch { /* blocked */ }
 }
-document.addEventListener('click', e => {
-  const b = e.target.closest('.chamber-switch [data-chamber]');
-  if (b) showSeats(b.dataset.chamber);
-});
 document.addEventListener('klear:chamber', e => showSeats(e.detail));
 
 // Every district by number. Each number is a link to its page, so it works before the script runs and opens in a new
@@ -2307,7 +2303,7 @@ function timesAbove(r, a) {
 }
 
 // Examples that fit the chosen district, from its profile: a wildfire note where the survey years matter, and the
-// measure that stands out most against the state, or else the county. They lead the suggested questions.
+// measure that stands out most against the state, or else the county. They follow the prepared questions.
 function districtExamples(p) {
   counties.set(p.geo, p.county);
   for (const b of $('examples').querySelectorAll('.local')) b.remove();
@@ -2328,7 +2324,7 @@ function districtExamples(p) {
   const questions = [];
   if (p.places.some(x => WILDFIRE_PLACES.includes(x.name))) questions.push(`Which survey years do the housing figures for ${p.district} cover, given the 2023 Maui wildfires?`);
   if (best) questions.push(compareQuestion(best.what, p.district, p.county));
-  $('examples').prepend(...questions.map(question => {
+  statewide.before(...questions.map(question => {
     const b = says('button', question, 'local');
     b.type = 'button';
     if (busy) b.setAttribute('aria-disabled', 'true');
