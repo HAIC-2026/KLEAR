@@ -84,7 +84,8 @@ test('a district opens with the map beside its name, and Search another district
   await page.getByRole('navigation', {name: 'Every district by number'}).getByRole('link', {name: 'House District 22', exact: true}).click();
   await expect(page.locator('#profile-live')).toHaveText(`Profile for ${DISTRICT} loaded.`);
   const map = await page.locator('#district-map').boundingBox(), head = await page.locator('#district-head').boundingBox();
-  if (isMobile) expect(map.y + map.height).toBeLessThanOrEqual(head.y + 1);  // on a phone the map sits over the name
+  // On a phone the name comes first, then the map under it, so the reader knows which district this is at once.
+  if (isMobile) expect(head.y + head.height).toBeLessThanOrEqual(map.y + 1);
   else {
     expect(map.x + map.width).toBeLessThanOrEqual(head.x);  // the map at the left, the name beside it
     expect(Math.abs(map.y - head.y)).toBeLessThan(4);

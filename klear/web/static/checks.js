@@ -123,6 +123,23 @@ function openCheck(name) {
   if (d) d.open = true;
 }
 
+// Whose checks these are: the build that made the data the site serves, or not, and how the latest build attempt went.
+// Status only, with no dates or code versions.
+function renderIdentity(data) {
+  const box = $('checks-identity'), lines = [];
+  const say = (text, kind) => lines.push(node('p', text, kind ? `identity-line ${kind}` : 'identity-line'));
+  if (data.status === 'current') say(`These results are from the build that made the data this site serves. ${data.verdict || ''}`.trim(), 'pass');
+  else if (data.status === 'stale') say('The check results on file come from a different build than the data this site serves, so they are not shown as checks of this data. The operator needs to rebuild the data store, which writes results that match it.', 'fail');
+  else if (data.status === 'unknown') say('This data store does not record which build made it, so these results cannot be matched to the data this site serves.', 'fail');
+  const a = data.attempt;
+  if (a && !a.served) {
+    if (a.replaced) say('A newer build replaced the data after these results were written. Reload the page to see its results.', 'fail');
+    else say(`The latest build attempt did not replace the data${a.reason ? ` (${a.reason})` : ''}, so the site still serves the data these results check.${a.verdict ? ` Its own result: ${a.verdict}` : ''}`, 'fail');
+  }
+  box.replaceChildren(...lines);
+  box.hidden = !lines.length;
+}
+
 function renderLimits(data) {
   const items = [...(data.caveats || []), ...((data.eval || {}).limits || [])];
   if (!items.length) return;
@@ -144,6 +161,8 @@ async function load() {
   }
   const checks = data.checks || [];
   $('checks-loading').hidden = true;
+  renderIdentity(data);
+  if (data.status === 'stale') return;
   renderTable(checks);
   renderPopulation(checks.find(c => c.name === 'population'));
   renderAccuracy(checks.find(c => c.name === 'apportionment'));

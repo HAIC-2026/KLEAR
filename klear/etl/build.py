@@ -89,6 +89,7 @@ from klear.validation.places import check_places, check_places_county
 from klear.validation.plan_report import check_plan_report
 from klear.validation.population import check_population
 from klear.validation.report import (
+    ATTEMPT_NAME,
     CAVEATS,
     check_view,
     eval_tables,
@@ -781,9 +782,13 @@ def build(
         "caveats": CAVEATS,
         "eval": ev | {"tables": eval_tables(ev)},
     }
-    (build_dir / "validation.json").write_text(
-        json.dumps(_clean(validation), indent=1, ensure_ascii=False, default=str) + "\n", encoding="utf-8"
-    )
+    # Every attempt's report goes to validation-attempt.json. validation.json is the report of the store the site
+    # serves, so it changes only with the store: a build that keeps the previous store leaves that store's report in
+    # place, and the website compares the report's built_at with the store's own before showing it (klear/web/checks.py).
+    report = json.dumps(_clean(validation), indent=1, ensure_ascii=False, default=str) + "\n"
+    (build_dir / ATTEMPT_NAME).write_text(report, encoding="utf-8")
+    if store_status["replaced"]:
+        (build_dir / "validation.json").write_text(report, encoding="utf-8")
     meta = manifest | {"raw_files": checks[-1].notes[0], "eval": validation["eval"]}
     docs_path.parent.mkdir(parents=True, exist_ok=True)
     docs_path.write_text(render_validation(checks, skipped, meta), encoding="utf-8")

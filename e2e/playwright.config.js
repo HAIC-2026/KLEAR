@@ -2,8 +2,11 @@
 // with a scripted stand-in for the model, so the tests need no network, data build or API key (see serve.py).
 import {defineConfig, devices} from '@playwright/test';
 
-// KLEAR_E2E_PORT lets two checkouts run their browser tests at once without sharing (and reusing) one server.
+// KLEAR_E2E_PORT lets two checkouts run their browser tests at once without sharing (and reusing) one server. A second
+// server, BASIC_PORT, runs the same site with no assistant, as with no API key, for the basic lookup's own answers.
 const PORT = Number(process.env.KLEAR_E2E_PORT) || 8765;
+const BASIC_PORT = Number(process.env.KLEAR_E2E_BASIC_PORT) || PORT + 10;
+process.env.KLEAR_E2E_BASIC_URL = `http://127.0.0.1:${BASIC_PORT}`;
 
 export default defineConfig({
   testDir: './tests',
@@ -25,12 +28,22 @@ export default defineConfig({
     // WebKit on a phone screen stands in for Safari on an iPhone.
     {name: 'phone-webkit', use: {...devices['iPhone 13']}},
   ],
-  webServer: {
-    command: `uv run python -m e2e.serve --port ${PORT}`,
-    cwd: '..',
-    url: `http://127.0.0.1:${PORT}/`,
-    reuseExistingServer: !process.env.CI,
-    timeout: 120_000,
-    stdout: 'pipe',
-  },
+  webServer: [
+    {
+      command: `uv run python -m e2e.serve --port ${PORT}`,
+      cwd: '..',
+      url: `http://127.0.0.1:${PORT}/`,
+      reuseExistingServer: !process.env.CI,
+      timeout: 120_000,
+      stdout: 'pipe',
+    },
+    {
+      command: `uv run python -m e2e.serve --port ${BASIC_PORT} --basic-only`,
+      cwd: '..',
+      url: `http://127.0.0.1:${BASIC_PORT}/`,
+      reuseExistingServer: !process.env.CI,
+      timeout: 120_000,
+      stdout: 'pipe',
+    },
+  ],
 });

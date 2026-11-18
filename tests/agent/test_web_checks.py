@@ -1,4 +1,5 @@
-"""The How we check KLEAR page reads the latest build's validation.json and nothing else."""
+"""The How we check KLEAR page reads the served store's validation.json, shows it only when it is that store's, and
+says how the latest build attempt went."""
 
 import json
 import re
@@ -9,6 +10,7 @@ from http.client import HTTPConnection
 
 import pytest
 
+from klear.store.db import open_store
 from klear.validation import CheckResult
 from klear.validation.report import CAVEATS, check_view, eval_tables, render_validation, skipped_view, verdict
 from klear.web import __main__ as web
@@ -101,9 +103,90 @@ def test_report_from_an_older_build_gets_its_text_from_the_report_code(tmp_path)
 def test_eval_tables_say_what_is_missing():
     ev = {"practice": {"error": "no recorded run"}, "heldout": EVAL["heldout"]}
     rows = eval_tables(ev)[0]["rows"]
-    assert rows[0] == ["Model", "not available", "claude-haiku-5-5"]
+    assert rows[1] == ["Model", "not available", "claude-haiku-5-5"]
     assert ["Answered correctly", "not available", "89 of 100 (89%)"] in rows
     assert len(eval_tables(ev)) == 1
+
+
+def test_eval_tables_name_each_kind_of_run_and_count_what_was_scored():
+    practice = EVAL["practice"] | {"questions": 77, "answered": 75}
+    rows = eval_tables({"practice": practice, "heldout": EVAL["heldout"]})[0]["rows"]
+    assert rows[0] == [
+        "Kind of run",
+        "Recorded live answers, scored again against this build's data (no new model calls)",
+        "Live run on questions kept outside this repository (published totals only)",
+    ]
+    assert rows[2] == ["Run", "Recorded 2026-11-01 18:35 HST, rescored with this build", "2026-11-03 HST"]
+    assert rows[3] == ["Questions", "77 in the set: 75 answered, 2 with no recorded answer", "100"]
+
+
+def _store_built(path, built_at):
+    """An empty store that records only its build, as the checks endpoint reads it."""
+    con = open_store(path)
+    con.execute("DELETE FROM build_info")
+    con.execute("INSERT INTO build_info VALUES (?, 'abc1234', 0, 'ok', '[]', '{}')", [built_at])
+    con.close()
+
+
+SERVED = validation()["built_at"]
+
+
+def _attempt(built_at, replaced, reason=None):
+    return validation() | {
+        "built_at": built_at,
+        "verdict": "Gated checks failed: source_fidelity." if not replaced else validation()["verdict"],
+        "store": {"replaced": replaced, "reason": reason, "kept_previous": not replaced},
+    }
+
+
+def test_a_report_matching_the_served_store_is_its_checks(tmp_path):
+    (tmp_path / "validation.json").write_text(json.dumps(validation()), encoding="utf-8")
+    (tmp_path / "validation-attempt.json").write_text(json.dumps(validation()), encoding="utf-8")
+    page = checks_report(tmp_path / "validation.json", SERVED, tmp_path / "validation-attempt.json")
+    assert page["status"] == "current" and len(page["checks"]) == 4
+    assert page["attempt"] == {
+        "served": True,
+        "replaced": True,
+        "reason": None,
+        "verdict": validation()["verdict"],
+    }
+
+
+def test_a_failed_rebuild_keeps_the_served_report_and_says_the_attempt_failed(tmp_path):
+    (tmp_path / "validation.json").write_text(json.dumps(validation()), encoding="utf-8")
+    failed = _attempt("2026-11-17 09:00:00 HST", False, "gated checks failed: source_fidelity")
+    (tmp_path / "validation-attempt.json").write_text(json.dumps(failed), encoding="utf-8")
+    page = checks_report(tmp_path / "validation.json", SERVED, tmp_path / "validation-attempt.json")
+    assert page["status"] == "current" and len(page["checks"]) == 4
+    assert page["attempt"] == {
+        "served": False,
+        "replaced": False,
+        "reason": "gated checks failed: source_fidelity",
+        "verdict": "Gated checks failed: source_fidelity.",
+    }
+
+
+def test_a_report_from_another_build_is_stale_and_shows_no_checks(tmp_path):
+    # As an older build left it: the failed attempt's report beside the store it did not replace.
+    other = _attempt("2026-11-17 09:00:00 HST", False, "gated checks failed: source_fidelity")
+    (tmp_path / "validation.json").write_text(json.dumps(other), encoding="utf-8")
+    page = checks_report(tmp_path / "validation.json", SERVED)
+    assert page == {"status": "stale", "attempt": None, "checks": [], "eval": {}, "caveats": []}
+    # A store that records no build cannot be matched, so its report is shown as unknown, never as current.
+    assert checks_report(tmp_path / "validation.json", None)["status"] == "unknown"
+
+
+def test_checks_endpoint_matches_the_report_to_the_served_store(server):
+    port, build = server
+    _store_built(build / "klear.duckdb", SERVED)
+    (build / "validation.json").write_text(json.dumps(validation()), encoding="utf-8")
+    body = json.loads(get(port, "/api/checks")[1])
+    assert body["status"] == "current" and body["attempt"] is None
+    (build / "validation.json").write_text(
+        json.dumps(_attempt("2026-11-17 09:00:00 HST", True)), encoding="utf-8"
+    )
+    body = json.loads(get(port, "/api/checks")[1])
+    assert body["status"] == "stale" and body["checks"] == []
 
 
 @pytest.fixture

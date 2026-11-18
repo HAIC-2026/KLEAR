@@ -1,14 +1,17 @@
 """Questions that name their own place, asked with no district chosen, and follow-ups that keep their subject."""
 
+import pandas as pd
 import pytest
 import yaml
 
 from klear.agent.earlier import Exchange, earlier_block, parse_earlier
 from klear.eval.agents import ScriptClient, load_script
 from klear.eval.golden import ROOT
-from klear.web.answers import NAME_A_PLACE, NEEDS_ASSISTANT
+from klear.store.db import add_coverage, add_facts, add_indicators
+from klear.web.answers import NAME_A_PLACE
 from klear.web.assistant import Assistant, DailyBudget, basic
 from tests.agent.fake_client import FakeClient, tool
+from tests.fixtures.small_store import _fact
 
 KUPUNA = "How many kūpuna live in House District 22?"
 
@@ -56,9 +59,84 @@ def test_a_county_or_the_whole_state_is_answered_for_itself(small_con):
 
 
 @pytest.mark.parametrize("district", [None, ("house", "022")])
-def test_a_question_ranking_every_district_needs_the_assistant(small_con, district):
+def test_a_ranking_the_store_cannot_make_says_so_and_points_to_rankings(small_con, district):
     result = basic(small_con, "Which Senate districts have the highest uninsured rate?", district)
-    assert result["text"] == NEEDS_ASSISTANT and result["facts"] == []
+    assert result["refusal"] == "not_available" and result["facts"] == []
+    assert result["text"].startswith("I could not match that ranking to a published district measure.")
+    assert result["actions"] == [{"text": "Open Rankings", "url": "/rankings"}]
+    assert "elsewhere" not in result
+
+
+@pytest.mark.parametrize("district", [None, ("house", "022"), ("senate", "012")])
+def test_a_ranking_question_is_answered_from_the_store_with_its_rankings_link(small_con, district):
+    result = basic(small_con, "Which House districts have the most kūpuna?", district)
+    lead = "\n".join(result["lead"])
+    assert result["refusal"] == "none" and result["mode"] == "basic"
+    assert lead.startswith("House districts with the most kūpuna (65 and over), from KLEAR's data store:")
+    # House 22's range sits above House 23's, so each is a group of its own, highest first.
+    assert "- First group: House District 22 (1,000 ± 100)." in lead
+    assert "- Next group: House District 23 (100 ± 80)." in lead
+    assert {f["geography"] for f in result["facts"]} == {"House District 22", "House District 23"}
+    assert "district" not in result and result["subject"]["indicators"] == ["pop_65_plus"]
+    lowest = basic(small_con, "Which House districts have the fewest kūpuna?", district)
+    assert "- First group: House District 23 (100 ± 80)." in "\n".join(lowest["lead"])
+
+
+def _kupuna_share(con):
+    add_indicators(
+        con,
+        pd.DataFrame(
+            [("pct_65_plus", "Percent of population 65 years and over", "percent", "people", None, False)],
+            columns=["indicator_id", "label", "unit", "universe", "acs_var", "additive"],
+        ),
+    )
+    add_coverage(
+        con,
+        pd.DataFrame([("pct_65_plus", g) for g in ("house", "senate")], columns=["indicator_id", "geo_type"]),
+    )
+    add_facts(
+        con,
+        pd.DataFrame(
+            [
+                _fact("house", "022", "pct_65_plus", 18.5, 1.5),
+                _fact("house", "023", "pct_65_plus", 22.0, 1.6),
+                _fact("senate", "012", "pct_65_plus", 19.0, 1.2),
+            ]
+        ),
+    )
+    return con
+
+
+@pytest.mark.parametrize(
+    ("question", "chamber", "first"),
+    [
+        (
+            "Which House districts have the highest share of kūpuna?",
+            "house",
+            "House District 23 (22.0% ± 1.6 points)",
+        ),
+        (
+            "Which Senate districts have the highest share of kūpuna?",
+            "senate",
+            "Senate District 12 (19.0% ± 1.2 points)",
+        ),
+    ],
+)
+def test_the_kupuna_ranking_starter_is_answered_with_its_measure_and_chamber(
+    small_con, question, chamber, first
+):
+    result = basic(_kupuna_share(small_con), question, None)
+    assert result["refusal"] == "none" and result["subject"]["indicators"] == ["pct_65_plus"]
+    assert f"- First group: {first}." in result["lead"][0]
+    assert result["actions"] == [
+        {
+            "text": f"See every {chamber.title()} district ranked and on the map",
+            "url": f"/rankings?measure=pct_65_plus&chamber={chamber}",
+        }
+    ]
+    # A share is never answered with a count, which would rank districts by their size.
+    count_only = basic(small_con, "Which House districts have the highest share of keiki?", None)
+    assert count_only["refusal"] == "not_available" and count_only["facts"] == []
 
 
 def test_a_question_with_no_place_says_what_to_add(small_con):

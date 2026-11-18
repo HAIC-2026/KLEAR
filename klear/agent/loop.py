@@ -141,16 +141,25 @@ class KlearAgent:
         review = self.reviews * (REVIEW_INPUT_CAP * rate["input"] + REVIEW_MAX_TOKENS * rate["output"])
         return (answer + review) / 1e6
 
+    def _shown(self, geo: tuple[str, str]) -> str:
+        row = self.con.execute(
+            "SELECT name FROM geography WHERE geo_type = ? AND geo_id = ?", list(geo)
+        ).fetchone()
+        return f"{geo_display(*geo, row[0]) if row else ':'.join(geo)} ({geo[0]}:{geo[1]})"
+
     def _prompt(
-        self, question: str, context: tuple[str, str] | None, earlier: tuple[Exchange, ...] = ()
+        self,
+        question: str,
+        context: tuple[str, str] | None,
+        earlier: tuple[Exchange, ...] = (),
+        pair: tuple[tuple[str, str], ...] = (),
     ) -> str:
         parts = [question]
         if context is not None:
-            row = self.con.execute(
-                "SELECT name FROM geography WHERE geo_type = ? AND geo_id = ?", list(context)
-            ).fetchone()
-            shown = geo_display(*context, row[0]) if row else f"{context[0]}:{context[1]}"
-            parts.append(f"Selected district: {shown} ({context[0]}:{context[1]})")
+            parts.append(f"Selected district: {self._shown(context)}")
+        if len(pair) == 2:
+            # The Compare page's two districts, which words like "these two districts" point at.
+            parts.append(f"Districts compared on the page: {self._shown(pair[0])} and {self._shown(pair[1])}")
         if block := earlier_block(self.con, earlier):
             parts.append(block)
         return "\n\n".join(parts)
@@ -212,8 +221,8 @@ class KlearAgent:
                 self._sleep(delay)
         return fn(**req)
 
-    def _run(self, session: Session, question: str, context, earlier=()) -> tuple[Answer, list[int]]:
-        messages = [{"role": "user", "content": _text(self._prompt(question, context, earlier))}]
+    def _run(self, session: Session, question: str, context, earlier=(), pair=()) -> tuple[Answer, list[int]]:
+        messages = [{"role": "user", "content": _text(self._prompt(question, context, earlier, pair))}]
         totals = [0, 0, 0, 0]
         tried: dict = {}
         tries: list = []
@@ -301,13 +310,16 @@ class KlearAgent:
         question: str,
         context: tuple[str, str] | None,
         earlier: tuple[Exchange, ...] = (),
+        *,
+        pair: tuple[tuple[str, str], ...] = (),
     ) -> tuple[Answer, Usage]:
-        """earlier holds the reader's last questions in this tab, which only resolve words like that or there."""
+        """earlier holds the reader's last questions in this tab, which only resolve words like that or there, and
+        pair the two districts the website's Compare page sets side by side."""
         start = time.monotonic()
         self.trace: list[dict] = []
         session = Session(self.con, self.geocoder)
         session.context = context
         session.question = question
-        answer, (inp, out, write, read) = self._run(session, question, context, earlier)
+        answer, (inp, out, write, read) = self._run(session, question, context, earlier, tuple(pair))
         self.seen = seen(session)
         return answer, Usage(inp, out, time.monotonic() - start, write, read)

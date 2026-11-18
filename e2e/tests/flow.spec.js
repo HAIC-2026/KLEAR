@@ -42,7 +42,7 @@ test('search, choose, read the profile, ask, open a source, and come back', asyn
   await expect(jumps.locator('.sec-num')).toHaveText(['1', '2', '3', '4', '5']);
   await jumps.getByRole('link', {name: 'People'}).click();
   // The row's label, not its "What this means" button, which names the label to screen readers.
-  await expect(profile.locator('.profile-label', {hasText: 'Kūpuna (65 and over)'})).toBeVisible();
+  await expect(profile.locator('.profile-label', {hasText: /^Kūpuna \(65 and over\)/})).toBeVisible();
 
   // Ask: the conversation is not a live region, so long answers are not read aloud as they arrive.
   // A short status line says the answer is ready, and focus moves to the new answer's heading.

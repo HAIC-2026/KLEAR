@@ -25,6 +25,7 @@ from klear.config import ROOT, MissingSecretError, load_secret
 from klear.eval.contract import geo_display
 from klear.members import Member, all_members, by_name, reading_name
 from klear.store.db import missing_columns
+from klear.validation.report import ATTEMPT_NAME
 from klear.web import display
 from klear.web.about import about
 from klear.web.assistant import DAILY_CAP, Assistant, DailyBudget, basic
@@ -288,6 +289,18 @@ class Handler(SimpleHTTPRequestHandler):
             raise RuntimeError("Store built by an older KLEAR")
         return duckdb.connect(str(self.store), read_only=True)
 
+    def served_build(self) -> str | None:
+        """The served store's built_at, which its validation report must carry to count as its checks, or None when
+        there is no readable store or it records no build."""
+        try:
+            if not self.store.is_file() or outdated(self.store):
+                return None
+            with self.connect() as con:
+                row = con.execute("SELECT built_at FROM build_info").fetchone()
+        except Exception:  # noqa: BLE001 - a store that cannot be read has no build to match
+            return None
+        return row[0] if row else None
+
     def readiness(self):
         """Whether the store is loaded and current, its build day, the prepared answers for it and whether the
         assistant is on. Reads only the store and the prepared answers file: no model call, no keys, no paths."""
@@ -306,12 +319,26 @@ class Handler(SimpleHTTPRequestHandler):
         except Exception:  # noqa: BLE001 - unreadable prepared answers count as none
             prepared = 0
         ready = state == "ok"
+        try:
+            capped = self.assistant is not None and self.assistant.capped()
+        except Exception:  # noqa: BLE001 - an unreadable spend file says nothing about the cap
+            capped = False
         body = {
             "ready": ready,
             "store": state,
             "built": built,
             "prepared_answers": prepared,
             "assistant": "off" if self.assistant is None else "on",
+            # What a visitor's question can use, so the page says how it will be answered and where it goes: the
+            # free lookup in the store, the AI assistant (and whether today's spending cap has stopped it), the
+            # prepared starter answers, and street address search through the Census geocoder.
+            "capabilities": {
+                "lookup": ready,
+                "assistant": self.assistant is not None and ready,
+                "assistant_capped": capped,
+                "prepared_answers": prepared > 0,
+                "address_lookup": self.geocoder is not None,
+            },
         }
         return self.reply(200 if ready else 503, body)
 
@@ -350,6 +377,8 @@ class Handler(SimpleHTTPRequestHandler):
         if path.path in ("/api/profile", "/api/profile.csv"):
             district = parse_qs(path.query).get("district", [""])[0]
             return self.profile(district, as_csv=path.path.endswith(".csv"))
+        if path.path == "/api/compare":
+            return self.comparison(parse_qs(path.query).get("d", [""])[0])
         if path.path == "/api/outreach":
             query = parse_qs(path.query)
             pair = query.get("pair", [""])[0] or OUTREACH_DEFAULT
@@ -382,7 +411,12 @@ class Handler(SimpleHTTPRequestHandler):
                 )
         if path.path == "/api/checks":
             try:
-                return self.reply(200, checks_report(self.store.parent / "validation.json"))
+                report = checks_report(
+                    self.store.parent / "validation.json",
+                    self.served_build(),
+                    self.store.parent / ATTEMPT_NAME,
+                )
+                return self.reply(200, report)
             except Exception:  # noqa: BLE001 - redact internal errors at the HTTP boundary
                 log_failure("checks")
                 return self.reply(
@@ -457,6 +491,19 @@ class Handler(SimpleHTTPRequestHandler):
             log_failure("profile")
             return self.reply(503, {"error": "The district profile is unavailable right now."})
 
+    def comparison(self, text: str):
+        """Compare's figures: one or two districts' profiles aligned row by row, read from the store with no model
+        call, so each row holds every district's figure, or why it has none."""
+        if len(text) > 40:
+            return self.reply(400, {"error": "Choose one or two stored House or Senate districts."})
+        try:
+            return self.reply_json(200, self.server.profiles.comparison(self.store, text))
+        except InvalidDistrict:
+            return self.reply(400, {"error": "Choose one or two stored House or Senate districts."})
+        except Exception:  # noqa: BLE001 - redact internal errors at the HTTP boundary
+            log_failure("comparison")
+            return self.reply(503, {"error": "The comparison is unavailable right now."})
+
     def outreach(self, pair: str, chamber: str):
         """A chamber's districts in tiers by a group that meets a program's income test, read from the store with
         no model call."""
@@ -502,6 +549,14 @@ class Handler(SimpleHTTPRequestHandler):
             # No district means the question names its own place, or asks about the whole state.
             if district is not None and not isinstance(district, str):
                 raise TypeError()
+            # The two districts the Compare page sets side by side, which "these two districts" points at.
+            compared = data.get("compare")
+            if compared is not None and (
+                not isinstance(compared, list)
+                or len(compared) != 2
+                or not all(isinstance(g, str) and len(g) <= 16 for g in compared)
+            ):
+                raise TypeError()
         except (ValueError, TypeError):
             return self.reply(400, {"error": "Enter a question of up to 2,000 characters."})
         if not _allowed(self.client_address[0]):
@@ -520,18 +575,23 @@ class Handler(SimpleHTTPRequestHandler):
             with self.connect() as con:
                 try:
                     selected = None if district is None else _district(con, district)
+                    pair = () if compared is None else tuple(_district(con, g) for g in compared)
                 except ValueError:
                     return self.reply(400, {"error": "Choose a valid stored House or Senate district."})
+                if len(set(pair)) == 1:
+                    pair = ()
                 # Earlier questions from this tab are checked here, used for this answer only and never kept.
                 try:
                     earlier = parse_earlier(con, data.get("earlier"))
                 except ValueError:
                     return self.reply(400, {"error": "Reload the page, then ask again."})
                 if self.assistant is None:
-                    result = basic(con, question.strip(), selected, geocoder=self.geocoder, earlier=earlier)
+                    result = basic(
+                        con, question.strip(), selected, geocoder=self.geocoder, earlier=earlier, pair=pair
+                    )
                 else:
                     result = self.assistant.ask(
-                        con, question.strip(), selected, geocoder=self.geocoder, earlier=earlier
+                        con, question.strip(), selected, geocoder=self.geocoder, earlier=earlier, pair=pair
                     )
             self.reply(200, result)
         except Exception:  # noqa: BLE001 - redact internal errors at the HTTP boundary

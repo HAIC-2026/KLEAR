@@ -59,16 +59,43 @@
   }
   loadSources();
 
-  // The section list beside the page marks the section being read.
+  // Whether this site's AI assistant is on right now, so the privacy section says where questions go today.
+  async function loadMode() {
+    const line = $('privacy-mode');
+    if (!line) return;
+    let c = null;
+    try { c = ((await (await fetch('/api/ready')).json()) || {}).capabilities; } catch { return; }
+    if (!c || typeof c !== 'object') return;
+    line.textContent = !c.assistant
+      ? 'Right now this site answers with its basic lookup only: no question is sent to an AI provider.'
+      : c.assistant_capped
+        ? 'Right now the AI assistant has reached today’s spending limit, so the basic lookup answers and no question is sent to an AI provider until the day ends (HST).'
+        : 'Right now the AI assistant is on, so questions without a prepared answer go to Anthropic.';
+    line.hidden = false;
+  }
+  loadMode();
+
+  // The section list beside the page marks the section being read: the last one whose top has passed a line a third of
+  // the way down the window, worked out from where the sections are now, so a section that grows as its results load
+  // (the checks) keeps its mark. At the foot of the page, the last section.
   const links = [...document.querySelectorAll('.data-nav a')];
-  const watch = new IntersectionObserver(entries => {
-    for (const e of entries) {
-      if (!e.isIntersecting) continue;
-      for (const a of links) {
-        if (a.getAttribute('href') === `#${e.target.id}`) a.setAttribute('aria-current', 'location'); else a.removeAttribute('aria-current');
-      }
-    }
-  }, {rootMargin: '-10% 0px -60% 0px'});
-  for (const a of links) { const s = document.querySelector(a.getAttribute('href')); if (s) watch.observe(s); }
-  if (links.length && !location.hash) links[0].setAttribute('aria-current', 'location');
+  const sections = links.map(a => document.querySelector(a.getAttribute('href')));
+  let frame = 0;
+  function markCurrent() {
+    frame = 0;
+    const line = innerHeight / 3, page = document.scrollingElement;
+    let at = 0;
+    sections.forEach((s, i) => { if (s && s.getBoundingClientRect().top <= line) at = i; });
+    if (page.scrollTop > 0 && page.scrollTop + page.clientHeight >= page.scrollHeight - 1) at = sections.length - 1;
+    links.forEach((a, i) => { if (i === at) a.setAttribute('aria-current', 'location'); else a.removeAttribute('aria-current'); });
+  }
+  const schedule = () => { if (!frame) frame = requestAnimationFrame(markCurrent); };
+  if (links.length) {
+    addEventListener('scroll', schedule, {passive: true});
+    addEventListener('resize', schedule);
+    addEventListener('hashchange', schedule);
+    const grow = new ResizeObserver(schedule);
+    for (const s of sections) if (s) grow.observe(s);
+    schedule();
+  }
 })();

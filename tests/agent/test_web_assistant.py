@@ -13,7 +13,7 @@ from klear.eval.agents import Usage
 from klear.eval.spend import load_prices
 from klear.web import __main__ as web
 from klear.web import display
-from klear.web.assistant import BASIC, Assistant, BudgetExceeded, DailyBudget
+from klear.web.assistant import BASIC, CAPPED, Assistant, BudgetExceeded, DailyBudget
 from tests.agent.fake_client import CachingClient, FakeClient, api_error, tool
 from tests.eval.conftest import _home  # noqa: F401
 
@@ -112,7 +112,8 @@ def test_cap_reached_uses_basic_lookup_without_calls(small_con, tmp_path):
     fake = FakeClient(SCRIPT)
     tiny = DailyBudget(0.0, tmp_path / "web_spend.json")
     result = Assistant(tiny, client=fake).ask(small_con, "How many kūpuna live here?", DISTRICT)
-    assert result["mode"] == "basic" and result["lead"] == [BASIC]
+    # The page says the spending cap was reached, which differs from the assistant failing.
+    assert result["mode"] == "basic" and result["lead"] == [CAPPED] and result["fallback"] == "capped"
     assert result["tiles"][0]["value"] == "1,000" and result["tiles"][0]["spread"] == "± 100"
     assert fake.calls == 0
 
@@ -120,7 +121,7 @@ def test_cap_reached_uses_basic_lookup_without_calls(small_con, tmp_path):
 def test_api_error_falls_back_and_keeps_full_hold(small_con, budget):
     fake = FakeClient(error=api_error(anthropic.InternalServerError, 500))
     result = Assistant(budget, client=fake).ask(small_con, "How many kūpuna live here?", DISTRICT)
-    assert result["mode"] == "basic" and result["lead"] == [BASIC]
+    assert result["mode"] == "basic" and result["lead"] == [BASIC] and result["fallback"] == "failed"
     assert budget.spent() > 0.01
 
 

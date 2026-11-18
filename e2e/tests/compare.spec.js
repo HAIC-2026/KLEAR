@@ -28,7 +28,7 @@ test('a rate shows the district, county and state on one row, and how far apart 
 test('a total sits beside the county and state totals, with no comparison and no share sentence', async ({page}) => {
   await openProfile(page);
   const table = page.getByRole('table', {name: /^People:/});
-  const row = measure(table, 'Kūpuna (65 and over)');
+  const row = measure(table, /^Kūpuna \(65 and over\)/);
   // Median age in the same table is compared, so the last column is there and this row leaves it empty.
   await expect(row.getByRole('cell')).toHaveText([/1,000\s*± 600$/, /5,000\s*± 50$/, /9,000$/, '']);
   await expect(row.locator('.compare-line')).toHaveCount(0);
@@ -101,7 +101,7 @@ test('Compare shows a rate or count gap once, under the higher figure', async ({
   await expect(rate.locator('.num')).toHaveText(['7.9%', '12.3%']);
   await expect(rate.locator('.compare-line')).toHaveText(['▲ 4.4 points above House 23']);
   await expect(rate.locator('.cmp-figure').nth(1)).toContainText('▲ 4.4 points above House 23');
-  const count = pairMeasure(page, 'People', 'Kūpuna (65 and over)');
+  const count = pairMeasure(page, 'People', /^Kūpuna \(65 and over\)/);
   await expect(count.locator('.num')).toHaveText(['100', '1,000']);
   await expect(count.locator('.compare-line')).toHaveText(['▲ 900% above House 23']);
   await expect(page.locator('.cmp-table + .profile-key').first()).toContainText('Percent gaps use the lower figure as the baseline.');
@@ -109,16 +109,85 @@ test('Compare shows a rate or count gap once, under the higher figure', async ({
 
 test('Compare shows one reading and no gap when rates overlap', async ({page}) => {
   // Widen House 23's range so it overlaps House 22's while the estimates still differ by 4.4 points.
-  await page.route(url => url.pathname === '/api/profile' && url.searchParams.get('district') === 'house:023', async route => {
-    const response = await route.fetch(), profile = await response.json();
+  await page.route(url => url.pathname === '/api/compare', async route => {
+    const response = await route.fetch(), body = await response.json();
+    const profile = body.districts.find(p => p.geo === 'house:023');
     for (const r of [...profile.headline, ...profile.sections.flatMap(s => s.rows)]) {
       if (r.id === 'pct_people_poverty') Object.assign(r, {low: 5.4, high: 10.4, spread: '± 2.5 points'});
     }
-    await route.fulfill({response, json: profile});
+    await route.fulfill({response, json: body});
   });
   await page.goto('/compare?d=house:022,house:023');
   const rate = pairMeasure(page, 'At a glance', 'People below the poverty level');
   await expect(rate.locator('.num')).toHaveText(['12.3%', '7.9%']);
   await expect(rate.locator('.compare-line')).toHaveText(['≈ No clear difference']);
   await expect(rate.getByRole('cell', {name: 'No clear difference', exact: true})).toHaveAttribute('colspan', '2');
+});
+
+// The five industries in the fixture: House 22's three largest are education, retail and food; House 23's are
+// education, professional services and public administration. Each district has a figure for all five.
+const INDUSTRIES = ['Work in education, health or social services', 'Work in retail trade', 'Work in hotels, restaurants or recreation',
+  'Work in professional or business services', 'Work in government (public administration)'];
+const industriesOf = page => page.getByRole('table', {name: /^Work and education: .*side by side$/}).locator('tbody .cmp-measure')
+  .evaluateAll(labels => labels.map(l => l.firstChild.textContent.trim()));
+
+test('Compare shows every industry either district’s profile shows, with a figure for both', async ({page}) => {
+  await page.goto('/compare?d=house:022,house:023');
+  const work = page.getByRole('table', {name: /^Work and education: .*side by side$/});
+  await expect(work).toBeVisible();
+  for (const label of INDUSTRIES) await expect(work.locator('tbody').filter({hasText: label}).locator('.num')).toHaveCount(2);
+  await expect(work.locator('.cmp-figure.missing')).toHaveCount(0);
+  await expect(pairMeasure(page, 'Work and education', 'Work in retail trade').locator('.num')).toHaveText(['15.0%', '8.0%']);
+  await expect(pairMeasure(page, 'Work and education', 'Work in government (public administration)').locator('.num')).toHaveText(['6.0%', '13.0%']);
+  // The section says which industries it shows, for both districts.
+  await expect(page.getByText(/^The industry rows are the industries among either district's three largest/)).toBeVisible();
+  const order = await industriesOf(page);
+  expect(new Set(order)).toEqual(new Set(INDUSTRIES));
+  // Swapped, the same rows in the same order: only the columns change places.
+  await page.goto('/compare?d=house:023,house:022');
+  await expect(page.getByRole('table', {name: /^Work and education: .*side by side$/})).toBeVisible();
+  expect(await industriesOf(page)).toEqual(order);
+  await expect(pairMeasure(page, 'Work and education', 'Work in retail trade').locator('.num')).toHaveText(['8.0%', '15.0%']);
+});
+
+test('a district with no figure in a row says why, and no figure is filled in', async ({page}) => {
+  await page.goto('/compare?d=house:022,house:023');
+  await expect(page.locator('.cmp-table').first()).toBeVisible();
+  await page.locator('.cmp-section').evaluateAll(all => all.forEach(d => { d.open = true; }));
+  const row = pairMeasure(page, 'Help sites', 'Low-income housing tax credit projects');
+  await expect(row.locator('.cmp-figure').nth(0).locator('.num')).toHaveText('2');
+  await expect(row.locator('.cmp-figure').nth(1)).toHaveText(/No figure\s*Not published for this district$/);
+  await expect(row.locator('.compare-line')).toHaveCount(0);
+});
+
+test('county figures under both districts say they are one county’s, with no difference between the districts', async ({page}) => {
+  await page.goto('/compare?d=house:022,house:023');
+  const reference = page.locator('.cmp-section[data-key="cmp-reference"]');
+  await reference.locator(':scope > summary').click();
+  await expect(reference.getByRole('heading', {name: 'County context'})).toBeVisible();
+  await expect(reference.locator('.profile-scope')).toHaveText('These figures cover all of Honolulu County, where most residents of both House District 22 and House District 23 live. They are not published for districts, so both districts have the same county figure, which cannot show how the two differ.');
+  const table = reference.getByRole('table', {name: 'County context: Honolulu County, side by side'});
+  const row = table.locator('tbody').filter({hasText: 'Unemployment rate'});
+  // One cell for the one county figure, named for the county, and no reading that the districts are alike.
+  await expect(row.locator('.cmp-figure')).toHaveCount(1);
+  await expect(row.locator('.cmp-figure')).toHaveAttribute('colspan', '2');
+  await expect(row.locator('.cmp-place')).toHaveText('Honolulu County');
+  await expect(reference).not.toContainText('No clear difference');
+  await expect(reference.locator('.profile-key')).toHaveCount(0);
+});
+
+test('each compared part keeps its sources and definitions, and they open by keyboard', async ({page}) => {
+  await page.goto('/compare?d=house:022,house:023');
+  const income = page.locator('.cmp-section[data-key="cmp-income-work"]');
+  const sources = income.locator('.sources-fold').first();
+  await sources.locator('summary').focus();
+  await page.keyboard.press('Enter');
+  await expect(sources).toHaveAttribute('open', '');
+  await expect(sources.getByRole('link', {name: /American Community Survey 5-year/}).first()).toBeVisible();
+  await expect(sources).toContainText('2020-2024');
+  const button = income.getByRole('button', {name: 'What this means: People below the poverty level'});
+  await button.focus();
+  await page.keyboard.press('Enter');
+  await expect(button).toHaveAttribute('aria-expanded', 'true');
+  await expect(page.locator(`#${await button.getAttribute('aria-controls')}`)).toBeVisible();
 });

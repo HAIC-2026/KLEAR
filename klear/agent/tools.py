@@ -479,6 +479,10 @@ class Session:
             return []
         return _dedupe([n for n in self._names() if n.plain == key] + self._aliases.get(key, []))
 
+    def is_name(self, key: str) -> bool:
+        """Whether plain words are exactly the name of a town, area or island the store holds."""
+        return bool(self._exact(key))
+
     def _near(self, key: str) -> list[_Named]:
         """Names that start with key as a word, then as letters, then names holding all its words, then the
         closest spellings."""
@@ -912,7 +916,12 @@ class Session:
         return entry
 
     def _district_profile(self, args: dict) -> dict:
-        geo = _geo_arg(args.get("district"))
+        return self.district_profile(_geo_arg(args.get("district")))
+
+    def district_profile(self, geo: tuple[str, str], largest: dict[str, list[str]] | None = None) -> dict:
+        """The district profile tool's result. largest names the rows each PROFILE_LARGEST key shows in place of the
+        district's own largest figures, as when Compare shows the industries either of two districts' profiles
+        shows, for both; it is the website's, never a model argument."""
         if geo[0] not in ("house", "senate") or self._name(*geo) is None:
             raise ToolError("district must be a stored House or Senate district, for example house:022")
         self.resolved.add(geo)
@@ -954,7 +963,7 @@ class Session:
         }
         for title, ids, home, others, scope in sections:
             rows = []
-            for ind in [i for key in ids for i in self._profile_ids(key, home)]:
+            for ind in [i for key in ids for i in self._profile_ids(key, home, largest)]:
                 mine = self._facts_for([ind], [home])
                 out["missing"] += mine["missing"]
                 if mine["facts"]:
@@ -969,20 +978,28 @@ class Session:
             out["sections"].append({"title": title, **scope, "rows": rows})
         return self._noted(out, [geo])
 
-    def _profile_ids(self, key: str, geo: tuple[str, str]) -> list[str]:
-        """A profile row's indicator, or for a PROFILE_LARGEST key the district's largest figures of its group."""
+    def _profile_ids(self, key: str, geo: tuple[str, str], largest: dict | None = None) -> list[str]:
+        """A profile row's indicator, or for a PROFILE_LARGEST key the district's largest figures of its group, or
+        the rows largest names for it."""
         if key not in config.PROFILE_LARGEST:
             return [key]
+        if largest is not None and key in largest:
+            return list(largest[key])
         group, n = config.PROFILE_LARGEST[key]
         return self.largest(group, geo)[:n]
 
-    def largest(self, indicator_ids, geo: tuple[str, str]) -> list[str]:
-        """Indicators with a stored value for geo, largest value first, ties in the order given."""
-        values = {}
+    def values(self, indicator_ids, geo: tuple[str, str]) -> dict[str, float]:
+        """The stored value of each indicator that has one for geo."""
+        out = {}
         for ind in indicator_ids:
             found = [r[2] for r in self._rows(ind, geo) if r[2] is not None]
             if found:
-                values[ind] = found[0]
+                out[ind] = found[0]
+        return out
+
+    def largest(self, indicator_ids, geo: tuple[str, str]) -> list[str]:
+        """Indicators with a stored value for geo, largest value first, ties in the order given."""
+        values = self.values(indicator_ids, geo)
         return sorted(values, key=lambda i: -values[i])
 
     def _beside(self, ind: str, geo: tuple[str, str]) -> dict | None:
@@ -1026,7 +1043,9 @@ class Session:
             ).fetchall()
         return [(chamber, r[0]) for r in rows]
 
-    def _rank_districts(self, args: dict, *, include_caveats: bool = True) -> dict:
+    def _rank_districts(self, args: dict, *, include_caveats: bool = True, lowest: bool = False) -> dict:
+        """Districts in tiers, highest first, or lowest first for the website's basic lookup (lowest is not a model
+        argument)."""
         ind = _str(args, "indicator")
         chamber = args.get("chamber")
         if chamber not in config.CHAMBER_TYPES:
@@ -1052,12 +1071,16 @@ class Session:
                 unranked.append(entry | {"reason": fact["status"]})
             else:
                 placed.append((f.value, interval, entry))
-        placed.sort(key=lambda p: (-p[0], p[2]["geo"]))
+        placed.sort(key=lambda p: (p[0] if lowest else -p[0], p[2]["geo"]))
         tiers = []
         while placed:
             top = placed[0][1]
-            members = [p for p in placed if p[1][1] >= top[0]]
-            placed = [p for p in placed if p[1][1] < top[0]]
+
+            def overlaps(p, top=top):
+                return p[1][0] <= top[1] if lowest else p[1][1] >= top[0]
+
+            members = [p for p in placed if overlaps(p)]
+            placed = [p for p in placed if not overlaps(p)]
             tiers.append({"tier": len(tiers) + 1, "districts": [p[2] for p in members]})
         for g in [county, *geos] if county else geos:
             self.resolved.add(g)
@@ -1073,7 +1096,7 @@ class Session:
             "unit": row[1],
             "chamber": chamber,
             "county": None if county is None else self._geo(*county)["geo"],
-            "order": "highest first",
+            "order": "lowest first" if lowest else "highest first",
             "how_to_read": config.RANK_NOTE,
             "tiers": tiers,
             "unranked": unranked,
