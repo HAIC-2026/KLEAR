@@ -82,6 +82,10 @@
             <p id="find-status" class="status" role="status"></p>
             <div id="find-matches"></div>
           </form>
+          <!-- In one column (tablets and phones) the map comes after the numbers, so the House or Senate switch sits here,
+               before them; the map's own switch shows only beside the map. Both set the same chamber. -->
+          <div class="chamber-switch find-switch" role="group" aria-label="Show House or Senate districts"><button type="button" data-chamber="house" aria-pressed="true">House</button><button type="button" data-chamber="senate" aria-pressed="false">Senate</button></div>
+          <p id="seats-live" class="visually-hidden" role="status"></p>
           <nav class="seat-index" id="seat-index" aria-labelledby="seats-title">
             <h2 id="seats-title" class="seat-title">Every district by number</h2>
             <p id="seats-keys" class="visually-hidden">Arrow keys move between the numbers.</p>
@@ -102,16 +106,8 @@
           </nav>
       </div>
 
-      <div class="stage-map map-card" id="district-map">
-        <h2 id="map-title" class="visually-hidden">Districts on the map</h2>
-        <div class="map-controls"><div class="chamber-switch" id="chamber-switch" role="group" aria-label="Show House or Senate districts"><button type="button" data-chamber="house" aria-pressed="true">House</button><button type="button" data-chamber="senate" aria-pressed="false">Senate</button></div><div class="island-tabs" id="island-tabs" role="group" aria-label="Zoom to island"></div></div>
-        <div class="map-frame"><div class="zoom-buttons"><button type="button" id="zoom-in" aria-label="Zoom in">+</button><button type="button" id="zoom-out" aria-label="Zoom out">−</button></div><svg id="map" role="group" tabindex="-1" aria-labelledby="map-title" aria-describedby="map-keys" preserveAspectRatio="xMidYMid meet"></svg><p id="map-keys" hidden>Arrow keys move between districts, and Enter opens one.</p><p id="map-loading" class="map-loading">Loading map…</p><p id="map-hint" class="map-hint" hidden>Pinch, or hold Ctrl while scrolling, to zoom</p></div>
-        <p id="map-island-hint" class="map-island-hint" hidden>Select an island to zoom in.</p>
-        <p id="zip-status" class="status map-status" role="status"></p>
-        <p class="map-more"><a href="/rankings">See every district colored by poverty, income, rent and more</a></p>
-      </div>
-
-      <!-- A district's page: its number and who and where it is, beside its map, then its profile. -->
+      <!-- A district's page: its number and who and where it is, beside its map, then its profile. It comes before the
+           map in reading order, and on phones it shows above the map too. -->
       <div class="district-head" id="district-head" hidden>
         <div class="district-id">
           <h1 id="district-name" tabindex="-1"></h1>
@@ -122,6 +118,16 @@
           </div>
         </div>
       </div>
+
+      <div class="stage-map map-card" id="district-map">
+        <h2 id="map-title" class="visually-hidden">Districts on the map</h2>
+        <div class="map-controls"><div class="chamber-switch" id="chamber-switch" role="group" aria-label="Show House or Senate districts"><button type="button" data-chamber="house" aria-pressed="true">House</button><button type="button" data-chamber="senate" aria-pressed="false">Senate</button></div><div class="island-tabs" id="island-tabs" role="group" aria-label="Zoom to island"></div></div>
+        <div class="map-frame"><div class="zoom-buttons"><button type="button" id="zoom-in" aria-label="Zoom in">+</button><button type="button" id="zoom-out" aria-label="Zoom out">−</button></div><svg id="map" role="group" tabindex="-1" aria-labelledby="map-title" aria-describedby="map-keys" preserveAspectRatio="xMidYMid meet"></svg><p id="map-keys" hidden>Arrow keys move between districts, and Enter opens one.</p><p id="map-loading" class="map-loading">Loading map…</p><p id="map-hint" class="map-hint" hidden>Pinch, or hold Ctrl while scrolling, to zoom</p></div>
+        <p id="map-island-hint" class="map-island-hint" hidden>Select an island to zoom in.</p>
+        <p id="zip-status" class="status map-status" role="status"></p>
+        <p class="map-more"><a href="/rankings">See every district colored by poverty, income, rent and more</a></p>
+      </div>
+
       <section id="profile" class="profile" aria-label="District profile" hidden></section>
 
       <!-- Compare: two districts' columns, each a search until a district is chosen, then their figures row by row. -->
@@ -136,11 +142,12 @@
           </div>
           <div id="messages">
             <p class="welcome" id="welcome-text">Ask about a district, a town or ZIP code, or all of Hawaiʻi.</p>
+            <p class="chat-mode" id="chat-mode" hidden></p>
             <div class="chat-starters" id="starter"><h3 id="examples-title" class="small-label">Questions to try</h3><div id="starters" class="topic-starters"></div></div>
             <div id="log"></div>
             <div id="suggest" class="suggest" role="group" aria-labelledby="suggest-title" hidden><p class="suggest-title" id="suggest-title">Questions to try</p><div id="examples" class="examples"></div><button type="button" id="more-questions" class="more-questions" aria-expanded="false" aria-controls="examples" hidden>More questions</button></div>
           </div>
-          <form id="question-form"><label for="question" class="visually-hidden">Your question</label><div class="question-row"><textarea id="question" rows="1" required maxlength="2000" placeholder="Type your question" aria-describedby="send-hint"></textarea><button id="send" type="submit">Ask KLEAR</button></div><div class="chat-notes"><span id="send-hint" class="visually-hidden">Ctrl+Enter sends.</span><p id="chat-privacy">An AI model answers from KLEAR’s data. Questions go to its provider, Anthropic, so leave out personal details. <button type="button" id="privacy-toggle" class="privacy-toggle" aria-expanded="false" aria-controls="privacy-more">Privacy</button></p><div id="privacy-more" class="privacy-more" hidden><p>Your last two questions in this tab go along with each new one, so the model can follow the conversation. KLEAR’s server does not store or log questions, and the conversation stays in this browser tab until you close it.</p><p><a href="/data#privacy">More about privacy</a></p></div></div></form>
+          <form id="question-form"><label for="question" class="visually-hidden">Your question</label><div class="question-row"><textarea id="question" rows="1" required maxlength="2000" placeholder="Type your question" aria-describedby="send-hint"></textarea><button id="send" type="submit">Ask KLEAR</button></div><div class="chat-notes"><span id="send-hint" class="visually-hidden">Ctrl+Enter sends.</span><p id="chat-privacy"><span id="chat-privacy-text">Answers come from KLEAR’s data. Leave out personal details.</span> <button type="button" id="privacy-toggle" class="privacy-toggle" aria-expanded="false" aria-controls="privacy-more">Privacy</button></p><div id="privacy-more" class="privacy-more" hidden><p>Your last two questions in this tab go along with each new one, so KLEAR can follow the conversation. KLEAR’s server does not store or log questions, and the conversation stays in this browser tab until you close it.</p><p><a href="/data#privacy">More about privacy</a></p></div></div></form>
           <p id="chat-status" class="status" role="status"></p>
         </div>
       </aside>
@@ -154,7 +161,7 @@
           <div class="question-row"><textarea id="home-question" rows="1" maxlength="2000" placeholder="How many kūpuna in my district live on fixed incomes?"></textarea><button type="submit">Ask KLEAR</button></div>
         </form>
         <div class="topic-starters" id="home-starters" role="group" aria-label="Questions to try"></div>
-        <p class="note">An AI model answers from KLEAR’s data. Questions go to its provider, Anthropic, so leave out personal details.</p>
+        <p class="note" id="home-privacy">Answers come from KLEAR’s data. Leave out personal details.</p>
       </div></div>
     </section>
     <section class="counts" id="sources" aria-labelledby="sources-title">

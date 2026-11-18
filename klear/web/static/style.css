@@ -500,8 +500,10 @@ details.profile-member-about{margin:0;padding:0;border:0;font-size:var(--fs-xs);
   #profile :is(.profile-glance,.profile-section){scroll-margin-top:calc(var(--stick) + var(--profile-jumps-h,0px) + 12px)}
   #profile :is(.profile-glance,.profile-section) :is(a[href],button,summary){scroll-margin-top:calc(var(--stick) + var(--profile-jumps-h,0px) + 8px)}
 }
+/* Narrow screens: every section link shows at once, wrapping onto more lines, so Programs and help and Reference are in
+   sight with no sideways swipe. Each keeps a full-size target. */
 @media(max-width:760px){
-  .profile-jumps ol{flex-wrap:nowrap;overflow-x:auto}
+  .profile-jumps ol{flex-wrap:wrap;gap:var(--s-1)}
   .profile-jumps a{min-height:44px;white-space:nowrap}
   .profile-jumps a:focus-visible{outline-offset:-3px}
 }
@@ -1167,8 +1169,10 @@ footer a{color:var(--accent-dark)}
   .zoom-buttons button{width:40px;height:40px;font-size:var(--fs-md)}
   /* Rows of choices wrap onto a second line rather than running off the screen. */
   .island-tabs{flex-wrap:wrap}
-  /* A district's page: the map across the top, short, then the district's name, then the profile. */
-  html[data-page=district] .stage{grid-template-columns:minmax(0,1fr);grid-template-areas:"bar" "map" "head" "prof"}
+  /* A district's page: the district's name and who and where it is first, then its map, short, then the profile, so
+     the map never fills the first screen before the reader knows which district this is. */
+  html[data-page=district] .stage{grid-template-columns:minmax(0,1fr);grid-template-areas:"bar" "head" "map" "prof"}
+  html[data-page=district] .map-frame{aspect-ratio:2/1}
   .district-bar{width:100%;justify-content:space-between}
   .district-head{padding:var(--s-3)}
   .bar-link{padding:8px 12px;font-size:var(--fs-sm)}
@@ -1224,6 +1228,51 @@ footer a{color:var(--accent-dark)}
 .footer-col ul{gap:0}.footer-col a{display:inline-block;padding:10px 0}
 #source-table a{display:inline-block;padding:6px 0}
 .cmp-remove{width:40px;height:40px}.data-nav a{min-height:44px}
+}
+
+/* At a glance says where its figures come from and the survey years they cover, with each figure's definition and
+   sources one tap away. */
+.glance-source{margin:var(--s-2) 0 0;padding-top:var(--s-2);border-top:1px solid var(--line);font-size:var(--fs-xs);line-height:1.5;color:var(--muted)}
+.glance-about .glance-defs{margin:0;padding:var(--s-1) 0 0;font-size:var(--fs-xs);line-height:1.5;color:var(--muted)}
+.glance-defs>div+div{margin-top:var(--s-2)}
+.glance-defs dt{font-weight:600;color:var(--ink)}
+.glance-defs dd{margin:0}.glance-defs dd p{margin:2px 0 0}
+/* Which of a group's measures a section shows, as a line under its title. */
+.profile-intro{margin:0 0 12px;font-size:var(--fs-sm);line-height:1.5;color:var(--muted)}
+/* Compare: each part of a group under its own title, its notes, then its table; a row's source numbers after its
+   name; notes on how a row's figures were made under it; county figures in a cell of their own. */
+.cmp-part+.cmp-part{margin-top:var(--s-4);padding-top:var(--s-3);border-top:1px solid var(--line)}
+.cmp-measure sup{margin-left:3px;font-size:.75em;line-height:0;color:var(--muted)}
+.cmp-table .cmp-notes td{padding:0 0 var(--s-2);font-size:var(--fs-xs);line-height:1.5;color:var(--muted)}
+.cmp-table .cmp-notes .meaning{max-width:var(--measure);padding:10px 12px;border-radius:var(--r-sm);background:var(--subtle)}
+.cmp-table .cmp-notes p{margin:4px 0 0}.cmp-table .cmp-notes .meaning>:first-child{margin-top:0}
+.cmp-table .cmp-figure.county .num{color:var(--ink)}
+.cmp-table .cmp-figure.county .cmp-place{position:static;display:block;width:auto;height:auto;margin:0 0 2px;overflow:visible;clip:auto;white-space:normal;font-size:var(--fs-xs);color:var(--muted)}
+.cmp-table .cmp-figure.missing .none{font-weight:600;color:var(--ink)}
+/* A comparison or ranking answer's next step: the same places on Compare, or the measure on Rankings. */
+.answer-actions{display:flex;flex-wrap:wrap;gap:var(--s-1) var(--s-4);margin:var(--s-2) 0 var(--s-3);font-size:var(--fs-sm);font-weight:600}
+.answer-actions a{display:inline-flex;align-items:center;min-height:32px}
+/* Whose checks the Checks section shows: the served data's build, or not, and how the last build attempt went. */
+.check-identity{max-width:var(--measure);margin:0 0 var(--s-4);padding:10px 14px;border:1px solid var(--line);border-left:4px solid var(--accent);border-radius:var(--r-sm);background:#fff;font-size:var(--fs-sm);line-height:1.5}
+.check-identity:has(.fail){border-left-color:var(--ink)}
+.identity-line{margin:0}.identity-line+.identity-line{margin-top:6px}
+/* How this site answers, under the agent's welcome, when it is the basic lookup alone. */
+.chat-mode{width:fit-content;max-width:90%;margin:0 0 var(--s-3);padding:6px 12px;border:1px solid var(--line);border-radius:var(--r-sm);background:#fff;font-size:var(--fs-xs);line-height:1.5;color:var(--muted)}
+/* The House or Senate switch over the numbers, where the map comes after them (one column); the map's own switch shows
+   beside the map. Only one of the two shows at a time, so the keyboard meets one. */
+.find-switch{display:none}
+@media(max-width:1023px){
+  html[data-page=home] .find-switch{display:flex;width:100%;max-width:20rem;margin:var(--s-4) 0 0}
+  .find-switch button{flex:1;min-width:0}
+  html[data-page=home] #district-map .map-controls .chamber-switch{display:none}
+}
+/* On a phone the round button shows its icon alone, so it covers less of the page under it; its name stays for screen
+   readers, and the New answer badge still shows. */
+@media(max-width:640px){
+  .chat-fab{gap:6px;min-width:56px;padding:0 16px;justify-content:center}
+  .chat-fab .fab-label{position:absolute;width:1px;height:1px;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+  /* The section links stop short of the button's column, so wherever the page scrolls the button never sits on one. */
+  html.chat-floats .profile-jumps ol{padding-right:56px}
 }
 
 /* Printed district summary. The page prints as it is until a district profile loads; from then on the summary prints in

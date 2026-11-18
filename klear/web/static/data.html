@@ -181,6 +181,7 @@
             <h2 id="checks-title">How we check KLEAR</h2>
             <p>KLEAR rebuilds every number from public sources with one command, and each build checks its own work. A build that fails a required check never replaces the data the site serves. These are the results of the build the site is serving.</p>
             <p class="status" id="checks-status" role="status"></p>
+            <div class="check-identity" id="checks-identity" hidden></div>
             <div class="skeleton" id="checks-loading" aria-hidden="true"><span class="skeleton-bar w-80"></span><span class="skeleton-bar w-60"></span><span class="skeleton-bar w-45"></span></div>
             <section class="check-part" id="cks-list" aria-labelledby="cks-list-title" hidden>
               <h3 id="cks-list-title">Data checks</h3>
@@ -219,7 +220,8 @@
             <h2 id="privacy-title">Privacy</h2>
             <ul class="notes">
               <li>KLEAR shows public, aggregated figures about communities, never about a person. It declines personal and partisan requests.</li>
-              <li>Questions you ask, with your last two in the same tab, go to Anthropic’s AI model to be answered from KLEAR’s data. Leave out names and other personal details.</li>
+              <li>When KLEAR’s AI assistant answers, a question you ask, with your last two in the same tab, goes to Anthropic’s AI model to be answered from KLEAR’s data. A prepared answer to a suggested question, and the basic lookup, use no AI model, and the question is not sent to an AI provider. Every answer is labeled with which of the three wrote it. Leave out names and other personal details.</li>
+              <li id="privacy-mode" hidden></li>
               <li>A street address goes to the U.S. Census Bureau only to find its district. KLEAR’s server does not store or log addresses or questions. Your conversation stays in this browser tab until you close it.</li>
               <li>The site uses no cookies, analytics or third-party scripts.</li>
             </ul>

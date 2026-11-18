@@ -99,18 +99,58 @@ def render_profile(con, geo: District, formats: tuple[str, ...]) -> dict[str, st
     }
 
 
+def render_comparison(con, geos: tuple[District, ...]) -> str:
+    """Two districts' profiles aligned row by row for Compare and its printout."""
+    return json.dumps(display.comparison(con, list(geos), _islands()), ensure_ascii=False, allow_nan=False)
+
+
+def comparison_key(text: str) -> tuple[District, ...] | None:
+    """One or two districts from Compare's address, like house:049,house:050, each once, or None."""
+    parts = [p for p in text.split(",") if p.strip()]
+    if not 1 <= len(parts) <= 2:
+        return None
+    geos = tuple(district_key(p.strip()) for p in parts)
+    if any(g is None for g in geos) or len(set(geos)) != len(geos):
+        return None
+    return geos
+
+
 class ProfileCache:
+    # The most comparisons kept at once; the oldest goes first.
+    PAIRS = 64
+
     def __init__(self):
         self._lock = Lock()
         self._version: tuple[Path, tuple | None] | None = None
         self._bodies: dict[tuple[District, str], bytes] = {}
+        self._pairs: dict[tuple[District, ...], bytes] = {}
 
     def _refresh(self, store: Path) -> tuple[Path, tuple | None]:
         """Check the store under the cache lock and clear bodies from previous versions."""
         version = (store, _stamp(store))
         if self._version != version:
-            self._version, self._bodies = version, {}
+            self._version, self._bodies, self._pairs = version, {}, {}
         return version
+
+    def comparison(self, store: Path, text: str) -> bytes:
+        """Compare's figures for one or two districts, read from the store once per data build."""
+        geos = comparison_key(text)
+        if geos is None:
+            raise InvalidDistrict("choose one or two stored House or Senate districts")
+        with self._lock:
+            version = self._refresh(store)
+            if (body := self._pairs.get(geos)) is not None:
+                return body
+        with _open_store(store) as con:
+            for geo in geos:
+                require_district(con, geo)
+            body = render_comparison(con, geos).encode()
+        with self._lock:
+            if self._refresh(store) == version:
+                while len(self._pairs) >= self.PAIRS:
+                    self._pairs.pop(next(iter(self._pairs)))
+                self._pairs[geos] = body
+        return body
 
     def get(self, store: Path, text: str, kind: str) -> tuple[District, bytes]:
         geo = district_key(text)

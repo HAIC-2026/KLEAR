@@ -1,6 +1,8 @@
 """The free lookup matches questions to district measures by topic and declines what it cannot match."""
 
+import anthropic
 import duckdb
+import pandas as pd
 import pytest
 
 from klear.agent.answer import main_county
@@ -12,11 +14,14 @@ from klear.agent.config import (
     INDUSTRIES,
     OCCUPATIONS,
 )
+from klear.agent.earlier import Exchange
 from klear.labels import plain_labels
 from klear.programs import by_rule
+from klear.store.db import add_coverage, add_facts, add_indicators
 from klear.web.answers import ask, asks_fixed_income, indicators
-from klear.web.assistant import basic
-from tests.fixtures.small_store import add_county_context
+from klear.web.assistant import BASIC, CAPPED, Assistant, DailyBudget, basic
+from tests.agent.fake_client import FakeClient, api_error
+from tests.fixtures.small_store import _fact, add_county_context
 
 LABELS = {
     "poverty_universe": "Population for whom poverty status is determined",
@@ -334,6 +339,196 @@ def test_side_by_side_line_for_county_figures_alone(small_con):
     text = ask(small_con, "Compare unemployment with the state", ("house", "022"))["text"]
     assert "District and state figures" not in text
     assert "County and state figures are shown side by side." in text
+
+
+def _with_poverty(con):
+    """The small store plus a poverty rate for both House districts, the Senate district, two counties and the state.
+    House 22's range sits above House 23's; House 23's overlaps Senate 12's."""
+    add_indicators(
+        con,
+        pd.DataFrame(
+            [
+                (
+                    "pct_people_poverty",
+                    "Percent of people below the poverty level",
+                    "percent",
+                    "people",
+                    None,
+                    False,
+                )
+            ],
+            columns=["indicator_id", "label", "unit", "universe", "acs_var", "additive"],
+        ),
+    )
+    add_coverage(
+        con,
+        pd.DataFrame(
+            [("pct_people_poverty", g) for g in ("house", "senate", "county", "state")],
+            columns=["indicator_id", "geo_type"],
+        ),
+    )
+    add_facts(
+        con,
+        pd.DataFrame(
+            [
+                _fact("house", "022", "pct_people_poverty", 12.3, 2.1),
+                _fact("house", "023", "pct_people_poverty", 7.9, 1.8),
+                _fact("senate", "012", "pct_people_poverty", 6.0, 2.5),
+                _fact("county", "15003", "pct_people_poverty", 8.9, 0.5),
+                _fact("county", "15001", "pct_people_poverty", 13.4, 0.9),
+                _fact("state", "15", "pct_people_poverty", 9.8, 0.4),
+            ]
+        ),
+    )
+    return con
+
+
+POVERTY_22_23 = "How does poverty in House District 22 compare with House District 23?"
+
+
+def _figure_places(answer) -> list[str]:
+    return [f["geography"] for f in answer["facts"]]
+
+
+def test_basic_two_district_comparison_keeps_both_districts(small_con):
+    answer = basic(_with_poverty(small_con), POVERTY_22_23, ("house", "022"), "Basic lookup.")
+    assert answer["compared"] == [
+        {"geo": "house:022", "name": "House District 22"},
+        {"geo": "house:023", "name": "House District 23"},
+    ]
+    lead = "\n".join(answer["lead"])
+    assert lead.startswith("Basic lookup.\nHouse District 22 and House District 23, side by side:")
+    assert (
+        "- People below the poverty level: House District 22, 12.3% ± 2.1 points; House District 23, 7.9% ± 1.8 "
+        "points. House District 22 is higher than House District 23, beyond the margins of error." in lead
+    )
+    # Never the state or the county in place of the second district, and never a switch to either district.
+    assert _figure_places(answer) == ["House District 22", "House District 23"]
+    assert "Hawaiʻi" not in lead and "district" not in answer
+    (chart,) = answer["charts"]
+    assert [b["geography"] for b in chart["bars"]] == ["House District 22", "House District 23"]
+    assert chart["tag"] == "Higher than House District 23"
+    assert answer["actions"] == [
+        {
+            "text": "See House District 22 and House District 23 side by side in Compare",
+            "url": "/compare?d=house:022,house:023",
+        }
+    ]
+    assert answer["subject"]["places"] == ["house:022", "house:023"]
+
+
+def test_basic_comparison_in_reverse_order_leads_with_the_first_named(small_con):
+    answer = basic(
+        _with_poverty(small_con),
+        "How does poverty in House District 23 compare with House District 22?",
+        ("house", "022"),
+    )
+    assert [c["geo"] for c in answer["compared"]] == ["house:023", "house:022"]
+    assert (
+        "House District 23 is lower than House District 22, beyond the margins of error." in answer["lead"][0]
+    )
+    assert answer["charts"][0]["tag"] == "Lower than House District 22"
+
+
+@pytest.mark.parametrize(
+    ("question", "geos"),
+    [
+        ("Compare poverty in House District 22 and Senate District 12", ["house:022", "senate:012"]),
+        ("How does poverty in House Districts 22 and 23 compare?", ["house:022", "house:023"]),
+        ("Compare poverty in Honolulu County with Hawaii County", ["county:15003", "county:15001"]),
+        ("Compare poverty in this district with district 23", ["house:022", "house:023"]),
+    ],
+)
+def test_basic_comparisons_keep_every_place_named(small_con, question, geos):
+    answer = basic(_with_poverty(small_con), question, ("house", "022"))
+    assert [c["geo"] for c in answer["compared"]] == geos
+    assert set(_figure_places(answer)) == {c["name"] for c in answer["compared"]}
+
+
+def test_basic_comparison_with_the_state_adds_it_for_context(small_con):
+    answer = basic(
+        _with_poverty(small_con),
+        "Compare poverty in House District 22 and House District 23 with the state",
+        None,
+    )
+    assert answer["lead"][0].startswith(
+        "House District 22 and House District 23, side by side, with Hawaiʻi for context:"
+    )
+    assert _figure_places(answer) == ["House District 22", "House District 23", "Hawaiʻi"]
+    assert [c["geo"] for c in answer["compared"]] == ["house:022", "house:023"]
+
+
+def test_these_two_districts_are_the_pair_the_compare_page_holds(small_con):
+    pair = (("house", "022"), ("house", "023"))
+    answer = basic(
+        _with_poverty(small_con),
+        "How do these two districts compare on poverty?",
+        ("house", "022"),
+        pair=pair,
+    )
+    assert [c["geo"] for c in answer["compared"]] == ["house:022", "house:023"]
+    # A comparison with the state, asked on the Compare page, is still about the chosen district and the state.
+    state = basic(small_con, "How does poverty here compare with the state?", ("house", "022"), pair=pair)
+    assert "compared" not in state and set(_figure_places(state)) == {"House District 22", "Hawaiʻi"}
+
+
+def test_a_follow_up_about_these_two_keeps_both_districts(small_con):
+    _with_poverty(small_con)
+    earlier = (Exchange(POVERTY_22_23, ("house", "022"), ("pct_people_poverty",)),)
+    answer = basic(small_con, "And how do these two compare on kūpuna?", ("house", "022"), earlier=earlier)
+    assert [c["geo"] for c in answer["compared"]] == ["house:022", "house:023"]
+    assert set(_figure_places(answer)) == {"House District 22", "House District 23"}
+
+
+def test_a_comparison_with_a_town_explains_why_and_links_to_compare(small_con):
+    answer = basic(_with_poverty(small_con), "Compare poverty in House District 22 with Kāneʻohe", None)
+    assert answer["facts"] == [] and "compared" not in answer
+    assert answer["text"].startswith(
+        "The basic lookup compares House and Senate districts, counties and the state."
+    )
+    assert "Kāneʻohe is a town, which can span more than one district" in answer["text"]
+    assert answer["actions"] == [
+        {"text": "Open Compare to set two districts side by side", "url": "/compare?d=house:022"}
+    ]
+    # "Here" is the chosen district, so a town set beside it is not answered with the town's district alone.
+    here = basic(small_con, "How does poverty here compare with Kailua?", ("house", "023"))
+    assert here["facts"] == [] and here["text"].startswith("The basic lookup compares House and Senate")
+    assert here["actions"][0]["url"] == "/compare?d=house:023"
+
+
+def test_a_comparison_without_a_figure_for_both_never_substitutes_a_place(small_con):
+    answer = basic(small_con, "Compare keiki in House District 22 and House District 23", None)
+    assert answer["refusal"] == "not_available" and answer["facts"] == []
+    assert "House District 22 and House District 23" in answer["text"]
+    profile = basic(small_con, "Give me a profile of House District 22 and House District 23", None)
+    assert profile["text"].startswith(
+        "The basic lookup answers this kind of question for one place at a time."
+    )
+    assert profile["actions"][0]["url"] == "/compare?d=house:022,house:023"
+
+
+@pytest.mark.parametrize("why", ["cap", "api_error"])
+def test_the_assistant_falls_back_to_the_same_comparison(small_con, tmp_path, why):
+    if why == "cap":
+        budget, client, note = DailyBudget(0.0, tmp_path / "web_spend.json"), FakeClient(), CAPPED
+    else:
+        error = api_error(anthropic.InternalServerError, 500)
+        budget, client, note = DailyBudget(5.0, tmp_path / "web_spend.json"), FakeClient(error=error), BASIC
+    answer = Assistant(budget, client=client).ask(_with_poverty(small_con), POVERTY_22_23, ("house", "022"))
+    assert answer["mode"] == "basic" and answer["lead"][0] == note
+    assert answer["fallback"] == ("capped" if why == "cap" else "failed")
+    assert [c["geo"] for c in answer["compared"]] == ["house:022", "house:023"]
+    assert set(_figure_places(answer)) == {"House District 22", "House District 23"}
+
+
+def test_basic_ticket_example_compares_house_49_with_house_50(real_con):
+    answer = basic(
+        real_con, "How does poverty in House District 49 compare with House District 50?", ("house", "049")
+    )
+    lead = answer["lead"][0]
+    assert "House District 49, 11.1% ± 2.9 points; House District 50," in lead
+    assert "House District 49 is higher than House District 50, beyond the margins of error." in lead
+    assert {f["geography"] for f in answer["facts"]} == {"House District 49", "House District 50"}
 
 
 def test_basic_industries_keep_the_place_when_compared_with_the_whole_state(real_con):

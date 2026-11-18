@@ -16,12 +16,13 @@ from klear.eval.spend import TOKEN_FIELDS, load_prices, request_cost
 from klear.filelock import exclusive
 from klear.web import display
 from klear.web.answers import ask as lookup
-from klear.web.answers import asks_profile, modeled_caveat, place_of
+from klear.web.answers import asks_profile, comparison_places, modeled_caveat, place_of
 
 BUDGET = Path.home() / ".config" / "klear" / "web_spend.json"
 DAILY_CAP = 5.0
 HST = timedelta(hours=-10)
 BASIC = "The full assistant is not available right now, so this is a basic lookup."
+CAPPED = "The full assistant has reached today's spending limit, so this is a basic lookup."
 
 
 class BudgetExceeded(RuntimeError):
@@ -129,7 +130,16 @@ def _choices(con, question: str, answer, selected) -> dict:
     return {"choices": reply["choices"]} if reply and "choices" in reply else {}
 
 
-def _payload(con, answer, mode: str, selected: tuple[str, str] | None = None) -> dict:
+def _asked_places(con, question: str, selected, pair, earlier) -> list[tuple[str, str]]:
+    """The places a comparison question sets side by side, or none when it is no such comparison."""
+    try:
+        subjects, _, _ = comparison_places(con, question, selected, pair, earlier)
+    except Exception:  # noqa: BLE001 - the answer stands without the names of the places it compares
+        return []
+    return subjects or []
+
+
+def _payload(con, answer, mode: str, selected: tuple[str, str] | None = None, asked=()) -> dict:
     units = dict(con.execute("SELECT indicator_id, unit FROM indicator").fetchall())
     labels = dict(con.execute("SELECT indicator_id, label FROM indicator").fetchall())
     month = display.build_month(con)
@@ -156,6 +166,9 @@ def _payload(con, answer, mode: str, selected: tuple[str, str] | None = None) ->
             }
         )
     programs = display.program_rows(answer.programs)
+    # A comparison the answer's figures cover names every place it compares, and never offers to switch to one.
+    shown = {(f.geo_type, f.geo_id) for f in answer.facts}
+    compared = [g for g in asked if g in shown] if len(asked) >= 2 else []
     return (
         {
             "text": render(answer, con),
@@ -166,7 +179,11 @@ def _payload(con, answer, mode: str, selected: tuple[str, str] | None = None) ->
         }
         | display.build(con, answer)
         | display.elsewhere(answer.refusal, bool(answer.facts))
-        | answered_district(con, answer.resolved, selected)
+        | (
+            compared_names(con, compared)
+            if len(compared) >= 2
+            else answered_district(con, answer.resolved, selected)
+        )
         | subject(con, answer.resolved or selected or _only_place(answer.facts), answer.facts)
     )
 
@@ -177,6 +194,11 @@ class Assistant:
     def __init__(self, budget: DailyBudget, model: str = DEFAULT_MODEL, client=None):
         self.budget, self.model, self._client = budget, model, client
         self.prices = load_prices()
+
+    def capped(self) -> bool:
+        """Whether today's spending has reached the cap, so questions go to the free lookup until the HST day
+        ends. Reads only the spend file: no model call."""
+        return self.budget.spent() >= self.budget.cap
 
     @staticmethod
     def warm() -> None:
@@ -190,40 +212,63 @@ class Assistant:
             self._client = KlearAgent(None, self.model).client
         return self._client
 
-    def ask(self, con, question: str, district: tuple[str, str] | None, geocoder=None, earlier=()) -> dict:
+    def ask(
+        self, con, question: str, district: tuple[str, str] | None, geocoder=None, earlier=(), pair=()
+    ) -> dict:
         """district is None when none is chosen. geocoder finds the Census blocks of a street address, or is None
-        when address lookup is off. earlier holds the reader's last questions in this tab."""
+        when address lookup is off. earlier holds the reader's last questions in this tab, and pair the two
+        districts the Compare page sets side by side, if any. When the model cannot answer, the free lookup does,
+        with the same places, and says why."""
         from klear.agent.loop import KlearAgent
 
         try:
             agent = KlearAgent(con, self.model, client=self.client(), geocoder=geocoder)
             rid = self.budget.reserve(agent.max_call_cost(self.model, question, self.prices))
-        except (BudgetExceeded, MissingSecretError):
-            return self._basic(con, question, district, geocoder, earlier)
+        except BudgetExceeded:
+            return self._basic(con, question, district, geocoder, earlier, pair, CAPPED)
+        except MissingSecretError:
+            return self._basic(con, question, district, geocoder, earlier, pair, BASIC)
         cost = usage = None
         try:
-            answer, usage = agent.answer("web", question, district, earlier)
+            answer, usage = agent.answer("web", question, district, earlier, pair=pair)
             cost = request_cost(self.model, usage)
-            return _payload(con, answer, "assistant", district) | _choices(con, question, answer, district)
+            return _payload(
+                con, answer, "assistant", district, _asked_places(con, question, district, pair, earlier)
+            ) | _choices(con, question, answer, district)
         except Exception:  # noqa: BLE001 - any failure falls back to the free lookup
-            return self._basic(con, question, district, geocoder, earlier)
+            return self._basic(con, question, district, geocoder, earlier, pair, BASIC)
         finally:
             self.budget.settle(rid, cost, usage)
 
     @staticmethod
-    def _basic(con, question: str, district: tuple[str, str] | None, geocoder=None, earlier=()) -> dict:
-        return basic(con, question, district, BASIC, geocoder, earlier)
+    def _basic(
+        con, question: str, district: tuple[str, str] | None, geocoder=None, earlier=(), pair=(), note=BASIC
+    ) -> dict:
+        # Why the free lookup answered, so the page can say where questions go now: the cap holds for the rest of
+        # the HST day, while a failure may pass by the next question.
+        return basic(con, question, district, note, geocoder, earlier, pair) | {
+            "fallback": "capped" if note == CAPPED else "failed"
+        }
+
+
+def compared_names(con, geos) -> dict:
+    """The places a comparison answer sets side by side, as {"compared": [{"geo", "name"}, ...]}, so the page's
+    heading, follow-up questions and copied text name every one of them."""
+    shown = [{"geo": ":".join(g), "name": name} for g in geos if (name := _named(con, tuple(g)))]
+    return {"compared": shown} if len(shown) >= 2 else {}
 
 
 def basic(
-    con, question: str, district: tuple[str, str] | None, note: str = "", geocoder=None, earlier=()
+    con, question: str, district: tuple[str, str] | None, note: str = "", geocoder=None, earlier=(), pair=()
 ) -> dict:
-    """Free keyword lookup, laid out like an assistant answer when it found figures."""
-    result = lookup(con, question, district, geocoder, earlier)
+    """Free keyword lookup, laid out like an assistant answer when it found figures. pair holds the two districts
+    the Compare page sets side by side, if any."""
+    result = lookup(con, question, district, geocoder, earlier, pair)
     refs = result.pop("fact_refs", [])
     written, caveats, notes = result.pop("lead", []), result.pop("caveats", []), result.pop("notes", [])
     modeled = result.pop("modeled", {})
     where, answered = result.pop("where", None), result.pop("district", district)
+    compared = result.pop("compared", None)
     if refs:
         answer = Answer(VERSION, answered, result["refusal"], [], refs, [], [])
         # a written lead gives every figure in its text
@@ -251,10 +296,14 @@ def basic(
         result["caveats"] = caveats
     elif note and result["refusal"] in ("none", "not_available"):
         result["text"] = f"{note}\n\n{result['text']}"
+    if not result.get("actions"):
+        result.pop("actions", None)
     return (
         result
         | {"mode": "basic"}
-        | display.elsewhere(result["refusal"], bool(refs))
-        | answered_district(con, answered, district)
+        | display.elsewhere(result["refusal"], bool(refs) or bool(result.get("actions")))
+        # A comparison is about every place it names, so it never offers to switch to one of them.
+        | ({} if compared else answered_district(con, answered, district))
         | subject(con, answered, refs)
+        | (compared_names(con, compared) if compared else {})
     )

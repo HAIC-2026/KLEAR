@@ -262,19 +262,47 @@ test.describe('a district at 1280 by 800', () => {
 // minimize button at its top puts it away again.
 test.describe('a district at 390 by 844', () => {
   test.use({viewport: {width: 390, height: 844}});
-  test('the section links scroll in one row without widening the page', async ({page}) => {
+  test('the section links all show at once, wrapping rather than scrolling sideways', async ({page}) => {
     await page.goto('/district/house-22');
     const nav = page.getByRole('navigation', {name: 'In this profile'}), links = nav.getByRole('link');
     await expect(links.first()).toBeVisible();
-    const first = await links.first().boundingBox(), last = await links.last().boundingBox();
-    expect(last.y).toBeCloseTo(first.y, 0);
-    expect(last.x + last.width).toBeGreaterThan(390);
+    // Every link, Programs and help and Reference too, is on the screen's width with no sideways swipe.
+    for (const box of await links.evaluateAll(all => all.map(a => a.getBoundingClientRect().toJSON()))) {
+      expect(box.x).toBeGreaterThanOrEqual(0);
+      expect(box.x + box.width).toBeLessThanOrEqual(390);
+      expect(box.height).toBeGreaterThanOrEqual(44);
+    }
+    expect(await nav.locator('ol').evaluate(ol => ol.scrollWidth <= ol.clientWidth)).toBe(true);
     expect(await nav.locator('.sec-title').evaluateAll(labels => labels.every(el =>
       el.getBoundingClientRect().height <= parseFloat(getComputedStyle(el).lineHeight) + 1))).toBe(true);
     expect(await sidewaysScroll(page)).toBe(0);
     await links.last().click();
     await expect(page.locator('#profile-reference')).toHaveAttribute('open', '');
     await expect(page.locator('#profile-reference > summary')).toBeInViewport({ratio: 1});
+  });
+
+  test('the district’s name and the way to its programs come before the map', async ({page}) => {
+    await page.goto('/district/house-22');
+    await expect(page.locator('#profile-live')).toHaveText(`Profile for ${DISTRICT} loaded.`);
+    const head = await page.locator('#district-head').boundingBox(), map = await page.locator('#district-map').boundingBox();
+    expect(head.y + head.height).toBeLessThanOrEqual(map.y + 1);
+    // The name is first in reading order too, and the map stays short.
+    expect(await page.evaluate(() => document.getElementById('district-head').compareDocumentPosition(document.getElementById('district-map')) & Node.DOCUMENT_POSITION_FOLLOWING)).toBeTruthy();
+    expect(map.height).toBeLessThan(844 * 0.4);
+    await expect(page.getByRole('heading', {level: 1, name: DISTRICT})).toBeInViewport();
+    await expect(page.getByRole('navigation', {name: 'In this profile'}).getByRole('link', {name: 'Programs and help'})).toBeInViewport();
+  });
+
+  test('the round button leaves the page’s links clear at the end of the page', async ({page}) => {
+    await page.goto('/district/house-22');
+    await expect(page.locator('#profile-live')).toHaveText(`Profile for ${DISTRICT} loaded.`);
+    await page.evaluate(() => window.scrollTo({top: document.documentElement.scrollHeight, behavior: 'instant'}));
+    const fab = await page.locator('#chat-fab').boundingBox();
+    const hit = await page.locator('footer a, .profile-end a').evaluateAll((links, f) => links.filter(a => {
+      const r = a.getBoundingClientRect();
+      return r.bottom > f.y && r.top < f.y + f.height && r.right > f.x && r.left < f.x + f.width;
+    }).map(a => a.textContent), fab);
+    expect(hit).toEqual([]);
   });
 
   test('the agent is a button that opens over the page and minimizes back to it', async ({page, isMobile}) => {

@@ -53,7 +53,8 @@ test('each district has its own address, which Back, Forward and a pasted link f
 
   // A bad district link returns 404 and lands on Find with the chamber still in sync.
   await pasted.goto('/');
-  const senate = pasted.locator('#chamber-switch').getByRole('button', {name: 'Senate'});
+  // On a phone the switch over the numbers is the one that shows; the map's own shows beside the map on wide screens.
+  const senate = pasted.locator(isMobile ? '#find-col .find-switch' : '#chamber-switch').getByRole('button', {name: 'Senate'});
   await senate.click();
   const missing = await pasted.goto('/district/house-99');
   expect(missing.status()).toBe(404);
@@ -309,8 +310,9 @@ test('a one-page summary keeps its full size when it fits, and a long one still 
   await page.goto('/district/house-22');
   await expect(page.locator('#profile-live')).toHaveText(`Profile for ${DISTRICT} loaded.`);
   let sheet = await printSummary(page);
-  // The short fixture district prints all five of its programs at the full type size, unscaled.
-  await expect(sheet.locator('.sheet-programs li')).toHaveCount(5);
+  // The short fixture district prints four of its five programs at the full type size, unscaled: its largest industry
+  // row takes the fifth's room.
+  await expect(sheet.locator('.sheet-programs li')).toHaveCount(4);
   await expect(sheet.locator('.sheet-key thead th')).toHaveText(['Measure', DISTRICT, 'Honolulu County', 'Hawaiʻi', 'Source']);
   expect(await sheet.evaluate(s => s.style.zoom)).toBe('');
   expect(parseFloat(await sheet.evaluate(s => getComputedStyle(s).fontSize))).toBeCloseTo((9.5 * 4) / 3, 2);
@@ -354,6 +356,21 @@ test('a comparison prints the two districts side by side', async ({page}) => {
   await expect(sheet.locator('.sheet-glance').getByRole('row', {name: /People below the poverty level/})).toContainText(`▲ 4.4 points higher in ${DISTRICT}`);
   await expect(sheet.locator('.sheet-section > h2')).toHaveText(['1 At a glance', '2 People', '4 Programs and help', 'Sources']);
   await expect(sheet.locator('.sheet-live')).toContainText('/compare?d=house:022,house:023');
+  await page.emulateMedia({media: null});
+});
+
+test('a comparison prints the same aligned rows as the page, and county rows say whose they are', async ({page}) => {
+  await page.goto('/compare?d=house:022,house:023');
+  await expect(page.locator('.cmp-table').first()).toBeVisible();
+  const dialog = await openPrint(page);
+  await dialog.getByRole('button', {name: 'Select all'}).click();
+  const sheet = await printNow(page, dialog);
+  // Every industry either profile shows, with a figure for both districts and for Hawaiʻi.
+  for (const label of ['Work in retail trade', 'Work in government \\(public administration\\)', 'Work in professional or business services', 'Work in hotels, restaurants or recreation']) {
+    await expect(sheet.getByRole('row', {name: new RegExp(label)}).locator('td.num')).toHaveCount(3);
+  }
+  await expect(sheet.getByRole('row', {name: /Unemployment rate/}).last()).toContainText('Same Honolulu County figure for both');
+  await expect(sheet).toContainText('County context: These figures cover all of Honolulu County');
   await page.emulateMedia({media: null});
 });
 

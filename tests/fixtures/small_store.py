@@ -221,6 +221,80 @@ def add_outreach(con) -> None:
     add_facts(con, pd.DataFrame(rows))
 
 
+INDUSTRY_SHARES = {
+    # House 22's three largest are education, retail and food; House 23's are education, professional services and
+    # public administration. Each district has a figure for all five, so Compare must show all five for both.
+    "pct_industry_education_health": {
+        "022": (30.0, 2.0),
+        "023": (28.0, 2.5),
+        "15003": (24.0, 0.4),
+        "15": (23.0, 0.2),
+    },
+    "pct_industry_retail": {"022": (15.0, 1.9), "023": (8.0, 1.7), "15003": (10.5, 0.3), "15": (10.8, 0.2)},
+    "pct_industry_arts_food": {
+        "022": (12.0, 1.8),
+        "023": (9.0, 1.6),
+        "15003": (13.0, 0.3),
+        "15": (14.9, 0.2),
+    },
+    "pct_industry_professional": {
+        "022": (10.0, 1.5),
+        "023": (14.0, 2.2),
+        "15003": (11.6, 0.3),
+        "15": (10.9, 0.2),
+    },
+    "pct_industry_public_admin": {
+        "022": (6.0, 1.4),
+        "023": (13.0, 1.6),
+        "15003": (8.8, 0.3),
+        "15": (7.9, 0.1),
+    },
+}
+INDUSTRY_LABELS = {
+    "pct_industry_education_health": "Percent employed in educational services, and health care and social assistance",
+    "pct_industry_retail": "Percent employed in retail trade",
+    "pct_industry_arts_food": (
+        "Percent employed in arts, entertainment, and recreation, and accommodation and food services"
+    ),
+    "pct_industry_professional": (
+        "Percent employed in professional, scientific, and management, and administrative and waste management "
+        "services"
+    ),
+    "pct_industry_public_admin": "Percent employed in public administration",
+}
+
+
+def add_industries(con) -> None:
+    """Five industry shares for both House districts, Honolulu County and the state, where the two districts' three
+    largest differ, as House 49 and House 50's do in the built store."""
+    add_indicators(
+        con,
+        pd.DataFrame(
+            [(i, label, "percent", "civilian employed population 16 years and over", None, False)
+             for i, label in INDUSTRY_LABELS.items()],
+            columns=["indicator_id", "label", "unit", "universe", "acs_var", "additive"],
+        ),
+    )  # fmt: skip
+    add_coverage(
+        con,
+        pd.DataFrame(
+            [(i, g) for i in INDUSTRY_SHARES for g in ("house", "county", "state")],
+            columns=["indicator_id", "geo_type"],
+        ),
+    )
+    kinds = {"022": "house", "023": "house", "15003": "county", "15": "state"}
+    add_facts(
+        con,
+        pd.DataFrame(
+            [
+                _fact(kinds[g], g, i, value, moe)
+                for i, places in INDUSTRY_SHARES.items()
+                for g, (value, moe) in places.items()
+            ]
+        ),
+    )
+
+
 def add_county_context(con):
     """DBEDT match marks on the kūpuna counts of House 22 and Honolulu County, and a county-level BLS
     unemployment rate for Honolulu County and the state, as the build writes them."""

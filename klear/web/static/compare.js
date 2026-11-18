@@ -136,6 +136,16 @@
     load();
   }
 
+  // The districts' figures aligned row by row by the server (/api/compare): each district's profile holds every row
+  // either one's profile shows, read for both, and a row a district has no figure for says why. Asked for once per
+  // pair; a failed request is forgotten, so the next try asks again.
+  const comparisons = new Map();
+  function comparisonOf(geos) {
+    const key = geos.join(',');
+    if (!comparisons.has(key)) comparisons.set(key, api(`/api/compare?d=${encodeURIComponent(key)}`).catch(err => { comparisons.delete(key); throw err; }));
+    return comparisons.get(key);
+  }
+
   let seq = 0;
   async function load() {
     const mine = ++seq, slots = SLOTS.filter(s => chosen[s]);
@@ -153,7 +163,7 @@
       else result.replaceChildren(node('p', text, 'cmp-note'), ...['w-20', 'w-30', 'w-30'].map(w => skeleton([`title ${w}`, 'w-60', 'w-45'], 'cmp-section')));
     }
     try {
-      const list = await Promise.all(slots.map(s => profileOf(chosen[s])));
+      const list = (await comparisonOf(slots.map(s => chosen[s]))).districts;
       if (mine !== seq) return;
       slots.forEach((s, i) => {
         const fresh = !loaded[s] || loaded[s].geo !== list[i].geo;
@@ -192,11 +202,18 @@
     }
   }
 
-  // One district's figure under its name, with a comparison line only under the higher figure if they differ.
-  function figure(f, place, versus, chamber) {
+  // One district's figure under its name, with a comparison line only under the higher figure if they differ. A
+  // district with no figure says why: not published for it, or suppressed. A figure is never inferred for it.
+  function figure(f, place, versus, chamber, span = 1) {
     const td = node('td', '', `cmp-figure ${chamber}`);
+    td.colSpan = span;
     td.append(node('span', place, 'cmp-place'));
-    if (!f || f.missing) { td.append(node('span', 'No figure', 'none')); return td; }
+    if (!f || f.missing) {
+      td.classList.add('missing');
+      td.append(node('span', 'No figure', 'none'));
+      if (f && f.missing) td.append(node('span', f.missing, 'moe'));
+      return td;
+    }
     td.append(node('span', f.plain || f.value, 'num'));
     if (f.spread) td.append(node('span', f.spread, 'moe'));
     if (f.caution) td.append(cautionChip(f.caution));
@@ -204,18 +221,149 @@
     return td;
   }
 
-  // Every measure either district has, in the profile's group and row order, as one table per group: each measure is
-  // a row group, its name and Hawaiʻi's figure across the top, then each district's figure in its own column, then
-  // whether they differ and by how much. The groups open and shut like the profile's sections, numbered from At a glance.
+  const stateOf = r => (r && (r.against || []).find(a => !a.missing && String(a.geo || '').startsWith('state:'))) || null;
+  const sourceKey = s => `${s.name}\u0000${s.year}`;
+
+  // The citations of one compared part: every source its districts' figures come from, numbered once, with the links
+  // where each district's figures can be checked; then the sources only Hawaiʻi's or a county's figures come from. A
+  // row's number points into the first list, so each figure keeps its source and year.
+  function citations(parts) {
+    const sources = [], compared = [], at = new Map();
+    const add = (list, s) => {
+      if (!s || !s.name) return 0;
+      const key = sourceKey(s);
+      if (at.has(key)) {
+        const known = at.get(key);
+        if (s.links) known.links = [...(known.links || []), ...s.links.filter(l => !(known.links || []).some(k => k.url === l.url))];
+        return list === sources ? sources.indexOf(known) + 1 : 0;
+      }
+      const copy = {...s, links: [...(s.links || [])]};
+      at.set(key, copy);
+      list.push(copy);
+      return list === sources ? sources.length : 0;
+    };
+    for (const sec of parts) for (const s of sec.sources || []) add(sources, s);
+    for (const sec of parts) for (const r of sec.rows || []) if (r.source) add(sources, r.source);
+    for (const sec of parts) for (const s of sec.compared || []) add(compared, s);
+    for (const sec of parts) for (const r of sec.rows || []) { const st = stateOf(r); if (st && st.source) add(compared, st.source); }
+    const number = s => (s && sources.length > 1 ? sources.findIndex(x => sourceKey(x) === sourceKey(s)) + 1 : 0);
+    return {sources, compared, number};
+  }
+
+  // What a measure means and how its figures were made, for both districts at once: the plain definition one tap
+  // away, then any line on how a figure was estimated, a note on the measure, or a caution, each said once.
+  let aboutCount = 0;
+  function rowNotes(rows, cols) {
+    const first = rows.find(r => r && !r.missing) || rows.find(Boolean), lines = [], seen = new Set();
+    const once = (key, make) => { if (key && !seen.has(key)) { seen.add(key); lines.push(make()); } };
+    for (const r of rows) {
+      if (!r || r.missing) continue;
+      if (r.method) once(`m ${r.method.text}`, () => methodLine(r.method));
+      if (r.caveat) once(`c ${r.caveat}`, () => node('p', r.caveat, 'profile-caveat'));
+    }
+    const parts = first ? meaningParts(first.label, first.meaning) : null;
+    if (!lines.length && !parts) return {row: null, button: null};
+    const tr = node('tr', '', 'cmp-notes'), cell = node('td', '');
+    cell.colSpan = cols;
+    cell.append(...lines);
+    tr.append(cell);
+    tr.hidden = !lines.length;
+    let button = null;
+    if (parts) {
+      const about = node('div', '', 'meaning');
+      about.id = `cmp-meaning-${++aboutCount}`;
+      about.hidden = true;
+      about.append(...parts);
+      cell.append(about);
+      button = node('button', '', 'info');
+      button.type = 'button';
+      button.setAttribute('aria-expanded', 'false');
+      button.setAttribute('aria-controls', about.id);
+      button.append(icon('info'), hidden(`What this means: ${first.label}`));
+      button.onclick = () => {
+        about.hidden = !about.hidden;
+        tr.hidden = about.hidden && !lines.length;
+        button.setAttribute('aria-expanded', String(!about.hidden));
+      };
+    }
+    return {row: tr, button};
+  }
+
+  // One part of a group, such as Income or Work and education, as a table: each measure is a row group, its name
+  // with its source number and Hawaiʻi's figure across the top, then each district's figure in its own column, then
+  // whether they differ and by how much, then notes on how the figures were made. County-level figures say whose they
+  // are: one cell for the county both districts share, or each district's county named in its cell.
+  function partTable(parts, list, title, heading) {
+    const names = list.map(p => p.district), cols = list.length, box = node('div', '', 'cmp-part');
+    const county = countyPart(parts.find(Boolean)), live = parts.filter(Boolean), shared = county && cols === 2 && parts[0] && parts[1] && parts[0].geo === parts[1].geo;
+    const shown = county ? 'County context' : title;
+    if (heading) box.append(says('h3', shown, 'profile-part-title'));
+    else if (county) box.append(node('h3', shown, 'profile-part-title'));
+    if (county) box.append(node('p', countyContext(parts, names), 'profile-scope'));
+    const intro = live.map(s => s.intro).find(Boolean);
+    if (intro) box.append(node('p', intro, 'profile-intro'));
+    const caveats = [...new Set(live.map(s => s.caveat).filter(Boolean))], methods = [...new Map(live.filter(s => s.method).map(s => [s.method.text, s.method])).values()];
+    for (const c of caveats) box.append(node('p', c, 'profile-caveat lead'));
+    for (const m of methods) box.append(methodLine(m));
+    const cite = citations(live), t = node('table', '', `cmp-table cols-${cols}`);
+    t.createCaption().textContent = `${shown}: ${(county ? live.map(s => s.place) : names).filter((n, i, a) => a.indexOf(n) === i).join(' and ')}${cols === 2 ? ', side by side' : ''}`;
+    t.caption.className = 'visually-hidden';
+    const head = t.createTHead().insertRow();
+    if (shared) { const th = node('th', live[0].place); th.scope = 'col'; th.colSpan = 2; head.append(th); }
+    else parts.forEach((s, j) => { const th = node('th', county && s ? `${s.place} (for ${names[j]})` : names[j]); th.scope = 'col'; head.append(th); });
+    const ids = [...new Set(live.flatMap(s => s.rows.map(r => r.id)))];
+    for (const id of ids) {
+      const rows = parts.map(s => (s ? s.rows.find(r => r.id === id) || null : null)), first = rows.find(r => r && !r.missing) || rows.find(Boolean);
+      const body = t.createTBody(), top = body.insertRow(), label = node('th', '', 'cmp-label');
+      label.colSpan = cols;
+      label.scope = 'rowgroup';
+      const name = says('span', first.label, 'cmp-measure');
+      const numbers = [...new Set(rows.map(r => cite.number(r && r.source)).filter(Boolean))].sort((a, b) => a - b);
+      if (numbers.length) { const sup = node('sup', ''); sup.append(hidden(numbers.length > 1 ? ' sources ' : ' source '), numbers.join(',')); name.append(sup); }
+      label.append(name);
+      const state = rows.map(stateOf).find(Boolean);
+      if (state && (state.plain || state.value)) label.append(' ', node('span', `Hawaiʻi: ${state.plain || state.value}`, 'cmp-state'));
+      const notes = rowNotes(rows, cols);
+      if (notes.button) label.append(' ', notes.button);
+      top.append(label);
+      const values = body.insertRow();
+      if (shared) {
+        // One county figure, read once: both districts point at it, so there is no difference to show.
+        values.append(figure(rows[0], live[0].place, null, 'county', 2));
+      } else {
+        const diff = cols === 2 ? pairDifference(rows[0], rows[1]) : null, places = parts.map((s, j) => (county && s ? s.place : names[j]));
+        values.append(...rows.map((r, j) => {
+          const versus = diff === SLOTS[j] ? comparisonTo(r, rows[1 - j], 'higher', places[1 - j].replace(' District', '')) : null;
+          return figure(r, places[j], versus, county ? 'county' : list[j].geo.split(':')[0]);
+        }));
+        if (diff === 'same') {
+          const same = body.insertRow().insertCell();
+          same.colSpan = cols;
+          same.className = 'cmp-shared';
+          same.append(comparisonLine('within_margin', NO_CLEAR_DIFFERENCE));
+        }
+      }
+      if (notes.row) body.append(notes.row);
+    }
+    box.append(t);
+    if (cols === 2 && !shared) box.append(node('p', PAIR_COMPARISON_KEY, 'profile-key'));
+    if (cite.sources.length || cite.compared.length) box.append(foldedSources(cite.sources, cite.compared));
+    return box;
+  }
+
+  // Every measure either district has, in the profile's group and part order, one table per part: At a glance, then
+  // the profile's numbered groups. The groups open and shut like the profile's sections, numbered from At a glance.
   function table(list, slots) {
-    const names = list.map(p => p.district), byId = list.map(p => new Map([...p.headline, ...p.sections.flatMap(s => s.rows)].map(r => [r.id, r])));
-    const groups = [['glance', 'At a glance', [...new Set(list.flatMap(p => p.headline.map(r => r.id)))]]];
+    const glance = list.map(p => ({title: 'At a glance', rows: p.headline, sources: [], compared: []}));
+    const groups = [['glance', 'At a glance', [glance]]];
     for (const [key, title, sectionNames] of PROFILE_GROUPS) {
-      const ids = [...new Set(list.flatMap(p => p.sections.filter(s => sectionNames.includes(s.title)).flatMap(s => s.rows.map(r => r.id))))];
-      if (ids.length) groups.push([key, title, ids]);
+      const parts = sectionNames.filter(n => !n.startsWith('@'))
+        .map(n => list.map(p => p.sections.find(s => s.title === n && s.rows.length) || null))
+        .filter(part => part.some(Boolean));
+      if (parts.length) groups.push([key, title, parts]);
     }
     const out = [node('p', list.length === 2
-      ? 'Each figure shows its 90% margin of error or range. When there’s a clear difference, the gap appears under the higher figure.'
+      ? 'Each figure shows its 90% margin of error or range, and a number after its name points to its source. When there’s a clear difference, the gap appears under the higher figure.'
       : 'Choose a second district to set its figures beside these.', 'cmp-note')];
     // The districts' names over their columns stay in view while the rows scroll under them.
     const heads = node('div', '', 'cmp-sticky');
@@ -227,39 +375,12 @@
     });
     out.push(heads);
     const saved = openedSections();
-    groups.forEach(([key, title, ids], i) => {
+    groups.forEach(([key, title, parts], i) => {
       const d = node('details', '', 'profile-section cmp-section'), summary = node('summary', '');
       d.dataset.key = `cmp-${key}`;
       summary.append(sectionNumber(i + 1), node('span', title, 'sec-title'));
       summary.addEventListener('click', () => rememberOpen(d.dataset.key, !d.open));
-      const t = node('table', '', `cmp-table cols-${list.length}`);
-      t.createCaption().textContent = `${title}: ${names.join(' and ')}${list.length === 2 ? ', side by side' : ''}`;
-      t.caption.className = 'visually-hidden';
-      const head = t.createTHead().insertRow();
-      for (const name of names) { const th = node('th', name); th.scope = 'col'; head.append(th); }
-      for (const id of ids) {
-        const rows = byId.map(m => m.get(id) || null), first = rows.find(Boolean);
-        const body = t.createTBody(), top = body.insertRow(), label = node('th', '', 'cmp-label');
-        label.colSpan = list.length;
-        label.scope = 'rowgroup';
-        label.append(says('span', first.label, 'cmp-measure'));
-        const state = rows.map(r => r && (r.against || []).find(a => !a.missing && String(a.geo || '').startsWith('state:'))).find(Boolean);
-        if (state && (state.plain || state.value)) label.append(' ', node('span', `Hawaiʻi: ${state.plain || state.value}`, 'cmp-state'));
-        top.append(label);
-        const values = body.insertRow(), diff = list.length === 2 ? pairDifference(rows[0], rows[1]) : null;
-        values.append(...rows.map((r, j) => {
-          const versus = diff === SLOTS[j] ? comparisonTo(r, rows[1 - j], 'higher', names[1 - j].replace(' District', '')) : null;
-          return figure(r, names[j], versus, list[j].geo.split(':')[0]);
-        }));
-        if (diff === 'same') {
-          const shared = body.insertRow().insertCell();
-          shared.colSpan = list.length;
-          shared.className = 'cmp-shared';
-          shared.append(comparisonLine('within_margin', NO_CLEAR_DIFFERENCE));
-        }
-      }
-      d.append(summary, t);
-      if (list.length === 2) d.append(node('p', PAIR_COMPARISON_KEY, 'profile-key'));
+      d.append(summary, ...parts.map(part => partTable(part, list, part.find(Boolean).title, parts.length > 1)));
       d.open = typeof saved[d.dataset.key] === 'boolean' ? saved[d.dataset.key] : i < 3;
       out.push(d);
     });

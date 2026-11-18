@@ -12,6 +12,7 @@ from klear.agent.answer import (
     unpublished_years,
 )
 from klear.agent.config import (
+    COUNTY_NAMES,
     COUNTY_SECTION,
     EDUCATION,
     FIXED_INCOME,
@@ -22,7 +23,7 @@ from klear.agent.config import (
     PROFILE_INDICATORS,
     PROFILE_LARGEST,
 )
-from klear.agent.tools import Session
+from klear.agent.tools import NAME_WORDS, STATE_WORDS, Session, ToolError
 from klear.etl.places_gazetteer import search_plain
 from klear.eval.contract import geo_display
 from klear.labels import in_sentence, meaning, short_label
@@ -30,6 +31,7 @@ from klear.members import MAX_SEATS, REPRESENTS, Seats, as_listed, asked_seats, 
 from klear.web.display import (
     CAUTION,
     _plain,
+    _spread,
     build_month,
     matched_programs,
     member_cards,
@@ -158,15 +160,37 @@ COMPARING = re.compile(
 )
 CHAMBERS = ("house", "senate")
 STATE = ("state", "15")
+# Words that point back at the two places being compared: these two districts, both of them, each of them.
+BOTH = re.compile(
+    r"\b(?:these|those|the|both)\s+(?:two|2)\b|\bboth\s+(?:districts?|places|of\s+them)\b|\beach\s+of\s+them\b",
+    re.IGNORECASE,
+)
+# Words that point at the district the reader chose: this district, my district, here.
+HERE = re.compile(r"\b(?:this|my|our|selected|current)\s+district\b|\bhere\b", re.IGNORECASE)
+# How a question names a district's chamber, and the words that may stand between it and the number.
+CHAMBER_NAMES = {"house": "house", "hd": "house", "senate": "senate", "sd": "senate"}
+DISTRICT_NOUNS = {"district", "districts", "dist", "no", "number"}
+# Words that join a second number to a district already named, as in House Districts 49 and 50.
+NUMBER_JOINS = {"and", "or", "vs", "versus"}
+# Words after a number that make it an age, a share or a year rather than a district.
+NOT_A_DISTRICT = {"percent", "year", "years", "older", "over", "plus", "and over"}
+# Words that, beside the state's name, mean the whole state rather than a county or island.
+STATE_BEFORE = {"the", "whole", "entire"}
+STATE_AFTER = {"as", "average", "overall", "of", "wide", "figure", "figures", "rate"}
 # The word for each kind of place, in the line under figures shown side by side.
 KIND_WORDS = {"house": "district", "senate": "district", "county": "county", "state": "state"}
 # A share of residents at or above this reads as all of them, and an island holding this much of a county's
 # residents is answered with the county's figures.
 WHOLE = 0.995
 ISLAND_COUNTY = 0.99
-NEEDS_ASSISTANT = (
-    "This question compares every district, which needs the KLEAR assistant. The basic lookup answers for "
-    "one district, town, ZIP code or county at a time."
+ONE_AT_A_TIME = (
+    "The basic lookup answers this kind of question for one place at a time. Ask about each district on its own, "
+    "or set them side by side in Compare, which shows every profile figure for both."
+)
+NO_PAIR_MEASURE = (
+    "I could not match that question to a published district measure, so I cannot compare these places on it. "
+    "Try asking about population, kūpuna, income, poverty, housing, work or health, or open Compare to see every "
+    "profile figure side by side."
 )
 NAME_A_PLACE = (
     "Name a place in your question, such as a House or Senate district, a town, a ZIP code or a street "
@@ -806,10 +830,455 @@ def _county_name(con, geo: tuple[str, str]) -> str:
     ]
 
 
-def ask(con, question, district, geocoder=None, earlier=()):
+def _shown(con, geo: tuple[str, str]) -> str:
+    """A place's name as answers write it, like House District 22, Honolulu County or Hawaiʻi."""
+    if geo == STATE:
+        return "Hawaiʻi"
+    return geo_display(*geo, _county_name(con, geo))
+
+
+def _district_number(words: list[str], at: int) -> bool:
+    """Whether the word at this position is a district number, not an age, a share or a year."""
+    if at >= len(words) or not words[at].isdigit() or len(words[at]) > 2:
+        return False
+    after = " ".join(words[at + 1 : at + 3])
+    return not any(after == w or after.startswith(w + " ") for w in NOT_A_DISTRICT)
+
+
+def places_in(con, question: str, chamber: str | None = None) -> tuple[list[tuple[str, str]], list[str]]:
+    """The districts, counties and the state a question names, in the order it names them, each once, and the
+    towns, areas and ZIP codes it names, which can span several districts. A district number with no chamber word,
+    as in 'compare this district with district 50', takes the chamber named before it, else chamber. Numbers
+    joined to a district, as in House Districts 49 and 50, are districts of that chamber too."""
+    words = search_plain(question).split()
+    session, skip = Session(con), frozenset(STOP | GENERIC | POINTING)
+    found: list[tuple[str, str]] = []
+    towns: list[str] = []
+    i = 0
+    while i < len(words):
+        word = words[i]
+        span = next(
+            (
+                n
+                for n in range(min(NAME_WORDS, len(words) - i), 0, -1)
+                if " ".join(words[i : i + n]) in COUNTY_NAMES
+            ),
+            0,
+        )
+        if span:
+            found.append(("county", COUNTY_NAMES[" ".join(words[i : i + span])]))
+            i += span
+            continue
+        if word in CHAMBER_NAMES or word in ("district", "districts", "dist"):
+            kind = CHAMBER_NAMES.get(word, chamber)
+            at = i + 1
+            while at < len(words) and words[at] in DISTRICT_NOUNS:
+                at += 1
+            named = False
+            while kind and _district_number(words, at):
+                found.append((kind, f"{int(words[at]):03}"))
+                chamber, named = kind, True
+                at += 1
+                more = at + 1
+                while more < len(words) and words[more] in DISTRICT_NOUNS:
+                    more += 1
+                if at < len(words) and words[at] in NUMBER_JOINS and _district_number(words, more):
+                    at = more
+                    continue
+                break
+            if named:
+                i = at
+                continue
+        if ZIP_WORD.fullmatch(word):
+            towns.append(word)
+            i += 1
+            continue
+        span = next(
+            (
+                n
+                for n in range(min(NAME_WORDS, len(words) - i), 0, -1)
+                if not set(words[i : i + n]) <= skip | STATE_WORDS
+                and session.is_name(" ".join(words[i : i + n]))
+            ),
+            0,
+        )
+        if span:
+            towns.append(" ".join(words[i : i + span]))
+            i += span
+            continue
+        before, after = words[i - 1] if i else "", words[i + 1] if i + 1 < len(words) else ""
+        if (
+            word == "statewide"
+            or (word == "state" and (before in STATE_BEFORE or after in STATE_AFTER))
+            or word == "hawaii"
+        ):
+            found.append(STATE)
+        i += 1
+    known = [g for g in dict.fromkeys(found) if g == STATE or session._name(*g) is not None]
+    return known, list(dict.fromkeys(towns))
+
+
+ZIP_WORD = re.compile(r"96[78]\d{2}")
+# A question that asks about counties without naming one, as in 'compare them with the county'.
+THE_COUNTY = re.compile(r"\bcount(?:y|ies)\b", re.IGNORECASE)
+
+
+def comparison_places(
+    con, question: str, selected=None, pair=(), earlier=()
+) -> tuple[list[tuple[str, str]] | None, list[tuple[str, str]], dict | None]:
+    """The places a comparison question sets side by side, in the order it names them: two or more districts or
+    counties, the two districts the page compares when the question points at them ('these two districts', or a
+    comparison that names no other place), or the chosen district beside one the question names. Then the places
+    to show for context: the state, or the counties, when the question asks for them. None when the question is no
+    such comparison. A reply instead when it compares a town or ZIP code, which can span several districts, so
+    the basic lookup never answers for a place it was not asked about."""
+    hint = selected[0] if selected and selected[0] in CHAMBERS else None
+    found, towns = places_in(con, question, hint)
+    subjects = [g for g in found if g != STATE]
+    both = BOTH.search(question)
+    if not (both or COMPARING.search(question) or len(subjects) >= 2):
+        return None, [], None
+    pair = [tuple(g) for g in pair or ()]
+    named_county = any(g[0] == "county" for g in subjects)
+    points_at_pair = both or (set(subjects) <= set(pair) and STATE not in found and not named_county)
+    if len(subjects) < 2 and len(pair) == 2 and not towns and points_at_pair:
+        subjects = list(dict.fromkeys([*subjects, *pair]))
+    if len(subjects) < 2 and both and earlier:
+        before = [g for g in places_in(con, earlier[-1].question, hint)[0] if g != STATE]
+        if len(before) >= 2:
+            subjects = before
+    # "This district" or "here" is the chosen district, set beside the place the question names.
+    here = [tuple(selected)] if selected and HERE.search(question) and tuple(selected) not in subjects else []
+    if len(subjects) == 1 and here:
+        subjects = [*here, subjects[0]]
+    asked = subjects or here
+    if towns and len(asked) + len(towns) >= 2:
+        return None, [], _town_reply(con, asked, towns)
+    # One district beside its own main county is the standard answer, which sets the district, its county and the
+    # state side by side; another county is compared as a place of its own.
+    districts = [g for g in subjects if g[0] in CHAMBERS]
+    counties = [g for g in subjects if g[0] == "county"]
+    if len(districts) == 1 and counties and set(counties) == {main_county(con, districts[0])}:
+        return None, [], None
+    if len(subjects) < 2:
+        return None, [], None
+    context = [STATE] if STATE in found else []
+    if THE_COUNTY.search(question) and not named_county:
+        counties = [c for g in subjects if (c := main_county(con, g))]
+        context = list(dict.fromkeys(counties)) + context
+    return subjects, context, None
+
+
+def _town_reply(con, subjects, towns: list[str]) -> dict:
+    """Why the basic lookup does not compare a town or ZIP code: it can span several districts."""
+    session = Session(con)
+    names = []
+    for town in towns:
+        if ZIP_WORD.fullmatch(town):
+            names.append(f"ZIP code {town}")
+            continue
+        found = session.resolve_name(town)
+        names.append(_match_names(found["matches"][:1])[0] if found.get("matches") else town)
+    zips = sum(ZIP_WORD.fullmatch(t) is not None for t in towns)
+    one = len(names) == 1
+    kind = (
+        ("a ZIP code" if zips else "a town")
+        if one
+        else "ZIP codes"
+        if zips == len(names)
+        else "towns"
+        if not zips
+        else "towns and ZIP codes"
+    )
+    text = (
+        f"The basic lookup compares House and Senate districts, counties and the state. {_joined(names)} "
+        f"{'is' if one else 'are'} {kind}, which can span more than one district, so I will not pick a district "
+        f"for {'it' if one else 'them'}. Search for each place to find its districts, then compare the districts."
+    )
+    districts = [g for g in subjects if g[0] in CHAMBERS]
+    return _reply(text, actions=[compare_action(con, districts)])
+
+
+def compare_action(con, districts) -> dict:
+    """A link that opens Compare with these districts, or with empty searches when none is known."""
+    geos = [":".join(g) for g in districts[:2]]
+    if len(geos) == 2:
+        text = f"See {_shown(con, districts[0])} and {_shown(con, districts[1])} side by side in Compare"
+    else:
+        text = "Open Compare to set two districts side by side"
+    return {"text": text, "url": "/compare" + (f"?d={','.join(geos)}" if geos else "")}
+
+
+def _pair_value(f, unit: str) -> str:
+    return f"{_plain(f, unit)} {_spread(f, unit)}".strip()
+
+
+def _difference(a_name: str, b_name: str, way: str | None) -> str:
+    """What the margins of error say about two places' figures, in words."""
+    if way == "within_margin":
+        return f"{a_name} and {b_name} are within each other's margins of error, so the data show no clear difference."
+    if way in ("higher", "lower"):
+        return f"{a_name} is {way} than {b_name}, beyond the margins of error."
+    return ""
+
+
+def compare_answer(con, question: str, subjects, context, earlier=()) -> dict:
+    """Two or more districts or counties side by side on the question's measures, each figure with its margin of
+    error, and whether the first place differs from each other one beyond the margins. The state or counties the
+    question asks for come after them. A measure published only for counties cannot tell districts apart, so it is
+    named and left out rather than shown as the districts' own."""
+    names = {g: _shown(con, g) for g in [*subjects, *context]}
+    districts = [g for g in subjects if g[0] in CHAMBERS]
+    actions = [compare_action(con, districts)] if len(districts) >= 2 else []
+    q = question.casefold()
+    if asks_profile(q) or asks_programs(q) or asks_fixed_income(q):
+        return _reply(ONE_AT_A_TIME, actions=actions or [compare_action(con, [])], compared=subjects)
+    ids = indicators(con, question)
+    if not ids and earlier:
+        ids = list(earlier[-1].indicators)
+    if not ids:
+        return _reply(NO_PAIR_MEASURE, refusal="not_available", actions=actions, compared=subjects)
+    covered = dict(
+        con.execute("SELECT indicator_id, list(geo_type) FROM indicator_coverage GROUP BY 1").fetchall()
+    )
+    usable = [i for i in ids if all(g[0] in covered.get(i, []) for g in subjects)]
+    county_only = [i for i in ids if i not in usable]
+    labels = dict(con.execute("SELECT indicator_id, label FROM indicator").fetchall())
+    units = dict(con.execute("SELECT indicator_id, unit FROM indicator").fetchall())
+    shown = _joined([names[g] for g in subjects])
+    notes = []
+    if county_only:
+        what = _joined([in_sentence(short_label(i, labels.get(i, i))) for i in county_only])
+        notes.append(
+            f"The figures for {what} are published only for counties and the state, so they cannot tell "
+            f"{shown} apart, and they are left out."
+        )
+    session = Session(con)
+    result = {"facts": [], "missing": []}
+    if usable:
+        result = json.loads(
+            session.run(
+                "get_facts", {"indicator_ids": usable, "geos": [":".join(g) for g in [*subjects, *context]]}
+            )
+        )
+    if "error" in result:
+        raise ValueError("Could not read the compared places' facts")
+    if not result["facts"]:
+        text = " ".join(
+            notes
+            or [
+                f"I do not have published figures for that question in {shown}. I will not fill the gap with a guess."
+            ]
+        )
+        return _reply(text, refusal="not_available", actions=actions, compared=subjects)
+    facts = {(f["indicator_id"], tuple(f["geo"].split(":"))): f for f in result["facts"]}
+    missing = {(m["indicator_id"], tuple(m["geo"].split(":"))): m["reason"] for m in result["missing"]}
+    lines, shaky, modeled, shown_facts = [], [], {}, []
+    for ind in usable:
+        if not any((ind, g) in facts for g in subjects):
+            continue
+        unit = units.get(ind, "count")
+        label = short_label(ind, labels.get(ind, ind))
+        parts = []
+        for g in [*subjects, *context]:
+            fact = facts.get((ind, g))
+            if fact is None:
+                if g in subjects:
+                    parts.append(
+                        f"{names[g]}, not available ({missing.get((ind, g), 'no published figure')})"
+                    )
+                continue
+            shown_facts.append(fact)
+            f = session.facts[fact["ref"]]
+            parts.append(f"{names[g]}, {_pair_value(f, unit)}")
+            if fact["reliable"] is False:
+                shaky.append(names[g])
+            if session.tiers.get(fact["ref"]) == "M":
+                modeled[fact["ref"]] = label
+        line = f"- {label}: {'; '.join(parts)}."
+        first = facts.get((ind, subjects[0]))
+        for other in subjects[1:]:
+            theirs = facts.get((ind, other))
+            if first and theirs:
+                way = actual_direction(session.facts[first["ref"]], session.facts[theirs["ref"]])
+                if said := _difference(names[subjects[0]], names[other], way):
+                    line += f" {said}"
+        lines.append(line)
+    against = f", with {_joined([names[g] for g in context])} for context" if context else ""
+    lead = [f"{shown}, side by side{against}:\n" + "\n".join(lines)]
+    caveats = []
+    if modeled:
+        caveats.append(modeled_caveat(modeled.values()))
+    if shaky:
+        caveats.append(
+            f"The margin of error is large for the {'estimate' if len(set(shaky)) == 1 else 'estimates'} for "
+            f"{_joined(list(dict.fromkeys(shaky)))}, so use {'it' if len(set(shaky)) == 1 else 'them'} with care."
+        )
+    caveats.append(
+        "A difference counts only when the margins of error do not overlap. Within the margins, the data cannot say "
+        "which place is higher."
+    )
+    refs = [session.facts[f["ref"]] for f in shown_facts]
+    return {
+        "text": "\n\n".join(lead + notes + caveats),
+        "refusal": "none",
+        "facts": _cards(con, shown_facts),
+        "programs": [],
+        "fact_refs": refs,
+        "lead": lead + notes,
+        "caveats": caveats,
+        "modeled": modeled,
+        "district": subjects[0],
+        "compared": subjects,
+        "actions": actions,
+    }
+
+
+# Ranking questions: whether the lowest come first, and words that ask for a share or a count.
+LOWEST = re.compile(r"\b(?:lowest|fewest|smallest|least)\b", re.IGNORECASE)
+ASKS_SHARE = re.compile(r"\b(?:share|percent|percentage|rate|proportion)\b|%", re.IGNORECASE)
+ASKS_COUNT = re.compile(r"\b(?:most|fewest|number|how many|count|total)\b", re.IGNORECASE)
+RANK_WORDS = re.compile(
+    r"\b(?:which|what|districts?|house|senate|highest|lowest|most|fewest|largest|smallest|top|rank\w*)\b",
+    re.IGNORECASE,
+)
+# The most districts a ranking answer lists by name, and how many groups it reads out.
+RANK_SHOWN = 10
+RANK_GROUPS = 3
+
+
+def _rank_measure(con, question: str) -> str | None:
+    """The measure a ranking question asks about: a rate or median unless it asks for a count."""
+    units = dict(con.execute("SELECT indicator_id, unit FROM indicator").fetchall())
+    ids = [i for i in indicators(con, RANK_WORDS.sub(" ", question)) if i in units]
+    if not ids:
+        return None
+    additive = {r[0] for r in con.execute("SELECT indicator_id FROM indicator WHERE additive").fetchall()}
+    shares = [i for i in ids if units.get(i) == "percent"]
+    rates = [i for i in ids if i not in additive]
+    counts = [i for i in ids if i in additive]
+    if ASKS_SHARE.search(question):
+        # A share is never answered with a count, which would rank districts by their size.
+        return shares[0] if shares else None
+    if ASKS_COUNT.search(question) and not ASKS_SHARE.search(question) and counts:
+        return counts[0]
+    return (rates or ids)[0]
+
+
+def rankings_action(indicator: str, chamber: str, lowest: bool = False) -> dict | None:
+    """A link to the Rankings page set to this measure, chamber and order, when the page has the measure."""
+    from klear.web.shade import MEASURES  # imported here: shade imports the display module that this one does
+
+    if indicator not in MEASURES:
+        return None
+    word = "House" if chamber == "house" else "Senate"
+    order = "&order=low" if lowest else ""
+    return {
+        "text": f"See every {word} district ranked and on the map",
+        "url": f"/rankings?measure={indicator}&chamber={chamber}{order}",
+    }
+
+
+def rank_answer(con, question: str, selected) -> dict:
+    """Every district of a chamber ranked on one measure from the store, highest or lowest first, in groups whose
+    ranges overlap, so the data cannot order the districts inside a group. Read with no model call."""
+    words = set(WORDS.findall(question.casefold()))
+    chamber = (
+        "senate"
+        if "senate" in words and "house" not in words
+        else "house"
+        if "house" in words
+        else selected[0]
+        if selected and selected[0] in CHAMBERS
+        else "house"
+    )
+    indicator = _rank_measure(con, question)
+    if indicator is None:
+        return {
+            "text": (
+                "I could not match that ranking to a published district measure. Try a measure such as poverty, "
+                "kūpuna, household income, rent burden or health insurance, or open Rankings to color every "
+                "district by one."
+            ),
+            "refusal": "not_available",
+            "facts": [],
+            "programs": [],
+            "actions": [{"text": "Open Rankings", "url": "/rankings"}],
+        }
+    counties = [g for g in places_in(con, question, chamber)[0] if g[0] == "county"]
+    county = counties[0] if counties else None
+    lowest = bool(LOWEST.search(question))
+    session = Session(con)
+    args = {"indicator": indicator, "chamber": chamber} | ({"county": ":".join(county)} if county else {})
+    try:
+        ranked = session._rank_districts(args, lowest=lowest)
+    except ToolError:
+        return _reply(f"KLEAR has no {chamber.title()} districts to rank there.", refusal="not_available")
+    label = short_label(indicator, ranked["label"])
+    unit = ranked["unit"]
+    word = chamber.title()
+    where = f" in {_shown(con, county)}" if county else ""
+    if not ranked["tiers"]:
+        return _reply(
+            f"No {word} district{where} has a published figure for {in_sentence(label)} with a margin of error, so "
+            "KLEAR cannot rank them. I will not fill the gap with a guess.",
+            refusal="not_available",
+        )
+    shown_geos, lines, listed = [], [], 0
+    for tier in ranked["tiers"][:RANK_GROUPS]:
+        if listed >= RANK_SHOWN:
+            break
+        names = []
+        for d in tier["districts"][: RANK_SHOWN - listed]:
+            f = session.facts[d["ref"]]
+            names.append(f"{d['geo_name']} ({_pair_value(f, unit)})")
+            shown_geos.append(d["geo"])
+            listed += 1
+        rest = len(tier["districts"]) - len(names)
+        listed_names = f"{', '.join(names)} and {rest} more" if rest > 0 else _joined(names)
+        lead = "First group" if tier["tier"] == 1 else "Next group"
+        lines.append(f"- {lead}: {listed_names}.")
+    total = sum(len(t["districts"]) for t in ranked["tiers"])
+    additive = con.execute("SELECT additive FROM indicator WHERE indicator_id = ?", [indicator]).fetchone()[0]
+    order = ("fewest" if lowest else "most") if additive else ("lowest" if lowest else "highest")
+    head = f"{word} districts{where} with the {order} {in_sentence(label)}, from KLEAR's data store:"
+    how = (
+        f"Districts in one group have overlapping margins of error, so the data cannot say which of them is "
+        f"{'lower' if lowest else 'higher'}. Every district in a later group is {'higher' if lowest else 'lower'} "
+        f"than the first district of each earlier group. {total} of the {word}'s districts{where} "
+        f"{'has' if total == 1 else 'have'} a figure."
+    )
+    caveats = [how]
+    if ranked["unreliable"]:
+        caveats.append(
+            f"{ranked['unreliable']} of these estimates have a large margin of error, so use them with care."
+        )
+    if note := ranked.get("note"):
+        caveats.append(note)
+    actions = [a for a in [rankings_action(indicator, chamber, lowest)] if a]
+    # The listed districts' figures in full, in ranked order, for the figure cards and the chart.
+    got = json.loads(session.run("get_facts", {"indicator_ids": [indicator], "geos": shown_geos}))
+    if "error" in got:
+        raise ValueError("Could not read the ranked districts' facts")
+    return {
+        "text": "\n\n".join([head + "\n" + "\n".join(lines), *caveats]),
+        "refusal": "none",
+        "facts": _cards(con, got["facts"]),
+        "programs": [],
+        "fact_refs": [session.facts[f["ref"]] for f in got["facts"]],
+        "lead": [head + "\n" + "\n".join(lines)],
+        "caveats": caveats,
+        "district": None,
+        "actions": actions,
+    }
+
+
+def ask(con, question, district, geocoder=None, earlier=(), pair=()):
     """Free answer for the place a question names, the selected district (None when none is chosen), or the
     district of a street address in the question; geocoder finds that address's Census blocks, or is None when
-    address lookup is off. earlier holds the reader's last questions in this tab."""
+    address lookup is off. earlier holds the reader's last questions in this tab, and pair the two districts the
+    Compare page sets side by side, if any. A comparison keeps every place it names: it is never answered for one
+    of them, or for another place."""
     if PERSONAL.search(question):
         return {
             "text": "I can describe districts from public data, but I cannot find or judge any one person.",
@@ -829,7 +1298,12 @@ def ask(con, question, district, geocoder=None, earlier=()):
     if address := address_in(question):
         return address_answer(con, question, address, geocoder)
     if RANKING.search(question):
-        return _reply(NEEDS_ASSISTANT)
+        return rank_answer(con, question, district)
+    subjects, context, reply = comparison_places(con, question, district, pair, earlier)
+    if reply is not None:
+        return reply
+    if subjects:
+        return compare_answer(con, question, subjects, context, earlier)
     subject, where, reply = place_of(con, question, district, earlier)
     if reply is not None:
         return reply

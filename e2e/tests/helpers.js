@@ -4,6 +4,8 @@ import AxeBuilder from '@axe-core/playwright';
 import {expect} from '@playwright/test';
 
 export const DISTRICT = 'House District 22';
+// The same site run with no assistant, as with no API key (playwright.config.js starts it).
+export const BASIC_URL = process.env.KLEAR_E2E_BASIC_URL || 'http://127.0.0.1:8775';
 // Rules for WCAG 2.0, 2.1 and 2.2 at levels A and AA.
 const WCAG = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'];
 const FAILING = new Set(['serious', 'critical']);

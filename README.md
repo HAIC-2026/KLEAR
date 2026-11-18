@@ -28,10 +28,16 @@ Results, from the data build of November 13, 2026 HST that the live site serves,
 | Stored figures compared with DBEDT's district profiles | 5,494 figures, 0 differ |
 | Program rule values checked against official pages | 260 values in 15 rule files, 0 mismatches |
 | Programs in the catalog (data/programs) | 21 state, county and federal programs |
-| Scripted replay of the 77 practice questions (saved model replies, no API calls) | 77 of 77 pass, every number from the store |
-| Live runs with Claude Haiku 5.5 on two private 50-question test sets and a 100-question held-out set the fixes were never tuned on (November 14 and 15) | 48 of 50, 45 of 50 and 87 of 100 pass every check; in all 200 answers every number matches the store |
+| Scripted replay of the 77 practice questions (saved model replies in eval/scripts, no API calls; rerun with `uv run python -m klear.eval run --mode replay --agent scripted`) | 77 of 77 pass, every number from the store |
+| Live runs with Claude Haiku 5.5 on two private 50-question test sets and a 100-question held-out set the fixes were never tuned on (November 14 and 15) | 48 of 50, 45 of 50 and 87 of 100 pass every check; in all 200 answers every number matches the store. Team-reported: the run files are not in this repository, so the site does not show these numbers (see below). |
 | Python tests (pytest) | 2,493 passed, 0 failed, 1 skipped (74 tests that call live servers run separately) |
 | Browser tests at desktop and phone sizes (Playwright, Chromium), including axe accessibility scans for WCAG 2.2 A and AA | 261 passed, 0 failed (17 desktop-only checks skipped at phone size) |
+
+The assistant results the site shows (Data & methods, Checks) come from the evidence committed here, each a different kind of run, so they are not the same numbers as the November 14 and 15 runs above:
+
+- Recorded live answers: the newest run in eval/recordings (claude-haiku-5-5-20261101T183501390320, November 1), scored again against each data build with no new model calls.
+- Held-out totals: eval/heldout_summary.yaml, the published totals of the November 3 held-out run (89 of 100). The held-out questions are kept outside this repository.
+- Data checks: docs/VALIDATION.md and data/build/validation.json, from the build that made the data the site serves.
 
 To run KLEAR on your own computer instead, you first build the data store from public sources. That needs Python 3.12 or later, [uv](https://docs.astral.sh/uv/getting-started/installation/), internet access and a free Census API key ([sign up here](https://api.census.gov/data/key_signup.html)) saved in a .env file as in [Local keys](#local-keys). No paid key is needed.
 
@@ -248,10 +254,11 @@ Outputs in data/build:
 
 - klear.duckdb: the fact store.
 - manifest.json: build time, code commit, skipped checks, store counts and every raw file with its source URL, retrieval time and SHA-256 hash.
-- validation.json: full results of every check, the report text the website shows, and the assistant eval results.
+- validation.json: the report of the store the site serves: full results of every check, the report text the website shows, and the assistant eval results. Only a build that replaces the store rewrites it, so a failed build leaves the served store's report in place.
+- validation-attempt.json: the same report for the latest build attempt, written every time, with whether it replaced the store and why not.
 - house.geojson and senate.geojson: simplified district polygons for the web.
 
-The build also rewrites docs/VALIDATION.md, the public validation report. After the checks it rescores the newest recorded live run in eval/recordings against the new store (free, no model calls) and adds the published held-out totals from eval/heldout_summary.yaml. The website's How we check KLEAR page (/checks.html, linked from the footer) reads validation.json through /api/checks, so it always shows the latest build.
+The build also rewrites docs/VALIDATION.md, the public validation report of the latest attempt. After the checks it rescores the newest recorded live run in eval/recordings against the new store (free, no model calls) and adds the published held-out totals from eval/heldout_summary.yaml. The website's How we check KLEAR section (/data#checks) reads validation.json through /api/checks and shows it only when its build matches the build recorded in the served store; otherwise it says the results on file are for other data. It also says when the latest build attempt failed and the site still serves the earlier data.
 
 ### Keeping rules and programs current
 

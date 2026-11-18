@@ -14,6 +14,7 @@ from klear.agent.config import (
     PROFILE_LARGEST,
     PROFILE_SECTIONS,
 )
+from klear.agent.tools import Session
 from klear.config import CURRENT_LAYER
 from klear.etl import bls, dbedt, dotax
 from klear.eval.contract import (
@@ -849,6 +850,93 @@ def _largest(raw: dict) -> dict[str, list[str]]:
     """The indicators each PROFILE_LARGEST group shows in the profile, largest first."""
     shown = [r["fact"]["indicator_id"] for s in raw["sections"] for r in s["rows"]]
     return {key: [i for i in shown if i in group] for key, (group, _) in PROFILE_LARGEST.items()}
+
+
+# A line under the title of a compared section that shows the largest figures of a group for both districts.
+COMPARE_LARGEST_INTROS = {
+    "largest_industries": (
+        "The industry rows are the industries among either district's three largest of 13 industry groups, shown "
+        "for both. They count residents by the industry they work in, wherever the job is."
+    ),
+}
+# Why a compared district has no figure in a row, by the reason the store gives.
+NOT_PUBLISHED = "Not published for this district"
+
+
+def _missing_text(reason: str | None) -> str:
+    """What a comparison's empty cell says: why the district has no figure, never a figure inferred for it."""
+    if not reason:
+        return NOT_PUBLISHED
+    if reason.startswith("not published for"):
+        return NOT_PUBLISHED
+    return reason[0].upper() + reason[1:]
+
+
+def _placeholder(indicator: str, reason: str | None, store: _Store) -> dict:
+    """A compared row for a district with no figure: the measure's label and why the cell is empty."""
+    return {
+        "id": indicator,
+        "label": store.short(indicator),
+        "meaning": store.meaning(indicator),
+        "unit": store.units.get(indicator, "count"),
+        "missing": _missing_text(reason),
+        "against": [],
+        "source": None,
+        "method": None,
+        "caveat": "",
+        "caution": "",
+        "note": 0,
+    }
+
+
+def _union(lists: list[list[str]]) -> list[str]:
+    return list(dict.fromkeys(i for ids in lists for i in ids))
+
+
+def comparison(con, geos: list[tuple[str, str]], islands: dict[str, str] | None = None) -> dict:
+    """Two districts' profiles laid out to be set side by side, row by row. A profile shows only its own district's
+    three largest industries, so here both show every industry either profile shows, read from the store for each
+    district: a row one district's profile left out is never shown as missing. The rows of every section come in the
+    same order for both, the shared industries by their average share so the order does not depend on which district
+    is first. A measure a district has no figure for keeps its row, which says why (not published, suppressed),
+    never a figure inferred for it. A section of county-level figures names its county ("geo"), so the page can say
+    when two districts' cells are one county's figure. Programs and outreach are left to each district's page."""
+    session = Session(con)
+    store = _Store(con)
+    largest = {}
+    for key, (group, n) in PROFILE_LARGEST.items():
+        chosen = _union([session.largest(group, g)[:n] for g in geos])
+        values = [session.values(chosen, g) for g in geos]
+        mean = {i: sum(v[i] for v in values if i in v) / max(1, sum(i in v for v in values)) for i in chosen}
+        largest[key] = sorted(chosen, key=lambda i: (-mean[i], i))
+    raws = [session.district_profile(g, largest) for g in geos]
+    places = islands or {}
+    payloads = [profile(con, raw, session, places.get(raw["district"]["geo"], "")) for raw in raws]
+    for p, raw in zip(payloads, raws, strict=True):
+        p.pop("programs", None)
+        p.pop("outreach", None)
+        for sec, raw_sec in zip(p["sections"], raw["sections"], strict=True):
+            sec["geo"] = raw_sec.get("geo") or raw["district"]["geo"]
+            keys = [k for k in dict(PROFILE_SECTIONS).get(sec["title"], ()) if k in PROFILE_LARGEST]
+            if keys:
+                sec["intro"] = " ".join(COMPARE_LARGEST_INTROS[k] for k in keys)
+    missing = [{(m["indicator_id"], m["geo"]): m["reason"] for m in raw.get("missing", [])} for raw in raws]
+    # At a glance: the headline measures in their fixed order, each kept for every district.
+    heads = [i for i in PROFILE_HEADLINE if any(any(r["id"] == i for r in p["headline"]) for p in payloads)]
+    for p, gone in zip(payloads, missing, strict=True):
+        have = {r["id"]: r for r in p["headline"]}
+        p["headline"] = [have.get(i) or _placeholder(i, gone.get((i, p["geo"])), store) for i in heads]
+    # Every section, by title in the profile's order, with the rows any district has, in one order for all.
+    titles = _union([[s["title"] for s in p["sections"]] for p in payloads])
+    for title in titles:
+        mine = [next((s for s in p["sections"] if s["title"] == title), None) for p in payloads]
+        order = _union([[r["id"] for r in s["rows"]] for s in mine if s])
+        for p, sec, gone in zip(payloads, mine, missing, strict=True):
+            if sec is None:
+                continue
+            have = {r["id"]: r for r in sec["rows"]}
+            sec["rows"] = [have.get(i) or _placeholder(i, gone.get((i, sec["geo"])), store) for i in order]
+    return {"districts": payloads}
 
 
 # How the Commission's permanent-resident count differs from the ACS total population in the profile.

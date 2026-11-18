@@ -56,6 +56,13 @@ def test_ready_reports_store_build_prepared_answers_and_assistant(ready, live, p
             "built": "2026-11-11",
             "prepared_answers": 15,
             "assistant": "on",
+            "capabilities": {
+                "lookup": True,
+                "assistant": True,
+                "assistant_capped": False,
+                "prepared_answers": True,
+                "address_lookup": False,
+            },
         }
         assert fake.calls == 0 and fake.counts == []
         for secret in (KEY, str(ready.parent), "kupuna", "duckdb"):
@@ -71,6 +78,25 @@ def test_ready_without_prepared_answers_or_assistant(tmp_path):
     try:
         status, data, _, _ = get(server, "/readyz")
         assert status == 200 and data["prepared_answers"] == 0 and data["assistant"] == "off"
+        assert data["capabilities"] == {
+            "lookup": True,
+            "assistant": False,
+            "assistant_capped": False,
+            "prepared_answers": False,
+            "address_lookup": False,
+        }
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_ready_says_when_the_daily_cap_has_stopped_the_assistant(tmp_path):
+    store = small_store(tmp_path / "store")
+    budget = DailyBudget(0.0, tmp_path / "web.json", day=lambda: "2026-11-11")
+    server = serve(store, Assistant(budget, client=FakeClient()), AnswerCache(store, "claude-haiku-5-5"))
+    try:
+        _, data, _, _ = get(server, "/readyz")
+        assert data["assistant"] == "on" and data["capabilities"]["assistant_capped"] is True
     finally:
         server.shutdown()
         server.server_close()
@@ -93,6 +119,13 @@ def test_not_ready_without_a_usable_store(tmp_path, make, state):
             "built": None,
             "prepared_answers": 0,
             "assistant": "off",
+            "capabilities": {
+                "lookup": False,
+                "assistant": False,
+                "assistant_capped": False,
+                "prepared_answers": False,
+                "address_lookup": False,
+            },
         }
         assert str(tmp_path) not in raw
     finally:

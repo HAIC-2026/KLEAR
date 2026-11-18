@@ -832,6 +832,15 @@
     const b = e.target.closest(SWITCH);
     if (b && b.dataset.chamber !== chamber) setChamber(b.dataset.chamber);
   });
+  // A link such as /rankings?measure=pct_65_plus&chamber=senate&order=low, as a ranking answer gives, opens the map on
+  // that measure, chamber and order. Anything the page does not offer is left as it is.
+  if (shadeSelect) {
+    const asked = new URLSearchParams(location.search), measure = asked.get('measure'), house = asked.get('chamber'), how = asked.get('order');
+    if (measure && [...shadeSelect.options].some(o => o.value === measure)) shadeSelect.value = measure;
+    if (house === 'house' || house === 'senate') setChamber(house);
+    const orderSelect = document.getElementById('map-order');
+    if (how && orderSelect && [...orderSelect.options].some(o => o.value === how)) orderSelect.value = how;
+  }
 
   // Show the district the chat asks about, unless the map already has it picked.
   // While the reader works in the map, wait until focus leaves it.

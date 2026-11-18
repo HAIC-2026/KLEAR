@@ -67,6 +67,46 @@ $('chat').addEventListener('keydown', e => {
 FLOAT.addEventListener('change', applyChat);
 PHONE.addEventListener('change', applyChat);
 
+// How this server answers, from /api/ready: with the AI assistant, or with the basic lookup alone (no key, or today's
+// spending cap reached), and whether street address search is on. The notes under the question boxes say where a
+// question goes in each case, and until the server says, only what is true either way. When the assistant fails or
+// reaches its cap mid-conversation, the answer says so (fallback) and the notes change with it.
+const capability = {known: false, assistant: false, capped: false, address: true, fellBack: ''};
+const PRIVACY = {
+  assistant: 'An AI model answers from KLEAR’s data. Questions go to its provider, Anthropic, so leave out personal details.',
+  basic: 'Basic lookup: KLEAR matches questions to its own data, with no AI model. Questions are not sent to an AI provider. Leave out personal details.',
+  capped: 'The AI assistant has reached today’s spending limit, so the basic lookup answers, with no AI model, until the day ends (HST). Questions are not sent to an AI provider. Leave out personal details.',
+  failed: 'The AI assistant could not answer the last question, so the basic lookup did. The next question tries the assistant again, which sends it to Anthropic. Leave out personal details.',
+  unknown: 'Answers come from KLEAR’s data. Leave out personal details.',
+};
+const MODE_LINES = {
+  basic: 'Basic lookup, with no AI model: ask about a district, town, ZIP code or county, two places side by side, or which districts rank highest on a measure.',
+  capped: 'Basic lookup until the day ends (HST): the AI assistant has reached today’s spending limit.',
+};
+function capabilityState() {
+  if (!capability.known) return 'unknown';
+  if (!capability.assistant) return 'basic';
+  if (capability.capped || capability.fellBack === 'capped') return 'capped';
+  return capability.fellBack === 'failed' ? 'failed' : 'assistant';
+}
+function showCapability() {
+  const state = capabilityState(), line = MODE_LINES[state] || '';
+  $('chat-privacy-text').textContent = PRIVACY[state];
+  $('home-privacy').textContent = PRIVACY[state];
+  $('chat-mode').textContent = line;
+  $('chat-mode').hidden = !line;
+  document.documentElement.dataset.answers = state;
+  if (capability.known && !capability.address) $('find').querySelector('.privacy').textContent = 'Street address search is off on this site. Search by town, ZIP code, district or legislator.';
+}
+async function loadCapability() {
+  try {
+    const c = ((await (await fetch('/api/ready')).json()) || {}).capabilities;
+    if (c && typeof c === 'object') Object.assign(capability, {known: true, assistant: Boolean(c.assistant), capped: Boolean(c.assistant_capped), address: c.address_lookup !== false});
+  } catch { /* the notes stay true either way */ }
+  showCapability();
+}
+loadCapability();
+
 // The panel's title names what the agent asks about: the district, the two districts compared, or nothing yet.
 // #district-title holds the district questions go about.
 let compareNames = [];
@@ -425,6 +465,11 @@ function showSeats(name) {
   try { sessionStorage.setItem(SAVED_CHAMBER, name); } catch { /* blocked */ }
 }
 document.addEventListener('klear:chamber', e => showSeats(e.detail));
+// A switch pressed on the Find page says which numbers now show, wherever the reader's eyes are.
+document.addEventListener('click', e => {
+  const b = e.target.closest('.chamber-switch [data-chamber]');
+  if (b && view() === 'home') $('seats-live').textContent = `Showing the ${b.dataset.chamber === 'senate' ? '25 Senate' : '51 House'} districts.`;
+});
 
 // Every district by number. Each number is a link to its page, so it works before the script runs and opens in a new
 // tab like any link; a plain click opens it in place, the map zooming to it first. Pointing at a number outlines its
@@ -986,6 +1031,8 @@ function profileSection(key, title, parts, number) {
 function dataPart(sec) {
   const rows = profileTable(sec), content = [];
   if (sec.scope) content.push(node('p', sec.scope, 'profile-scope'));
+  // Which of a group's measures the section shows, such as the district's three largest industries of 13.
+  if (sec.intro) content.push(node('p', sec.intro, 'profile-intro'));
   if (sec.caveat && sec.title !== 'Who may qualify') content.push(node('p', sec.caveat, 'profile-caveat lead'));
   if (sec.method) content.push(methodLine(sec.method));
   content.push(rows, foldedSources(sec.sources, sec.compared));
@@ -1234,6 +1281,7 @@ function renderProfile(p) {
   glance.append(head, stats);
   if (stats.querySelector('.glance-strip')) glance.append(glanceKey(p));
   if (stats.querySelector('.compare-line')) glance.append(compareKey());
+  glance.append(...glanceAbout(p));
   if (p.caveats && p.caveats.length) glance.append(placeNotes(p.caveats, 'profile-notes'));
   const sections = profileSections(p);
   const out = [profileJumps([glance, ...sections]), glance];
@@ -1303,6 +1351,43 @@ function glanceStrip(h) {
   }
   dd.append(here);
   return dd;
+}
+
+// Where At a glance's figures come from: one short line with each source and the survey years its figures cover (not
+// when KLEAR last updated its data), then, one tap away, each figure's definition, who it counts, how it was estimated
+// and its source, for the district and for the county and state beside it.
+function glanceAbout(p) {
+  const rows = (p.headline || []).filter(h => h && h.source && h.source.name);
+  if (!rows.length) return [];
+  const sources = new Map();
+  for (const h of rows) for (const s of [h.source, ...(h.against || []).map(a => a.source)]) if (s && s.name && !sources.has(`${s.name} ${s.year}`)) sources.set(`${s.name} ${s.year}`, s);
+  const line = node('p', '', 'glance-source');
+  line.append(`${sources.size > 1 ? 'Sources' : 'Source'}: `);
+  [...sources.values()].forEach((s, i) => line.append(...(i ? ['; '] : []), link(s.name, s.url), `, ${s.year}`));
+  line.append('.');
+  const box = node('details', '', 'sources-fold glance-about'), list = node('dl', '', 'glance-defs');
+  box.append(node('summary', 'About these figures'));
+  for (const h of rows) {
+    const item = node('div', ''), what = node('dd', '');
+    item.append(says('dt', h.label));
+    const m = h.meaning || {};
+    if (m.plain) what.append(says('p', m.plain));
+    if (m.universe) what.append(says('p', `Who is counted: ${m.universe}.`));
+    const from = node('p', '');
+    from.append(`${p.district}: `, link(h.source.name, h.source.url), `, ${h.source.year}${h.spread ? `, ${h.spread.startsWith('range') ? 'with its range' : 'with its 90% margin of error'}` : ''}.`);
+    what.append(from);
+    for (const a of (h.against || []).filter(x => x && x.source && !x.missing)) {
+      const other = node('p', '');
+      other.append(`${a.place}: `, link(a.source.name, a.source.url), `, ${a.source.year}.`);
+      what.append(other);
+    }
+    if (h.method) what.append(methodLine(h.method));
+    if (h.caveat) what.append(says('p', h.caveat));
+    item.append(what);
+    list.append(item);
+  }
+  box.append(list);
+  return [line, box];
 }
 
 // What the strips' marks stand for, once under the headline figures.
@@ -1572,7 +1657,8 @@ function sheetTable(columns, groups, cite, wordsTitle) {
       r.figs.forEach((f, i) => {
         const kind = columns[i].kind;
         if (!f || f.missing) {
-          const none = node('td', 'Not available', `sheet-none ${kind}`);
+          // A compared district's row says why it has no figure, as the page does.
+          const none = node('td', f && f.label && typeof f.missing === 'string' ? f.missing : 'Not available', `sheet-none ${kind}`);
           none.colSpan = 2;
           tr.append(none);
           return;
@@ -1700,22 +1786,65 @@ function planSheet(plan, cite) {
   return box;
 }
 
+// Whether a compared part holds county-level figures, which are a county's, never a district's own.
+const countyPart = sec => Boolean(sec && sec.scope && String(sec.geo || '').startsWith('county:'));
+// Whether two districts' county-level figures are one county's.
+const sameCounty = parts => parts.length === 2 && Boolean(parts[0] && parts[1]) && parts[0].geo === parts[1].geo;
+
+// What county-level figures stand for beside two districts, on the page and on paper: the one county both lie in, or
+// each district's own county.
+function countyContext(parts, names) {
+  const live = parts.filter(Boolean);
+  if (sameCounty(parts)) {
+    return `These figures cover all of ${live[0].place}, where most residents of both ${names[0]} and ${names[1]} live. They are not published for districts, so both districts have the same county figure, which cannot show how the two differ.`;
+  }
+  if (live.length === 2) {
+    return `These figures are for each district’s county: ${parts[0].place} for ${names[0]}, and ${parts[1].place} for ${names[1]}. They are not published for districts, so a difference here is between the two counties, not the districts.`;
+  }
+  return live.length ? live[0].scope : '';
+}
+
+// The notes a compared part prints before its table: whose figures they are, what the rows are, how the figures were
+// estimated, and the notes on its measures, each said once.
+function partSheetNotes(parts, names, title) {
+  const live = parts.filter(Boolean), out = [], seen = new Set();
+  const add = text => { if (text && !seen.has(text)) { seen.add(text); out.push(says('p', `${title}: ${text}`, 'sheet-note sheet-scope')); } };
+  if (countyPart(live[0])) add(countyContext(parts, names));
+  for (const s of live) add(s.intro);
+  for (const s of live) if (s.method) add(`How estimated: ${s.method.text} (${new URL(s.method.url, location.origin).href}).`);
+  for (const s of live) add(s.caveat);
+  // A note on some of the rows names the rows it applies to.
+  const methods = new Map(), notes = new Map(), apply = (map, key, label) => map.set(key, [...new Set([...(map.get(key) || []), label])]);
+  for (const s of live) for (const r of s.rows) {
+    if (r.method) apply(methods, `${r.method.text} (${new URL(r.method.url, location.origin).href})`, r.label);
+    if (r.caveat) apply(notes, r.caveat, r.label);
+  }
+  for (const [text, labels] of methods) add(`How estimated: ${text}. Applies to: ${labels.join('; ')}.`);
+  for (const [text, labels] of notes) add(`${text} Applies to: ${labels.join('; ')}.`);
+  return out;
+}
+
 // The comparison's printout: both districts in the heading, then each chosen section's figures side by side, with
-// Hawaiʻi's when asked and a column saying whether the two differ beyond their margins of error.
+// Hawaiʻi's when asked and a column saying whether the two differ beyond their margins of error. It prints the same
+// aligned rows as the page: every row either district's profile shows, for both, and why a district has no figure.
+// County-level rows say whose figures they are, and two districts in one county get no difference.
 function compareSheet(list, choice) {
   const {sources, cite} = citations(), chosen = new Set(choice.parts), names = list.map(p => p.district);
-  const byId = list.map(p => new Map([...p.headline, ...p.sections.flatMap(s => s.rows)].map(r => [r.id, r])));
   const columns = list.map((p, i) => ({kind: i ? 'other' : 'home', name: p.district}));
   if (choice.places) columns.push({kind: 'state', name: 'Hawaiʻi'});
-  const rowsFor = ids => ids.map(id => {
-    const mine = byId.map(m => m.get(id) || null), first = mine.find(Boolean);
-    const figs = mine.slice();
-    if (choice.places) figs.push(mine.map(r => r && againstOf(r, 'state')).find(Boolean) || null);
-    const line = list.length === 2 ? pairSheetLine(mine[0], mine[1], names) : null;
-    return {label: first.label, figs, words: line ? [line] : []};
-  });
-  const idsOf = rows => rows.map(r => r.id);
-  const union = lists => [...new Set(lists.flat())];
+  const rowsFor = parts => {
+    const live = parts.filter(Boolean), county = countyPart(live[0]), shared = county && sameCounty(parts);
+    const ids = [...new Set(live.flatMap(s => s.rows.map(r => r.id)))];
+    return ids.map(id => {
+      const mine = parts.map(s => (s ? s.rows.find(r => r.id === id) || null : null)), first = mine.find(r => r && !r.missing) || mine.find(Boolean);
+      const figs = mine.slice();
+      if (choice.places) figs.push(mine.map(r => r && againstOf(r, 'state')).find(Boolean) || null);
+      let line = null;
+      if (shared) line = node('span', `Same ${live[0].place} figure for both`, 'compare-line');
+      else if (list.length === 2) line = pairSheetLine(mine[0], mine[1], county ? parts.map((s, j) => (s ? s.place : names[j])) : names);
+      return {label: first.label, figs, words: line ? [line] : []};
+    });
+  };
   const lines = list.map(p => {
     const l = node('p', '', 'sheet-where');
     l.append(node('b', p.district), p.where ? ` · ${p.where}` : '');
@@ -1725,14 +1854,20 @@ function compareSheet(list, choice) {
   const parts = [sheetHeading('KLEAR comparison', names.join(' and '), lines, `/compare?d=${list.map(p => p.geo).join(',')}`)];
   const words = list.length === 2 ? 'Difference' : '';
   let number = 1;
-  if (chosen.has('glance')) parts.push(sheetSection(`${number} At a glance`, 'sheet-glance', ...sheetTable(columns, [['', rowsFor(union(list.map(p => idsOf(p.headline))))]], cite, words)));
+  if (chosen.has('glance')) {
+    const glance = list.map(p => ({title: 'At a glance', rows: p.headline}));
+    parts.push(sheetSection(`${number} At a glance`, 'sheet-glance', ...partSheetNotes(glance, names, 'At a glance'), ...sheetTable(columns, [['', rowsFor(glance)]], cite, words)));
+  }
   for (const [key, title, sectionNames] of PROFILE_GROUPS) {
     const data = sectionNames.filter(n => !n.startsWith('@'));
     if (!list.some(p => groupParts(p, data))) continue;
     number++;
     if (!chosen.has(key)) continue;
-    const groups = data.map(n => [data.length > 1 ? n : '', rowsFor(union(list.map(p => idsOf((p.sections.find(s => s.title === n) || {rows: []}).rows))))]).filter(([, rows]) => rows.length);
-    if (groups.length) parts.push(sheetSection(`${number} ${title}`, `sheet-part sheet-part-${key}`, ...sheetTable(columns, groups, cite, words)));
+    const found = data.map(n => list.map(p => p.sections.find(s => s.title === n && s.rows.length) || null)).filter(part => part.some(Boolean));
+    const named = part => (countyPart(part.find(Boolean)) ? 'County context' : part.find(Boolean).title);
+    const notes = found.flatMap(part => partSheetNotes(part, names, named(part)));
+    const groups = found.map(part => [data.length > 1 || countyPart(part.find(Boolean)) ? named(part) : '', rowsFor(part)]).filter(([, rows]) => rows.length);
+    if (groups.length) parts.push(sheetSection(`${number} ${title}`, `sheet-part sheet-part-${key}`, ...notes, ...sheetTable(columns, groups, cite, words)));
   }
   parts.push(...sheetEnd(sources));
   return parts;
@@ -1931,7 +2066,7 @@ function restoreChat() {
     try { reply = renderAnswer(x.answer, x.name); } catch { continue; }
     const about = answerAbout(x.answer, x.geo, x.name);
     if (about.geo) reply.dataset.chamber = about.geo.split(':')[0];
-    showMode(reply, x.answer.mode);
+    showMode(reply, x.answer);
     askedQuestions.add(sameQuestion(x.question, x.name));
     if (last && x.geo && x.geo !== last) $('log').append(switchLine(x.name));
     sent = sentLine(x.question, x.geo ? x.geo.split(':')[0] : '');
@@ -2001,6 +2136,8 @@ $('question-form').onsubmit = async e => {
   pending.dataset.chamber = chamber;
   $('log').append(sent, pending);
   const earlier = earlierExchanges(), saved = {geo, name, question};
+  // On Compare, the two districts go along, so "these two districts" means them.
+  const pair = view() === 'compare' && window.klearCompare ? window.klearCompare.geos() : [];
   exchanges.push(saved);
   saveChat();
   reveal(sent);
@@ -2010,22 +2147,26 @@ $('question-form').onsubmit = async e => {
   $('chat-live').textContent = name ? `Checking district data and sources for ${name}…` : 'Checking district data and sources…';
   let follow = true, hold = null, reply = null, done, reader = null, adopt = null, next = null;
   try {
-    const answer = await askKlear(question, geo, earlier, wait);
+    const answer = await askKlear(question, geo, earlier, wait, pair);
     reader = readerPlace();
     hold = holdPage(pending);
     follow = onScreen(pending);
     reply = renderAnswer(answer, name);
-    const about = answerAbout(answer, geo, name);
+    const about = answerAbout(answer, geo, name), compared = comparedNames(answer);
     if (about.geo) reply.dataset.chamber = about.geo.split(':')[0];
-    showMode(reply, answer.mode);
+    showMode(reply, answer);
+    noteFallback(answer);
     // Only the newest answer offers next questions, and an earlier failure's Retry goes once this one is answered.
     for (const n of $('log').querySelectorAll('.followups, .retry, .switch-offer, .answer-choices')) n.remove();
     const choices = Array.isArray(answer.choices) ? choicesBox(answer.choices, question) : null;
     if (choices) reply.append(choices);
-    // An answer about one district, asked with none chosen, chooses it so its profile loads.
-    if (!geo && about.geo) adopt = about;
+    // An answer about one district, asked with none chosen, chooses it so its profile loads. A comparison is about
+    // every place it names, so it neither chooses nor offers to switch to one of them.
+    if (compared) { /* its next questions name both places */ }
+    else if (!geo && about.geo) adopt = about;
     else if (about.geo !== geo) reply.append(switchOffer(about));
-    next = about.geo ? followUpGroup(followUps(question, answer, about.name, counties.get(about.geo)), about) : null;
+    next = compared ? followUpGroup(pairFollowUps(question, compared), null)
+      : about.geo ? followUpGroup(followUps(question, answer, about.name, counties.get(about.geo)), about) : null;
     if (next && !adopt) reply.append(next);
     pending.replaceWith(reply);
     suggestOpen = false;
@@ -2159,13 +2300,13 @@ function earlierExchanges() {
   });
 }
 
-async function askKlear(question, geo, earlier, wait) {
+async function askKlear(question, geo, earlier, wait, pair = []) {
   const stopped = () => problem(wait.why === 'timeout'
     ? `KLEAR did not answer within ${ASK_LIMIT} seconds, so the question was stopped. Press Retry to ask again.`
     : 'You cancelled this question. Press Retry to ask it again.');
   let r, data = null;
   try {
-    r = await fetch('/api/chat', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({question, district: geo, ...(earlier.length ? {earlier} : {})}), signal: wait.signal});
+    r = await fetch('/api/chat', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({question, district: geo, ...(earlier.length ? {earlier} : {}), ...(pair.length === 2 ? {compare: pair} : {})}), signal: wait.signal});
   } catch {
     throw wait.why ? stopped() : problem('KLEAR could not be reached. Check your internet connection, then press Retry.');
   }
@@ -2187,15 +2328,71 @@ function errorNote(err, question) {
   return box;
 }
 
-// A small badge after the answer heading that says whether the assistant or the basic lookup answered.
-const modeNames = {assistant: ['Assistant', 'Written by the KLEAR assistant from the data store'], basic: ['Basic lookup', 'Figures matched by keyword in the data store, without the assistant']};
-function showMode(article, mode) {
+// A small badge after the answer heading that says who answered: the assistant just now, the assistant ahead of time
+// (a prepared answer, served with no new model call), or the basic lookup, which uses no model.
+const modeNames = {assistant: ['Assistant', 'Written by the KLEAR assistant from the data store'], prepared: ['Prepared answer', 'Written ahead of time by the KLEAR assistant for this data update. No new AI call was made.'], basic: ['Basic lookup', 'Figures matched by keyword in the data store, without the assistant']};
+function showMode(article, answer) {
+  const mode = answer.prepared ? 'prepared' : answer.mode;
   if (!modeNames[mode]) return;
   const [label, about] = modeNames[mode], h = article.querySelector('h3'), head = node('div', '', 'answer-head'), badge = node('p', '', 'mode-badge');
   badge.title = about;
+  badge.dataset.mode = mode;
   badge.append(hidden('Answer type: '), label);
   h.replaceWith(head);
   head.append(h, badge);
+}
+
+// The places a comparison answer sets side by side, by name, or null for an answer about one place.
+function comparedNames(answer) {
+  const list = Array.isArray(answer.compared) ? answer.compared.filter(c => c && typeof c.name === 'string' && c.name) : [];
+  return list.length > 1 ? list.map(c => c.name) : null;
+}
+
+// Next questions after a comparison: the same places on related measures, each naming both, so the basic lookup
+// keeps both too.
+function pairFollowUps(question, names) {
+  const out = [], [a, ...rest] = names, others = rest.join(' and ');
+  const t = topicOf(question);
+  for (const key of [...(t ? t.next : []), 'poverty', 'housing', 'income', 'kupuna', 'health']) {
+    const c = topic(key);
+    if (!c || !c.compare || (t && key === t.key)) continue;
+    const q = `Compare ${c.compare} in ${a} and ${others}.`;
+    if (!askedQuestions.has(sameQuestion(q, '')) && !out.includes(q)) out.push(q);
+  }
+  return out.slice(0, 3);
+}
+
+// Links an answer offers as the next step: the comparison on the Compare page, or a measure on the Rankings page.
+// Both are pages of this site, so they open in place; Compare opens without leaving the page.
+function answerActions(actions) {
+  const list = (Array.isArray(actions) ? actions : []).filter(a => a && typeof a.text === 'string' && typeof a.url === 'string' && /^\/(?!\/)/.test(a.url));
+  const shown = list.filter(a => !(view() === 'compare' && a.url.startsWith('/compare?') && window.klearCompare && new URL(a.url, location.href).searchParams.get('d') === window.klearCompare.geos().join(',')));
+  if (!shown.length) return null;
+  const box = node('p', '', 'answer-actions');
+  for (const a of shown) {
+    const l = node('a', a.text, 'answer-action');
+    l.href = a.url;
+    if (a.url.startsWith('/compare')) {
+      l.addEventListener('click', e => {
+        if (!plainClick(e)) return;
+        e.preventDefault();
+        const d = new URL(a.url, location.href).searchParams.get('d');
+        if (chatFloats()) closeChat(false);
+        openCompare(d ? d.split(',') : []);
+      });
+    }
+    box.append(l);
+  }
+  return box;
+}
+
+// When the paid assistant falls back to the basic lookup, the notes under the question box say so, until it answers
+// again. A prepared answer says nothing either way, since it needed no model.
+function noteFallback(answer) {
+  const was = capability.fellBack;
+  if (answer.mode === 'basic' && ['capped', 'failed'].includes(answer.fallback)) capability.fellBack = answer.fallback;
+  else if (answer.mode === 'assistant' && !answer.prepared) capability.fellBack = '';
+  if (capability.fellBack !== was) showCapability();
 }
 
 // Topics for next questions, matched in the order the basic lookup matches them, so every question written here is
@@ -2239,8 +2436,8 @@ function followUps(question, answer, name, county) {
 // The place an answer's figures are for: the district it chose, else its subject, such as Hawaiʻi for a statewide
 // question asked with a district chosen, else the district asked about.
 function answerPlace(answer, name) {
-  const named = x => x && typeof x.name === 'string' && x.name;
-  return named(answer.district) || named(answer.subject) || name || '';
+  const named = x => x && typeof x.name === 'string' && x.name, compared = comparedNames(answer);
+  return (compared && compared.join(' and ')) || named(answer.district) || named(answer.subject) || name || '';
 }
 
 // The district an answer is about: the one the server names when it differs from the selected one, as for a
@@ -2391,6 +2588,8 @@ function basicAnswer(answer, name) {
     } else article.append(answerLine('p', p, opening));
     opening = false;
   }
+  const actions = answerActions(answer.actions);
+  if (actions) article.append(actions);
   if ((answer.members || []).length) article.append(memberLinks(answer.members));
   if (answer.elsewhere) article.append(elsewhereLine(answer.elsewhere));
   if (answer.verified) article.append(node('p', answer.verified.text, 'verified'));
@@ -2594,6 +2793,8 @@ function renderAnswer(answer, name) {
     }
     opening = false;
   }
+  const actions = answerActions(answer.actions);
+  if (actions) article.append(actions);
   if (answer.tiles.length) {
     const grid = node('div', '', 'tiles');
     for (const t of answer.tiles) {
@@ -2668,6 +2869,8 @@ function answerText(answer, name, asked) {
   const charts = (answer.charts || []).filter(c => c.summary);
   if (charts.length) out.push('', ...charts.map(c => `- ${c.summary}`));
   for (const c of answer.caveats || []) out.push('', c);
+  const actions = (Array.isArray(answer.actions) ? answer.actions : []).filter(a => a && a.text && typeof a.url === 'string');
+  if (actions.length) out.push('', ...actions.map(a => `- ${a.text}: ${new URL(a.url, location.origin).href}`));
   const sources = (answer.sources || []).length ? answer.sources : (answer.facts || []).map(f => ({name: f.source, year: f.year, url: f.url})).filter(s => s.name);
   const seen = new Set(), listed = sources.filter(s => { const key = `${s.name} ${s.year}`; if (seen.has(key)) return false; seen.add(key); return true; });
   if (listed.length) out.push('', 'Sources:', ...listed.map(s => `- ${s.name}${s.year ? `, ${s.year}` : ''}${s.url ? ` ${s.url}` : ''}`));

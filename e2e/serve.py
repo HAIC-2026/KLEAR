@@ -4,6 +4,9 @@ The chat runs the real assistant pipeline (agent loop, answer checks, display la
 stand-in for the model, so answers have tiles, charts and sources exactly as the site would show them.
 
     uv run python -m e2e.serve --port 8765
+
+With --basic-only the site runs as it does with no API key: the free basic lookup answers every question, so the
+browser tests can check that lookup's own answers and what the page says about where questions go.
 """
 
 import argparse
@@ -24,7 +27,13 @@ from klear.store.db import add_blocks, add_coverage, add_facts, add_indicators, 
 from klear.web import __main__ as web
 from klear.web.assistant import Assistant, DailyBudget
 from tests.agent.fake_client import tool, turn
-from tests.fixtures.small_store import _fact, add_county_context, add_outreach, build_small_store
+from tests.fixtures.small_store import (
+    _fact,
+    add_county_context,
+    add_industries,
+    add_outreach,
+    build_small_store,
+)
 
 DISTRICT = "house:022"
 PARTISAN = ("vote", "candidate", "campaign", "party")
@@ -95,6 +104,37 @@ def build_store(path: Path) -> None:
     add_facts(con, pd.DataFrame(rows))
     # The SNAP outreach pair, so the outreach page and the profile's outreach note have figures.
     add_outreach(con)
+    # Industry shares where House 22's three largest differ from House 23's, so Compare must read every industry
+    # either profile shows for both districts.
+    add_industries(con)
+    # The share of residents who are kūpuna, which the starter question ranking every House district asks about. House
+    # 22 has none, so its short profile and one-page summary stay as they were, and Compare shows a real gap there.
+    # House 23's stays under 1.15 times the county's (examples round to 1.2), so it adds no suggested question there.
+    add_indicators(
+        con,
+        pd.DataFrame(
+            [("pct_65_plus", "Percent of population 65 years and over", "percent", "people", None, False)],
+            columns=["indicator_id", "label", "unit", "universe", "acs_var", "additive"],
+        ),
+    )
+    add_coverage(
+        con,
+        pd.DataFrame(
+            [("pct_65_plus", g) for g in ("house", "senate", "county", "state")],
+            columns=["indicator_id", "geo_type"],
+        ),
+    )
+    add_facts(
+        con,
+        pd.DataFrame(
+            [
+                _fact("house", "023", "pct_65_plus", 20.4, 1.6),
+                _fact("senate", "012", "pct_65_plus", 19.0, 1.2),
+                _fact("county", "15003", "pct_65_plus", 17.9, 0.2),
+                _fact("state", "15", "pct_65_plus", 20.5, 0.1),
+            ]
+        ),
+    )
     block = {"block": "150050001001000", "county": "15005", "tract": "15005000100", "zcta": "96744",
              "house": "022", "senate": "012", "pop2020": 2}  # fmt: skip
     add_blocks(con, pd.DataFrame([block]))
@@ -269,6 +309,9 @@ class ScriptedClient:
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--port", type=int, default=8765)
+    parser.add_argument(
+        "--basic-only", action="store_true", help="answer with the free lookup only, as with no key"
+    )
     args = parser.parse_args(argv)
     work = Path(tempfile.mkdtemp(prefix="klear-e2e-"))
     store = work / "e2e.duckdb"
@@ -276,9 +319,11 @@ def main(argv: list[str] | None = None) -> None:
     # The browser tests ask many questions from one address in a few seconds.
     web.PER_MINUTE = 10_000
     web.BUSY = threading.BoundedSemaphore(64)
-    assistant = Assistant(DailyBudget(1_000.0, work / "spend.json"), client=ScriptedClient())
-    # Load the agent code before serving, so the first test's question is not slowed by the import.
-    assistant.warm()
+    assistant = None
+    if not args.basic_only:
+        assistant = Assistant(DailyBudget(1_000.0, work / "spend.json"), client=ScriptedClient())
+        # Load the agent code before serving, so the first test's question is not slowed by the import.
+        assistant.warm()
     server = Server(
         ("127.0.0.1", args.port), partial(web.Handler, store=store, assistant=assistant, geocoder=geocoder)
     )
