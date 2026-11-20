@@ -20,12 +20,10 @@ const refusalLabels = {decline_partisan: 'Partisan request declined', decline_in
 // The view the address shows: the Find page, a district's page, or Compare.
 const view = () => document.documentElement.dataset.page;
 
-// The agent sits in the right third beside a district or a comparison from 1200 px. Narrower, and on the Find page at
-// any width, it is a panel the round button opens: the whole screen on a phone, a card above the button on wider
-// screens. Minimizing it keeps the conversation.
+// A wide district profile has a permanent chat. Everywhere else the reader can open and minimize it.
 const FLOAT = window.matchMedia('(max-width: 1199px)'), PHONE = window.matchMedia('(max-width: 640px)');
 const coarsePointer = window.matchMedia('(pointer: coarse)');
-const chatFloats = () => FLOAT.matches || view() === 'home';
+const chatFloats = () => FLOAT.matches || view() !== 'district';
 let chatOpen = false;
 // While the panel covers a phone's screen, the page behind it is inert, so the keyboard and screen readers stay in it.
 function behindChat() {
@@ -49,6 +47,8 @@ function openChat(focus = true) {
   chatOpen = true;
   rememberChat();
   applyChat();
+  fitQuestion();
+  if (!FLOAT.matches && view() === 'compare') $('chat').scrollIntoView({block: 'nearest'});
   if (focus) (coarsePointer.matches ? $('chat-panel-title') : $('question')).focus({preventScroll: true});
 }
 function closeChat(focus = true) {
@@ -96,7 +96,9 @@ function showCapability() {
   $('chat-mode').textContent = line;
   $('chat-mode').hidden = !line;
   document.documentElement.dataset.answers = state;
-  if (capability.known && !capability.address) $('find').querySelector('.privacy').textContent = 'Street address search is off on this site. Search by town, ZIP code, district or legislator.';
+  if (capability.known && !capability.address) {
+    for (const note of document.querySelectorAll('.find .privacy')) note.textContent = 'Street address search is off on this site. Search by town, ZIP code, district or legislator.';
+  }
 }
 async function loadCapability() {
   try {
@@ -113,6 +115,7 @@ let compareNames = [];
 function chatTitle() {
   const names = view() === 'compare' ? compareNames : district ? [districtLabel] : [];
   $('chat-panel-title').textContent = names.length ? `Ask about ${names.join(' and ')}` : 'Ask KLEAR';
+  $('welcome-text').textContent = names.length === 2 ? COMPARE_WELCOME : names.length ? DISTRICT_WELCOME : NO_DISTRICT_WELCOME;
   $('district-title').textContent = district ? districtLabel : 'a district';
 }
 
@@ -305,7 +308,6 @@ function setChatDistrict(geo, name, quiet) {
   districtLabel = geo ? name : '';
   if (geo) $('chat').dataset.chamber = document.body.dataset.chamber = geo.split(':')[0];
   else { delete $('chat').dataset.chamber; delete document.body.dataset.chamber; }
-  $('welcome-text').textContent = !geo ? NO_DISTRICT_WELCOME : view() === 'compare' ? COMPARE_WELCOME : DISTRICT_WELCOME;
   chatTitle();
   document.dispatchEvent(new CustomEvent('klear:district', {detail: {geo, name}}));
   return true;
@@ -418,6 +420,7 @@ document.querySelector('.site-header a[data-page=compare]').addEventListener('cl
 // The compare view tells the chat which districts it holds: questions go about the first, and the panel's title and
 // suggestions name both.
 document.addEventListener('klear:compare', e => {
+  if (view() !== 'compare') return;
   const list = e.detail.districts || [];
   compareNames = list.map(d => d.name);
   const first = list[0];
@@ -425,7 +428,6 @@ document.addEventListener('klear:compare', e => {
     queued = first && first.geo !== district ? {geo: first.geo, name: first.name, push: false, compare: true} : null;
   } else if (first) setChatDistrict(first.geo, first.name, true);
   else setChatDistrict(null, '', true);
-  $('welcome-text').textContent = list.length ? COMPARE_WELCOME : NO_DISTRICT_WELCOME;
   $('suggest').hidden = !list.length;
   $('starter').hidden = Boolean(list.length);
   pairExamples(list);
@@ -613,7 +615,14 @@ async function loadProfile(geo, name) {
     if (seq !== profileSeq) return;
     profileGeo = null;
     const message = `The district profile could not load. ${err.message}`;
-    panel.replaceChildren(node('p', message, 'profile-status'));
+    const retry = node('button', 'Retry district profile', 'button secondary');
+    retry.type = 'button';
+    retry.onclick = () => {
+      panel.tabIndex = -1;
+      panel.focus();
+      loadProfile(geo, name);
+    };
+    panel.replaceChildren(node('p', message, 'profile-status'), retry);
     live.textContent = message;
   }
 }
@@ -1183,7 +1192,11 @@ function shareBar() {
   const bar = $('share-bar'), v = view(), geo = v === 'district' ? district : null;
   const pair = v === 'compare' && window.klearCompare ? window.klearCompare.geos() : [];
   const key = geo ? `district ${geo}` : pair.length ? `compare ${pair.join(',')}` : '';
-  if (bar.dataset.key === key) return;
+  if (bar.dataset.key === key) {
+    const print = bar.querySelector('.print-action');
+    if (print) print.disabled = !printTarget();
+    return;
+  }
   bar.dataset.key = key;
   bar.replaceChildren();
   if (!key) return;
@@ -1196,6 +1209,8 @@ function shareBar() {
     return c;
   };
   const print = control('button', 'Print', ' or save as PDF', 'print'), copy = control('button', 'Copy link', '', 'link');
+  print.classList.add('print-action');
+  print.disabled = !printTarget();
   const status = node('p', '', 'share-status');
   status.id = 'share-status';
   print.onclick = () => openPrint();

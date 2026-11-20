@@ -193,16 +193,8 @@ function render(d) {
 
 const picked = name => { const r = document.querySelector(`#out-choose input[name=${name}]:checked`); return r ? r.value : ''; };
 let seq = 0;
-// A choice the reader makes goes in the address, so a link or refresh opens the same program and chamber.
-async function load(e) {
+async function load() {
   const pair = picked('pair'), chamber = picked('chamber'), mine = ++seq;
-  if (e) {
-    const url = new URL(location.href);
-    url.searchParams.set('view', 'outreach');
-    url.searchParams.set('pair', pair);
-    url.searchParams.set('chamber', chamber);
-    try { history.replaceState(null, '', url.pathname + url.search); } catch { /* history unavailable */ }
-  }
   $('out-status').textContent = 'Loading the districts…';
   $('out-live').textContent = '';
   // Gray bars where the groups will be, until they come.

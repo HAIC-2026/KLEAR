@@ -246,8 +246,7 @@ function showMatches(groups, box, pick, onMap) {
 // store only, so nothing typed goes to another service. Returns a function that closes the list.
 const SUGGEST_MIN = 2, SUGGEST_WAIT = 150;
 function suggestBox(input, list, live, onPick) {
-  // stale: the text changed since the list was filled, so the keys must not act on its old options
-  let items = [], active = -1, seq = 0, timer = 0, stale = false;
+  let items = [], active = -1, seq = 0, timer = 0;
   const close = () => {
     seq++;
     clearTimeout(timer);
@@ -255,6 +254,7 @@ function suggestBox(input, list, live, onPick) {
     active = -1;
     list.hidden = true;
     list.replaceChildren();
+    live.textContent = '';
     input.setAttribute('aria-expanded', 'false');
     input.removeAttribute('aria-activedescendant');
   };
@@ -268,13 +268,11 @@ function suggestBox(input, list, live, onPick) {
     const s = items[i];
     input.value = s.label;
     close();
-    live.textContent = '';
     onPick(s.query);
   };
   const show = found => {
     items = found;
     active = -1;
-    stale = false;
     list.replaceChildren(...found.map((s, i) => {
       const li = node('li', '');
       li.id = `${list.id}-${i}`;
@@ -293,7 +291,7 @@ function suggestBox(input, list, live, onPick) {
   };
   const load = async () => {
     const text = input.value.trim(), mine = ++seq;
-    if (text.length < SUGGEST_MIN) { close(); live.textContent = ''; return; }
+    if (text.length < SUGGEST_MIN) { close(); return; }
     try {
       const r = await fetch('/api/suggest?q=' + encodeURIComponent(text));
       const data = r.ok ? await r.json() : null;
@@ -303,21 +301,18 @@ function suggestBox(input, list, live, onPick) {
     }
   };
   input.addEventListener('input', () => {
-    stale = true;
-    active = -1;
-    [...list.children].forEach(li => li.setAttribute('aria-selected', 'false'));
-    input.removeAttribute('aria-activedescendant');
-    clearTimeout(timer);
+    // Invalidate both visible options and any response still in flight for the previous text.
+    close();
     timer = setTimeout(load, SUGGEST_WAIT);
   });
   input.addEventListener('keydown', e => {
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       e.preventDefault();
       // A closed or outdated list loads the suggestions for the text as it is now, without waiting.
-      if (list.hidden || stale) { clearTimeout(timer); load(); return; }
+      if (list.hidden) { clearTimeout(timer); load(); return; }
       const n = items.length, down = e.key === 'ArrowDown';
       mark(down ? (active + 1) % n : (active <= 0 ? n - 1 : active - 1));
-    } else if (e.key === 'Enter' && !list.hidden && !stale && active >= 0) {
+    } else if (e.key === 'Enter' && !list.hidden && active >= 0) {
       e.preventDefault();
       pick(active);
     } else if (e.key === 'Escape' && !list.hidden) {

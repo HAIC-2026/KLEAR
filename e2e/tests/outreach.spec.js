@@ -7,6 +7,20 @@ test.beforeEach(async ({context}) => offline(context));
 
 const LEAD = 'House District 22 has the most households in poverty that did not get SNAP of any House district: 400 ± 60.';
 
+test('a shared ranking restores its measure, chamber and order after visiting Outreach', async ({page}) => {
+  await page.goto('/rankings');
+  await page.getByLabel('Measure', {exact: true}).selectOption('pct_65_plus');
+  await page.getByRole('button', {name: 'Senate', exact: true}).click();
+  await page.getByLabel('Order', {exact: true}).selectOption('low');
+  await page.getByRole('tab', {name: 'Outreach'}).click();
+  await page.getByRole('tab', {name: 'Rankings and map'}).click();
+  await expect(page).toHaveURL(/measure=pct_65_plus&chamber=senate&order=low$/);
+  await page.reload();
+  await expect(page.getByLabel('Measure', {exact: true})).toHaveValue('pct_65_plus');
+  await expect(page.getByRole('button', {name: 'Senate', exact: true})).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByLabel('Order', {exact: true})).toHaveValue('low');
+});
+
 test('the outreach tab names the top group two clicks from the home page', async ({page}) => {
   await page.goto('/');
   await page.getByRole('navigation', {name: 'Main navigation'}).getByRole('link', {name: 'Rankings'}).click();
