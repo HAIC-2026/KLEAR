@@ -1,4 +1,4 @@
-// Compare: two districts side by side in the left and middle thirds of the page, with the agent in the right third.
+// Compare: two districts side by side, with an optional chat panel.
 // Each column is a search until a district is chosen there, then the district's name, where it is, its legislator and
 // a small map. Under the columns the two districts' figures run row by row: each measure's name and Hawaiʻi's figure
 // across both columns, each district's figure under its own name, and whether the two differ beyond their margins of
@@ -18,6 +18,9 @@
   for (const slot of SLOTS) {
     colOf[slot] = node('div', '', `cmp-col cmp-col-${slot}`);
     colOf[slot].dataset.slot = slot;
+    colOf[slot].tabIndex = -1;
+    colOf[slot].setAttribute('role', 'group');
+    colOf[slot].setAttribute('aria-label', `District ${slot.toUpperCase()}`);
     cols.append(colOf[slot]);
   }
   root.append(cols, live, result);
@@ -35,7 +38,9 @@
   const resets = {};
   function picker(slot) {
     const box = node('div', '', 'cmp-pick'), id = `cmp-${slot}`;
-    box.append(node('h2', pickTitle(slot), 'cmp-pick-title'));
+    const heading = node('h2', pickTitle(slot), 'cmp-pick-title');
+    heading.tabIndex = -1;
+    box.append(heading);
     const form = node('form', '', 'find cmp-find');
     form.id = `${id}-find`;
     const label = node('label', 'Town, ZIP code, street address, district or legislator');
@@ -56,7 +61,10 @@
     count.id = `${id}-place-count`;
     count.setAttribute('role', 'status');
     status.setAttribute('role', 'status');
-    form.append(label, row, count, status, matches);
+    const privacy = $('find').querySelector('.privacy').cloneNode(true);
+    privacy.id = `${id}-privacy`;
+    input.setAttribute('aria-describedby', privacy.id);
+    form.append(label, row, privacy, count, status, matches);
     const seats = $('seat-index').cloneNode(true);
     seats.removeAttribute('id');
     seats.classList.add('cmp-seats');
@@ -102,11 +110,8 @@
     }
     const mapBox = node('div', '', 'cmp-map');
     locatorMap(p.geo).then(svg => { if (svg && chosen[slot] === p.geo) mapBox.replaceChildren(svg); });
-    const actions = node('div', '', 'cmp-card-actions'), change = node('button', 'Change', 'textbutton');
-    change.type = 'button';
-    change.append(hidden(` ${p.district}`));
-    change.onclick = () => { set(slot, null); const input = colOf[slot].querySelector('input'); if (input) input.focus(); };
-    actions.append(change);
+    const actions = node('div', '', 'cmp-card-actions');
+    actions.append(changeButton(slot, p.district));
     head.append(h, actions);
     box.append(head, mapBox, facts);
     colOf[slot].replaceChildren(box);
@@ -117,6 +122,18 @@
     const box = node('div', '', 'cmp-card');
     box.append(node('p', `Loading ${districtName(geo)}…`, 'profile-status'), skeleton(['block', 'w-60', 'w-45']));
     return box;
+  }
+
+  function focusPicker(slot) {
+    colOf[slot].querySelector(coarsePointer.matches ? '.cmp-pick-title' : 'input').focus();
+  }
+
+  function changeButton(slot, name) {
+    const change = node('button', 'Change', 'textbutton');
+    change.type = 'button';
+    change.append(hidden(` ${name}`));
+    change.onclick = () => { set(slot, null); focusPicker(slot); };
+    return change;
   }
 
   function update() {
@@ -146,22 +163,21 @@
     return comparisons.get(key);
   }
 
-  let seq = 0;
+  let seq = 0, readyProfiles = [];
   async function load() {
     const mine = ++seq, slots = SLOTS.filter(s => chosen[s]);
+    readyProfiles = [];
     announce();
     if (!slots.length) {
+      result.removeAttribute('aria-busy');
       result.replaceChildren(node('p', 'Choose two districts to see their figures side by side, each with its margin of error.', 'cmp-empty'));
       return;
     }
     result.setAttribute('aria-busy', 'true');
     // While a district's figures load, the line over the table says so.
     const waiting = slots.filter(s => !(loaded[s] && loaded[s].geo === chosen[s]));
-    if (waiting.length) {
-      const text = `Loading the figures for ${waiting.map(s => districtName(chosen[s])).join(' and ')}…`, note = result.querySelector('.cmp-note');
-      if (note) note.textContent = text;
-      else result.replaceChildren(node('p', text, 'cmp-note'), ...['w-20', 'w-30', 'w-30'].map(w => skeleton([`title ${w}`, 'w-60', 'w-45'], 'cmp-section')));
-    }
+    const text = `Loading the figures for ${slots.map(s => districtName(chosen[s])).join(' and ')}…`;
+    result.replaceChildren(node('p', text, 'cmp-note'), ...['w-20', 'w-30', 'w-30'].map(w => skeleton([`title ${w}`, 'w-60', 'w-45'], 'cmp-section')));
     try {
       const list = (await comparisonOf(slots.map(s => chosen[s]))).districts;
       if (mine !== seq) return;
@@ -171,9 +187,25 @@
         if (fresh || !colOf[s].querySelector('.cmp-card')) card(s, list[i]);
       });
       result.replaceChildren(...table(slots.map(s => loaded[s]), slots));
+      readyProfiles = list;
+      live.textContent = `Figures ready for ${list.map(p => p.district).join(' and ')}.`;
       announce();
     } catch (err) {
-      if (mine === seq) result.replaceChildren(node('p', `The figures could not load. ${err.message}`, 'status'));
+      if (mine !== seq) return;
+      for (const s of waiting) {
+        const name = districtName(chosen[s]), box = node('div', '', 'cmp-card');
+        box.append(node('h2', name, 'cmp-pick-title'), changeButton(s, name));
+        colOf[s].replaceChildren(box);
+      }
+      live.textContent = `The figures could not load. ${err.message}`;
+      const retry = node('button', 'Retry comparison', 'button secondary');
+      retry.type = 'button';
+      retry.onclick = () => {
+        live.textContent = text;
+        colOf[slots[0]].focus();
+        update();
+      };
+      result.replaceChildren(node('p', live.textContent, 'status'), retry);
     } finally {
       if (mine === seq) result.removeAttribute('aria-busy');
     }
@@ -192,13 +224,14 @@
       return;
     }
     chosen[slot] = geo || null;
+    if (geo) resets[slot]?.();
     if (!geo) loaded[slot] = null;
     live.textContent = geo ? `${name || districtName(geo)} added.` : '';
     update();
     if (focus && geo) {
       const next = SLOTS.find(s => !chosen[s]);
-      const input = next && colOf[next].querySelector('input');
-      if (input) input.focus({preventScroll: true});
+      if (next) focusPicker(next);
+      else colOf[slot].focus();
     }
   }
 
@@ -405,7 +438,7 @@
     show,
     fromAddress,
     geos: () => SLOTS.filter(s => chosen[s]).map(s => chosen[s]),
-    loaded: () => SLOTS.filter(s => chosen[s] && loaded[s] && loaded[s].geo === chosen[s]).map(s => loaded[s]),
+    loaded: () => readyProfiles,
     // After Compare opens: the search in the first empty column, or the page's title.
     focusNext() {
       const next = SLOTS.find(s => !chosen[s]);

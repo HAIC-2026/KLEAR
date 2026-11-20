@@ -77,8 +77,8 @@
         <h2 class="find-title" id="find-title" tabindex="-1">Search, or pick a number</h2>
           <form id="find" class="find">
             <label for="find-place">Town, ZIP code, street address, district or legislator</label>
-            <div class="inputrow"><div class="combo"><input id="find-place" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="find-place-list" required maxlength="160" placeholder="Kāneʻohe, 96744 or House 22" autocomplete="off" aria-keyshortcuts="/"><kbd class="key-hint" aria-hidden="true" title="Press / to search">/</kbd><ul id="find-place-list" class="suggestions" role="listbox" aria-label="Suggestions" hidden></ul></div><button type="submit">Find district</button></div><p id="find-place-count" class="visually-hidden" role="status"></p>
-            <p class="help privacy">Addresses go to the U.S. Census Bureau only to find the district, and are never stored.</p>
+            <div class="inputrow"><div class="combo"><input id="find-place" aria-describedby="find-privacy" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="find-place-list" required maxlength="160" placeholder="Kāneʻohe, 96744 or House 22" autocomplete="off" aria-keyshortcuts="/"><kbd class="key-hint" aria-hidden="true" title="Press / to search">/</kbd><ul id="find-place-list" class="suggestions" role="listbox" aria-label="Suggestions" hidden></ul></div><button type="submit">Find district</button></div><p id="find-place-count" class="visually-hidden" role="status"></p>
+            <p id="find-privacy" class="help privacy">Addresses go to the U.S. Census Bureau only to find the district, and are never stored.</p>
             <p id="find-status" class="status" role="status"></p>
             <div id="find-matches"></div>
           </form>
@@ -133,7 +133,7 @@
       <!-- Compare: two districts' columns, each a search until a district is chosen, then their figures row by row. -->
       <section class="compare-view" id="compare-view" aria-labelledby="compare-title" hidden></section>
 
-      <!-- The agent. Beside a district or a comparison from 1200 px; elsewhere a panel the round button opens. -->
+      <!-- The agent. Docked on wide district pages, optional on Compare and elsewhere. -->
       <aside class="chat-dock" id="chat" aria-labelledby="chat-panel-title">
         <div class="chat-card" id="chat-card">
           <div class="chat-head">

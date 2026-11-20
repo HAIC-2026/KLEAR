@@ -196,8 +196,9 @@ test('after more typing, the keys never pick an option left from the earlier tex
   const box = page.getByRole('combobox', {name: 'Town, ZIP code, street address, district or legislator'}).first();
   await box.fill('wai');
   await expect(page.locator('#find-place-list').getByRole('option')).toHaveCount(2);
-  // Waikīkī is still listed when these keys arrive, before the list for kai loads.
+  // The old suggestions disappear immediately, before the list for kai loads.
   await box.fill('kai');
+  await expect(page.getByRole('option', {name: /Waikīkī/})).toHaveCount(0);
   await box.press('ArrowDown');
   await box.press('Enter');
   await expect(page.locator('#district-title')).toHaveText('House District 22');

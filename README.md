@@ -471,14 +471,14 @@ B.
   caution. From 1200 px the agent sits in the right third, as tall as the window, with its questions
   to try written out in full as chips. Narrower, it is a round "Ask KLEAR" button that opens the agent over
   the page (the whole screen on a phone) and minimizes back to it, keeping the conversation.
-- `/compare`: the first district in the left third and the second in the middle, each a search and
+- `/compare`: two districts side by side, each a search and
   every district by number until one is chosen (a House or Senate switch sits in the bar above them
   meanwhile), then its name with a gold A or B, a small map zoomed to it and its legislator. Under them the two
   districts' figures run row by row: each measure's name and Hawaiʻi's figure across both columns,
   and each district's figure under its name. A clear gap appears once under the higher figure, in
   percentage points for rates and as a percentage of the lower figure for other measures. When the
-  margins overlap, one line across both columns says "≈ No clear difference". The agent sits in the right third
-  and suggests questions that compare the two. `/compare?d=house:022,house:023` opens a comparison.
+  margins overlap, one line across both columns says "≈ No clear difference". Ask KLEAR opens chat alongside the two districts on wide screens.
+  Minimize it to give both columns the full width again. `/compare?d=house:022,house:023` opens a comparison.
 - `/rankings` has two tabs, each with its own address: rankings, with the map colored by a measure
   beside the district ranking, and outreach. The ranking numbers every district, 1 for the highest
   figure, and runs highest or lowest first, by district number or by island. Each figure has a bar

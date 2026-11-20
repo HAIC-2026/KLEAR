@@ -4,6 +4,61 @@ import {DISTRICT, offline} from './helpers.js';
 
 test.beforeEach(async ({context}) => offline(context));
 
+test('Compare expands both districts when chat is minimized and keeps the draft', async ({page}) => {
+  await page.goto('/compare?d=house:022,house:023');
+  const card = page.locator('.cmp-col-a'), launcher = page.locator('#chat-fab');
+  await expect(card.locator('.cmp-name')).toBeVisible();
+  const fullWidth = (await card.boundingBox()).width;
+  await expect(launcher).toHaveAttribute('aria-expanded', 'false');
+  await launcher.press('Enter');
+  await expect(launcher).toHaveAttribute('aria-expanded', 'true');
+  if (page.viewportSize().width >= 1200) {
+    expect((await card.boundingBox()).width).toBeLessThan(fullWidth * 0.8);
+    await expect(page.locator('#send')).toBeInViewport({ratio: 1});
+  }
+  const question = page.getByLabel('Your question');
+  await question.fill('Compare housing costs');
+  await question.press('Escape');
+  await expect(launcher).toBeFocused();
+  await expect(page.locator('#chat')).toBeHidden();
+  expect((await card.boundingBox()).width).toBe(fullWidth);
+  await launcher.click();
+  await expect(question).toHaveValue('Compare housing costs');
+  await page.locator('#chat-min').click();
+  await card.getByRole('link', {name: DISTRICT, exact: true}).click();
+  await expect(page.locator('#welcome-text')).toHaveText(/^Pick a question/);
+});
+
+test('the two pickers keep keyboard focus and a failed comparison can retry in place', async ({page, isMobile}) => {
+  await page.route('**/api/compare?*', route => {
+    const pair = new URL(route.request().url()).searchParams.get('d');
+    return pair.includes(',') ? route.fulfill({status: 503, body: '{}'}) : route.continue();
+  });
+  await page.goto('/compare');
+  await page.locator('.cmp-col-a').getByRole('link', {name: DISTRICT, exact: true}).press('Enter');
+  await expect(page.locator(isMobile ? '.cmp-col-b .cmp-pick-title' : '#cmp-b-place')).toBeFocused();
+  await expect(page.getByRole('button', {name: 'Print or save as PDF'})).toBeEnabled();
+  await page.locator('.cmp-col-b').getByRole('link', {name: 'House District 23', exact: true}).press('Enter');
+  await expect(page.locator('.cmp-col-b')).toBeFocused();
+  await expect(page.getByRole('button', {name: 'Retry comparison'})).toBeVisible();
+  await expect(page.getByRole('button', {name: 'Print or save as PDF'})).toBeDisabled();
+  await expect(page.locator('#compare-view .skeleton')).toHaveCount(0);
+  await page.unroute('**/api/compare?*');
+  await page.getByRole('button', {name: 'Retry comparison'}).press('Enter');
+  await expect(page.locator('.cmp-table').first()).toBeVisible();
+  await expect(page.getByRole('button', {name: 'Print or save as PDF'})).toBeEnabled();
+  await expect(page).toHaveURL(/house:022,house:023$/);
+});
+
+test('a failed profile can retry without losing the district or printing an empty page', async ({page}) => {
+  await page.route('**/api/profile?*', route => route.fulfill({status: 503}), {times: 1});
+  await page.goto('/district/house-22');
+  await expect(page.getByRole('button', {name: 'Print or save as PDF'})).toBeDisabled();
+  await page.getByRole('button', {name: 'Retry district profile'}).press('Enter');
+  await expect(page.locator('#profile-live')).toHaveText(`Profile for ${DISTRICT} loaded.`);
+  await expect(page.getByRole('button', {name: 'Print or save as PDF'})).toBeEnabled();
+});
+
 async function openProfile(page) {
   await page.goto('/district/house-22');
   await expect(page.locator('#profile-live')).toHaveText(`Profile for ${DISTRICT} loaded.`);
