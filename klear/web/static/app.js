@@ -347,6 +347,9 @@ async function openDistrict(geo, name = districtName(geo)) {
   if (opening) return;
   opening = true;
   try {
+    // Start the shared request on selection so the zoom and network transfer run together.
+    // loadProfile shows any error and offers Retry.
+    profileOf(geo).catch(() => {});
     const frame = $('district-map').querySelector('.map-frame').getBoundingClientRect();
     const seen = frame.bottom > 0 && frame.top < window.innerHeight && frame.height > 0;
     if (view() === 'home' && seen && window.klearMap && !reduceMotion.matches) await window.klearMap.zoomTo(geo);

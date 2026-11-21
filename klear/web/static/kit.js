@@ -93,8 +93,15 @@ function pairDifference(a, b) {
 // The district shapes, fetched once for the map and the small maps on Compare.
 let shapesLoad = null;
 function loadShapes() {
-  shapesLoad ||= fetch('/districts.json').then(r => { if (!r.ok) throw new Error('no shapes'); return r.json(); });
-  shapesLoad.catch(() => { shapesLoad = null; });
+  shapesLoad ||= fetch('/districts.json').then(async response => {
+    if (!response.ok) throw new Error('no shapes');
+    const data = await response.json();
+    // Compare opens with the main map hidden. Its districts still need real bounds when a card opens it.
+    for (const rows of Object.values(data.chambers)) {
+      for (const row of rows) row.box = pathBox(row.d);
+    }
+    return data;
+  }).catch(error => { shapesLoad = null; throw error; });
   return shapesLoad;
 }
 // The box around a path written as M x y, then l dx dy steps, as districts.json writes them.
@@ -120,7 +127,7 @@ async function locatorMap(geo) {
   const rows = data.chambers[geo.split(':')[0]] || [], row = rows.find(r => r.geo === geo);
   if (!row) return null;
   const ns = 'http://www.w3.org/2000/svg', svg = document.createElementNS(ns, 'svg');
-  const [bx, by, bw, bh] = pathBox(row.d), side = Math.max(bw, bh * 3 / 2, 6) * 1.9;
+  const [bx, by, bw, bh] = row.box, side = Math.max(bw, bh * 3 / 2, 6) * 1.9;
   const w = side, h = side * 2 / 3, x = bx + bw / 2 - w / 2, y = by + bh / 2 - h / 2;
   svg.setAttribute('viewBox', `${x} ${y} ${w} ${h}`);
   svg.setAttribute('aria-hidden', 'true');
@@ -130,6 +137,8 @@ async function locatorMap(geo) {
   for (const [k, v] of Object.entries({x, y, width: w, height: h, class: 'sea'})) sea.setAttribute(k, v);
   svg.append(sea);
   for (const r of [...rows.filter(r => r.geo !== geo), row]) {
+    const [left, top, width, height] = r.box;
+    if (left > x + w || left + width < x || top > y + h || top + height < y) continue;
     const path = document.createElementNS(ns, 'path');
     path.setAttribute('d', r.d);
     if (r.geo === geo) path.setAttribute('class', 'here');

@@ -162,6 +162,14 @@ test('each district on Compare has a small map zoomed in to it, with its number'
   await expect(map.locator('.here-label')).toHaveText('22');
   // Close in: much narrower than the whole chain.
   expect(await map.evaluate(svg => svg.viewBox.baseVal.width)).toBeLessThan(100);
+  await page.locator('.cmp-col-a .cmp-name a').click();
+  await expect(page.locator('#map .district.picked')).toHaveAttribute('data-geo', 'house:022');
+  // Compare initialized the main SVG while hidden. Its camera must land on this outline.
+  await expect.poll(() => page.locator('#map .district.picked').evaluate(path => {
+    const b = path.getBBox(), v = path.ownerSVGElement.viewBox.baseVal;
+    return b.x >= v.x && b.y >= v.y && b.x + b.width <= v.x + v.width && b.y + b.height <= v.y + v.height
+      && v.width < 100;
+  })).toBe(true);
 });
 
 test('Tab reaches the numbers once, and the arrow keys move along them', async ({page, isMobile}) => {

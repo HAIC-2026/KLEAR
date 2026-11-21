@@ -485,7 +485,7 @@
       text.dataset.geo = row.geo;
       text.textContent = row.name.replace(/\D+/g, '');
       labels.append(text);
-      districts.push({path, text, row});
+      districts.push({path, text, row, box: row.box});
     }
     showRing(null);
     showHover(null);
@@ -493,8 +493,6 @@
     svg.replaceChildren(defs, islandButtons, shapes, marks, ring, labels);
     stop = null;
     for (const d of districts) {
-      const b = d.path.getBBox();
-      d.box = [b.x, b.y, b.width, b.height];
       d.path.addEventListener('keydown', e => onKey(e, d));
       d.path.addEventListener('pointermove', e => showTip(d, e));
       d.path.addEventListener('click', e => {
@@ -528,9 +526,11 @@
     for (const {row, share} of hits) {
       for (const n of svg.querySelectorAll(`[data-geo="${row.geo}"]`)) n.classList.add('zip-hit');
       zipLines.append(el('path', {class: 'zip-halo', d: outlineOf(row)}), el('path', {class: 'zip-line', d: outlineOf(row)}));
-      const path = svg.querySelector(`.district[data-geo="${row.geo}"]`);
-      const b = path.getBBox();
-      if (main.some(h => h.row === row)) { x0 = Math.min(x0, b.x); y0 = Math.min(y0, b.y); x1 = Math.max(x1, b.x + b.width); y1 = Math.max(y1, b.y + b.height); }
+      if (main.some(h => h.row === row)) {
+        const [x, y, width, height] = row.box;
+        x0 = Math.min(x0, x); y0 = Math.min(y0, y);
+        x1 = Math.max(x1, x + width); y1 = Math.max(y1, y + height);
+      }
       if (hits.length > 1 && zipMatches) {
         const chip = document.createElement('button');
         chip.type = 'button'; chip.className = `match ${chamber}`;
