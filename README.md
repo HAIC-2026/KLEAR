@@ -13,7 +13,7 @@ KLEAR answers questions about Hawaiʻi's 51 House and 25 Senate legislative dist
 One-minute tour:
 
 1. On the Find page, type a town such as Kāneʻohe, a ZIP code, an address or a legislator's name in the search (or press /). KLEAR lists the House and Senate districts that hold it and the share of its residents in each. Every district is also one click away by its number, or on the map, whose Honolulu tab zooms in on the city; the House or Senate switch at the top of the map's card picks the chamber.
-2. Pick a district. The map zooms to it, then its own page opens with the map beside its number, where it is and who represents it, then four headline figures that each say how they compare with the state, then the full profile: a numbered section for each topic, with tables that set the district beside its county and the state, each figure with its margin of error or range. The agent sits in the right third (below 1200 px, behind the round Ask KLEAR button).
+2. Pick a district. The map zooms to it, then its own page opens with the map beside its number, where it is and who represents it, then five headline figures that each say how they compare with the state, then the full profile: a numbered section for each topic, with tables that set the district beside its county and the state, each figure with its margin of error or range. The agent sits in the right third (below 1200 px, behind the round Ask KLEAR button).
 3. Ask one of the suggested questions, or your own. Each answer shows its figures as cards and charts with their sources. Open a source to see the publisher's page. Questions about towns or the whole state can be asked from the Find page, in the agent's panel.
 4. Press Compare another district to set a second district beside the first, row by row, and print the comparison. Open Rankings, then its Outreach tab, to see which districts have the most people who meet a program's income test.
 5. Open Data & methods, then Checks, to see every check the last data build ran.
@@ -460,7 +460,7 @@ B.
 - `/district/house-49` and the like: the way back to the search ("Search another district", which
   returns to the whole map) and on to Compare ("Compare another district"), with print, link and
   download actions; the map zoomed to the district beside its number, set large in its chamber's color, where it is and its legislator; then the
-  profile in panels. Section 1, At a glance, holds four headline figures. ▲ and ▼ mark higher or
+  profile in panels. Section 1, At a glance, shows population, median household income, poverty, the share of kūpuna, and the district unemployment rate. ▲ and ▼ mark higher or
   lower figures beyond the margins of error, both in ink. Rate gaps use percentage points
   ("▲ 2.9 points above county"); other gaps use percentages of the reference figure. When the
   margins overlap, the reading says "≈ No clear difference" in muted text and names the reference place.
@@ -473,7 +473,9 @@ B.
   the page (the whole screen on a phone) and minimizes back to it, keeping the conversation.
 - `/compare`: two districts side by side, each a search and
   every district by number until one is chosen (a House or Senate switch sits in the bar above them
-  meanwhile), then its name with a gold A or B, a small map zoomed to it and its legislator. Under them the two
+  meanwhile), then its name with a gold A or B, a small map zoomed to it and its legislator. Each card
+  lists its four largest places and the districts it overlaps in the other chamber. Expand the place
+  count to see the rest. Shares use the district's 2020 Census population. Under the cards the two
   districts' figures run row by row: each measure's name and Hawaiʻi's figure across both columns,
   and each district's figure under its name. A clear gap appears once under the higher figure, in
   percentage points for rates and as a percentage of the lower figure for other measures. When the
@@ -660,7 +662,7 @@ Choosing a district opens its own page, such as /district/house-22, with its pro
 profile is read straight from the store with no model call, through `GET /api/profile?district=house:022`.
 A district chosen while an answer is still loading shows its profile at once, and the chat switches to it after that answer.
 It names the district's counties, islands, Census places and the overlapping districts
-in the other chamber, shows four headline figures, then 50 figures in nine sections:
+in the other chamber, shows five headline figures, then 50 figures in nine sections:
 People, Income, Work and education, Housing, Health and access, Programs in use, Who may qualify,
 Modeled needs and Help sites. Work and education shows the district's three largest of 13 industry
 groups, each counting residents by the industry they work in, wherever the job is. A last section,
@@ -711,7 +713,7 @@ The assistant and the free lookup follow the same rules for a few kinds of quest
 A district's page starts with a bar: Search another district, Compare another district, and the
 print, copy link and CSV download actions. Under it the map, zoomed to the district, sits beside the
 page heading: the district's name with its number set large, where it is and its legislator. Then
-section 1, At a glance: the four headline figures with their margins and how each compares. A
+section 1, At a glance: the five headline figures with their margins and how each compares. A
 numbered link to every section follows. The Find page's search gives way to it, and Back returns to
 it. The sections follow in reading order: People, Income, Programs to explore here, then the rest.
 Each is a panel that opens and shuts and ends with a link back to the top. On screens at least
