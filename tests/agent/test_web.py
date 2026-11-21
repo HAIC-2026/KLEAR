@@ -1,6 +1,7 @@
 """The public web path reads only local facts and makes no model calls."""
 
 import csv
+import gzip
 import io
 import json
 import os
@@ -57,9 +58,9 @@ def request(port, method, path, body=None, headers=None):
     return response.status, data
 
 
-def get(port, path):
+def get(port, path, headers=None):
     con = HTTPConnection("127.0.0.1", port)
-    con.request("GET", path)
+    con.request("GET", path, headers=headers or {})
     response = con.getresponse()
     data = response.read()
     con.close()
@@ -112,6 +113,23 @@ def test_public_files_and_cache_policy(endpoint):
     response.read()
     con.close()
     assert response.status == 400 and response.headers["Cache-Control"] == "no-store"
+
+
+def test_map_and_profile_responses_negotiate_gzip(endpoint):
+    for path in ("/districts.json", "/api/profile?district=house:022", "/api/compare?d=house:022,house:023"):
+        status, plain, identity = get(endpoint, path, {"Accept-Encoding": "gzip;q=0, *;q=1"})
+        assert status == 200 and "Content-Encoding" not in identity
+        status, data, headers = get(endpoint, path, {"Accept-Encoding": "br, gzip"})
+        assert status == 200 and headers["Content-Encoding"] == "gzip"
+        assert gzip.decompress(data) == plain and len(data) < len(plain)
+        assert identity["Vary"] == headers["Vary"] == "Accept-Encoding"
+        assert int(headers["Content-Length"]) == len(data)
+        if path == "/districts.json":
+            conditional = {"Accept-Encoding": "gzip", "If-None-Match": headers["ETag"]}
+            assert get(endpoint, path, conditional)[:2] == (304, b"")
+            assert request(endpoint, "HEAD", path, headers={"Accept-Encoding": "gzip"}) == (200, b"")
+        else:
+            assert headers["Cache-Control"] == "no-store"
 
 
 def test_logo_and_favicons_are_served_as_images(endpoint):
