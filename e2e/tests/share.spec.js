@@ -355,6 +355,7 @@ test('a comparison prints the two districts side by side', async ({page}) => {
   await expect(sheet.locator('.sheet-glance thead th')).toHaveText(['Measure', DISTRICT, 'House District 23', 'Hawaiʻi', 'Difference', 'Source']);
   await expect(sheet.locator('.sheet-glance').getByRole('row', {name: /People below the poverty level/})).toContainText(`▲ 4.4 points higher in ${DISTRICT}`);
   await expect(sheet.locator('.sheet-section > h2')).toHaveText(['1 At a glance', '2 People', '4 Programs and help', 'Sources']);
+  await expect(sheet.locator('.sheet-where').first()).toContainText(/Includes .+Overlaps Senate District .+Shares of 2020 Census residents/);
   await expect(sheet.locator('.sheet-live')).toContainText('/compare?d=house:022,house:023');
   await page.emulateMedia({media: null});
 });

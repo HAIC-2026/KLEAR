@@ -19,7 +19,7 @@ from klear.web import display
 from klear.web.cache import _stamp, build_id
 
 NAME = "profile_cache.json"
-VERSION = 1
+VERSION = 2
 FORMATS = ("json", "csv")
 District = tuple[str, str]
 logger = logging.getLogger(__name__)

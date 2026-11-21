@@ -407,7 +407,7 @@ summary{font-weight:600;color:var(--accent);cursor:pointer}
 .chat-card .chat-starters .topic-title{margin-bottom:var(--s-2)}
 /* A district's page: the bar with the way back to the search and on to Compare, and the share actions; the map, zoomed
    to the district, in the left third beside its name and where it is; its profile under them across two thirds; the
-   agent in the right third. The profile is numbered as a printed brief is: 1 At a glance, with four headline figures
+   agent in the right third. The profile is numbered as a printed brief is: 1 At a glance, with five headline figures
    that each say how they compare, then the sections, each a panel that opens and shuts. */
 .bar-link{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:8px 16px;border:1px solid var(--line);border-radius:var(--r-pill);background:#fff;color:var(--ink);font-weight:700;text-decoration:none;box-shadow:var(--shadow-sm);white-space:nowrap}
 .bar-link .icon{width:18px;height:18px;color:var(--accent)}
@@ -427,6 +427,8 @@ summary{font-weight:600;color:var(--accent);cursor:pointer}
 .mast-number{display:block;margin:2px 0 -.06em -.04em;font-family:var(--display);font-stretch:68%;font-size:clamp(64px,6vw,96px);font-weight:800;line-height:.86;letter-spacing:-.02em;color:var(--chamber);font-variant-numeric:lining-nums}
 .district-facts{min-width:0}
 .district-where{margin:0;font-size:var(--fs-base);font-weight:600;line-height:1.45}
+.district-places{margin-top:4px;font-size:var(--fs-sm)}
+.district-places summary{width:fit-content;min-height:24px;color:var(--accent);cursor:pointer;text-decoration:underline}
 .district-meta{margin:2px 0 0;font-size:var(--fs-sm);line-height:1.5;color:var(--muted)}
 /* Shown only while it has focus, as the page's own skip link is. */
 .skip-ask:not(:focus){position:absolute;width:1px;height:1px;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
@@ -452,14 +454,14 @@ details.profile-member-about{margin:0;padding:0;border:0;font-size:var(--fs-xs);
 .profile-plan-label{font-weight:600}
 .profile-plan-cite,.profile-plan .profile-plan-note{color:var(--muted)}
 .profile-status{margin:var(--s-4) 0;font-size:var(--fs-sm);color:var(--muted)}
-/* 1 At a glance: the section's number and title over an ink rule, with the share actions at its right, then the four
+/* 1 At a glance: the section's number and title over an ink rule, with the share actions at its right, then the five
    headline figures, parted by thin rules. Each figure reads label, figure, margin, then how it compares. */
 .profile-glance{margin:var(--s-4) 0 0;scroll-margin-top:calc(var(--stick) + 12px)}
 .glance-head{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:var(--s-1) var(--s-5);padding-bottom:6px;border-bottom:2px solid var(--ink)}
 .glance-title{display:flex;align-items:center;margin:0;font-size:var(--fs-lg);font-weight:750;letter-spacing:-.01em}
 /* Each section's number in a round badge of the chamber's color, white on it (8:1 or more). */
 .sec-num{flex:none;display:inline-grid;place-items:center;width:1.8em;height:1.8em;margin-right:12px;border-radius:50%;background:var(--chamber);color:#fff;font-family:var(--display);font-stretch:87%;font-size:.9em;font-weight:800;line-height:1;font-variant-numeric:lining-nums}
-.profile-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0;margin:0}
+.profile-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,9rem),1fr));gap:0;margin:0}
 .profile-stats>div{display:flex;flex-direction:column;min-width:0;padding:10px var(--s-4) var(--s-3);border-left:1px solid var(--line)}
 .profile-stats>div:first-child{padding-left:0;border-left:0}
 .profile-stats dd{margin:0;line-height:1.2;font-variant-numeric:tabular-nums}
@@ -1530,8 +1532,9 @@ details.tier[open] summary{margin-bottom:6px}
 .skeleton-bar.block{height:auto;aspect-ratio:3/2;margin:var(--s-3) 0}
 .skeleton-bar.w-20{width:20%}.skeleton-bar.w-30{width:30%}.skeleton-bar.w-45{width:45%}.skeleton-bar.w-60{width:60%}.skeleton-bar.w-80{width:80%}
 .skeleton-row td{padding-top:14px;padding-bottom:14px}
-.skeleton-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--s-5);padding:var(--s-2) 0 var(--s-3)}
+.skeleton-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,9rem),1fr));gap:var(--s-5);padding:var(--s-2) 0 var(--s-3)}
 .profile-section.skeleton,.cmp-section.skeleton{padding:var(--s-4) var(--card-pad) var(--s-2)}
+.cmp-map.skeleton-bar{height:auto;margin:0}
 .cmp-card .profile-status{margin:0 0 var(--s-2);font-weight:600;color:var(--ink)}
 @keyframes shimmer{from{background-position:100% 0}to{background-position:-100% 0}}
 @media(prefers-reduced-motion:reduce){.skeleton-bar,.map-loading{animation:none}}
