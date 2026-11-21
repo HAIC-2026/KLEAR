@@ -474,8 +474,8 @@ B.
 - `/compare`: two districts side by side, each a search and
   every district by number until one is chosen (a House or Senate switch sits in the bar above them
   meanwhile), then its name with a gold A or B, a small map zoomed to it and its legislator. Each card
-  lists its four largest places and the districts it overlaps in the other chamber. Expand the place
-  count to see the rest. Shares use the district's 2020 Census population. Under the cards the two
+  lists all its places by share of district residents. The next line lists the districts it overlaps
+  in the other chamber. Shares use the district's 2020 Census population. Under the cards the two
   districts' figures run row by row: each measure's name and Hawaiʻi's figure across both columns,
   and each district's figure under its name. A clear gap appears once under the higher figure, in
   percentage points for rates and as a percentage of the lower figure for other measures. When the

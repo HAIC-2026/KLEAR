@@ -42,14 +42,14 @@ test('each selected district shows its own places and overlapping districts', as
   });
   await page.goto('/compare?d=house:022,house:023');
   const a = page.locator('.cmp-col-a'), b = page.locator('.cmp-col-b');
-  await expect(a.locator('p.district-meta').first()).toHaveText('Includes Lāʻie (19%), Pūpūkea (16%), Haleʻiwa (16%), Hauʻula (13%). Overlaps Senate District 23 (100%).');
-  const more = a.locator('.district-places summary');
-  await expect(more).toHaveAccessibleName('1 more place in House District 22');
-  await expect(a.getByText('Waialua (11%)')).toBeHidden();
-  await more.press('Enter');
-  await expect(a.getByText('Waialua (11%)')).toBeVisible();
+  const lines = a.locator('p.district-meta');
+  await expect(lines).toHaveText([
+    'Includes Lāʻie (19%), Pūpūkea (16%), Haleʻiwa (16%), Hauʻula (13%), Waialua (11%).',
+    'Overlaps Senate District 23 (100%).',
+  ]);
+  await expect(lines.first()).toBeVisible();
+  await expect(lines.last()).toBeVisible();
   await expect(b.locator('.district-meta')).toHaveText('Includes Urban Honolulu (100%).');
-  await expect(b.locator('.district-places')).toHaveCount(0);
 });
 
 test('the two pickers keep keyboard focus and a failed comparison can retry in place', async ({page, isMobile}) => {

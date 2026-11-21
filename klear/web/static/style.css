@@ -427,8 +427,6 @@ summary{font-weight:600;color:var(--accent);cursor:pointer}
 .mast-number{display:block;margin:2px 0 -.06em -.04em;font-family:var(--display);font-stretch:68%;font-size:clamp(64px,6vw,96px);font-weight:800;line-height:.86;letter-spacing:-.02em;color:var(--chamber);font-variant-numeric:lining-nums}
 .district-facts{min-width:0}
 .district-where{margin:0;font-size:var(--fs-base);font-weight:600;line-height:1.45}
-.district-places{margin-top:4px;font-size:var(--fs-sm)}
-.district-places summary{width:fit-content;min-height:24px;color:var(--accent);cursor:pointer;text-decoration:underline}
 .district-meta{margin:2px 0 0;font-size:var(--fs-sm);line-height:1.5;color:var(--muted)}
 /* Shown only while it has focus, as the page's own skip link is. */
 .skip-ask:not(:focus){position:absolute;width:1px;height:1px;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}

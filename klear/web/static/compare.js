@@ -103,7 +103,7 @@
     h.append(a);
     const facts = node('div', '', 'cmp-facts');
     if (p.where) facts.append(node('p', p.where, 'district-where'));
-    facts.append(...districtGeography(p));
+    facts.append(...districtGeography(p).map(line => node('p', line, 'district-meta')));
     for (const mem of p.members || []) {
       const who = node('p', '', 'profile-member-name');
       who.append(node('span', mem.title, 'profile-member-title'), ' ', link(mem.reads || mem.name, mem.url));

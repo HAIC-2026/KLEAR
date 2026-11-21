@@ -657,7 +657,7 @@ function districtHead(name, p) {
   // While the profile loads, gray lines where the place and legislator go.
   if (!p) { if (name) about.append(skeleton(['w-60', 'w-80', 'w-45'])); return; }
   if (p.where) about.append(node('p', p.where, 'district-where'));
-  about.append(...districtGeography(p));
+  about.append(...districtGeography(p).map(line => node('p', line, 'district-meta')));
   if ((p.members || []).length) member.append(profileMembers(p.members));
 }
 
@@ -1143,17 +1143,9 @@ const overlapsList = p => shareList(p.overlaps);
 
 function districtGeography(p) {
   const lines = [];
-  if (p.places.length) lines.push(`Includes ${shareList(p.places.slice(0, 4))}.`);
+  if (p.places.length) lines.push(`Includes ${shareList(p.places)}.`);
   if (p.overlaps.length) lines.push(`Overlaps ${overlapsList(p)}.`);
-  if (!lines.length) return [];
-  const note = node('p', lines.join(' '), 'district-meta');
-  const rest = p.places.slice(4);
-  if (!rest.length) return [note];
-  const more = node('details', '', 'district-places');
-  const toggle = node('summary', `${rest.length} more ${rest.length === 1 ? 'place' : 'places'}`);
-  toggle.append(hidden(` in ${p.district}`));
-  more.append(toggle, node('p', shareList(rest), 'district-meta'));
-  return [note, more];
+  return lines;
 }
 
 // The district's official area description and the permanent residents the Reapportionment Commission drew it on,
@@ -1887,11 +1879,9 @@ function compareSheet(list, choice) {
     const l = node('p', '', 'sheet-where');
     l.append(node('b', p.district), p.where ? ` · ${p.where}` : '');
     for (const m of p.members || []) l.append(` · ${m.title} ${m.reads || m.name}`);
-    const geography = [];
-    if (p.places.length) geography.push(`Includes ${placesList(p)}.`);
-    if (p.overlaps.length) geography.push(`Overlaps ${overlapsList(p)}.`);
+    const geography = districtGeography(p);
     if (geography.length) {
-      l.append(node('br', ''), geography.join(' '));
+      for (const line of geography) l.append(node('br', ''), line);
       const source = cite(p.shares_source);
       if (source) l.append(` Shares of 2020 Census residents (source ${source}).`);
     }
