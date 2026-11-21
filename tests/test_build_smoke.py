@@ -2,6 +2,8 @@
 import io
 import json
 import zipfile
+from datetime import UTC, datetime
+from unittest.mock import patch
 
 import duckdb
 import geopandas as gpd
@@ -977,17 +979,24 @@ def test_gazetteer_download_failure_keeps_previous_store(built, capsys, monkeypa
     assert manifest["store"]["replaced"] is False and manifest["store"]["kept_previous"] is True
 
 
-def test_gated_failure_keeps_previous_store(built, capsys):
-    before = _store_state(built)
-    served = (built.tmp / "build" / "validation.json").read_text(encoding="utf-8")
-    built.override[("001", "DP03_0002E")] = "101"
-    code, out = run(capsys, "--refresh")
+def test_gated_failure_keeps_previous_store(env, capsys):
+    # A fast rebuild can finish in the same second as the store it keeps.
+    with patch.object(build_mod, "datetime", wraps=datetime) as clock:
+        instant = datetime(2026, 11, 21, 4, 7, 8, 100_000, tzinfo=UTC)
+        clock.now.return_value = instant
+        code, out = run(capsys)
+        assert code == 0, out
+        before = _store_state(env)
+        served = (env.tmp / "build" / "validation.json").read_text(encoding="utf-8")
+        env.override[("001", "DP03_0002E")] = "101"
+        clock.now.return_value = instant.replace(microsecond=900_000)
+        code, out = run(capsys, "--refresh")
     assert code == 1, out
-    assert _store_state(built) == before
+    assert _store_state(env) == before
     assert "store not replaced: gated checks failed: source_fidelity" in out
     # The kept store keeps its own report; the failed attempt's report is kept beside it, saying it replaced nothing.
-    assert (built.tmp / "build" / "validation.json").read_text(encoding="utf-8") == served
-    attempt = json.loads((built.tmp / "build" / "validation-attempt.json").read_text(encoding="utf-8"))
+    assert (env.tmp / "build" / "validation.json").read_text(encoding="utf-8") == served
+    attempt = json.loads((env.tmp / "build" / "validation-attempt.json").read_text(encoding="utf-8"))
     assert attempt["store"] == {
         "replaced": False,
         "reason": "gated checks failed: source_fidelity",

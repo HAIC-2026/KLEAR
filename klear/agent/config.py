@@ -252,7 +252,13 @@ COUNTY_SECTION = (
     ),
 )
 # Profile figures to show first, before the full sections.
-PROFILE_HEADLINE = ("pop_total", "median_household_income", "pct_people_poverty", "pct_65_plus")
+PROFILE_HEADLINE = (
+    "pop_total",
+    "median_household_income",
+    "pct_people_poverty",
+    "pct_65_plus",
+    "unemployment_rate",
+)
 PROFILE_INDICATORS = tuple(
     dict.fromkeys(
         PROFILE_HEADLINE + tuple(i for _, ids in PROFILE_SECTIONS for i in ids if i not in PROFILE_LARGEST)

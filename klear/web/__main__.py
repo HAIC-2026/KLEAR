@@ -1,6 +1,8 @@
 """Web interface that answers district questions with the KLEAR assistant under a daily spend cap."""
 
 import argparse
+import gzip
+import io
 import json
 import re
 import socket
@@ -11,7 +13,7 @@ import time
 import traceback
 import webbrowser
 from collections import defaultdict, deque
-from functools import partial
+from functools import lru_cache, partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
@@ -103,6 +105,25 @@ PER_MINUTE = 6
 CHAT_BYTES = 16384
 _RECENT = defaultdict(deque)
 _RECENT_LOCK = threading.Lock()
+
+
+def accepts_gzip(header: str) -> bool:
+    """An explicit gzip preference takes precedence over a wildcard."""
+    qualities = {}
+    for item in header.lower().split(","):
+        coding, _, parameter = item.strip().partition(";")
+        if coding.strip() not in ("gzip", "*"):
+            continue
+        quality = parameter.strip() or "q=1"
+        match = re.fullmatch(r"q\s*=\s*(0(?:\.\d{0,3})?|1(?:\.0{0,3})?)", quality)
+        qualities[coding.strip()] = bool(match and float(match[1]) > 0)
+    return qualities.get("gzip", qualities.get("*", False))
+
+
+@lru_cache(maxsize=32)
+def _gzip_asset(path: Path, mtime_ns: int, size: int) -> bytes:
+    """Keep compressed public assets across requests until the file changes."""
+    return gzip.compress(path.read_bytes(), compresslevel=5, mtime=0)
 
 
 def member_match(m: Member) -> dict:
@@ -227,7 +248,41 @@ class Handler(SimpleHTTPRequestHandler):
         )
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("Cache-Control", self.cache_policy())
+        if getattr(self, "vary_encoding", False):
+            self.send_header("Vary", "Accept-Encoding")
         super().end_headers()
+
+    def send_head(self):
+        # The standard handler serves the identity representation and its conditional GETs.
+        route = urlsplit(self.path).path
+        if route == "/":
+            route = "/index.html"
+        if route not in PUBLIC or not route.endswith((".html", ".js", ".css", ".svg", ".json")):
+            return super().send_head()
+        self.vary_encoding = True
+        if not accepts_gzip(self.headers.get("Accept-Encoding", "")):
+            return super().send_head()
+        asset = STATIC / route.lstrip("/")
+        try:
+            stat = asset.stat()
+            etag = f'W/"{stat.st_mtime_ns:x}-{stat.st_size:x}-gzip"'
+            # The browser revalidates these unversioned URLs with the tag for its representation.
+            tags = self.headers.get("If-None-Match", "").split(",")
+            if any(tag.strip().removeprefix("W/") in ("*", etag[2:]) for tag in tags):
+                self.send_response(304)
+                self.send_header("ETag", etag)
+                self.end_headers()
+                return None
+            data = _gzip_asset(asset, stat.st_mtime_ns, stat.st_size)
+        except OSError:
+            return super().send_head()
+        self.send_response(200)
+        self.send_header("Content-Type", self.guess_type(str(asset)))
+        self.send_header("Content-Encoding", "gzip")
+        self.send_header("Content-Length", str(len(data)))
+        self.send_header("ETag", etag)
+        self.end_headers()
+        return io.BytesIO(data)
 
     def cache_policy(self):
         """Never store answers or errors, revalidate pages, and keep fonts for a week."""
@@ -240,8 +295,13 @@ class Handler(SimpleHTTPRequestHandler):
     def reply(self, status, payload):
         return self.reply_json(status, json.dumps(payload, ensure_ascii=False, allow_nan=False).encode())
 
-    def reply_json(self, status, body: bytes):
+    def reply_json(self, status, body: bytes, *, compress=False):
         self.send_response(status)
+        if compress:
+            self.vary_encoding = True
+            if accepts_gzip(self.headers.get("Accept-Encoding", "")):
+                body = gzip.compress(body, compresslevel=3, mtime=0)
+                self.send_header("Content-Encoding", "gzip")
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
@@ -484,7 +544,7 @@ class Handler(SimpleHTTPRequestHandler):
             geo, body = self.server.profiles.get(self.store, text, "csv" if as_csv else "json")
             if as_csv:
                 return self.attachment(body, "text/csv", f"klear-{geo[0]}-district-{int(geo[1])}.csv")
-            return self.reply_json(200, body)
+            return self.reply_json(200, body, compress=True)
         except InvalidDistrict:
             return self.reply(400, {"error": "Choose a valid stored House or Senate district."})
         except Exception:  # noqa: BLE001 - redact internal errors at the HTTP boundary
@@ -497,7 +557,7 @@ class Handler(SimpleHTTPRequestHandler):
         if len(text) > 40:
             return self.reply(400, {"error": "Choose one or two stored House or Senate districts."})
         try:
-            return self.reply_json(200, self.server.profiles.comparison(self.store, text))
+            return self.reply_json(200, self.server.profiles.comparison(self.store, text), compress=True)
         except InvalidDistrict:
             return self.reply(400, {"error": "Choose one or two stored House or Senate districts."})
         except Exception:  # noqa: BLE001 - redact internal errors at the HTTP boundary

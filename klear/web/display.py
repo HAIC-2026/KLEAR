@@ -798,6 +798,16 @@ def profile(
         r["fact"]["indicator_id"]: _profile_row(r, session, store) for s in raw["sections"] for r in s["rows"]
     }
     headline = [_public(rows[i]) for i in PROFILE_HEADLINE if i in rows]
+    if "unemployment_rate" not in rows:
+        reason = next(
+            (
+                m["reason"]
+                for m in raw.get("missing", [])
+                if m["indicator_id"] == "unemployment_rate" and m["geo"] == raw["district"]["geo"]
+            ),
+            None,
+        )
+        headline.append(_placeholder("unemployment_rate", reason, store))
     largest = _largest(raw)
     keys = {title: [k for k in ids if k in PROFILE_LARGEST] for title, ids in PROFILE_SECTIONS}
     sections = [

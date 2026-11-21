@@ -89,6 +89,41 @@ def test_compare_shows_every_industry_either_profile_shows_for_both_districts(st
     )
 
 
+def test_unemployment_headline_uses_district_rate_and_explains_missing_figures(store):
+    add_indicators(
+        store,
+        pd.DataFrame(
+            [("unemployment_rate", "Unemployment rate", "percent", "Civilian labor force", None, False)],
+            columns=["indicator_id", "label", "unit", "universe", "acs_var", "additive"],
+        ),
+    )
+    add_coverage(store, pd.DataFrame([("unemployment_rate", "house")], columns=["indicator_id", "geo_type"]))
+    add_facts(
+        store,
+        pd.DataFrame(
+            [
+                _fact("house", "022", "unemployment_rate", 5.9, 1.6),
+                _fact(
+                    "house",
+                    "023",
+                    "unemployment_rate",
+                    None,
+                    None,
+                    value_status="suppressed",
+                    moe_status="not_computable",
+                ),
+            ]
+        ),
+    )
+    a, b = display.comparison(store, [H22, H23])["districts"]
+    rate = next(r for r in a["headline"] if r["id"] == "unemployment_rate")
+    assert (rate["value"], rate["spread"], rate["source"]["year"]) == ("5.9%", "± 1.6 points", "2020-2024")
+    assert rate["meaning"]["universe"] == "Civilian labor force"
+    missing = next(r for r in b["headline"] if r["id"] == "unemployment_rate")
+    assert missing["missing"] == "Too few cases for the source to publish"
+    assert "value" not in missing
+
+
 def test_swapping_the_districts_keeps_the_same_rows_in_the_same_order(store):
     ab = display.comparison(store, [H22, H23])["districts"]
     ba = display.comparison(store, [H23, H22])["districts"]

@@ -29,6 +29,29 @@ test('Compare expands both districts when chat is minimized and keeps the draft'
   await expect(page.locator('#welcome-text')).toHaveText(/^Pick a question/);
 });
 
+test('each selected district shows its own places and overlapping districts', async ({page}) => {
+  const places = ['Lāʻie', 'Pūpūkea', 'Haleʻiwa', 'Hauʻula', 'Waialua'];
+  await page.route('**/api/compare?*', async route => {
+    const response = await route.fetch(), data = await response.json();
+    const [a, b] = data.districts;
+    a.places = places.map((name, i) => ({name, share: ['19%', '16%', '16%', '13%', '11%'][i]}));
+    a.overlaps = [{name: 'Senate District 23', share: '100%'}];
+    b.places = [{name: 'Urban Honolulu', share: '100%'}];
+    b.overlaps = [];
+    await route.fulfill({response, json: data});
+  });
+  await page.goto('/compare?d=house:022,house:023');
+  const a = page.locator('.cmp-col-a'), b = page.locator('.cmp-col-b');
+  const lines = a.locator('p.district-meta');
+  await expect(lines).toHaveText([
+    'Includes Lāʻie (19%), Pūpūkea (16%), Haleʻiwa (16%), Hauʻula (13%), Waialua (11%).',
+    'Overlaps Senate District 23 (100%).',
+  ]);
+  await expect(lines.first()).toBeVisible();
+  await expect(lines.last()).toBeVisible();
+  await expect(b.locator('.district-meta')).toHaveText('Includes Urban Honolulu (100%).');
+});
+
 test('the two pickers keep keyboard focus and a failed comparison can retry in place', async ({page, isMobile}) => {
   await page.route('**/api/compare?*', route => {
     const pair = new URL(route.request().url()).searchParams.get('d');

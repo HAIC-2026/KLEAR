@@ -347,6 +347,9 @@ async function openDistrict(geo, name = districtName(geo)) {
   if (opening) return;
   opening = true;
   try {
+    // Start the shared request on selection so the zoom and network transfer run together.
+    // loadProfile shows any error and offers Retry.
+    profileOf(geo).catch(() => {});
     const frame = $('district-map').querySelector('.map-frame').getBoundingClientRect();
     const seen = frame.bottom > 0 && frame.top < window.innerHeight && frame.height > 0;
     if (view() === 'home' && seen && window.klearMap && !reduceMotion.matches) await window.klearMap.zoomTo(geo);
@@ -627,13 +630,13 @@ async function loadProfile(geo, name) {
   }
 }
 
-// While a profile loads, gray bars where it will be: At a glance with its four figures, then the first sections.
+// While a profile loads, gray bars where it will be: At a glance with its five figures, then the first sections.
 function profileLoading() {
   const box = node('div', '', 'profile-loading');
   box.append(node('p', 'Loading the district profile…', 'profile-status visually-hidden'));
   const glance = node('div', '', 'profile-glance'), stats = node('div', '', 'skeleton-stats');
   glance.setAttribute('aria-hidden', 'true');
-  for (let i = 0; i < 4; i++) stats.append(skeleton(['w-60', 'big w-45', 'w-45', 'w-80']));
+  for (let i = 0; i < 5; i++) stats.append(skeleton(['w-60', 'big w-45', 'w-45', 'w-80']));
   glance.append(skeleton(['title w-30']), stats);
   box.append(glance);
   for (const width of ['w-20', 'w-30', 'w-30']) box.append(skeleton([`title ${width}`], 'profile-section'));
@@ -654,8 +657,7 @@ function districtHead(name, p) {
   // While the profile loads, gray lines where the place and legislator go.
   if (!p) { if (name) about.append(skeleton(['w-60', 'w-80', 'w-45'])); return; }
   if (p.where) about.append(node('p', p.where, 'district-where'));
-  const meta = [p.places.length ? `Includes ${placesList(p)}.` : '', p.overlaps.length ? `Overlaps ${overlapsList(p)}.` : ''];
-  if (meta.some(Boolean)) about.append(node('p', meta.filter(Boolean).join(' '), 'district-meta'));
+  about.append(...districtGeography(p).map(line => node('p', line, 'district-meta')));
   if ((p.members || []).length) member.append(profileMembers(p.members));
 }
 
@@ -1134,9 +1136,17 @@ window.addEventListener('hashchange', scheduleProfileJumps);
 // The largest places in a district and the other chamber's districts it overlaps, with their shares of its residents.
 function placesList(p) {
   const more = p.places.length - 4;
-  return p.places.slice(0, 4).map(x => `${x.name} (${x.share})`).join(', ') + (more > 0 ? `, and ${more} more places` : '');
+  return shareList(p.places.slice(0, 4)) + (more > 0 ? `, and ${more} more ${more === 1 ? 'place' : 'places'}` : '');
 }
-const overlapsList = p => p.overlaps.map(o => `${o.name} (${o.share})`).join(', ');
+const shareList = entries => entries.map(x => `${x.name} (${x.share})`).join(', ');
+const overlapsList = p => shareList(p.overlaps);
+
+function districtGeography(p) {
+  const lines = [];
+  if (p.places.length) lines.push(`Includes ${shareList(p.places)}.`);
+  if (p.overlaps.length) lines.push(`Overlaps ${overlapsList(p)}.`);
+  return lines;
+}
 
 // The district's official area description and the permanent residents the Reapportionment Commission drew it on,
 // each with the report page it comes from, then how that count differs from the ACS total, and the report.
@@ -1325,6 +1335,11 @@ function headlineStats(headline) {
   // Each term comes before its value, as a description list needs; the CSS shows the value on top.
   for (const h of headline) {
     const s = node('div', ''), value = node('dd', '');
+    if (h.missing) {
+      s.append(says('dt', h.label), node('dd', h.missing, 'profile-reading'));
+      stats.append(s);
+      continue;
+    }
     value.append(node('span', h.value, 'num'));
     if (h.spread) value.append(' ', node('span', h.spread, 'moe'));
     if (h.caution) value.append(' ', cautionChip(h.caution));
@@ -1864,6 +1879,12 @@ function compareSheet(list, choice) {
     const l = node('p', '', 'sheet-where');
     l.append(node('b', p.district), p.where ? ` · ${p.where}` : '');
     for (const m of p.members || []) l.append(` · ${m.title} ${m.reads || m.name}`);
+    const geography = districtGeography(p);
+    if (geography.length) {
+      for (const line of geography) l.append(node('br', ''), line);
+      const source = cite(p.shares_source);
+      if (source) l.append(` Shares of 2020 Census residents (source ${source}).`);
+    }
     return l;
   });
   const parts = [sheetHeading('KLEAR comparison', names.join(' and '), lines, `/compare?d=${list.map(p => p.geo).join(',')}`)];

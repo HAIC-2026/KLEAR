@@ -151,14 +151,14 @@ async function fullProfile(page) {
     const response = await route.fetch(), p = await response.json();
     p.caveats = [];
     const [first] = p.headline;
-    p.headline = ['Total population', 'Median household income', first.label, 'Share who are kūpuna'].map(label => ({...first, label}));
+    p.headline = ['Total population', 'Median household income', first.label, 'Share who are kūpuna', 'Unemployment rate'].map(label => ({...first, label}));
     const people = p.sections.find(s => s.title === 'People');
     people.rows = Array.from({length: 9}, (_, i) => ({...people.rows[i % people.rows.length], id: `row_${i}`}));
     await route.fulfill({response, json: p});
   });
 }
 
-// A district's link on a laptop: the first screen shows its map, its name and its four headline figures. The chat
+// A district's link on a laptop: the first screen shows its map, its name and its five headline figures. The chat
 // beside the profile stays in view as the profile scrolls, and an answer with a chart has 600 px or more to be read in.
 test.describe('a district at 1440 by 900', () => {
   test.skip(({isMobile}) => isMobile, 'a laptop screen');
@@ -169,7 +169,7 @@ test.describe('a district at 1440 by 900', () => {
     await expect(page.locator('#profile-live')).toHaveText(`Profile for ${DISTRICT} loaded.`);
     await expect(page.getByRole('heading', {level: 1, name: DISTRICT})).toBeInViewport({ratio: 1});
     await expect(page.locator('#district-map')).toBeInViewport({ratio: 1});
-    expect(await onScreen(page, '.profile-stats dd:not(.profile-reading, .glance-strip)')).toBe(4);
+    expect(await onScreen(page, '.profile-stats dd:not(.profile-reading, .glance-strip)')).toBe(5);
     // The chat takes the right third of the page.
     const chat = await page.locator('#chat').boundingBox(), profile = await page.locator('#profile').boundingBox();
     expect(chat.x).toBeGreaterThan(profile.x + profile.width);

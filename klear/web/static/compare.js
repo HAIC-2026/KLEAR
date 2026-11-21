@@ -103,6 +103,7 @@
     h.append(a);
     const facts = node('div', '', 'cmp-facts');
     if (p.where) facts.append(node('p', p.where, 'district-where'));
+    facts.append(...districtGeography(p).map(line => node('p', line, 'district-meta')));
     for (const mem of p.members || []) {
       const who = node('p', '', 'profile-member-name');
       who.append(node('span', mem.title, 'profile-member-title'), ' ', link(mem.reads || mem.name, mem.url));
@@ -120,7 +121,8 @@
   // A column while its district loads: the district's name, then gray bars where its map and facts will be.
   function columnLoading(geo) {
     const box = node('div', '', 'cmp-card');
-    box.append(node('p', `Loading ${districtName(geo)}…`, 'profile-status'), skeleton(['block', 'w-60', 'w-45']));
+    box.append(node('p', `Loading ${districtName(geo)}…`, 'profile-status'),
+      skeleton([], 'cmp-map skeleton-bar'), skeleton(['w-80', 'w-60'], 'cmp-facts'));
     return box;
   }
 
@@ -398,6 +400,10 @@
     const out = [node('p', list.length === 2
       ? 'Each figure shows its 90% margin of error or range, and a number after its name points to its source. When there’s a clear difference, the gap appears under the higher figure.'
       : 'Choose a second district to set its figures beside these.', 'cmp-note')];
+    const source = list.find(p => p.shares_source && (p.places.length || p.overlaps.length))?.shares_source;
+    if (source) {
+      out[0].append(' Place and overlap percentages are shares of district residents in the ', link(source.year, source.url), '.');
+    }
     // The districts' names over their columns stay in view while the rows scroll under them.
     const heads = node('div', '', 'cmp-sticky');
     heads.setAttribute('aria-hidden', 'true');
