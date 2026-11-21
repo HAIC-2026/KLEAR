@@ -222,8 +222,9 @@ class BuildResult:
         return _exit_code(self.checks, self.skipped)
 
 
-def _stamp(t: datetime) -> str:
-    return f"{t.astimezone(HST):%Y-%m-%d %H:%M:%S} HST ({t.astimezone(UTC):%Y-%m-%dT%H:%M:%SZ} UTC)"
+def _stamp(t: datetime, *, timespec: str = "seconds") -> str:
+    utc = t.astimezone(UTC).isoformat(timespec=timespec).removesuffix("+00:00")
+    return f"{t.astimezone(HST):%Y-%m-%d %H:%M:%S} HST ({utc}Z UTC)"
 
 
 def _git_commit() -> str:
@@ -746,14 +747,15 @@ def build(
 
     raw_files = [_raw_entry(p) for p in used]
     checks.append(_check_hashes(raw_files))
-    finished = datetime.now(UTC)
+    # Reports and prepared caches match the served store by this timestamp.
+    built_at = _stamp(datetime.now(UTC), timespec="microseconds")
     commit = _git_commit()
     reason = _keep_reason(loaded, checks, skipped)
     counts, sources, store_status = _finish_store(
-        tmp_store, final, reason, (_stamp(finished), commit, checks, skipped), rules
+        tmp_store, final, reason, (built_at, commit, checks, skipped), rules
     )
     manifest = {
-        "built_at": _stamp(finished),
+        "built_at": built_at,
         "started_at": _stamp(started),
         "wall_time_s": round(time.monotonic() - t0, 1),
         "git_commit": commit,
